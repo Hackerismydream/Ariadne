@@ -2,16 +2,17 @@
 
 Ariadne turns what you learn into what your coding agents build.
 
-This repository contains the v0.1 local deterministic Ticket Kernel for
+This repository contains the Ariadne 1.0 local Learning-to-Build MVP for
 `ariadne-ltb`. The Python package is `ariadne_ltb`; the intended CLI command is
 `ari`, with `python -m ariadne_ltb.cli` as the fallback entrypoint.
 
 ## What the MVP does
 
-The demo converts `examples/multica_research_note.md` into a Build Ticket, runs
-a deterministic local agent pipeline, writes artifacts under
-`.ariadne/artifacts/<ticket_id>/`, and exports a static board under
-`.ariadne/board/`.
+The full demo ingests three local external source fixtures, creates Build
+Tickets and Build Packets, selects a code task, executes it against a separate
+demo target project, captures stdout/stderr/exit code, git diff, changed files
+and test output, reviews the result, writes local memory, generates a Feishu
+dry-run plan, and exports a static board under `.ariadne/board/`.
 
 Pipeline:
 
@@ -35,7 +36,7 @@ Install the project in your preferred Python 3.11+ environment, then run:
 
 ```bash
 pytest
-python -m ariadne_ltb.cli demo
+python -m ariadne_ltb.cli demo full
 python -m ariadne_ltb.cli export board
 ```
 
@@ -43,15 +44,15 @@ If your shell does not provide a `python` executable, use the environment's
 Python 3.11+ command or let `uv` create the environment:
 
 ```bash
-python3.11 -m ariadne_ltb.cli demo
+python3.11 -m ariadne_ltb.cli demo full
 python3.11 -m ariadne_ltb.cli export board
-uv run python -m ariadne_ltb.cli demo
+uv run python -m ariadne_ltb.cli demo full
 ```
 
 If installed as a package, the script entrypoint also works:
 
 ```bash
-ari demo
+ari demo full
 ari export board
 ```
 
@@ -65,14 +66,18 @@ Inspect generated output:
   build_packets/
   reviews/
   feishu_plans/
+  memory/
+  demo_target_project/
   artifacts/
   board/index.md
+  board/index.html
 ```
 
 ## Safety boundaries
 
 - No real Feishu writes.
-- No real coding-agent execution.
+- Full demo uses `fake-codex`, a deterministic local backend.
+- Shell/Codex/Claude-style execution scaffolds require explicit confirmation.
 - No auto-commit, auto-push, auto-merge, or PR creation.
 - No web UI, auth, crawler, vector database, or cloud runtime in v0.1.
 - Every runtime step creates an Agent Run and reaches a terminal state.

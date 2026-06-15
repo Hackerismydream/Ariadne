@@ -12,9 +12,12 @@ from ariadne_ltb.models import (
     ArtifactType,
     BuildPacket,
     BuildTicket,
+    ExecutionResult,
     FeishuWritePlan,
+    MemoryRecord,
     ProjectSpace,
     ReviewReport,
+    SourceDocument,
     stable_id,
 )
 
@@ -29,6 +32,9 @@ class AriadneStore:
         self.tickets_dir = self.base / "tickets"
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
+        self.sources_dir = self.base / "sources"
+        self.execution_results_dir = self.base / "execution_results"
+        self.memory_dir = self.base / "memory"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
         self.artifacts_dir = self.base / "artifacts"
@@ -41,7 +47,13 @@ class AriadneStore:
             self.base,
             self.tickets_dir,
             self.runs_dir,
+            self.sources_dir,
             self.build_packets_dir,
+            self.execution_results_dir,
+            self.memory_dir,
+            self.memory_dir / "tickets",
+            self.memory_dir / "build_packets",
+            self.memory_dir / "reviews",
             self.reviews_dir,
             self.feishu_plans_dir,
             self.artifacts_dir,
@@ -72,6 +84,17 @@ class AriadneStore:
     def load_ticket(self, ticket_id: str) -> BuildTicket:
         return self._read_model(self.tickets_dir / f"{ticket_id}.json", BuildTicket)
 
+    def resolve_ticket(self, ticket_id_or_key: str) -> BuildTicket:
+        direct_path = self.tickets_dir / f"{ticket_id_or_key}.json"
+        if direct_path.exists():
+            return self.load_ticket(ticket_id_or_key)
+        normalized = ticket_id_or_key.upper()
+        for ticket in self.list_tickets():
+            if ticket.key.upper() == normalized:
+                return ticket
+        msg = f"unknown ticket: {ticket_id_or_key}"
+        raise FileNotFoundError(msg)
+
     def list_tickets(self) -> list[BuildTicket]:
         tickets = [
             self._read_model(path, BuildTicket)
@@ -90,6 +113,30 @@ class AriadneStore:
 
     def load_build_packet(self, packet_id: str) -> BuildPacket:
         return self._read_model(self.build_packets_dir / f"{packet_id}.json", BuildPacket)
+
+    def save_source_document(self, source: SourceDocument) -> None:
+        self._write_model(self.sources_dir / f"{source.id}.json", source)
+
+    def load_source_document(self, source_id: str) -> SourceDocument:
+        return self._read_model(self.sources_dir / f"{source_id}.json", SourceDocument)
+
+    def list_source_documents(self) -> list[SourceDocument]:
+        return [
+            self._read_model(path, SourceDocument)
+            for path in sorted(self.sources_dir.glob("*.json"))
+        ]
+
+    def save_execution_result(self, result: ExecutionResult) -> None:
+        self._write_model(self.execution_results_dir / f"{result.id}.json", result)
+
+    def load_execution_result(self, result_id: str) -> ExecutionResult:
+        return self._read_model(self.execution_results_dir / f"{result_id}.json", ExecutionResult)
+
+    def save_memory_record(self, record: MemoryRecord) -> None:
+        self._write_model(self.memory_dir / "tickets" / f"{record.ticket_id}.json", record)
+
+    def load_memory_record(self, ticket_id: str) -> MemoryRecord:
+        return self._read_model(self.memory_dir / "tickets" / f"{ticket_id}.json", MemoryRecord)
 
     def save_review_report(self, review_report: ReviewReport) -> None:
         self._write_model(self.reviews_dir / f"{review_report.id}.json", review_report)

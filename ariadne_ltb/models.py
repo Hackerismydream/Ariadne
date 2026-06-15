@@ -27,6 +27,7 @@ class TicketStatus(str, Enum):
     ANALYZING = "analyzing"
     PLANNING = "planning"
     WAITING_APPROVAL = "waiting_approval"
+    READY_FOR_EXECUTION = "ready_for_execution"
     CODING = "coding"
     REVIEWING = "reviewing"
     NEEDS_FIX = "needs_fix"
@@ -42,6 +43,7 @@ class AgentRunStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    BLOCKED = "blocked"
     SKIPPED = "skipped"
     CANCELLED = "cancelled"
 
@@ -50,9 +52,19 @@ class AgentRunStatus(str, Enum):
         return self in {
             AgentRunStatus.SUCCEEDED,
             AgentRunStatus.FAILED,
+            AgentRunStatus.BLOCKED,
             AgentRunStatus.SKIPPED,
             AgentRunStatus.CANCELLED,
         }
+
+
+class SourceType(str, Enum):
+    PAPER = "paper"
+    BLOG = "blog"
+    GITHUB_REPO = "github_repo"
+    NOTE = "note"
+    OFFICE_HOUR = "office_hour"
+    REVIEW = "review"
 
 
 class BuildDecision(str, Enum):
@@ -66,14 +78,20 @@ class BuildDecision(str, Enum):
 
 
 class ArtifactType(str, Enum):
+    SOURCE_DOCUMENT = "source_document"
     BUILD_PACKET = "build_packet"
     RESEARCH_SUMMARY = "research_summary"
     REPO_CONTEXT = "repo_context"
     EXECUTION_PLAN = "execution_plan"
     CODEX_HANDOFF = "codex_handoff"
     DRY_RUN_EXECUTION = "dry_run_execution"
+    EXECUTION_LOG = "execution_log"
+    GIT_DIFF = "git_diff"
+    CHANGED_FILES = "changed_files"
+    TEST_OUTPUT = "test_output"
     REVIEW_REPORT = "review_report"
     FEISHU_WRITE_PLAN = "feishu_write_plan"
+    MEMORY_RECORD = "memory_record"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
 
@@ -104,6 +122,30 @@ class ProjectSpace(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
     settings: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceDocument(AriadneModel):
+    id: str
+    source_type: SourceType
+    title: str
+    path_or_url: str
+    content_hash: str
+    summary: str
+    created_at: str = Field(default_factory=utc_now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectContext(AriadneModel):
+    id: str
+    project_space_id: str
+    target_repo_path: str
+    top_level_files: list[str] = Field(default_factory=list)
+    important_files: list[str] = Field(default_factory=list)
+    readme_summary: str = ""
+    package_metadata: dict[str, Any] = Field(default_factory=dict)
+    test_command: str = ""
+    existing_tickets_summary: str = ""
+    created_at: str = Field(default_factory=utc_now)
 
 
 class BuildTicket(AriadneModel):
@@ -229,6 +271,9 @@ class AgentRun(AriadneModel):
     input_summary: str
     output_summary: str | None = None
     artifact_ids: list[str] = Field(default_factory=list)
+    attempt: int = 1
+    parent_run_id: str | None = None
+    backend_name: str | None = None
     started_at: str | None = None
     ended_at: str | None = None
     error: str | None = None
@@ -280,6 +325,58 @@ class ReviewReport(AriadneModel):
     failed_checks: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     required_fixes: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
+
+
+class ExecutionContext(AriadneModel):
+    ticket_id: str
+    build_packet_id: str
+    target_repo_path: str
+    handoff_prompt: str
+    backend_name: str
+    allowed_paths: list[str] = Field(default_factory=list)
+    command: str
+    test_command: str
+    confirm_execution: bool = False
+    timeout_seconds: int = 120
+
+
+class ExecutionResult(AriadneModel):
+    id: str
+    ticket_id: str
+    backend_name: str
+    dry_run: bool
+    command: str
+    exit_code: int
+    stdout: str = ""
+    stderr: str = ""
+    started_at: str = Field(default_factory=utc_now)
+    ended_at: str = Field(default_factory=utc_now)
+    git_head_before: str | None = None
+    git_head_after: str | None = None
+    git_status_before: str = ""
+    git_status_after: str = ""
+    changed_files: list[str] = Field(default_factory=list)
+    git_diff: str = ""
+    diff_artifact_id: str | None = None
+    execution_log_artifact_id: str | None = None
+    test_command: str = ""
+    test_exit_code: int | None = None
+    test_stdout: str = ""
+    test_stderr: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+
+class MemoryRecord(AriadneModel):
+    id: str
+    ticket_id: str
+    title: str
+    decision_log_entry: str
+    build_summary: str
+    review_summary: str
+    source_refs: list[str] = Field(default_factory=list)
+    artifact_refs: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
 
 
