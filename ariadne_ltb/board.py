@@ -229,12 +229,18 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     if ticket.build_packet_id:
         packet = store.load_build_packet(ticket.build_packet_id)
         handoff = _latest_artifact(artifacts, ArtifactType.CODEX_HANDOFF)
+        quality = packet.metadata.get("quality", {})
         lines.extend(
             [
                 "### Build Packet Summary",
                 "",
                 f"- Decision: `{packet.build_decision.value}`",
                 f"- Evidence count: `{len(packet.evidence)}`",
+                f"- Quality score: `{quality.get('overall_quality', '')}`",
+                f"- Evidence coverage: `{quality.get('evidence_coverage_score', '')}`",
+                f"- Task clarity: `{quality.get('task_clarity_score', '')}`",
+                f"- Scope risk: `{quality.get('scope_risk_score', '')}`",
+                f"- Planner mode: `{packet.metadata.get('planner_mode', '')}`",
                 f"- Project relevance: {packet.project_relevance}",
                 f"- Handoff artifact: `{handoff.path if handoff else 'missing'}`",
                 "",

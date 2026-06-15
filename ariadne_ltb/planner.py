@@ -24,6 +24,7 @@ from ariadne_ltb.models import (
     TicketStatus,
     stable_id,
 )
+from ariadne_ltb.planner_quality import score_build_packet
 from ariadne_ltb.skills import handoff_skill_references
 from ariadne_ltb.storage import AriadneStore
 
@@ -267,7 +268,7 @@ def _packet_from_llm_json(
         )
         for index, item in enumerate(data.get("evidence", []), start=1)
     ]
-    return BuildPacket(
+    packet = BuildPacket(
         id=stable_id("packet", ticket.id),
         ticket_id=ticket.id,
         source_summary=data["source_summary"],
@@ -281,6 +282,10 @@ def _packet_from_llm_json(
         risks=list(data.get("risks", [])),
         assumptions=list(data.get("assumptions", [])),
         confidence=0.75,
+    )
+    quality = score_build_packet(packet)
+    return packet.model_copy(
+        update={"metadata": packet.metadata | {"quality": quality, "planner_mode": "llm"}}
     )
 
 

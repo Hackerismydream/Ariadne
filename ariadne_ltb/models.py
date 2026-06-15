@@ -523,6 +523,7 @@ class BuildPacket(AriadneModel):
     confidence: float = 0.8
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_code_task_has_evidence(self) -> BuildPacket:

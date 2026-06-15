@@ -15,6 +15,7 @@ from ariadne_ltb.models import (
     stable_id,
     utc_now,
 )
+from ariadne_ltb.planner_quality import score_build_packet
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -75,7 +76,12 @@ def source_document_from_path(path: Path) -> SourceDocument:
         path_or_url=str(path.resolve()),
         content_hash=content_hash,
         summary=summary,
-        metadata={"filename": path.name},
+        metadata={
+            "filename": path.name,
+            "headings": extract_headings(content),
+            "action_verbs": extract_action_verbs(content),
+            "evidence_snippets": extract_evidence_snippets(content),
+        },
     )
 
 
@@ -95,6 +101,29 @@ def infer_source_type(path: Path, content: str) -> SourceType:
     if "paper" in haystack or "method" in haystack or "evaluation" in haystack:
         return SourceType.PAPER
     return SourceType.NOTE
+
+
+def extract_headings(content: str) -> list[str]:
+    return [
+        line.lstrip("#").strip()
+        for line in content.splitlines()
+        if line.startswith("## ")
+    ]
+
+
+def extract_action_verbs(content: str) -> list[str]:
+    verbs = ["implement", "add", "compare", "evaluate", "build", "improve", "review", "design"]
+    lower = content.lower()
+    return [verb for verb in verbs if verb in lower]
+
+
+def extract_evidence_snippets(content: str) -> list[str]:
+    candidates = [
+        line.strip("- ").strip()
+        for line in content.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    return candidates[:5] if len(candidates) >= 2 else candidates[:1]
 
 
 def summarize_source(source_type: SourceType, content: str) -> str:
@@ -155,7 +184,7 @@ def build_packet_from_source(ticket: BuildTicket, source: SourceDocument) -> Bui
     decision = decision_for_source(source)
     evidence = evidence_from_source(source)
     tasks, criteria, modules = packet_work_items(source)
-    return BuildPacket(
+    packet = BuildPacket(
         id=stable_id("packet", ticket.id),
         ticket_id=ticket.id,
         source_summary=source.summary,
@@ -169,6 +198,10 @@ def build_packet_from_source(ticket: BuildTicket, source: SourceDocument) -> Bui
         risks=["Scope creep if the source is treated as a full platform rewrite."],
         assumptions=["1.0 uses deterministic local rules unless optional adapters are confirmed."],
         confidence=0.86,
+    )
+    quality = score_build_packet(packet)
+    return packet.model_copy(
+        update={"metadata": packet.metadata | {"quality": quality, "planner_mode": "deterministic"}}
     )
 
 
@@ -194,10 +227,19 @@ def evidence_from_source(source: SourceDocument) -> list[Evidence]:
 
 
 def decision_for_source(source: SourceDocument) -> BuildDecision:
-    if source.source_type is SourceType.GITHUB_REPO:
+    haystack = (
+        f"{source.title} {source.summary} "
+        f"{' '.join(source.metadata.get('action_verbs', []))}"
+    ).lower()
+    if any(
+        word in haystack
+        for word in ["implementation", "implement", "cli", "github", "readme", "feature", "add"]
+    ):
         return BuildDecision.CODE_TASK
-    if source.source_type is SourceType.PAPER:
+    if any(word in haystack for word in ["evaluation", "benchmark", "metric", "paper", "evaluate"]):
         return BuildDecision.EXPERIMENT
+    if any(word in haystack for word in ["architecture", "decision", "tradeoff", "design"]):
+        return BuildDecision.ARCHITECTURE_CHANGE
     if source.source_type is SourceType.BLOG:
         return BuildDecision.DOC_UPDATE
     return BuildDecision.WATCHLIST
