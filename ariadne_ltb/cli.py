@@ -358,6 +358,22 @@ def ticket_comments(ticket_id: str) -> None:
         )
 
 
+@ticket_app.command("handoffs")
+def ticket_handoffs(ticket_id: str) -> None:
+    """Show Agent handoffs for a Build Ticket."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    handoffs = store.list_handoffs_for_ticket(ticket.id)
+    if not handoffs:
+        typer.echo("No handoffs.")
+        return
+    for handoff in handoffs:
+        typer.echo(
+            f"{handoff.from_agent} -> {handoff.to_agent}\t{handoff.status.value}\t"
+            f"{handoff.reason}\t{handoff.payload_ref or ''}"
+        )
+
+
 @ticket_app.command("resume")
 def ticket_resume(ticket_id: str) -> None:
     """Create a conservative resume plan for a ticket."""

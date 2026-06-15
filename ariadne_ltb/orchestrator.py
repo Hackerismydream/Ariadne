@@ -8,6 +8,7 @@ from pathlib import Path
 from ariadne_ltb.board import export_board
 from ariadne_ltb.execution import backend_for_name
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
+from ariadne_ltb.handoffs import record_handoff
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
@@ -23,6 +24,7 @@ from ariadne_ltb.models import (
     ExecutionResult,
     FailureReason,
     FeishuWritePlan,
+    HandoffStatus,
     MemoryRecord,
     ProjectResource,
     RouteDecision,
@@ -89,6 +91,15 @@ class TicketRunOrchestrator:
         ticket = self.store.resolve_ticket(ticket_id_or_key)
         ticket = ticket.with_status(TicketStatus.PLANNING, "Build Lead")
         self.store.save_ticket(ticket)
+        record_handoff(
+            self.store,
+            ticket,
+            self.runtime_id,
+            "Build Lead",
+            "Planner",
+            "Need Build Packet and coding handoff.",
+            self.assignment_id,
+        )
 
         planner_result = planner_for_name(planner).plan_ticket(self.store, ticket)
         if not planner_result.succeeded:
@@ -101,6 +112,16 @@ class TicketRunOrchestrator:
         packet = self.store.load_build_packet(planner_result.build_packet_id or ticket.build_packet_id)
         handoff_artifact = self.store.load_artifact(planner_result.handoff_artifact_id)
         handoff_prompt = self.store.read_artifact_text(handoff_artifact)
+        record_handoff(
+            self.store,
+            ticket,
+            self.runtime_id,
+            "Planner",
+            "Execution",
+            "Build Packet and coding handoff are ready.",
+            self.assignment_id,
+            payload_ref=handoff_artifact.id,
+        )
 
         target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
         runtime_capability_path = self.store.save_runtime_capabilities(collect_runtime_capabilities())
@@ -250,6 +271,16 @@ class TicketRunOrchestrator:
             )
             .with_status(TicketStatus.REVIEWING, "Execution")
         )
+        record_handoff(
+            self.store,
+            ticket,
+            self.runtime_id,
+            "Execution",
+            "Reviewer",
+            "Execution produced result, diff, and tests.",
+            self.assignment_id,
+            payload_ref=execution.id,
+        )
         self._progress(
             ticket,
             "execution",
@@ -309,6 +340,29 @@ class TicketRunOrchestrator:
             deep=True,
             update={"metadata": ticket.metadata | {"review_report_id": review.id}},
         )
+        if review.verdict is ReviewVerdict.NEEDS_FIX:
+            record_handoff(
+                self.store,
+                ticket,
+                self.runtime_id,
+                "Reviewer",
+                "Execution",
+                "Reviewer requested a fix.",
+                self.assignment_id,
+                payload_ref=review_artifact.id,
+                status=HandoffStatus.BLOCKED,
+            )
+        else:
+            record_handoff(
+                self.store,
+                ticket,
+                self.runtime_id,
+                "Reviewer",
+                "Memory",
+                f"Reviewer verdict={review.verdict.value}.",
+                self.assignment_id,
+                payload_ref=review_artifact.id,
+            )
         ticket = ticket.with_status(_status_for_review(review.verdict), "Reviewer")
         self.store.save_ticket(ticket)
 
@@ -339,6 +393,16 @@ class TicketRunOrchestrator:
             execution,
             review,
             memory_run.id,
+        )
+        record_handoff(
+            self.store,
+            ticket,
+            self.runtime_id,
+            "Memory",
+            "Build Lead",
+            "Memory and next tickets are written.",
+            self.assignment_id,
+            payload_ref=next_tickets_artifact.id,
         )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "next_tickets_generated",

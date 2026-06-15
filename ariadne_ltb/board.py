@@ -144,6 +144,20 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         lines.append("No runtime journal events yet.")
     lines.append("")
 
+    handoffs = store.list_handoffs_for_ticket(ticket.id)
+    lines.extend(["### Agent Handoffs", ""])
+    if handoffs:
+        lines.extend(["| Handoff | Status | Reason | Payload | Created |", "|---|---|---|---|---|"])
+        for handoff in handoffs:
+            lines.append(
+                f"| {handoff.from_agent} -> {handoff.to_agent} | "
+                f"`{handoff.status.value}` | {handoff.reason} | "
+                f"`{handoff.payload_ref or ''}` | `{handoff.created_at}` |"
+            )
+    else:
+        lines.append("No Agent handoffs yet.")
+    lines.append("")
+
     open_assignments = store.list_open_assignments()
     stale_locks = [lock for lock in list_locks(store) if lock.stale]
     heartbeats = store.list_worker_heartbeats()

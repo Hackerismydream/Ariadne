@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from ariadne_ltb.models import (
     AgentRun,
+    AgentHandoff,
     AgentProfile,
     Artifact,
     ArtifactType,
@@ -49,6 +50,7 @@ class AriadneStore:
         self.daemon_dir = self.base / "daemon"
         self.daemon_heartbeats_dir = self.daemon_dir / "heartbeats"
         self.daemon_state_path = self.daemon_dir / "state.json"
+        self.handoffs_dir = self.base / "handoffs"
         self.tickets_dir = self.base / "tickets"
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
@@ -74,6 +76,7 @@ class AriadneStore:
             self.journal_dir,
             self.daemon_dir,
             self.daemon_heartbeats_dir,
+            self.handoffs_dir,
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
@@ -330,6 +333,34 @@ class AriadneStore:
             self._read_model(path, WorkerHeartbeat)
             for path in sorted(self.daemon_heartbeats_dir.glob("*.json"))
         ]
+
+    def save_handoff(self, handoff: AgentHandoff) -> None:
+        self._write_model(self.handoffs_dir / f"{handoff.id}.json", handoff)
+
+    def load_handoff(self, handoff_id: str) -> AgentHandoff:
+        return self._read_model(self.handoffs_dir / f"{handoff_id}.json", AgentHandoff)
+
+    def list_handoffs_for_ticket(self, ticket_id: str) -> list[AgentHandoff]:
+        handoffs = [
+            self._read_model(path, AgentHandoff)
+            for path in sorted(self.handoffs_dir.glob("*.json"))
+        ]
+        order = {
+            ("Build Lead", "Planner"): 1,
+            ("Planner", "Execution"): 2,
+            ("Execution", "Reviewer"): 3,
+            ("Reviewer", "Execution"): 4,
+            ("Reviewer", "Memory"): 5,
+            ("Memory", "Build Lead"): 6,
+        }
+        return sorted(
+            [handoff for handoff in handoffs if handoff.ticket_id == ticket_id],
+            key=lambda handoff: (
+                handoff.created_at,
+                order.get((handoff.from_agent, handoff.to_agent), 99),
+                handoff.id,
+            ),
+        )
 
     def list_runtime_events(self) -> list[RuntimeEvent]:
         if not self.journal_path.exists():

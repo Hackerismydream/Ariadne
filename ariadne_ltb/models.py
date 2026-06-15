@@ -167,6 +167,7 @@ class CommentKind(str, Enum):
     MEMORY = "memory"
     ROUTE = "route"
     RECOVERY = "recovery"
+    HANDOFF = "handoff"
 
 
 class ResumeSafety(str, Enum):
@@ -211,6 +212,34 @@ class WorkerHeartbeat(AriadneModel):
             current_stage=current_stage,
             started_at=now,
             heartbeat_at=now,
+        )
+
+
+class HandoffStatus(str, Enum):
+    CREATED = "created"
+    ACCEPTED = "accepted"
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+
+
+class AgentHandoff(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    from_agent: str
+    to_agent: str
+    from_assignment_id: str | None = None
+    to_assignment_id: str | None = None
+    reason: str
+    payload_ref: str | None = None
+    status: HandoffStatus = HandoffStatus.CREATED
+    created_at: str = Field(default_factory=utc_now)
+    completed_at: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def mark_completed(self) -> AgentHandoff:
+        return self.model_copy(
+            update={"status": HandoffStatus.COMPLETED, "completed_at": utc_now()}
         )
 
 
