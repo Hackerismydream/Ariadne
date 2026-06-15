@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from ariadne_ltb.models import (
     ArtifactType,
     CommentAuthorType,
     CommentKind,
+    DaemonStatus,
     ExecutionContext,
     ExecutionResult,
     FailureReason,
@@ -26,6 +28,7 @@ from ariadne_ltb.models import (
     RouteDecision,
     ReviewVerdict,
     TicketStatus,
+    WorkerHeartbeat,
     stable_id,
     utc_now,
 )
@@ -442,7 +445,7 @@ class TicketRunOrchestrator:
             payload_ref=payload_ref,
         )
         self.store.append_runtime_event(
-            runtime_event(
+            event := runtime_event(
                 current,
                 self.runtime_id,
                 stage,
@@ -450,6 +453,33 @@ class TicketRunOrchestrator:
                 self.actor_name,
                 assignment_id=self.assignment_id,
                 payload_ref=payload_ref,
+            )
+        )
+        self._heartbeat(current, stage, event.id, event_type)
+
+    def _heartbeat(self, ticket, stage: str, event_id: str, event_type: str) -> None:  # type: ignore[no-untyped-def]
+        try:
+            existing = self.store.load_worker_heartbeat(self.runtime_id)
+            started_at = existing.started_at
+        except FileNotFoundError:
+            started_at = utc_now()
+        status = DaemonStatus.RUNNING
+        if event_type == "blocked":
+            status = DaemonStatus.BLOCKED
+        elif event_type == "failed":
+            status = DaemonStatus.FAILED
+        self.store.save_worker_heartbeat(
+            WorkerHeartbeat(
+                runtime_id=self.runtime_id,
+                pid=os.getpid(),
+                status=status,
+                current_assignment_id=self.assignment_id,
+                current_ticket_id=ticket.id,
+                current_ticket_key=ticket.key,
+                current_stage=stage,
+                started_at=started_at,
+                heartbeat_at=utc_now(),
+                last_event_id=event_id,
             )
         )
 

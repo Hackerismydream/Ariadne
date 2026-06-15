@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from enum import Enum
 from hashlib import sha256
@@ -172,6 +173,45 @@ class ResumeSafety(str, Enum):
     SAFE_TO_RESUME = "safe_to_resume"
     NEEDS_HUMAN_REVIEW = "needs_human_review"
     UNSAFE = "unsafe"
+
+
+class DaemonStatus(str, Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class WorkerHeartbeat(AriadneModel):
+    runtime_id: str
+    pid: int
+    status: DaemonStatus
+    current_assignment_id: str | None = None
+    current_ticket_id: str | None = None
+    current_ticket_key: str | None = None
+    current_stage: str | None = None
+    started_at: str
+    heartbeat_at: str
+    last_event_id: str | None = None
+    last_error: str | None = None
+
+    @classmethod
+    def new(
+        cls,
+        runtime_id: str,
+        status: DaemonStatus,
+        current_stage: str | None = None,
+    ) -> WorkerHeartbeat:
+        now = utc_now()
+        return cls(
+            runtime_id=runtime_id,
+            pid=os.getpid(),
+            status=status,
+            current_stage=current_stage,
+            started_at=now,
+            heartbeat_at=now,
+        )
 
 
 class TicketEvent(AriadneModel):

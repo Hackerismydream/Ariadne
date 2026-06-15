@@ -27,6 +27,7 @@ from ariadne_ltb.models import (
     SourceDocument,
     TicketAssignment,
     TicketComment,
+    WorkerHeartbeat,
     stable_id,
     utc_now,
 )
@@ -46,6 +47,8 @@ class AriadneStore:
         self.journal_dir = self.base / "journal"
         self.journal_path = self.journal_dir / "events.jsonl"
         self.daemon_dir = self.base / "daemon"
+        self.daemon_heartbeats_dir = self.daemon_dir / "heartbeats"
+        self.daemon_state_path = self.daemon_dir / "state.json"
         self.tickets_dir = self.base / "tickets"
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
@@ -70,6 +73,7 @@ class AriadneStore:
             self.comments_dir,
             self.journal_dir,
             self.daemon_dir,
+            self.daemon_heartbeats_dir,
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
@@ -304,6 +308,24 @@ class AriadneStore:
     def append_runtime_event(self, event: RuntimeEvent) -> None:
         with self.journal_path.open("a", encoding="utf-8") as handle:
             handle.write(event.model_dump_json(exclude_none=False) + "\n")
+
+    def save_worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> Path:
+        path = self.daemon_heartbeats_dir / f"{heartbeat.runtime_id}.json"
+        self._write_model(path, heartbeat)
+        self._write_model(self.daemon_state_path, heartbeat)
+        return path
+
+    def load_worker_heartbeat(self, runtime_id: str) -> WorkerHeartbeat:
+        return self._read_model(
+            self.daemon_heartbeats_dir / f"{runtime_id}.json",
+            WorkerHeartbeat,
+        )
+
+    def list_worker_heartbeats(self) -> list[WorkerHeartbeat]:
+        return [
+            self._read_model(path, WorkerHeartbeat)
+            for path in sorted(self.daemon_heartbeats_dir.glob("*.json"))
+        ]
 
     def list_runtime_events(self) -> list[RuntimeEvent]:
         if not self.journal_path.exists():

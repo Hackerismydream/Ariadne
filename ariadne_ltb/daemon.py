@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
     AssignmentStatus,
+    BuildTicket,
     CommentAuthorType,
     CommentKind,
+    DaemonStatus,
     FailureReason,
     TicketAssignment,
+    WorkerHeartbeat,
+    utc_now,
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator, TicketRunResult
 from ariadne_ltb.storage import AriadneStore
@@ -32,11 +38,14 @@ class LocalDaemonWorker:
         self.runtime_id = runtime_id
 
     def run_once(self, confirm_execution: bool = False) -> DaemonRunResult:
+        self._heartbeat(DaemonStatus.IDLE, "idle")
         assignment = self._next_assignment()
         if assignment is None:
+            self._heartbeat(DaemonStatus.STOPPED, "stopped")
             return DaemonRunResult(runtime_id=self.runtime_id, did_work=False)
 
         ticket = self.store.load_ticket(assignment.ticket_id)
+        self._heartbeat(DaemonStatus.RUNNING, "claiming", assignment=assignment, ticket=ticket)
         claimed = assignment.mark_claimed(self.runtime_id)
         self.store.save_assignment(claimed)
         self.store.add_comment(
@@ -47,29 +56,41 @@ class LocalDaemonWorker:
             f"{claimed.agent_name}: claimed {ticket.key}.",
             payload_ref=claimed.id,
         )
-        self.store.append_runtime_event(
-            runtime_event(
-                ticket,
-                self.runtime_id,
-                "claim",
-                "claimed",
-                claimed.agent_name,
-                assignment_id=claimed.id,
-                payload_ref=claimed.id,
-            )
+        claim_event = runtime_event(
+            ticket,
+            self.runtime_id,
+            "claim",
+            "claimed",
+            claimed.agent_name,
+            assignment_id=claimed.id,
+            payload_ref=claimed.id,
+        )
+        self.store.append_runtime_event(claim_event)
+        self._heartbeat(
+            DaemonStatus.RUNNING,
+            "claiming",
+            assignment=claimed,
+            ticket=ticket,
+            last_event_id=claim_event.id,
         )
 
         running = claimed.mark_running()
         self.store.save_assignment(running)
-        self.store.append_runtime_event(
-            runtime_event(
-                ticket,
-                self.runtime_id,
-                "execution",
-                "started",
-                running.agent_name,
-                assignment_id=running.id,
-            )
+        start_event = runtime_event(
+            ticket,
+            self.runtime_id,
+            "execution",
+            "started",
+            running.agent_name,
+            assignment_id=running.id,
+        )
+        self.store.append_runtime_event(start_event)
+        self._heartbeat(
+            DaemonStatus.RUNNING,
+            "execution",
+            assignment=running,
+            ticket=ticket,
+            last_event_id=start_event.id,
         )
         try:
             result = TicketRunOrchestrator(
@@ -87,6 +108,13 @@ class LocalDaemonWorker:
             blocked = running.mark_failed(str(exc), FailureReason.AGENT_ERROR)
             self.store.save_assignment(blocked)
             self._write_blocker(ticket, blocked, str(exc))
+            self._heartbeat(
+                DaemonStatus.FAILED,
+                "failed",
+                assignment=blocked,
+                ticket=ticket,
+                last_error=str(exc),
+            )
             return DaemonRunResult(
                 runtime_id=self.runtime_id,
                 did_work=True,
@@ -104,6 +132,13 @@ class LocalDaemonWorker:
             )
             self.store.save_assignment(blocked)
             self._write_blocker(ticket, blocked, blocked.blocker or "Execution blocked.")
+            self._heartbeat(
+                DaemonStatus.BLOCKED,
+                "blocked",
+                assignment=blocked,
+                ticket=ticket,
+                last_error=blocked.blocker,
+            )
         elif result.review_verdict == "pass":
             done = running.mark_done(
                 {
@@ -121,16 +156,22 @@ class LocalDaemonWorker:
                 f"{done.agent_name}: assignment done for {ticket.key}.",
                 payload_ref=done.id,
             )
-            self.store.append_runtime_event(
-                runtime_event(
-                    ticket,
-                    self.runtime_id,
-                    "assignment",
-                    "succeeded",
-                    done.agent_name,
-                    assignment_id=done.id,
-                    payload_ref=done.id,
-                )
+            done_event = runtime_event(
+                ticket,
+                self.runtime_id,
+                "assignment",
+                "succeeded",
+                done.agent_name,
+                assignment_id=done.id,
+                payload_ref=done.id,
+            )
+            self.store.append_runtime_event(done_event)
+            self._heartbeat(
+                DaemonStatus.RUNNING,
+                "done",
+                assignment=done,
+                ticket=ticket,
+                last_event_id=done_event.id,
             )
         else:
             blocked = running.mark_blocked(
@@ -139,8 +180,21 @@ class LocalDaemonWorker:
             )
             self.store.save_assignment(blocked)
             self._write_blocker(ticket, blocked, blocked.blocker or "Review blocked.")
+            self._heartbeat(
+                DaemonStatus.BLOCKED,
+                "blocked",
+                assignment=blocked,
+                ticket=ticket,
+                last_error=blocked.blocker,
+            )
 
         latest = self.store.load_assignment(running.id)
+        self._heartbeat(
+            DaemonStatus.STOPPED,
+            "stopped",
+            assignment=latest,
+            ticket=ticket,
+        )
         return DaemonRunResult(
             runtime_id=self.runtime_id,
             did_work=True,
@@ -175,7 +229,7 @@ class LocalDaemonWorker:
             return None
         return sorted(open_assignments, key=lambda item: item.created_at)[0]
 
-    def _write_blocker(self, ticket, assignment: TicketAssignment, body: str) -> None:  # type: ignore[no-untyped-def]
+    def _write_blocker(self, ticket: BuildTicket, assignment: TicketAssignment, body: str) -> None:
         self.store.add_comment(
             ticket,
             CommentAuthorType.AGENT,
@@ -184,15 +238,69 @@ class LocalDaemonWorker:
             f"{assignment.agent_name}: blocked - {body}",
             payload_ref=assignment.id,
         )
-        self.store.append_runtime_event(
-            runtime_event(
-                ticket,
-                self.runtime_id,
-                "assignment",
-                "blocked",
-                assignment.agent_name,
-                assignment_id=assignment.id,
-                payload_ref=assignment.id,
-                metadata={"blocker": body},
-            )
+        blocked_event = runtime_event(
+            ticket,
+            self.runtime_id,
+            "assignment",
+            "blocked",
+            assignment.agent_name,
+            assignment_id=assignment.id,
+            payload_ref=assignment.id,
+            metadata={"blocker": body},
         )
+        self.store.append_runtime_event(blocked_event)
+        self._heartbeat(
+            DaemonStatus.BLOCKED,
+            "blocked",
+            assignment=assignment,
+            ticket=ticket,
+            last_event_id=blocked_event.id,
+            last_error=body,
+        )
+
+    def _heartbeat(
+        self,
+        status: DaemonStatus,
+        stage: str,
+        assignment: TicketAssignment | None = None,
+        ticket: BuildTicket | None = None,
+        last_event_id: str | None = None,
+        last_error: str | None = None,
+    ) -> WorkerHeartbeat:
+        try:
+            existing = self.store.load_worker_heartbeat(self.runtime_id)
+            started_at = existing.started_at
+        except FileNotFoundError:
+            started_at = utc_now()
+        heartbeat = WorkerHeartbeat(
+            runtime_id=self.runtime_id,
+            pid=os.getpid(),
+            status=status,
+            current_assignment_id=assignment.id if assignment else None,
+            current_ticket_id=ticket.id if ticket else None,
+            current_ticket_key=ticket.key if ticket else None,
+            current_stage=stage,
+            started_at=started_at,
+            heartbeat_at=utc_now(),
+            last_event_id=last_event_id,
+            last_error=last_error,
+        )
+        self.store.save_worker_heartbeat(heartbeat)
+        return heartbeat
+
+
+def is_stale_heartbeat(
+    heartbeat: WorkerHeartbeat,
+    stale_after_seconds: int = 120,
+) -> bool:
+    try:
+        heartbeat_at = datetime.fromisoformat(heartbeat.heartbeat_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if (datetime.now(UTC) - heartbeat_at).total_seconds() > stale_after_seconds:
+        return True
+    try:
+        os.kill(heartbeat.pid, 0)
+    except OSError:
+        return True
+    return False

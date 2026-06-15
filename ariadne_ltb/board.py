@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ariadne_ltb.local_safety import list_locks
-from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus
+from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus, WorkerHeartbeat
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -125,9 +126,21 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
 
     open_assignments = store.list_open_assignments()
     stale_locks = [lock for lock in list_locks(store) if lock.stale]
+    heartbeats = store.list_worker_heartbeats()
     lines.extend(["## Daemon / Worker", ""])
     lines.append(f"- Open assignments: `{len(open_assignments)}`")
     lines.append(f"- Stale lock warnings: `{len(stale_locks)}`")
+    if heartbeats:
+        for heartbeat in heartbeats:
+            lines.append(
+                f"- Worker `{heartbeat.runtime_id}` status=`{heartbeat.status.value}` "
+                f"stage=`{heartbeat.current_stage or ''}` ticket=`{heartbeat.current_ticket_key or ''}` "
+                f"assignment=`{heartbeat.current_assignment_id or ''}` "
+                f"heartbeat_at=`{heartbeat.heartbeat_at}` "
+                f"stale=`{str(_is_stale_heartbeat(heartbeat)).lower()}`"
+            )
+    else:
+        lines.append("- Worker heartbeat: `missing`")
     if runtime_events:
         last = runtime_events[-1]
         lines.append(f"- Latest daemon event: `{last.stage}:{last.event_type}`")
@@ -336,3 +349,11 @@ def _html_from_markdown(markdown: str) -> str:
         + body
         + "</pre></body></html>\n"
     )
+
+
+def _is_stale_heartbeat(heartbeat: WorkerHeartbeat, stale_after_seconds: int = 120) -> bool:
+    try:
+        heartbeat_at = datetime.fromisoformat(heartbeat.heartbeat_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return (datetime.now(UTC) - heartbeat_at).total_seconds() > stale_after_seconds

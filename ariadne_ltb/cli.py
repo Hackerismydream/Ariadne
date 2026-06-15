@@ -8,7 +8,7 @@ from typing import Annotated
 import typer
 
 from ariadne_ltb.board import export_board
-from ariadne_ltb.daemon import LocalDaemonWorker
+from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
 from ariadne_ltb.execution import CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
@@ -432,10 +432,11 @@ def ticket_review(ticket_id: str) -> None:
 
 @daemon_app.command("run-once")
 def daemon_run_once(
+    runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
 ) -> None:
     """Claim and run one queued assignment."""
-    result = LocalDaemonWorker(AriadneStore(state.root)).run_once(
+    result = LocalDaemonWorker(AriadneStore(state.root), runtime_id=runtime_id).run_once(
         confirm_execution=confirm_execution,
     )
     if not result.did_work:
@@ -451,12 +452,13 @@ def daemon_run_once(
 
 @daemon_app.command("start")
 def daemon_start(
+    runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
     interval: Annotated[float, typer.Option("--interval")] = 5.0,
     max_iterations: Annotated[int | None, typer.Option("--max-iterations")] = None,
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
 ) -> None:
     """Run a simple local daemon polling loop."""
-    LocalDaemonWorker(AriadneStore(state.root)).run_loop(
+    LocalDaemonWorker(AriadneStore(state.root), runtime_id=runtime_id).run_loop(
         interval_seconds=interval,
         max_iterations=max_iterations,
         confirm_execution=confirm_execution,
@@ -469,12 +471,31 @@ def daemon_status() -> None:
     """Show local daemon queue status."""
     store = AriadneStore(state.root)
     open_assignments = store.list_open_assignments()
+    heartbeats = store.list_worker_heartbeats()
     events = store.list_runtime_events()
-    typer.echo("runtime_id: local")
+    if heartbeats:
+        for heartbeat in heartbeats:
+            typer.echo(f"runtime_id: {heartbeat.runtime_id}")
+            typer.echo(f"pid: {heartbeat.pid}")
+            typer.echo(f"status: {heartbeat.status.value}")
+            typer.echo(f"current ticket: {heartbeat.current_ticket_key or ''}")
+            typer.echo(f"current assignment: {heartbeat.current_assignment_id or ''}")
+            typer.echo(f"current stage: {heartbeat.current_stage or ''}")
+            typer.echo(f"heartbeat_at: {heartbeat.heartbeat_at}")
+            typer.echo(f"last event: {heartbeat.last_event_id or ''}")
+            typer.echo(f"stale: {str(is_stale_heartbeat(heartbeat)).lower()}")
+    else:
+        typer.echo("runtime_id: local")
+        typer.echo("status: unknown")
+        typer.echo("stale: unknown")
     typer.echo(f"open assignments: {len(open_assignments)}")
     typer.echo(
         "running assignments: "
         f"{sum(1 for assignment in open_assignments if assignment.status is AssignmentStatus.RUNNING)}"
+    )
+    typer.echo(
+        "blocked assignments: "
+        f"{sum(1 for assignment in store.list_assignments() if assignment.status is AssignmentStatus.BLOCKED)}"
     )
     if events:
         last = events[-1]
