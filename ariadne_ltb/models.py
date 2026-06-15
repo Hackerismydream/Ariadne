@@ -38,6 +38,25 @@ class TicketStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class AssignmentStatus(str, Enum):
+    QUEUED = "queued"
+    CLAIMED = "claimed"
+    RUNNING = "running"
+    BLOCKED = "blocked"
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self in {
+            AssignmentStatus.BLOCKED,
+            AssignmentStatus.DONE,
+            AssignmentStatus.FAILED,
+            AssignmentStatus.CANCELLED,
+        }
+
+
 class AgentRunStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -56,6 +75,30 @@ class AgentRunStatus(str, Enum):
             AgentRunStatus.SKIPPED,
             AgentRunStatus.CANCELLED,
         }
+
+
+class AgentRunLifecycleState(str, Enum):
+    CREATED = "created"
+    RUNNING = "running"
+    TERMINAL = "terminal"
+
+
+class FailureReason(str, Enum):
+    AGENT_ERROR = "agent_error"
+    RUNTIME_OFFLINE = "runtime_offline"
+    RUNTIME_RECOVERY = "runtime_recovery"
+    TIMEOUT = "timeout"
+    EXTERNAL_EXECUTION_BLOCKED = "external_execution_blocked"
+    COMMAND_UNAVAILABLE = "command_unavailable"
+    MODEL_UNSUPPORTED = "model_unsupported"
+    TEST_FAILED = "test_failed"
+    SCOPE_VIOLATION = "scope_violation"
+    REVIEW_FAILED = "review_failed"
+    USER_CANCELLED = "user_cancelled"
+    PLANNER_FAILED = "planner_failed"
+    INVALID_RESOURCE = "invalid_resource"
+    RESOURCE_LOCKED = "resource_locked"
+    UNKNOWN = "unknown"
 
 
 class SourceType(str, Enum):
@@ -93,6 +136,9 @@ class ArtifactType(str, Enum):
     FEISHU_WRITE_PLAN = "feishu_write_plan"
     MEMORY_RECORD = "memory_record"
     NEXT_TICKETS = "next_tickets"
+    ROUTE_DECISION = "route_decision"
+    RUNTIME_CAPABILITY = "runtime_capability"
+    PROJECT_RESOURCES = "project_resources"
     PLANNER_ERROR = "planner_error"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
@@ -103,6 +149,29 @@ class ReviewVerdict(str, Enum):
     NEEDS_FIX = "needs_fix"
     BLOCKED = "blocked"
     NEEDS_HUMAN_REVIEW = "needs_human_review"
+
+
+class CommentAuthorType(str, Enum):
+    HUMAN = "human"
+    AGENT = "agent"
+    SYSTEM = "system"
+
+
+class CommentKind(str, Enum):
+    COMMENT = "comment"
+    ASSIGNMENT = "assignment"
+    PROGRESS = "progress"
+    BLOCKER = "blocker"
+    REVIEW = "review"
+    MEMORY = "memory"
+    ROUTE = "route"
+    RECOVERY = "recovery"
+
+
+class ResumeSafety(str, Enum):
+    SAFE_TO_RESUME = "safe_to_resume"
+    NEEDS_HUMAN_REVIEW = "needs_human_review"
+    UNSAFE = "unsafe"
 
 
 class TicketEvent(AriadneModel):
@@ -135,6 +204,132 @@ class SourceDocument(AriadneModel):
     summary: str
     created_at: str = Field(default_factory=utc_now)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentProfile(AriadneModel):
+    id: str
+    name: str
+    role: str
+    backend_name: str | None = None
+    planner_name: str = "deterministic"
+    description: str = ""
+    capabilities: list[str] = Field(default_factory=list)
+    default_confirm_execution: bool = False
+    enabled: bool = True
+    created_at: str = Field(default_factory=utc_now)
+
+
+class TicketAssignment(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    agent_id: str
+    agent_name: str
+    backend_name: str | None = None
+    planner_name: str = "deterministic"
+    status: AssignmentStatus = AssignmentStatus.QUEUED
+    priority: str = "medium"
+    assigned_by: str = "human"
+    claimed_by_runtime_id: str | None = None
+    created_at: str = Field(default_factory=utc_now)
+    claimed_at: str | None = None
+    started_at: str | None = None
+    ended_at: str | None = None
+    failure_reason: FailureReason | None = None
+    blocker: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status.is_terminal
+
+    def mark_claimed(self, runtime_id: str) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.CLAIMED
+        assignment.claimed_by_runtime_id = runtime_id
+        assignment.claimed_at = assignment.claimed_at or utc_now()
+        return assignment
+
+    def mark_running(self) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.RUNNING
+        assignment.started_at = assignment.started_at or utc_now()
+        return assignment
+
+    def mark_done(self, metadata: dict[str, Any] | None = None) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.DONE
+        assignment.ended_at = utc_now()
+        if metadata:
+            assignment.metadata = assignment.metadata | metadata
+        return assignment
+
+    def mark_blocked(
+        self,
+        blocker: str,
+        failure_reason: FailureReason = FailureReason.UNKNOWN,
+    ) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.BLOCKED
+        assignment.blocker = blocker
+        assignment.failure_reason = failure_reason
+        assignment.ended_at = utc_now()
+        return assignment
+
+    def mark_failed(
+        self,
+        blocker: str,
+        failure_reason: FailureReason = FailureReason.AGENT_ERROR,
+    ) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.FAILED
+        assignment.blocker = blocker
+        assignment.failure_reason = failure_reason
+        assignment.ended_at = utc_now()
+        return assignment
+
+
+class TicketComment(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    author_type: CommentAuthorType
+    author: str
+    kind: CommentKind = CommentKind.COMMENT
+    body: str
+    payload_ref: str | None = None
+    created_at: str = Field(default_factory=utc_now)
+
+
+class RuntimeEvent(AriadneModel):
+    id: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    assignment_id: str | None = None
+    run_id: str | None = None
+    runtime_id: str
+    stage: str
+    event_type: str
+    actor: str
+    timestamp: str = Field(default_factory=utc_now)
+    payload_ref: str | None = None
+    failure_reason: FailureReason | None = None
+    idempotency_key: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResumePlan(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    assignment_id: str | None = None
+    last_completed_stage: str | None = None
+    current_stage: str | None = None
+    next_stage: str | None = None
+    safety: ResumeSafety
+    reasons: list[str] = Field(default_factory=list)
+    recommended_command: str | None = None
+    created_at: str = Field(default_factory=utc_now)
 
 
 class ProjectContext(AriadneModel):
@@ -270,6 +465,7 @@ class AgentRun(AriadneModel):
     agent_name: str
     agent_role: str
     status: AgentRunStatus = AgentRunStatus.PENDING
+    lifecycle_state: AgentRunLifecycleState = AgentRunLifecycleState.CREATED
     input_summary: str
     output_summary: str | None = None
     artifact_ids: list[str] = Field(default_factory=list)
@@ -279,6 +475,11 @@ class AgentRun(AriadneModel):
     started_at: str | None = None
     ended_at: str | None = None
     error: str | None = None
+    failure_reason: FailureReason | None = None
+    runtime_id: str | None = None
+    session_id: str | None = None
+    work_dir: str | None = None
+    superseded_by_run_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
@@ -288,6 +489,7 @@ class AgentRun(AriadneModel):
     def mark_running(self) -> AgentRun:
         run = self.model_copy(deep=True)
         run.status = AgentRunStatus.RUNNING
+        run.lifecycle_state = AgentRunLifecycleState.RUNNING
         run.started_at = run.started_at or utc_now()
         return run
 
@@ -296,14 +498,17 @@ class AgentRun(AriadneModel):
         status: AgentRunStatus,
         output_summary: str | None = None,
         error: str | None = None,
+        failure_reason: FailureReason | None = None,
     ) -> AgentRun:
         if not status.is_terminal:
             msg = "finished AgentRun status must be terminal"
             raise ValueError(msg)
         run = self.model_copy(deep=True)
         run.status = status
+        run.lifecycle_state = AgentRunLifecycleState.TERMINAL
         run.output_summary = output_summary
         run.error = error
+        run.failure_reason = failure_reason
         run.ended_at = utc_now()
         return run
 
@@ -327,6 +532,7 @@ class ReviewReport(AriadneModel):
     failed_checks: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     required_fixes: list[str] = Field(default_factory=list)
+    failure_reasons: list[FailureReason] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
 
 
@@ -352,6 +558,7 @@ class ExecutionResult(AriadneModel):
     dry_run: bool
     blocked: bool = False
     block_reason: str | None = None
+    failure_reason: FailureReason | None = None
     command: str
     exit_code: int
     stdout: str = ""
@@ -371,6 +578,69 @@ class ExecutionResult(AriadneModel):
     test_stdout: str = ""
     test_stderr: str = ""
     warnings: list[str] = Field(default_factory=list)
+
+
+class RuntimeCapability(AriadneModel):
+    backend_name: str
+    command: str
+    available: bool
+    command_path: str | None = None
+    external_execution_enabled: bool = False
+    command_template_set: bool = False
+    confirm_execution_required: bool = True
+    supports_external_execution: bool = False
+    supports_dry_run: bool = False
+    checked_at: str = Field(default_factory=utc_now)
+
+
+class ProjectResource(AriadneModel):
+    id: str
+    project_id: str
+    resource_type: str
+    resource_ref: dict[str, Any]
+    label: str | None = None
+    position: int = 0
+    created_at: str = Field(default_factory=utc_now)
+
+    @classmethod
+    def local_directory(
+        cls,
+        project_id: str,
+        local_path: Any,
+        label: str | None = None,
+        daemon_id: str = "local",
+    ) -> ProjectResource:
+        from pathlib import Path
+
+        resolved = str(Path(local_path).resolve())
+        return cls(
+            id=stable_id("resource", project_id, "local_directory", resolved, daemon_id),
+            project_id=project_id,
+            resource_type="local_directory",
+            resource_ref={
+                "local_path": resolved,
+                "daemon_id": daemon_id,
+                "label": label or "local checkout",
+            },
+            label=label,
+        )
+
+
+class RouteDecision(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    planner_name: str
+    backend_name: str
+    selected_agent_role: str = "Execution"
+    target_repo_path: str
+    build_decision: BuildDecision
+    reason: str
+    external_execution_enabled: bool = False
+    confirm_execution: bool = False
+    skill_refs: list[str] = Field(default_factory=list)
+    resource_refs: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
 
 
 class MemoryRecord(AriadneModel):

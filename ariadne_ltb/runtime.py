@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -9,6 +11,7 @@ from ariadne_ltb.models import (
     AgentRunStatus,
     Artifact,
     BuildTicket,
+    RuntimeCapability,
     TicketStatus,
     stable_id,
 )
@@ -124,3 +127,66 @@ class PipelineEngine:
             ticket = ticket.model_copy(deep=True, update={"metadata": merged})
         context.store.save_ticket(ticket)
         return ticket
+
+
+def collect_runtime_capabilities() -> list[RuntimeCapability]:
+    codex_path = shutil.which("codex")
+    claude_path = shutil.which("claude")
+    external_enabled = os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1"
+    return [
+        RuntimeCapability(
+            backend_name="fake-codex",
+            command="internal",
+            command_path=None,
+            available=True,
+            external_execution_enabled=False,
+            command_template_set=False,
+            confirm_execution_required=False,
+            supports_external_execution=False,
+            supports_dry_run=False,
+        ),
+        RuntimeCapability(
+            backend_name="shell",
+            command="shell",
+            command_path=None,
+            available=True,
+            external_execution_enabled=external_enabled,
+            command_template_set=False,
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+        ),
+        RuntimeCapability(
+            backend_name="codex",
+            command="codex",
+            command_path=codex_path,
+            available=codex_path is not None,
+            external_execution_enabled=external_enabled,
+            command_template_set=bool(os.environ.get("ARIADNE_CODEX_COMMAND_TEMPLATE")),
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+        ),
+        RuntimeCapability(
+            backend_name="claude-code",
+            command="claude",
+            command_path=claude_path,
+            available=claude_path is not None,
+            external_execution_enabled=external_enabled,
+            command_template_set=bool(os.environ.get("ARIADNE_CLAUDE_COMMAND_TEMPLATE")),
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+        ),
+        RuntimeCapability(
+            backend_name="dry-run",
+            command="internal",
+            command_path=None,
+            available=True,
+            external_execution_enabled=False,
+            command_template_set=False,
+            confirm_execution_required=False,
+            supports_external_execution=False,
+            supports_dry_run=True,
+        ),
+    ]

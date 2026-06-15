@@ -11,7 +11,22 @@ Repository name: `ariadne-ltb`. Python package: `ariadne_ltb`. CLI target:
 
 ## True MVP Path
 
-The normal product path is ticket-driven:
+The recommended product path is Agent Teammate Mode:
+
+```bash
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari export board
+```
+
+In this mode, a human assigns a Build Ticket to an Agent teammate, the local
+daemon claims one assignment, the Agent runs the ticket through Ariadne's full
+loop, writes comments and journal events, and updates the board.
+
+The direct ticket-run path remains available:
 
 ```bash
 ari ingest examples/sources/*.md
@@ -25,7 +40,9 @@ Fallback:
 ```bash
 python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
 python3.11 -m ariadne_ltb.cli ticket list
-python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex
+python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
+python3.11 -m ariadne_ltb.cli daemon run-once
+python3.11 -m ariadne_ltb.cli ticket comments ARI-003
 python3.11 -m ariadne_ltb.cli export board
 ```
 
@@ -39,11 +56,37 @@ Generated outputs are under `.ariadne/`, including:
 
 ```text
 .ariadne/artifacts/<ticket_id>/
+.ariadne/assignments/
+.ariadne/comments/
+.ariadne/journal/events.jsonl
 .ariadne/memory/
 .ariadne/feishu_plans/
 .ariadne/board/index.md
 .ariadne/board/index.html
 ```
+
+## Agent Teammate Mode
+
+Agent Teammate Mode adds a small local work-management layer:
+
+- `ari agent list` shows assignable local Agent profiles.
+- `ari ticket assign <ticket> --to fake-codex` creates a queued assignment.
+- `ari daemon run-once` claims one assignment and runs it through
+  `TicketRunOrchestrator`.
+- `ari ticket comments <ticket>` shows human comments, agent progress, blocker,
+  review, memory, and recovery comments.
+- `ari runtime journal` shows append-only runtime events.
+- `ari runtime recover` prints conservative resume plans.
+- `ari runtime locks` shows local directory locks and stale-lock warnings.
+
+`ari daemon start` is a simple polling loop for local use:
+
+```bash
+ari daemon start --interval 2 --max-iterations 3
+```
+
+It is not a system service, and it does not introduce auth, networking,
+PostgreSQL, or WebSockets.
 
 ## Demo
 
@@ -105,6 +148,44 @@ ARIADNE_CLAUDE_COMMAND_TEMPLATE='claude --print < {handoff_file}'
 
 Supported placeholders are `{target_repo}`, `{handoff_file}`, `{ticket_id}`,
 and `{ticket_key}`.
+
+## Real CodexBackend Smoke Test
+
+The default demo uses `FakeCodexBackend`. Real `CodexBackend` execution is
+optional, local, safety-gated, and never auto-commits.
+
+Run diagnostics:
+
+```bash
+ari backend doctor
+```
+
+The full smoke-test runbook is in
+[`docs/real_codex_smoke_test.md`](docs/real_codex_smoke_test.md).
+
+## Multica Architecture Alignment
+
+ARI-005 aligns Ariadne's local kernel with selected Multica work-management
+concepts without copying Multica's server architecture.
+
+New local foundations:
+
+- `AgentRun.lifecycle_state`
+- typed `FailureReason`
+- runtime capability snapshots under `.ariadne/runtimes/`
+- project resource snapshots under `.ariadne/project/resources.json`
+- target repo path validation and directory locking
+- local BuildSkill packs under `.skills/`
+- `route_decision.json` artifacts
+- progress events in the ticket timeline
+- board sections for runtime, resources, route, skills, and progress
+
+Architecture notes:
+
+- [`docs/architecture/multica_architecture_digest.md`](docs/architecture/multica_architecture_digest.md)
+- [`docs/architecture/ariadne_multica_gap_report.md`](docs/architecture/ariadne_multica_gap_report.md)
+- [`docs/adr/ADR-0002-multica-architecture-alignment.md`](docs/adr/ADR-0002-multica-architecture-alignment.md)
+- [`docs/adr/ADR-0003-agent-teammate-mode.md`](docs/adr/ADR-0003-agent-teammate-mode.md)
 
 ## Feishu
 

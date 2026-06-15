@@ -35,6 +35,9 @@ testpaths = ["tests"]
         "__pycache__/\n*.pyc\n.pytest_cache/\n.demo_todo.json\n",
         encoding="utf-8",
     )
+    stale_lockfile = target / "uv.lock"
+    if stale_lockfile.exists():
+        stale_lockfile.unlink()
     (package_dir / "__init__.py").write_text('"""Demo target CLI project."""\n', encoding="utf-8")
     (package_dir / "store.py").write_text(
         """from __future__ import annotations

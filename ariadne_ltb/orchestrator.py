@@ -6,23 +6,34 @@ from pathlib import Path
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.execution import backend_for_name
+from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
+from ariadne_ltb.journal import runtime_event
+from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.models import (
     AgentRun,
     AgentRunStatus,
     Artifact,
     ArtifactType,
+    CommentAuthorType,
+    CommentKind,
     ExecutionContext,
     ExecutionResult,
+    FailureReason,
     FeishuWritePlan,
     MemoryRecord,
+    ProjectResource,
+    RouteDecision,
     ReviewVerdict,
     TicketStatus,
     stable_id,
+    utc_now,
 )
 from ariadne_ltb.next_tickets import generate_next_tickets_artifact
 from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.review import review_execution
+from ariadne_ltb.runtime import collect_runtime_capabilities
+from ariadne_ltb.skills import discover_build_skills
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 
@@ -50,8 +61,17 @@ class TicketRunResult:
 
 
 class TicketRunOrchestrator:
-    def __init__(self, store: AriadneStore) -> None:
+    def __init__(
+        self,
+        store: AriadneStore,
+        runtime_id: str = "local",
+        assignment_id: str | None = None,
+        actor_name: str = "Ariadne",
+    ) -> None:
         self.store = store
+        self.runtime_id = runtime_id
+        self.assignment_id = assignment_id
+        self.actor_name = actor_name
 
     def run_ticket(
         self,
@@ -61,6 +81,7 @@ class TicketRunOrchestrator:
         command: str | None = None,
         planner: str = "deterministic",
         confirm_execution: bool = False,
+        timeout_seconds: int = 60,
     ) -> TicketRunResult:
         ticket = self.store.resolve_ticket(ticket_id_or_key)
         ticket = ticket.with_status(TicketStatus.PLANNING, "Build Lead")
@@ -73,11 +94,81 @@ class TicketRunOrchestrator:
             raise RuntimeError(f"{planner} planner failed for {ticket.key}: {msg}; board: {board_path}")
 
         ticket = self.store.load_ticket(ticket.id)
+        self._progress(ticket, "planning", "succeeded", "Planner generated Build Packet and handoff.")
         packet = self.store.load_build_packet(planner_result.build_packet_id or ticket.build_packet_id)
         handoff_artifact = self.store.load_artifact(planner_result.handoff_artifact_id)
         handoff_prompt = self.store.read_artifact_text(handoff_artifact)
 
         target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        runtime_capability_path = self.store.save_runtime_capabilities(collect_runtime_capabilities())
+        project_resources = [
+            ProjectResource.local_directory(
+                "ariadne-local",
+                target_repo,
+                label=f"{ticket.key} target repository",
+            )
+        ]
+        project_resources_path = self.store.save_project_resources(project_resources)
+        skill_refs = [skill.name for skill in discover_build_skills()]
+        route_decision = RouteDecision(
+            id=stable_id("route", ticket.id, backend_name, str(target_repo)),
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            planner_name=planner,
+            backend_name=backend_name,
+            target_repo_path=str(target_repo),
+            build_decision=packet.build_decision,
+            reason="Build Lead selected the requested backend for the ticket run.",
+            external_execution_enabled=__import__("os").environ.get(
+                "ARIADNE_ENABLE_EXTERNAL_EXECUTION"
+            )
+            == "1",
+            confirm_execution=confirm_execution,
+            skill_refs=skill_refs,
+            resource_refs=[resource.id for resource in project_resources],
+        )
+        route_artifact = self.store.write_artifact(
+            ticket.id,
+            "build_lead",
+            ArtifactType.ROUTE_DECISION,
+            "route_decision.json",
+            route_decision.model_dump_json(indent=2) + "\n",
+            "Build Lead route decision",
+            metadata={
+                "runtime_capability_path": str(runtime_capability_path),
+                "project_resources_path": str(project_resources_path),
+            },
+        )
+        resources_artifact = self.store.write_artifact(
+            ticket.id,
+            "build_lead",
+            ArtifactType.PROJECT_RESOURCES,
+            "project_resources.json",
+            Path(project_resources_path).read_text(encoding="utf-8"),
+            "Project resource snapshot",
+            metadata={"project_resources_path": str(project_resources_path)},
+        )
+        runtime_artifact = self.store.write_artifact(
+            ticket.id,
+            "build_lead",
+            ArtifactType.RUNTIME_CAPABILITY,
+            "runtime_capability_snapshot.json",
+            Path(runtime_capability_path).read_text(encoding="utf-8"),
+            "Runtime capability snapshot",
+            metadata={"runtime_capability_path": str(runtime_capability_path)},
+        )
+        ticket = (
+            self.store.load_ticket(ticket.id)
+            .with_artifacts([route_artifact, resources_artifact, runtime_artifact])
+            .append_event(
+                "route_decision",
+                "Build Lead",
+                f"Selected backend `{backend_name}` for `{target_repo}`.",
+                payload_ref=route_artifact.id,
+            )
+        )
+        self.store.save_ticket(ticket)
+        self._progress(ticket, "route", "succeeded", f"Build Lead selected `{backend_name}`.")
         execution_run = _start_run(self.store, ticket, "Execution", "execution", backend_name)
         context = ExecutionContext(
             ticket_id=ticket.id,
@@ -91,9 +182,35 @@ class TicketRunOrchestrator:
             command=command or (packet.tasks[0] if packet.tasks else ticket.title),
             test_command=target_test_command(),
             confirm_execution=confirm_execution,
-            timeout_seconds=60,
+            timeout_seconds=timeout_seconds,
         )
-        execution = backend_for_name(backend_name).execute(context)
+        ticket = self.store.load_ticket(ticket.id).append_event(
+            "execution_started",
+            "Execution",
+            f"{backend_name} execution started.",
+            payload_ref=execution_run.id,
+        )
+        self.store.save_ticket(ticket)
+        validation = validate_target_repo_path(target_repo)
+        if not validation.valid:
+            execution = _blocked_execution(context, backend_name, validation.reason, FailureReason.INVALID_RESOURCE)
+        else:
+            lock = DirectoryLock(
+                self.store,
+                target_repo,
+                runtime_id=self.runtime_id,
+                ticket_id=ticket.id,
+                assignment_id=self.assignment_id,
+            )
+            try:
+                lock.acquire()
+            except RuntimeError as exc:
+                execution = _blocked_execution(context, backend_name, str(exc), FailureReason.RESOURCE_LOCKED)
+            else:
+                try:
+                    execution = backend_for_name(backend_name).execute(context)
+                finally:
+                    lock.release()
         self.store.save_execution_result(execution)
         execution_artifacts = _write_execution_artifacts(self.store, execution_run.id, execution)
         execution = execution.model_copy(
@@ -116,12 +233,26 @@ class TicketRunOrchestrator:
             execution_status,
             _execution_summary(execution),
             [artifact.id for artifact in execution_artifacts.values()],
+            execution.failure_reason,
         )
         ticket = (
             self.store.load_ticket(ticket.id)
             .with_run(execution_run.id)
             .with_artifacts(list(execution_artifacts.values()))
+            .append_event(
+                "execution_finished",
+                "Execution",
+                _execution_summary(execution),
+                payload_ref=execution.id,
+            )
             .with_status(TicketStatus.REVIEWING, "Execution")
+        )
+        self._progress(
+            ticket,
+            "execution",
+            "blocked" if execution.blocked else "succeeded" if execution_status is AgentRunStatus.SUCCEEDED else "failed",
+            _execution_summary(execution),
+            payload_ref=execution.id,
         )
         ticket = ticket.model_copy(
             deep=True,
@@ -129,8 +260,16 @@ class TicketRunOrchestrator:
         )
         self.store.save_ticket(ticket)
 
+        ticket_for_review = ticket
         review_run = _start_run(self.store, ticket, "Reviewer", "reviewer")
-        review = review_execution(self.store, ticket, packet, execution)
+        ticket = self.store.load_ticket(ticket.id).append_event(
+            "review_started",
+            "Reviewer",
+            "Reviewer started conservative result check.",
+            payload_ref=review_run.id,
+        )
+        self.store.save_ticket(ticket)
+        review = review_execution(self.store, ticket_for_review, packet, execution)
         self.store.save_review_report(review)
         review_artifact = self.store.write_artifact(
             ticket.id,
@@ -149,6 +288,20 @@ class TicketRunOrchestrator:
             [review_artifact.id],
         )
         ticket = self.store.load_ticket(ticket.id).with_run(review_run.id).with_artifacts([review_artifact])
+        ticket = ticket.append_event(
+            "review_finished",
+            "Reviewer",
+            f"Reviewer verdict: {review.verdict.value}.",
+            payload_ref=review_artifact.id,
+        )
+        self._progress(
+            ticket,
+            "review",
+            "succeeded",
+            f"Reviewer verdict: {review.verdict.value}.",
+            payload_ref=review_artifact.id,
+            kind=CommentKind.REVIEW,
+        )
         ticket = ticket.model_copy(
             deep=True,
             update={"metadata": ticket.metadata | {"review_report_id": review.id}},
@@ -161,6 +314,21 @@ class TicketRunOrchestrator:
         feishu_plan, feishu_path = generate_feishu_plan(self.store, ticket, packet, execution, review)
         memory_artifact = _write_memory_artifact(self.store, ticket.id, memory_run.id, memory, memory_path)
         feishu_artifact = _write_feishu_artifact(self.store, ticket.id, memory_run.id, feishu_plan, feishu_path)
+        ticket = self.store.load_ticket(ticket.id).append_event(
+            "memory_written",
+            "Memory / Feishu",
+            "Wrote local memory and Feishu dry-run plan.",
+            payload_ref=memory_artifact.id,
+        )
+        self.store.save_ticket(ticket)
+        self._progress(
+            ticket,
+            "memory",
+            "succeeded",
+            "Memory wrote decision log and Feishu dry-run plan.",
+            payload_ref=memory_artifact.id,
+            kind=CommentKind.MEMORY,
+        )
         next_tickets_artifact = generate_next_tickets_artifact(
             self.store,
             ticket,
@@ -169,6 +337,13 @@ class TicketRunOrchestrator:
             review,
             memory_run.id,
         )
+        ticket = self.store.load_ticket(ticket.id).append_event(
+            "next_tickets_generated",
+            "Memory / Feishu",
+            "Generated follow-up Build Ticket suggestions.",
+            payload_ref=next_tickets_artifact.id,
+        )
+        self.store.save_ticket(ticket)
         memory_run = _finish_run(
             self.store,
             memory_run,
@@ -203,6 +378,29 @@ class TicketRunOrchestrator:
             },
         )
         self.store.save_ticket(ticket)
+        self._progress(
+            ticket,
+            "next_tickets",
+            "succeeded",
+            "Generated next Build Ticket suggestions.",
+            payload_ref=next_tickets_artifact.id,
+        )
+        board_path = export_board(self.store)
+        ticket = self.store.load_ticket(ticket.id).append_event(
+            "board_exported",
+            "Build Board",
+            f"Exported board to {board_path}.",
+            payload_ref=str(board_path),
+        )
+        self.store.save_ticket(ticket)
+        board_path = export_board(self.store)
+        self._progress(
+            ticket,
+            "board",
+            "succeeded",
+            f"Board exported to {board_path}.",
+            payload_ref=str(board_path),
+        )
         board_path = export_board(self.store)
         return TicketRunResult(
             ticket_id=ticket.id,
@@ -225,6 +423,36 @@ class TicketRunOrchestrator:
             board_html_path=str(self.store.board_dir / "index.html"),
         )
 
+    def _progress(
+        self,
+        ticket,
+        stage: str,
+        event_type: str,
+        body: str,
+        payload_ref: str | None = None,
+        kind: CommentKind = CommentKind.PROGRESS,
+    ) -> None:
+        current = self.store.load_ticket(ticket.id)
+        self.store.add_comment(
+            current,
+            CommentAuthorType.AGENT,
+            self.actor_name,
+            kind,
+            body,
+            payload_ref=payload_ref,
+        )
+        self.store.append_runtime_event(
+            runtime_event(
+                current,
+                self.runtime_id,
+                stage,
+                event_type,
+                self.actor_name,
+                assignment_id=self.assignment_id,
+                payload_ref=payload_ref,
+            )
+        )
+
 
 def _start_run(
     store: AriadneStore,
@@ -233,6 +461,16 @@ def _start_run(
     agent_role: str,
     backend_name: str | None = None,
 ) -> AgentRun:
+    for run_id in ticket.agent_run_ids:
+        existing = store.load_run(run_id)
+        if existing.agent_role == agent_role and not existing.is_terminal:
+            store.save_run(
+                existing.mark_finished(
+                    AgentRunStatus.FAILED,
+                    f"Superseded by a new {agent_role} attempt.",
+                    "Previous attempt did not reach a terminal state.",
+                )
+            )
     attempt = 1 + sum(
         1 for run_id in ticket.agent_run_ids if store.load_run(run_id).agent_role == agent_role
     )
@@ -262,10 +500,48 @@ def _finish_run(
     status: AgentRunStatus,
     summary: str,
     artifact_ids: list[str],
+    failure_reason: FailureReason | None = None,
 ) -> AgentRun:
-    finished = run.model_copy(update={"artifact_ids": artifact_ids}).mark_finished(status, summary)
+    finished = run.model_copy(update={"artifact_ids": artifact_ids}).mark_finished(
+        status,
+        summary,
+        failure_reason=failure_reason,
+    )
     store.save_run(finished)
     return finished
+
+
+def _blocked_execution(
+    context: ExecutionContext,
+    backend_name: str,
+    reason: str,
+    failure_reason: FailureReason,
+) -> ExecutionResult:
+    repo = Path(context.target_repo_path)
+    started = utc_now()
+    return ExecutionResult(
+        id=stable_id("execution", context.ticket_id, backend_name, failure_reason.value, reason),
+        ticket_id=context.ticket_id,
+        backend_name=backend_name,
+        dry_run=False,
+        blocked=True,
+        block_reason=reason,
+        failure_reason=failure_reason,
+        command=context.command,
+        exit_code=2,
+        stderr=reason,
+        started_at=started,
+        ended_at=utc_now(),
+        git_head_before=git_head(repo),
+        git_head_after=git_head(repo),
+        git_status_before=git_status(repo),
+        git_status_after=git_status(repo),
+        changed_files=changed_files(repo),
+        git_diff=git_diff(repo),
+        test_command=context.test_command,
+        test_exit_code=None,
+        warnings=[reason],
+    )
 
 
 def _write_execution_artifacts(

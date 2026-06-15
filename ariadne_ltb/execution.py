@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Protocol
 
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
-from ariadne_ltb.models import ExecutionContext, ExecutionResult, stable_id, utc_now
+from ariadne_ltb.models import ExecutionContext, ExecutionResult, FailureReason, stable_id, utc_now
 
 
 class ExecutionBackend(Protocol):
@@ -42,6 +42,7 @@ def _blocked_result(
     repo: Path,
     command: str | None = None,
     dry_run: bool = False,
+    failure_reason: FailureReason = FailureReason.AGENT_ERROR,
 ) -> ExecutionResult:
     return ExecutionResult(
         id=stable_id("execution", context.ticket_id, backend_name, reason),
@@ -50,6 +51,7 @@ def _blocked_result(
         dry_run=dry_run,
         blocked=True,
         block_reason=reason,
+        failure_reason=failure_reason,
         command=command if command is not None else context.command,
         exit_code=2,
         stdout="",
@@ -78,7 +80,7 @@ class DryRunBackend:
         repo = Path(context.target_repo_path)
         started = utc_now()
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=True,
@@ -113,7 +115,14 @@ class FakeCodexBackend:
         status_before = git_status(repo)
         validation_reason = self._validate_context(context)
         if validation_reason:
-            return _blocked_result(context, self.name, validation_reason, started, repo)
+            return _blocked_result(
+                context,
+                self.name,
+                validation_reason,
+                started,
+                repo,
+                failure_reason=FailureReason.SCOPE_VIOLATION,
+            )
         cli_path = repo / "demo_todo" / "cli.py"
         test_path = repo / "tests" / "test_cli.py"
         self._add_export_json(cli_path)
@@ -130,7 +139,7 @@ class FakeCodexBackend:
         files = changed_files(repo)
         diff = git_diff(repo)
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,
@@ -209,7 +218,7 @@ class ShellBackend:
         started = utc_now()
         if not context.confirm_execution:
             return ExecutionResult(
-                id=stable_id("execution", context.ticket_id, self.name),
+                id=stable_id("execution", context.ticket_id, self.name, started),
                 ticket_id=context.ticket_id,
                 backend_name=self.name,
                 dry_run=False,
@@ -245,7 +254,7 @@ class ShellBackend:
                 check=False,
             )
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,
@@ -289,6 +298,7 @@ class CodexBackend(ShellBackend):
                 started,
                 repo,
                 command=command,
+                failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
         if not context.confirm_execution:
             return _blocked_result(
@@ -298,6 +308,7 @@ class CodexBackend(ShellBackend):
                 started,
                 repo,
                 command=command,
+                failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
         executable = shlex.split(command)[0] if command.strip() else self.executable_name
         if shutil.which(executable) is None:
@@ -308,19 +319,33 @@ class CodexBackend(ShellBackend):
                 started,
                 repo,
                 command=command,
+                failure_reason=FailureReason.COMMAND_UNAVAILABLE,
             )
 
         before_head = git_head(repo)
         before_status = git_status(repo)
-        result = subprocess.run(
-            command,
-            cwd=repo,
-            shell=True,
-            text=True,
-            capture_output=True,
-            timeout=context.timeout_seconds,
-            check=False,
-        )
+        timed_out = False
+        try:
+            result = subprocess.run(
+                command,
+                cwd=repo,
+                shell=True,
+                text=True,
+                capture_output=True,
+                timeout=context.timeout_seconds,
+                check=False,
+            )
+            exit_code = result.returncode
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            exit_code = 124
+            stdout = _timeout_stream(exc.stdout)
+            stderr = (
+                _timeout_stream(exc.stderr)
+                + f"\nCommand timed out after {context.timeout_seconds} seconds."
+            ).strip()
         test = None
         if context.test_command:
             test = subprocess.run(
@@ -333,15 +358,15 @@ class CodexBackend(ShellBackend):
                 check=False,
             )
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,
             blocked=False,
             command=command,
-            exit_code=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
             started_at=started,
             ended_at=utc_now(),
             git_head_before=before_head,
@@ -354,6 +379,8 @@ class CodexBackend(ShellBackend):
             test_exit_code=test.returncode if test else None,
             test_stdout=test.stdout if test else "",
             test_stderr=test.stderr if test else "",
+            warnings=["Execution command timed out."] if timed_out else [],
+            failure_reason=FailureReason.TIMEOUT if timed_out else None,
         )
 
     def render_command(self, context: ExecutionContext) -> str:
@@ -400,3 +427,11 @@ def backend_for_name(name: str) -> ExecutionBackend:
         msg = f"unknown backend: {name}"
         raise ValueError(msg)
     return backends[name]
+
+
+def _timeout_stream(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value

@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from ariadne_ltb.local_safety import list_locks
 from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus
 from ariadne_ltb.storage import AriadneStore
 
@@ -81,6 +82,103 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             ]
         )
     artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    lines.extend(["## Agent Assignment", ""])
+    if assignment:
+        lines.extend(
+            [
+                f"- Assigned agent: `{assignment.agent_name}` (`{assignment.agent_id}`)",
+                f"- Assignment status: `{assignment.status.value}`",
+                f"- Backend: `{assignment.backend_name or ''}`",
+                f"- Claimed by runtime: `{assignment.claimed_by_runtime_id or ''}`",
+                f"- Created: `{assignment.created_at}`",
+                f"- Claimed: `{assignment.claimed_at or ''}`",
+                f"- Ended: `{assignment.ended_at or ''}`",
+                "",
+            ]
+        )
+    else:
+        lines.extend(["No assignment yet.", ""])
+
+    comments = store.list_comments(ticket.id)
+    lines.extend(["## Comments", ""])
+    if comments:
+        for comment in comments:
+            lines.append(
+                f"- `{comment.created_at}` `{comment.kind.value}` {comment.author}: {comment.body}"
+            )
+    else:
+        lines.append("No comments yet.")
+    lines.append("")
+
+    runtime_events = store.list_runtime_events_for_ticket(ticket.id)
+    lines.extend(["## Runtime Journal", ""])
+    if runtime_events:
+        for event in runtime_events[-12:]:
+            lines.append(
+                f"- `{event.timestamp}` `{event.stage}:{event.event_type}` "
+                f"{event.actor} `{event.idempotency_key}`"
+            )
+    else:
+        lines.append("No runtime journal events yet.")
+    lines.append("")
+
+    open_assignments = store.list_open_assignments()
+    stale_locks = [lock for lock in list_locks(store) if lock.stale]
+    lines.extend(["## Daemon / Worker", ""])
+    lines.append(f"- Open assignments: `{len(open_assignments)}`")
+    lines.append(f"- Stale lock warnings: `{len(stale_locks)}`")
+    if runtime_events:
+        last = runtime_events[-1]
+        lines.append(f"- Latest daemon event: `{last.stage}:{last.event_type}`")
+    lines.append("")
+
+    runtime_capability = _latest_json_artifact(store, artifacts, ArtifactType.RUNTIME_CAPABILITY)
+    lines.extend(["### Runtime Capability", ""])
+    if runtime_capability:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.RUNTIME_CAPABILITY)}`")
+        for capability in runtime_capability.get("capabilities", []):
+            lines.append(
+                f"- `{capability.get('backend_name')}` available=`{str(capability.get('available')).lower()}` "
+                f"external=`{str(capability.get('external_execution_enabled')).lower()}`"
+            )
+    else:
+        lines.append("No runtime capability snapshot found.")
+    lines.append("")
+
+    project_resources = _latest_json_artifact(store, artifacts, ArtifactType.PROJECT_RESOURCES)
+    lines.extend(["### Project Resources", ""])
+    if project_resources:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.PROJECT_RESOURCES)}`")
+        for resource in project_resources.get("resources", []):
+            ref = resource.get("resource_ref", {})
+            target = ref.get("local_path") or ref.get("url") or ref
+            lines.append(f"- `{resource.get('resource_type')}` {resource.get('label') or ''}: `{target}`")
+    else:
+        lines.append("No project resources snapshot found.")
+    lines.append("")
+
+    route_decision = _latest_json_artifact(store, artifacts, ArtifactType.ROUTE_DECISION)
+    lines.extend(["### Route Decision", ""])
+    if route_decision:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.ROUTE_DECISION)}`")
+        lines.append(f"- Backend: `{route_decision.get('backend_name')}`")
+        lines.append(f"- Planner: `{route_decision.get('planner_name')}`")
+        lines.append(f"- Target repo: `{route_decision.get('target_repo_path')}`")
+        lines.append(f"- Reason: {route_decision.get('reason', '')}")
+    else:
+        lines.append("No route decision artifact found.")
+    lines.append("")
+
+    skills = route_decision.get("skill_refs", []) if route_decision else []
+    lines.extend(["### Build Skills", ""])
+    if skills:
+        for skill in skills:
+            lines.append(f"- `{skill}`")
+    else:
+        lines.append("No BuildSkill references found.")
+    lines.append("")
+
     if ticket.build_packet_id:
         packet = store.load_build_packet(ticket.build_packet_id)
         handoff = _latest_artifact(artifacts, ArtifactType.CODEX_HANDOFF)
@@ -188,6 +286,21 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         lines.append(
             f"- `{event.timestamp}` {event.actor}: {event.event_type} - {event.summary}"
         )
+    lines.extend(["", "### Progress Events", ""])
+    for event in ticket.event_log:
+        if event.event_type in {
+            "route_decision",
+            "execution_started",
+            "execution_finished",
+            "review_started",
+            "review_finished",
+            "memory_written",
+            "next_tickets_generated",
+            "board_exported",
+        }:
+            lines.append(
+                f"- `{event.timestamp}` `{event.event_type}` {event.summary}"
+            )
     lines.append("")
     return lines
 
