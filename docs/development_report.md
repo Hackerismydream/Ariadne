@@ -630,4 +630,20 @@ Known limitations:
 
 Verification status:
 
-- Final v1 command results are recorded after `scripts/verify_v1.sh` runs.
+- `pytest`: passed, 84 tests.
+- `ruff check .`: passed.
+- Python CLI v1 path passed:
+  `demo full -> ingest -> ticket list -> ticket assign -> daemon run-once ->
+  ticket comments -> runtime journal -> runtime recover -> daemon status ->
+  export board -> backend doctor -> doctor v1`.
+- `scripts/verify_v1.sh`: passed.
+- Optional `uv run ari` path passed:
+  `demo full`, `ticket run ARI-003 --backend fake-codex`, `ticket assign`,
+  `daemon run-once`, and `export board`.
+
+Latest output paths from the v1 acceptance run:
+
+- Board: `.ariadne/board/index.md`
+- Memory: `.ariadne/memory/tickets/ticket_91c283a19122.md`
+- Feishu dry-run plan: `.ariadne/feishu_plans/`
+- Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`

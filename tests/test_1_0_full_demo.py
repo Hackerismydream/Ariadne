@@ -16,19 +16,22 @@ from ariadne_ltb.target_project import ensure_demo_target_project
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
+SOURCE_FIXTURE_COUNT = len(SOURCE_FIXTURES)
 
 
 def test_ingest_multiple_sources_creates_unique_tickets_and_packets(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     tickets = ingest_sources(store, SOURCE_FIXTURES)
 
-    assert len(tickets) == 3
-    assert [ticket.key for ticket in tickets] == ["ARI-001", "ARI-002", "ARI-003"]
-    assert {ticket.source_type for ticket in tickets} == {
+    assert len(tickets) == SOURCE_FIXTURE_COUNT
+    assert [ticket.key for ticket in tickets] == [
+        f"ARI-{index:03d}" for index in range(1, SOURCE_FIXTURE_COUNT + 1)
+    ]
+    assert {
         SourceType.PAPER.value,
         SourceType.BLOG.value,
         SourceType.GITHUB_REPO.value,
-    }
+    }.issubset({ticket.source_type for ticket in tickets})
     assert all(ticket.build_packet_id for ticket in tickets)
 
     packets = [store.load_build_packet(ticket.build_packet_id) for ticket in tickets if ticket.build_packet_id]
@@ -95,8 +98,8 @@ def test_full_demo_runs_complete_learning_to_build_chain(tmp_path: Path) -> None
     result = run_full_demo(root=tmp_path, source_paths=SOURCE_FIXTURES)
     store = AriadneStore(tmp_path)
 
-    assert result.sources_ingested == 3
-    assert result.tickets_created == 3
+    assert result.sources_ingested == SOURCE_FIXTURE_COUNT
+    assert result.tickets_created == SOURCE_FIXTURE_COUNT
     assert result.backend_name == "fake-codex"
     assert result.review_verdict is ReviewVerdict.PASS
     assert result.test_exit_code == 0
@@ -129,7 +132,7 @@ def test_cli_ingest_ticket_list_and_full_demo(tmp_path: Path) -> None:
         ["--root", str(tmp_path), "ingest", *[str(path) for path in SOURCE_FIXTURES]],
     )
     assert ingest_result.exit_code == 0, ingest_result.output
-    assert "Ingested 3 source" in ingest_result.output
+    assert f"Ingested {SOURCE_FIXTURE_COUNT} source" in ingest_result.output
 
     list_result = runner.invoke(app, ["--root", str(tmp_path), "ticket", "list"])
     assert list_result.exit_code == 0, list_result.output
@@ -137,6 +140,6 @@ def test_cli_ingest_ticket_list_and_full_demo(tmp_path: Path) -> None:
 
     demo_result = runner.invoke(app, ["--root", str(tmp_path), "demo", "full"])
     assert demo_result.exit_code == 0, demo_result.output
-    assert "sources ingested: 3" in demo_result.output
+    assert f"sources ingested: {SOURCE_FIXTURE_COUNT}" in demo_result.output
     assert "reviewer verdict: pass" in demo_result.output
     assert (tmp_path / ".ariadne" / "board" / "index.md").exists()

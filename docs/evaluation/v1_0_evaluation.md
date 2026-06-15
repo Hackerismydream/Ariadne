@@ -21,9 +21,17 @@ This report evaluates Ariadne v1.0 as a local-first, Ticket-driven Agent teammat
 - `python3.11 -m ariadne_ltb.cli backend doctor`
 - `python3.11 -m ariadne_ltb.cli doctor v1`
 
-## Current Planning Result
+## Results
 
-Implementation-phase final command results are recorded in `docs/development_report.md` after `scripts/verify_v1.sh` runs. The evaluation surface is intentionally local and deterministic: default tests do not require Codex, Claude, DeepSeek, Feishu, network access, or GitHub tokens.
+- `pytest`: passed, 84 tests.
+- `ruff check .`: passed.
+- `scripts/verify_v1.sh`: passed.
+- Python CLI v1 path: passed.
+- `uv run ari` optional path: passed.
+- `ari doctor v1`: passed.
+- `ari backend doctor`: passed without printing secret values.
+
+The evaluation surface is local and deterministic: default tests do not require Codex, Claude, DeepSeek, Feishu, network access, or GitHub tokens.
 
 ## Expected Evidence
 

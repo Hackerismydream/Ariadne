@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import BuildDecision, ReviewVerdict
+from ariadne_ltb.models import BuildDecision, ReviewVerdict, SourceType
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
@@ -69,6 +69,13 @@ def run_full_demo(
 
 
 def select_code_task_ticket(store: AriadneStore, tickets: list) -> object:
+    for ticket in tickets:
+        packet = store.load_build_packet(ticket.build_packet_id)
+        if (
+            ticket.source_type == SourceType.GITHUB_REPO.value
+            and packet.build_decision is BuildDecision.CODE_TASK
+        ):
+            return ticket
     for ticket in tickets:
         packet = store.load_build_packet(ticket.build_packet_id)
         if packet.build_decision is BuildDecision.CODE_TASK:
