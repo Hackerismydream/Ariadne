@@ -207,6 +207,8 @@ class TicketRunOrchestrator:
             test_command=target_test_command(),
             confirm_execution=confirm_execution,
             timeout_seconds=timeout_seconds,
+            assignment_id=self.assignment_id,
+            run_id=execution_run.id,
         )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "execution_started",

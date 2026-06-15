@@ -193,10 +193,23 @@ def backend_doctor() -> None:
     store.save_runtime_capabilities(collect_runtime_capabilities())
     codex_path = shutil.which("codex")
     claude_path = shutil.which("claude")
+    external_enabled = os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1"
     typer.echo("FakeCodexBackend: available")
     typer.echo("ShellBackend: available")
     typer.echo(f"CodexBackend command: {'found ' + codex_path if codex_path else 'missing'}")
     typer.echo(f"ClaudeCodeBackend command: {'found ' + claude_path if claude_path else 'missing'}")
+    typer.echo(f"Codex command path: {codex_path or 'missing'}")
+    typer.echo(f"Claude command path: {claude_path or 'missing'}")
+    typer.echo(
+        f"Codex command template set? "
+        f"{'yes' if os.environ.get('ARIADNE_CODEX_COMMAND_TEMPLATE') else 'no'}"
+    )
+    typer.echo(
+        f"Claude command template set? "
+        f"{'yes' if os.environ.get('ARIADNE_CLAUDE_COMMAND_TEMPLATE') else 'no'}"
+    )
+    typer.echo(f"External execution enabled? {'yes' if external_enabled else 'no'}")
+    typer.echo("Confirm required? yes")
     for variable in [
         "ARIADNE_ENABLE_EXTERNAL_EXECUTION",
         "ARIADNE_CODEX_COMMAND_TEMPLATE",

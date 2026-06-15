@@ -391,6 +391,8 @@ class CodexBackend(ShellBackend):
             handoff_file=handoff_file,
             ticket_id=context.ticket_id,
             ticket_key=context.ticket_key or context.ticket_id,
+            assignment_id=context.assignment_id or "",
+            run_id=context.run_id or "",
         )
 
     def write_handoff_file(self, context: ExecutionContext) -> Path:

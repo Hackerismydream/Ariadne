@@ -622,6 +622,8 @@ class ExecutionContext(AriadneModel):
     test_command: str
     confirm_execution: bool = False
     timeout_seconds: int = 120
+    assignment_id: str | None = None
+    run_id: str | None = None
 
 
 class ExecutionResult(AriadneModel):
