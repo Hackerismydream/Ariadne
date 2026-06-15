@@ -24,6 +24,7 @@ from ariadne_ltb.models import (
     TicketStatus,
     stable_id,
 )
+from ariadne_ltb.skills import handoff_skill_references
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -203,6 +204,7 @@ def render_handoff(ticket: BuildTicket, packet: BuildPacket) -> str:
         f"- {item.quote_or_summary} ({item.location}, confidence {item.confidence:.2f})"
         for item in packet.evidence[:5]
     )
+    skill_refs = handoff_skill_references()
     return f"""# Ariadne Coding Handoff - {ticket.key}
 
 Ticket: {ticket.title}
@@ -227,6 +229,10 @@ Build decision: {packet.build_decision.value}
 ## Evidence
 
 {evidence}
+
+## Skills
+
+{skill_refs}
 
 ## Safety
 

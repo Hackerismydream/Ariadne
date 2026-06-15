@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Protocol
 
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
-from ariadne_ltb.models import ExecutionContext, ExecutionResult, stable_id, utc_now
+from ariadne_ltb.models import ExecutionContext, ExecutionResult, FailureReason, stable_id, utc_now
 
 
 class ExecutionBackend(Protocol):
@@ -42,6 +42,7 @@ def _blocked_result(
     repo: Path,
     command: str | None = None,
     dry_run: bool = False,
+    failure_reason: FailureReason = FailureReason.AGENT_ERROR,
 ) -> ExecutionResult:
     return ExecutionResult(
         id=stable_id("execution", context.ticket_id, backend_name, reason),
@@ -50,6 +51,7 @@ def _blocked_result(
         dry_run=dry_run,
         blocked=True,
         block_reason=reason,
+        failure_reason=failure_reason,
         command=command if command is not None else context.command,
         exit_code=2,
         stdout="",
@@ -113,7 +115,14 @@ class FakeCodexBackend:
         status_before = git_status(repo)
         validation_reason = self._validate_context(context)
         if validation_reason:
-            return _blocked_result(context, self.name, validation_reason, started, repo)
+            return _blocked_result(
+                context,
+                self.name,
+                validation_reason,
+                started,
+                repo,
+                failure_reason=FailureReason.SCOPE_VIOLATION,
+            )
         cli_path = repo / "demo_todo" / "cli.py"
         test_path = repo / "tests" / "test_cli.py"
         self._add_export_json(cli_path)
@@ -289,6 +298,7 @@ class CodexBackend(ShellBackend):
                 started,
                 repo,
                 command=command,
+                failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
         if not context.confirm_execution:
             return _blocked_result(
@@ -298,6 +308,7 @@ class CodexBackend(ShellBackend):
                 started,
                 repo,
                 command=command,
+                failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
         executable = shlex.split(command)[0] if command.strip() else self.executable_name
         if shutil.which(executable) is None:
@@ -308,6 +319,7 @@ class CodexBackend(ShellBackend):
                 started,
                 repo,
                 command=command,
+                failure_reason=FailureReason.COMMAND_UNAVAILABLE,
             )
 
         before_head = git_head(repo)
@@ -368,6 +380,7 @@ class CodexBackend(ShellBackend):
             test_stdout=test.stdout if test else "",
             test_stderr=test.stderr if test else "",
             warnings=["Execution command timed out."] if timed_out else [],
+            failure_reason=FailureReason.TIMEOUT if timed_out else None,
         )
 
     def render_command(self, context: ExecutionContext) -> str:

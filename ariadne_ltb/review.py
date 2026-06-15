@@ -6,6 +6,7 @@ from ariadne_ltb.models import (
     ExecutionResult,
     ReviewReport,
     ReviewVerdict,
+    FailureReason,
     stable_id,
 )
 from ariadne_ltb.storage import AriadneStore
@@ -21,6 +22,7 @@ def review_execution(
     failed: list[str] = []
     warnings: list[str] = []
     fixes: list[str] = []
+    failure_reasons: list[FailureReason] = []
 
     if packet.evidence:
         passed.append("Build Packet evidence exists")
@@ -46,16 +48,19 @@ def review_execution(
         if execution.blocked:
             failed.append("Execution backend was not blocked")
             fixes.append(execution.block_reason or "Resolve backend block reason.")
+            failure_reasons.append(execution.failure_reason or FailureReason.AGENT_ERROR)
         elif execution.exit_code == 0:
             passed.append("Execution exit code is 0")
         else:
             failed.append("Execution exit code is 0")
             fixes.append("Fix execution backend failure.")
+            failure_reasons.append(execution.failure_reason or FailureReason.AGENT_ERROR)
         if execution.test_exit_code == 0:
             passed.append("Target project tests passed")
         else:
             failed.append("Target project tests passed")
             fixes.append("Fix failing target project tests.")
+            failure_reasons.append(FailureReason.TEST_FAILED)
         if execution.changed_files:
             passed.append("Changed files captured")
         else:
@@ -67,6 +72,7 @@ def review_execution(
         else:
             failed.append("Changed files are within allowed scope")
             fixes.append("Restrict execution changes to allowed target paths.")
+            failure_reasons.append(FailureReason.SCOPE_VIOLATION)
         if execution.git_diff:
             passed.append("Git diff captured")
         else:
@@ -93,4 +99,5 @@ def review_execution(
         failed_checks=failed,
         warnings=warnings,
         required_fixes=fixes,
+        failure_reasons=list(dict.fromkeys(failure_reasons)),
     )

@@ -120,6 +120,29 @@ ari backend doctor
 The full smoke-test runbook is in
 [`docs/real_codex_smoke_test.md`](docs/real_codex_smoke_test.md).
 
+## Multica Architecture Alignment
+
+ARI-005 aligns Ariadne's local kernel with selected Multica work-management
+concepts without copying Multica's server architecture.
+
+New local foundations:
+
+- `AgentRun.lifecycle_state`
+- typed `FailureReason`
+- runtime capability snapshots under `.ariadne/runtimes/`
+- project resource snapshots under `.ariadne/project/resources.json`
+- target repo path validation and directory locking
+- local BuildSkill packs under `.skills/`
+- `route_decision.json` artifacts
+- progress events in the ticket timeline
+- board sections for runtime, resources, route, skills, and progress
+
+Architecture notes:
+
+- [`docs/architecture/multica_architecture_digest.md`](docs/architecture/multica_architecture_digest.md)
+- [`docs/architecture/ariadne_multica_gap_report.md`](docs/architecture/ariadne_multica_gap_report.md)
+- [`docs/adr/ADR-0002-multica-architecture-alignment.md`](docs/adr/ADR-0002-multica-architecture-alignment.md)
+
 ## Feishu
 
 The default loop writes a Feishu dry-run plan only. Real writes use `lark-cli`

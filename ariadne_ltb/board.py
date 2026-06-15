@@ -81,6 +81,52 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             ]
         )
     artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    runtime_capability = _latest_json_artifact(store, artifacts, ArtifactType.RUNTIME_CAPABILITY)
+    lines.extend(["### Runtime Capability", ""])
+    if runtime_capability:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.RUNTIME_CAPABILITY)}`")
+        for capability in runtime_capability.get("capabilities", []):
+            lines.append(
+                f"- `{capability.get('backend_name')}` available=`{str(capability.get('available')).lower()}` "
+                f"external=`{str(capability.get('external_execution_enabled')).lower()}`"
+            )
+    else:
+        lines.append("No runtime capability snapshot found.")
+    lines.append("")
+
+    project_resources = _latest_json_artifact(store, artifacts, ArtifactType.PROJECT_RESOURCES)
+    lines.extend(["### Project Resources", ""])
+    if project_resources:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.PROJECT_RESOURCES)}`")
+        for resource in project_resources.get("resources", []):
+            ref = resource.get("resource_ref", {})
+            target = ref.get("local_path") or ref.get("url") or ref
+            lines.append(f"- `{resource.get('resource_type')}` {resource.get('label') or ''}: `{target}`")
+    else:
+        lines.append("No project resources snapshot found.")
+    lines.append("")
+
+    route_decision = _latest_json_artifact(store, artifacts, ArtifactType.ROUTE_DECISION)
+    lines.extend(["### Route Decision", ""])
+    if route_decision:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.ROUTE_DECISION)}`")
+        lines.append(f"- Backend: `{route_decision.get('backend_name')}`")
+        lines.append(f"- Planner: `{route_decision.get('planner_name')}`")
+        lines.append(f"- Target repo: `{route_decision.get('target_repo_path')}`")
+        lines.append(f"- Reason: {route_decision.get('reason', '')}")
+    else:
+        lines.append("No route decision artifact found.")
+    lines.append("")
+
+    skills = route_decision.get("skill_refs", []) if route_decision else []
+    lines.extend(["### Build Skills", ""])
+    if skills:
+        for skill in skills:
+            lines.append(f"- `{skill}`")
+    else:
+        lines.append("No BuildSkill references found.")
+    lines.append("")
+
     if ticket.build_packet_id:
         packet = store.load_build_packet(ticket.build_packet_id)
         handoff = _latest_artifact(artifacts, ArtifactType.CODEX_HANDOFF)
@@ -188,6 +234,21 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         lines.append(
             f"- `{event.timestamp}` {event.actor}: {event.event_type} - {event.summary}"
         )
+    lines.extend(["", "### Progress Events", ""])
+    for event in ticket.event_log:
+        if event.event_type in {
+            "route_decision",
+            "execution_started",
+            "execution_finished",
+            "review_started",
+            "review_finished",
+            "memory_written",
+            "next_tickets_generated",
+            "board_exported",
+        }:
+            lines.append(
+                f"- `{event.timestamp}` `{event.event_type}` {event.summary}"
+            )
     lines.append("")
     return lines
 

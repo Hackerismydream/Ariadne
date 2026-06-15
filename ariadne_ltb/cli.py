@@ -17,6 +17,7 @@ from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.review import review_execution
+from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 from ariadne_ltb.models import ExecutionContext, TicketStatus
@@ -109,6 +110,8 @@ def ingest(
 @backend_app.command("doctor")
 def backend_doctor() -> None:
     """Report local backend availability and safety-gate state without secrets."""
+    store = AriadneStore(state.root)
+    store.save_runtime_capabilities(collect_runtime_capabilities())
     codex_path = shutil.which("codex")
     claude_path = shutil.which("claude")
     typer.echo("FakeCodexBackend: available")

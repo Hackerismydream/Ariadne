@@ -15,8 +15,10 @@ from ariadne_ltb.models import (
     ExecutionResult,
     FeishuWritePlan,
     MemoryRecord,
+    ProjectResource,
     ProjectSpace,
     ReviewReport,
+    RuntimeCapability,
     SourceDocument,
     stable_id,
 )
@@ -35,6 +37,9 @@ class AriadneStore:
         self.sources_dir = self.base / "sources"
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
+        self.project_dir = self.base / "project"
+        self.runtimes_dir = self.base / "runtimes"
+        self.locks_dir = self.base / "locks"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
         self.artifacts_dir = self.base / "artifacts"
@@ -54,6 +59,9 @@ class AriadneStore:
             self.memory_dir / "tickets",
             self.memory_dir / "build_packets",
             self.memory_dir / "reviews",
+            self.project_dir,
+            self.runtimes_dir,
+            self.locks_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
             self.artifacts_dir,
@@ -149,6 +157,55 @@ class AriadneStore:
 
     def load_feishu_write_plan(self, write_plan_id: str) -> FeishuWritePlan:
         return self._read_model(self.feishu_plans_dir / f"{write_plan_id}.json", FeishuWritePlan)
+
+    def save_project_resources(self, resources: list[ProjectResource]) -> Path:
+        path = self.project_dir / "resources.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "project_id": resources[0].project_id if resources else "ariadne-local",
+                    "resources": [
+                        resource.model_dump(mode="json", exclude_none=False)
+                        for resource in resources
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def load_project_resources(self) -> list[ProjectResource]:
+        path = self.project_dir / "resources.json"
+        if not path.exists():
+            return []
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return [ProjectResource.model_validate(item) for item in data.get("resources", [])]
+
+    def save_runtime_capabilities(self, capabilities: list[RuntimeCapability]) -> Path:
+        path = self.runtimes_dir / "capability_snapshot.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "capabilities": [
+                        capability.model_dump(mode="json", exclude_none=False)
+                        for capability in capabilities
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def load_runtime_capabilities(self) -> list[RuntimeCapability]:
+        path = self.runtimes_dir / "capability_snapshot.json"
+        if not path.exists():
+            return []
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return [RuntimeCapability.model_validate(item) for item in data.get("capabilities", [])]
 
     def write_artifact(
         self,

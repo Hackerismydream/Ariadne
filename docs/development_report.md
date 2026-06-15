@@ -258,5 +258,157 @@ Safety boundaries:
 Next recommended Build Ticket:
 
 - ARI-005 - Add automatic Codex CLI compatibility diagnostics for prompt-file
+
+## ARI-005 Multica Architecture Alignment
+
+Multica files/docs inspected:
+
+- `README.md`
+- `CLI_AND_DAEMON.md`
+- `SELF_HOSTING.md`
+- `CONTRIBUTING.md`
+- `apps/docs/content/docs/agents.mdx`
+- `apps/docs/content/docs/tasks.mdx`
+- `apps/docs/content/docs/squads.mdx`
+- `apps/docs/content/docs/skills.mdx`
+- `apps/docs/content/docs/project-resources.mdx`
+- `apps/docs/content/docs/daemon-runtimes.mdx`
+- `apps/docs/content/docs/assigning-issues.mdx`
+- `apps/docs/content/docs/mentioning-agents.mdx`
+- `apps/docs/content/docs/providers.mdx`
+- `server/pkg/db/queries/agent.sql`
+- `server/pkg/db/queries/project_resource.sql`
+- `server/pkg/db/queries/runtime.sql`
+- `server/pkg/protocol/events.go`
+- `server/pkg/taskfailure/failure.go`
+- `server/pkg/taskfailure/classify.go`
+- `server/internal/daemon/daemon.go`
+- `server/cmd/server/runtime_sweeper.go`
+- `packages/core/types/project.ts`
+- `packages/core/types/events.ts`
+
+Architecture docs created:
+
+- `docs/architecture/multica_architecture_digest.md`
+- `docs/architecture/ariadne_multica_gap_report.md`
+- `docs/adr/ADR-0002-multica-architecture-alignment.md`
+- `docs/smoke_test_results/ARI-004-real-codex-summary.md`
+
+Code changes implemented:
+
+- Added `AgentRun.lifecycle_state` compatible with created/running/terminal.
+- Added typed `FailureReason` and persisted it on runs, execution results, and
+  review reports.
+- Added `RuntimeCapability` snapshots and persisted backend doctor output to
+  `.ariadne/runtimes/capability_snapshot.json`.
+- Added `ProjectResource` serialization under `.ariadne/project/resources.json`.
+- Added target repo path validation and local directory locking under
+  `.ariadne/locks/`.
+- Added default BuildSkill packs under `.skills/`.
+- Added handoff skill references.
+- Added `route_decision.json` artifacts.
+- Added progress events for route, execution, review, memory, next tickets, and
+  board export.
+- Extended the static board with runtime capability, route decision, project
+  resources, BuildSkill, and progress-event sections.
+
+Key Multica takeaways applied:
+
+- Keep the work carrier and execution run separate.
+- Make runtime capability visible before execution.
+- Treat project context as typed resources, not unstructured prompt text.
+- Serialize local-directory execution by resolved path.
+- Use typed failure reasons instead of only free-form stderr.
+- Make route decisions and progress events first-class artifacts.
+
+Deliberately deferred:
+
+- Full daemon queue with claim/heartbeat/retry.
+- WebSocket progress streaming.
+- PostgreSQL persistence.
+- Provider-specific skill materialization.
+- Session resume and automatic retry.
+- Web UI polish.
+
+Safety boundaries:
+
+- Real Codex execution remains gated by `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1`
+  and `--confirm-execution`.
+- Real Feishu writes remain gated by `FEISHU_ENABLE_WRITE=1` and
+  `--confirm-write`.
+- Ariadne still does not commit, push, merge, or create PRs during backend
+  execution.
+- Backend doctor prints only set/unset state for secrets and writes no secret
+  values.
+
+Tests added:
+
+- Architecture docs and ADR existence.
+- Failure reason wire values.
+- AgentRun lifecycle terminal invariants.
+- Runtime capability snapshot persistence.
+- Backend doctor secret safety.
+- Project resource serialization.
+- Target path validation.
+- Directory lock behavior.
+- BuildSkill discovery and handoff references.
+- Route decision artifact.
+- Progress events.
+- Board Loop Trace additions.
+
+Commands run during ARI-005 implementation:
+
+```bash
+pytest tests/test_multica_alignment.py -q
+pytest -q
+ruff check .
+```
+
+Interim results:
+
+- `pytest tests/test_multica_alignment.py -q`: passed, 7 tests.
+- `pytest -q`: passed, 46 tests.
+- `ruff check .`: passed.
+
+Final required command results are recorded after the acceptance run below.
+
+Final ARI-005 acceptance run:
+
+```bash
+pytest
+ruff check .
+python3.11 -m ariadne_ltb.cli demo full
+python3.11 -m ariadne_ltb.cli export board
+python3.11 -m ariadne_ltb.cli backend doctor
+uv run ari demo full
+uv run ari ticket list
+uv run ari ticket run ARI-003 --backend fake-codex
+uv run ari export board
+uv run ari backend doctor
+```
+
+Results:
+
+- `pytest`: passed, 46 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `uv run ari demo full`: passed.
+- `uv run ari ticket list`: passed.
+- `uv run ari ticket run ARI-003 --backend fake-codex`: passed.
+- `uv run ari export board`: passed.
+- `uv run ari backend doctor`: passed.
+
+Latest output paths from the acceptance run:
+
+- Board: `.ariadne/board/index.md`
+- Memory: `.ariadne/memory/tickets/ticket_91c283a19122.md`
+- Feishu dry-run plan: `.ariadne/feishu_plans/feishu_a152e5f8d694.json`
+- Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`
+
+Next recommended Build Ticket:
+
+- ARI-006 - Add a local runtime event journal with resumable ticket-run state.
   vs stdin templates, service tier support, reasoning effort, and profile/model
   selection.
