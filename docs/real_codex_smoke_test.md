@@ -66,6 +66,15 @@ ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} - < {handoff_file}
 uv run ari backend smoke-test codex --confirm-execution
 ```
 
+For a short deterministic smoke task, you can also lower reasoning effort in the
+template:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
+uv run ari backend smoke-test codex --confirm-execution --timeout-seconds 180
+```
+
 Fallback:
 
 ```bash
@@ -99,6 +108,8 @@ Key outputs:
 - Missing `--confirm-execution`: pass the flag explicitly.
 - Codex command missing: install or authenticate Codex CLI, then rerun
   `ari backend doctor`.
+- Config error `unknown variant priority`: update `~/.codex/config.toml` so
+  `service_tier` is `fast` or another value supported by your account.
 - Non-zero Codex exit: inspect the execution result, review report, board, and
   target repo diff. Ariadne records the failed run instead of hiding it.
 

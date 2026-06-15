@@ -185,6 +185,9 @@ uv run ari backend smoke-test codex --confirm-execution
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
 ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --ignore-user-config --cd {target_repo} - < {handoff_file}' \
 uv run ari backend smoke-test codex --confirm-execution
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
+uv run ari backend smoke-test codex --confirm-execution --timeout-seconds 180
 ```
 
 Backend doctor result:
@@ -205,7 +208,7 @@ Real Codex command availability:
 
 - `codex`: available at `/opt/homebrew/bin/codex`.
 
-Real smoke test attempts:
+Real smoke test attempts and final result:
 
 - Attempt 1 used the required default-style template
   `codex exec --cd {target_repo} --prompt-file {handoff_file}`.
@@ -224,11 +227,23 @@ Real smoke test attempts:
   cannot use the configured model:
   `The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account.`
 
+- Local Codex config was then fixed outside the repo:
+  `~/.codex/config.toml` changed `service_tier` from `priority` to `fast`.
+- The successful smoke-test template was:
+  `codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}`.
+- Final result: Codex exited with code `0`.
+- Execution result: `.ariadne/execution_results/execution_60d17b702878.json`
+- Review verdict: `pass`.
+- Changed files: `demo_todo/cli.py`, `tests/test_cli.py`.
+- Target project tests returned `0`.
+- Ariadne captured stdout/stderr, git diff, changed files, tests, review,
+  memory, Feishu dry-run plan, next tickets, and board.
+
 Generated output paths from the real smoke-test attempt:
 
 - Board: `.ariadne/board/index.md`
 - Memory: `.ariadne/memory/tickets/ticket_91c283a19122.md`
-- Feishu dry-run plan: `.ariadne/feishu_plans/feishu_5dc5507facec.json`
+- Feishu dry-run plan: `.ariadne/feishu_plans/feishu_247982ba2e90.json`
 - Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`
 - Handoff file: `.ariadne/handoffs/ARI-003.md`
 
@@ -242,5 +257,6 @@ Safety boundaries:
 
 Next recommended Build Ticket:
 
-- ARI-005 - Add Codex CLI compatibility detection for prompt-file vs stdin
-  templates and model/profile selection diagnostics.
+- ARI-005 - Add automatic Codex CLI compatibility diagnostics for prompt-file
+  vs stdin templates, service tier support, reasoning effort, and profile/model
+  selection.

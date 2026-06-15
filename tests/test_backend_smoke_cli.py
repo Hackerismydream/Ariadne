@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
-from ariadne_ltb.execution import CodexBackend
+from ariadne_ltb.execution import CodexBackend, ExecutionContext
 
 
 def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Path) -> None:
@@ -85,3 +86,42 @@ def test_existing_fake_codex_ticket_run_still_passes(tmp_path: Path) -> None:
     assert ingest.exit_code == 0, ingest.output
     assert run.exit_code == 0, run.output
     assert "reviewer verdict: pass" in run.output
+
+
+def test_codex_backend_timeout_returns_execution_result(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("ARIADNE_CODEX_COMMAND_TEMPLATE", "python3.11 -c 'print(1)'")
+
+    original_run = subprocess.run
+
+    def timeout_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        if kwargs.get("shell") is True:
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=kwargs.get("timeout"))
+        return original_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", timeout_run)
+
+    result = CodexBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_timeout",
+            ticket_key="ARI-TIMEOUT",
+            build_packet_id="packet_timeout",
+            target_repo_path=str(target),
+            handoff_prompt="Add demo-todo export-json support.",
+            backend_name="codex",
+            allowed_paths=["demo_todo/cli.py", "tests/test_cli.py"],
+            command="",
+            test_command="",
+            confirm_execution=True,
+            timeout_seconds=1,
+        )
+    )
+
+    assert result.exit_code == 124
+    assert result.blocked is False
+    assert "timed out after 1 seconds" in result.stderr

@@ -129,6 +129,10 @@ def backend_doctor() -> None:
 def backend_smoke_test(
     backend: Annotated[str, typer.Argument(help="Backend smoke test target. Only `codex` is supported.")],
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    timeout_seconds: Annotated[
+        int,
+        typer.Option("--timeout-seconds", help="Maximum seconds for the real backend command."),
+    ] = 300,
 ) -> None:
     """Run a safety-gated real backend smoke test through TicketRunOrchestrator."""
     if backend != "codex":
@@ -154,6 +158,7 @@ def backend_smoke_test(
         backend_name="codex",
         target_repo_path=str(target_repo),
         confirm_execution=True,
+        timeout_seconds=timeout_seconds,
     )
     handoff_file = state.root / ".ariadne" / "handoffs" / f"{result.ticket_key}.md"
     execution = store.load_execution_result(result.execution_result_id)

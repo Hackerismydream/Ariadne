@@ -14,7 +14,7 @@ from ariadne_ltb.execution import (
 )
 from ariadne_ltb.full_demo import run_full_demo
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import ArtifactType, BuildDecision, ReviewVerdict, TicketStatus
+from ariadne_ltb.models import AgentRun, ArtifactType, BuildDecision, ReviewVerdict, TicketStatus, stable_id
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import DeterministicPlanner, LLMPlanner
 from ariadne_ltb.storage import AriadneStore
@@ -81,6 +81,29 @@ def test_cli_ticket_run_completes_review_memory_next_tickets_and_board(tmp_path:
 
     next_tickets = list((tmp_path / ".ariadne" / "artifacts").glob("*/next_tickets.json"))
     assert next_tickets
+
+
+def test_orchestrator_supersedes_stale_non_terminal_execution_run(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, SOURCE_FIXTURES)[2]
+    stale = AgentRun(
+        id=stable_id("run", ticket.id, "execution", "stale"),
+        ticket_id=ticket.id,
+        agent_name="Execution",
+        agent_role="execution",
+        input_summary="Stale execution run from interrupted process.",
+        backend_name="codex",
+    ).mark_running()
+    store.save_run(stale)
+    store.save_ticket(ticket.with_run(stale.id))
+
+    result = TicketRunOrchestrator(store).run_ticket(ticket.key, backend_name="fake-codex")
+    review = store.load_review_report(result.review_report_id)
+    stale_after = store.load_run(stale.id)
+
+    assert result.review_verdict == "pass"
+    assert "All Agent Runs have terminal status" in review.passed_checks
+    assert stale_after.is_terminal
 
 
 def test_fake_codex_blocks_when_task_does_not_mention_export_json(tmp_path: Path) -> None:

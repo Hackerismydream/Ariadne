@@ -61,6 +61,7 @@ class TicketRunOrchestrator:
         command: str | None = None,
         planner: str = "deterministic",
         confirm_execution: bool = False,
+        timeout_seconds: int = 60,
     ) -> TicketRunResult:
         ticket = self.store.resolve_ticket(ticket_id_or_key)
         ticket = ticket.with_status(TicketStatus.PLANNING, "Build Lead")
@@ -91,7 +92,7 @@ class TicketRunOrchestrator:
             command=command or (packet.tasks[0] if packet.tasks else ticket.title),
             test_command=target_test_command(),
             confirm_execution=confirm_execution,
-            timeout_seconds=60,
+            timeout_seconds=timeout_seconds,
         )
         execution = backend_for_name(backend_name).execute(context)
         self.store.save_execution_result(execution)
@@ -233,6 +234,16 @@ def _start_run(
     agent_role: str,
     backend_name: str | None = None,
 ) -> AgentRun:
+    for run_id in ticket.agent_run_ids:
+        existing = store.load_run(run_id)
+        if existing.agent_role == agent_role and not existing.is_terminal:
+            store.save_run(
+                existing.mark_finished(
+                    AgentRunStatus.FAILED,
+                    f"Superseded by a new {agent_role} attempt.",
+                    "Previous attempt did not reach a terminal state.",
+                )
+            )
     attempt = 1 + sum(
         1 for run_id in ticket.agent_run_ids if store.load_run(run_id).agent_role == agent_role
     )

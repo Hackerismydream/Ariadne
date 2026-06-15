@@ -312,15 +312,28 @@ class CodexBackend(ShellBackend):
 
         before_head = git_head(repo)
         before_status = git_status(repo)
-        result = subprocess.run(
-            command,
-            cwd=repo,
-            shell=True,
-            text=True,
-            capture_output=True,
-            timeout=context.timeout_seconds,
-            check=False,
-        )
+        timed_out = False
+        try:
+            result = subprocess.run(
+                command,
+                cwd=repo,
+                shell=True,
+                text=True,
+                capture_output=True,
+                timeout=context.timeout_seconds,
+                check=False,
+            )
+            exit_code = result.returncode
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            exit_code = 124
+            stdout = _timeout_stream(exc.stdout)
+            stderr = (
+                _timeout_stream(exc.stderr)
+                + f"\nCommand timed out after {context.timeout_seconds} seconds."
+            ).strip()
         test = None
         if context.test_command:
             test = subprocess.run(
@@ -339,9 +352,9 @@ class CodexBackend(ShellBackend):
             dry_run=False,
             blocked=False,
             command=command,
-            exit_code=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
             started_at=started,
             ended_at=utc_now(),
             git_head_before=before_head,
@@ -354,6 +367,7 @@ class CodexBackend(ShellBackend):
             test_exit_code=test.returncode if test else None,
             test_stdout=test.stdout if test else "",
             test_stderr=test.stderr if test else "",
+            warnings=["Execution command timed out."] if timed_out else [],
         )
 
     def render_command(self, context: ExecutionContext) -> str:
@@ -400,3 +414,11 @@ def backend_for_name(name: str) -> ExecutionBackend:
         msg = f"unknown backend: {name}"
         raise ValueError(msg)
     return backends[name]
+
+
+def _timeout_stream(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
