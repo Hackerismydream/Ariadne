@@ -92,6 +92,8 @@ class ArtifactType(str, Enum):
     REVIEW_REPORT = "review_report"
     FEISHU_WRITE_PLAN = "feishu_write_plan"
     MEMORY_RECORD = "memory_record"
+    NEXT_TICKETS = "next_tickets"
+    PLANNER_ERROR = "planner_error"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
 
@@ -330,9 +332,11 @@ class ReviewReport(AriadneModel):
 
 class ExecutionContext(AriadneModel):
     ticket_id: str
+    ticket_key: str | None = None
     build_packet_id: str
     target_repo_path: str
     handoff_prompt: str
+    handoff_file: str | None = None
     backend_name: str
     allowed_paths: list[str] = Field(default_factory=list)
     command: str
@@ -346,6 +350,8 @@ class ExecutionResult(AriadneModel):
     ticket_id: str
     backend_name: str
     dry_run: bool
+    blocked: bool = False
+    block_reason: str | None = None
     command: str
     exit_code: int
     stdout: str = ""

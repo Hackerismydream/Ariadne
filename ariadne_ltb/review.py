@@ -43,7 +43,10 @@ def review_execution(
         failed.append("Execution result exists")
         fixes.append("Run an execution backend.")
     else:
-        if execution.exit_code == 0:
+        if execution.blocked:
+            failed.append("Execution backend was not blocked")
+            fixes.append(execution.block_reason or "Resolve backend block reason.")
+        elif execution.exit_code == 0:
             passed.append("Execution exit code is 0")
         else:
             failed.append("Execution exit code is 0")
@@ -78,7 +81,10 @@ def review_execution(
     else:
         passed.append("All Agent Runs have terminal status")
 
-    verdict = ReviewVerdict.PASS if not failed else ReviewVerdict.NEEDS_FIX
+    if execution and execution.blocked:
+        verdict = ReviewVerdict.BLOCKED
+    else:
+        verdict = ReviewVerdict.PASS if not failed else ReviewVerdict.NEEDS_FIX
     return ReviewReport(
         id=stable_id("review", ticket.id, execution.id if execution else "missing"),
         ticket_id=ticket.id,

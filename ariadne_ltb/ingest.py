@@ -24,7 +24,7 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
     existing_by_source = {
         ticket.metadata.get("source_document_id"): ticket for ticket in store.list_tickets()
     }
-    for path in sorted(paths, key=lambda item: item.name):
+    for path in sorted(paths, key=_path_ingest_order):
         document = source_document_from_path(path)
         store.save_source_document(document)
         if document.id in existing_by_source:
@@ -46,6 +46,20 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
         store.save_ticket(ticket)
         tickets.append(ticket)
     return sorted(tickets, key=lambda ticket: ticket.key)
+
+
+def _path_ingest_order(path: Path) -> tuple[int, str]:
+    content = path.read_text(encoding="utf-8")
+    source_type = infer_source_type(path, content)
+    order = {
+        SourceType.BLOG: 1,
+        SourceType.PAPER: 2,
+        SourceType.GITHUB_REPO: 3,
+        SourceType.NOTE: 4,
+        SourceType.OFFICE_HOUR: 5,
+        SourceType.REVIEW: 6,
+    }
+    return (order[source_type], path.name)
 
 
 def source_document_from_path(path: Path) -> SourceDocument:
@@ -139,15 +153,7 @@ def title_for_ticket(source: SourceDocument) -> str:
 
 def build_packet_from_source(ticket: BuildTicket, source: SourceDocument) -> BuildPacket:
     decision = decision_for_source(source)
-    evidence = [
-        Evidence(
-            id=stable_id("evidence", source.id, "primary"),
-            source_ref=source.path_or_url,
-            quote_or_summary=source.summary,
-            location=source.metadata.get("filename", "source"),
-            confidence=0.86,
-        )
-    ]
+    evidence = evidence_from_source(source)
     tasks, criteria, modules = packet_work_items(source)
     return BuildPacket(
         id=stable_id("packet", ticket.id),
@@ -164,6 +170,27 @@ def build_packet_from_source(ticket: BuildTicket, source: SourceDocument) -> Bui
         assumptions=["1.0 uses deterministic local rules unless optional adapters are confirmed."],
         confidence=0.86,
     )
+
+
+def evidence_from_source(source: SourceDocument) -> list[Evidence]:
+    path = Path(source.path_or_url)
+    content = path.read_text(encoding="utf-8") if path.exists() else source.summary
+    snippets = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    selected = snippets[:5] if len(snippets) >= 2 else [source.summary]
+    return [
+        Evidence(
+            id=stable_id("evidence", source.id, index, snippet),
+            source_ref=source.path_or_url,
+            quote_or_summary=snippet[:500],
+            location=f"{source.metadata.get('filename', 'source')}#{index}",
+            confidence=0.86 if index == 1 else 0.74,
+        )
+        for index, snippet in enumerate(selected[:5], start=1)
+    ]
 
 
 def decision_for_source(source: SourceDocument) -> BuildDecision:
