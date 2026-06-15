@@ -9,6 +9,28 @@ suggestions, and export a static board.
 Repository name: `ariadne-ltb`. Python package: `ariadne_ltb`. CLI target:
 `ari`. Fallback CLI: `python -m ariadne_ltb.cli`.
 
+## Ariadne v1.0 Quickstart
+
+Ariadne v1.0 is a local-first, Ticket-driven Agent teammate workbench:
+
+```bash
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari runtime journal
+ari runtime recover
+ari export board
+ari board serve
+```
+
+This path shows the full local loop:
+
+```text
+Source -> Ticket -> Assignment -> Daemon -> Planner -> Backend -> Review -> Memory -> Board
+```
+
 ## True MVP Path
 
 The recommended product path is Agent Teammate Mode:
@@ -44,6 +66,12 @@ python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
 python3.11 -m ariadne_ltb.cli daemon run-once
 python3.11 -m ariadne_ltb.cli ticket comments ARI-003
 python3.11 -m ariadne_ltb.cli export board
+```
+
+Serve the generated local board:
+
+```bash
+ari board serve
 ```
 
 `ticket run` performs the complete loop:
@@ -215,3 +243,11 @@ ruff check .
 python3.11 -m ariadne_ltb.cli demo full
 python3.11 -m ariadne_ltb.cli export board
 ```
+
+## v1.0 Limitations
+
+- Local single-worker runtime, not a production multi-worker scheduler.
+- JSON/JSONL persistence, not Postgres or a hosted database.
+- No production Web UI, WebSocket layer, auth, or permissions system.
+- Real Codex execution depends on the local Codex CLI and remains default-off.
+- Feishu real writes are default-off; the product writes dry-run plans by default.

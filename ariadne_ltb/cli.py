@@ -44,6 +44,7 @@ backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
 daemon_app = typer.Typer(help="Local daemon worker commands.")
 runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
 board_app = typer.Typer(help="Local board commands.")
+doctor_app = typer.Typer(help="Release and safety doctors.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
@@ -53,6 +54,7 @@ app.add_typer(backend_app, name="backend")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(runtime_app, name="runtime")
 app.add_typer(board_app, name="board")
+app.add_typer(doctor_app, name="doctor")
 
 
 class CliState:
@@ -676,6 +678,25 @@ def board_serve(
 ) -> None:
     """Serve the local static board with Python's stdlib HTTP server."""
     board_serve_command(AriadneStore(state.root).board_dir, port=port)
+
+
+@doctor_app.command("secrets")
+def doctor_secrets() -> None:
+    """Report secret-related environment variables without printing values."""
+    from ariadne_ltb.doctor import secret_status_lines
+
+    for line in secret_status_lines():
+        typer.echo(line)
+
+
+@doctor_app.command("v1")
+def doctor_v1() -> None:
+    """Run local read-only Ariadne v1 readiness checks."""
+    from ariadne_ltb.doctor import v1_readiness_lines
+
+    store = AriadneStore(state.root)
+    for line in v1_readiness_lines(store, state.root):
+        typer.echo(line)
 
 
 @memory_app.command("export")

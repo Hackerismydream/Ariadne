@@ -568,3 +568,66 @@ Next recommended Build Ticket:
   checkpoints.
   vs stdin templates, service tier support, reasoning effort, and profile/model
   selection.
+
+## Ariadne v1.0 Sprint
+
+Scope:
+
+- ARI-007 Daemon supervision and heartbeat.
+- ARI-008 Retry queue and safe recovery.
+- ARI-009 Multi-agent handoff loop.
+- ARI-010 Real Codex teammate backend.
+- ARI-011 Upstream planner and source-to-ticket intelligence.
+- ARI-012 Workbench board and local UX.
+- ARI-013 Evaluation, demo script, and documentation finalization.
+- ARI-014 Final safety gate and release readiness.
+
+Implemented files:
+
+- Runtime and domain: `ariadne_ltb/models.py`, `ariadne_ltb/storage.py`,
+  `ariadne_ltb/daemon.py`, `ariadne_ltb/journal.py`, `ariadne_ltb/retry.py`,
+  `ariadne_ltb/handoffs.py`.
+- Execution and planning: `ariadne_ltb/orchestrator.py`,
+  `ariadne_ltb/execution.py`, `ariadne_ltb/ingest.py`,
+  `ariadne_ltb/planner.py`, `ariadne_ltb/planner_quality.py`.
+- UX and release: `ariadne_ltb/board.py`, `ariadne_ltb/board_server.py`,
+  `ariadne_ltb/doctor.py`, `ariadne_ltb/cli.py`,
+  `scripts/verify_v1.sh`.
+- Docs: `README.md`, `docs/evaluation/v1_0_evaluation.md`,
+  `docs/demo/ARIADNE_V1_DEMO_SCRIPT.md`,
+  `docs/interview/PROJECT_NARRATIVE.md`,
+  `docs/ops/HUMAN_DEMO_SCRIPT.md`, `docs/ops/V1_RELEASE_CHECKLIST.md`.
+
+New CLI:
+
+- `ari assignment list`
+- `ari assignment show <assignment_id>`
+- `ari assignment retry <assignment_id>`
+- `ari ticket retry <ticket_id_or_key>`
+- `ari ticket handoffs <ticket_id_or_key>`
+- `ari daemon run-once --runtime-id <runtime_id>`
+- `ari daemon start --runtime-id <runtime_id> --max-iterations <n>`
+- `ari board serve`
+- `ari doctor secrets`
+- `ari doctor v1`
+
+Safety boundaries:
+
+- Real Codex and Claude execution require both
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and `--confirm-execution`.
+- Real Feishu writes require both `FEISHU_ENABLE_WRITE=1` and
+  `--confirm-write`.
+- Ariadne runtime does not auto-commit, auto-push, auto-merge, or create PRs.
+- Secret-oriented doctor commands only print set/unset.
+
+Known limitations:
+
+- Local single-worker runtime, not a production multi-worker scheduler.
+- JSON/JSONL persistence, not Postgres.
+- No production Web UI, WebSocket layer, auth, or permissions system.
+- Real Codex depends on local CLI availability.
+- Feishu real writes remain default-off.
+
+Verification status:
+
+- Final v1 command results are recorded after `scripts/verify_v1.sh` runs.
