@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 
 from ariadne_ltb.board import export_board
+from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
 from ariadne_ltb.execution import CodexBackend, backend_for_name
@@ -42,6 +43,7 @@ memory_app = typer.Typer(help="Memory commands.")
 backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
 daemon_app = typer.Typer(help="Local daemon worker commands.")
 runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
+board_app = typer.Typer(help="Local board commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
@@ -50,6 +52,7 @@ app.add_typer(memory_app, name="memory")
 app.add_typer(backend_app, name="backend")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(board_app, name="board")
 
 
 class CliState:
@@ -665,6 +668,14 @@ def export_board_command() -> None:
     """Export a static markdown Build Board."""
     board_path = export_board(AriadneStore(state.root))
     typer.echo(f"Board exported: {board_path}")
+
+
+@board_app.command("serve")
+def board_serve(
+    port: Annotated[int, typer.Option("--port")] = 8765,
+) -> None:
+    """Serve the local static board with Python's stdlib HTTP server."""
+    board_serve_command(AriadneStore(state.root).board_dir, port=port)
 
 
 @memory_app.command("export")

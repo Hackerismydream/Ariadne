@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
 from ariadne_ltb.local_safety import list_locks
 from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus, WorkerHeartbeat
+from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -16,9 +18,9 @@ def export_board(store: AriadneStore) -> Path:
     html_path = store.board_dir / "index.html"
     tickets = store.list_tickets()
     sections: list[str] = [
-        "# Ariadne Build Board",
+        "# Ariadne v1.0 Workbench",
         "",
-        "Static local board export. No server is required.",
+        "Static local board export for Ariadne's local Agent teammate workbench.",
         "",
         "## Loop Trace",
         "",
@@ -27,6 +29,7 @@ def export_board(store: AriadneStore) -> Path:
         "Source -> Ticket -> Packet -> Handoff -> Backend -> Diff -> Tests -> Review -> Memory -> Feishu Plan -> Next Tickets",
         "",
     ]
+    sections.extend(_workbench_summary_sections(store, tickets))
     sources = store.list_source_documents()
     if sources:
         sections.extend(["## Source Inputs", ""])
@@ -56,6 +59,113 @@ def export_board(store: AriadneStore) -> Path:
     board_path.write_text(markdown, encoding="utf-8")
     html_path.write_text(_html_from_markdown(markdown), encoding="utf-8")
     return board_path
+
+
+def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket]) -> list[str]:
+    assignments = store.list_assignments()
+    open_assignments = store.list_open_assignments()
+    events = store.list_runtime_events()
+    heartbeats = store.list_worker_heartbeats()
+    capabilities = store.load_runtime_capabilities() or collect_runtime_capabilities()
+    executed = [ticket for ticket in tickets if ticket.metadata.get("execution_result_id")]
+    next_ticket_paths = [
+        ticket.metadata.get("next_tickets_path")
+        for ticket in tickets
+        if ticket.metadata.get("next_tickets_path")
+    ]
+    lines = [
+        "## System Summary",
+        "",
+        f"- Tickets: `{len(tickets)}`",
+        f"- Assignments: `{len(assignments)}`",
+        f"- Open assignments: `{len(open_assignments)}`",
+        f"- Runtime events: `{len(events)}`",
+        f"- Executed tickets: `{len(executed)}`",
+        "",
+        "## Agent Queue",
+        "",
+    ]
+    if assignments:
+        for assignment in assignments[-10:]:
+            lines.append(
+                f"- `{assignment.id}` `{assignment.ticket_key}` -> `{assignment.agent_id}` "
+                f"status=`{assignment.status.value}` attempt=`{assignment.attempt}`"
+            )
+    else:
+        lines.append("No assignments yet.")
+    lines.extend(["", "## Active Assignments", ""])
+    if open_assignments:
+        for assignment in open_assignments:
+            lines.append(
+                f"- `{assignment.id}` `{assignment.ticket_key}` `{assignment.status.value}` "
+                f"backend=`{assignment.backend_name or ''}`"
+            )
+    else:
+        lines.append("No active assignments.")
+    lines.extend(["", "## Daemon / Runtime", ""])
+    if heartbeats:
+        for heartbeat in heartbeats:
+            lines.append(
+                f"- `{heartbeat.runtime_id}` status=`{heartbeat.status.value}` "
+                f"stage=`{heartbeat.current_stage or ''}` stale=`{str(_is_stale_heartbeat(heartbeat)).lower()}`"
+            )
+    else:
+        lines.append("No daemon heartbeat yet.")
+    lines.extend(["", "## Agent Comments", ""])
+    recent_comments = []
+    for ticket in tickets:
+        recent_comments.extend(store.list_comments(ticket.id)[-3:])
+    if recent_comments:
+        for comment in recent_comments[-10:]:
+            lines.append(f"- `{comment.ticket_key}` `{comment.kind.value}` {comment.author}: {comment.body}")
+    else:
+        lines.append("No comments yet.")
+    lines.extend(["", "## Recent Journal Events", ""])
+    if events:
+        for event in events[-10:]:
+            lines.append(
+                f"- `{event.timestamp}` `{event.ticket_key or ''}` "
+                f"`{event.stage}:{event.event_type}` {event.actor}"
+            )
+    else:
+        lines.append("No journal events yet.")
+    lines.extend(["", "## Executed Tickets", ""])
+    if executed:
+        for ticket in executed:
+            lines.append(f"- `{ticket.key}` {ticket.title}")
+    else:
+        lines.append("No executed tickets yet.")
+    lines.extend(["", "## Next Tickets", ""])
+    if next_ticket_paths:
+        for path in next_ticket_paths:
+            lines.append(f"- `{path}`")
+    else:
+        lines.append("No next-ticket artifacts yet.")
+    lines.extend(["", "## Backend Capability", ""])
+    for capability in capabilities:
+        lines.append(
+            f"- `{capability.backend_name}` available=`{str(capability.available).lower()}` "
+            f"external=`{str(capability.external_execution_enabled).lower()}`"
+        )
+    lines.extend(["", "## Safety Gates", ""])
+    lines.append(
+        "- External execution: "
+        f"`{'enabled' if os.environ.get('ARIADNE_ENABLE_EXTERNAL_EXECUTION') == '1' else 'disabled'}`"
+    )
+    lines.append(
+        "- Feishu write: "
+        f"`{'enabled' if os.environ.get('FEISHU_ENABLE_WRITE') == '1' else 'disabled'}`"
+    )
+    lines.extend(["", "## Codex Gate Status", ""])
+    codex = next((item for item in capabilities if item.backend_name == "codex"), None)
+    if codex:
+        lines.append(f"- Command path: `{codex.command_path or 'missing'}`")
+        lines.append(f"- Template set: `{str(codex.command_template_set).lower()}`")
+        lines.append(f"- Confirm required: `{str(codex.confirm_execution_required).lower()}`")
+    else:
+        lines.append("Codex capability snapshot missing.")
+    lines.append("")
+    return lines
 
 
 def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
