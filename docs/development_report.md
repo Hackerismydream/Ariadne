@@ -155,3 +155,92 @@ Recommended follow-up themes from the generator:
 - Reduce reviewer warnings when they appear.
 - Expand Feishu dry-run plans into richer docs plus tasks while preserving
   gated real writes.
+
+## ARI-004 Real CodexBackend Smoke Test
+
+Files changed:
+
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/execution.py`
+- `tests/test_backend_smoke_cli.py`
+- `docs/real_codex_smoke_test.md`
+- `docs/templates/REAL_CODEX_SMOKE_TEST_RESULT.md`
+- `README.md`
+- `docs/development_report.md`
+
+Commands run:
+
+```bash
+pytest
+ruff check .
+python3.11 -m ariadne_ltb.cli demo full
+python3.11 -m ariadne_ltb.cli export board
+python3.11 -m ariadne_ltb.cli backend doctor
+uv run ari demo full
+uv run ari export board
+uv run ari backend doctor
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}' \
+uv run ari backend smoke-test codex --confirm-execution
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --ignore-user-config --cd {target_repo} - < {handoff_file}' \
+uv run ari backend smoke-test codex --confirm-execution
+```
+
+Backend doctor result:
+
+```text
+FakeCodexBackend: available
+ShellBackend: available
+CodexBackend command: found /opt/homebrew/bin/codex
+ClaudeCodeBackend command: found /opt/homebrew/bin/claude
+ARIADNE_ENABLE_EXTERNAL_EXECUTION: unset
+ARIADNE_CODEX_COMMAND_TEMPLATE: unset
+ARIADNE_CLAUDE_COMMAND_TEMPLATE: unset
+FEISHU_ENABLE_WRITE: unset
+DEEPSEEK_API_KEY: unset
+```
+
+Real Codex command availability:
+
+- `codex`: available at `/opt/homebrew/bin/codex`.
+
+Real smoke test attempts:
+
+- Attempt 1 used the required default-style template
+  `codex exec --cd {target_repo} --prompt-file {handoff_file}`.
+- Result: Codex exited with code `2`.
+- Exact blocker: this local Codex CLI does not support `--prompt-file`:
+  `error: unexpected argument '--prompt-file' found`.
+
+- Attempt 2 used a stdin-compatible template:
+  `codex exec --ignore-user-config --cd {target_repo} - < {handoff_file}`.
+- Result: Codex exited with code `1`.
+- Execution result: `.ariadne/execution_results/execution_399c4cb1057e.json`
+- Review verdict: `needs_fix`.
+- Target project tests still ran and returned `0`.
+- Changed files: none.
+- Exact blocker: Codex reached the model/provider layer but the local account
+  cannot use the configured model:
+  `The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account.`
+
+Generated output paths from the real smoke-test attempt:
+
+- Board: `.ariadne/board/index.md`
+- Memory: `.ariadne/memory/tickets/ticket_91c283a19122.md`
+- Feishu dry-run plan: `.ariadne/feishu_plans/feishu_5dc5507facec.json`
+- Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`
+- Handoff file: `.ariadne/handoffs/ARI-003.md`
+
+Safety boundaries:
+
+- Real Codex smoke test refuses unless `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1`.
+- Real Codex smoke test refuses unless `--confirm-execution` is present.
+- Missing Codex command returns a clear blocked CLI result.
+- Ariadne does not commit, push, merge, or create PRs during backend execution.
+- Runtime outputs remain under `.ariadne/` and are gitignored.
+
+Next recommended Build Ticket:
+
+- ARI-005 - Add Codex CLI compatibility detection for prompt-file vs stdin
+  templates and model/profile selection diagnostics.

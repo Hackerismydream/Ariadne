@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -7,9 +9,9 @@ import typer
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
-from ariadne_ltb.execution import backend_for_name
+from ariadne_ltb.execution import CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
-from ariadne_ltb.full_demo import default_source_fixtures, run_full_demo
+from ariadne_ltb.full_demo import default_source_fixtures, run_full_demo, select_code_task_ticket
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
@@ -23,9 +25,11 @@ app = typer.Typer(help="Ariadne local deterministic Learning-to-Build workbench.
 ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
 memory_app = typer.Typer(help="Memory commands.")
+backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
 app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
 app.add_typer(memory_app, name="memory")
+app.add_typer(backend_app, name="backend")
 
 
 class CliState:
@@ -100,6 +104,72 @@ def ingest(
     typer.echo(f"Ingested {len(tickets)} source(s)")
     for ticket in tickets:
         typer.echo(f"{ticket.key} {ticket.source_type} {ticket.title}")
+
+
+@backend_app.command("doctor")
+def backend_doctor() -> None:
+    """Report local backend availability and safety-gate state without secrets."""
+    codex_path = shutil.which("codex")
+    claude_path = shutil.which("claude")
+    typer.echo("FakeCodexBackend: available")
+    typer.echo("ShellBackend: available")
+    typer.echo(f"CodexBackend command: {'found ' + codex_path if codex_path else 'missing'}")
+    typer.echo(f"ClaudeCodeBackend command: {'found ' + claude_path if claude_path else 'missing'}")
+    for variable in [
+        "ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+        "ARIADNE_CODEX_COMMAND_TEMPLATE",
+        "ARIADNE_CLAUDE_COMMAND_TEMPLATE",
+        "FEISHU_ENABLE_WRITE",
+        "DEEPSEEK_API_KEY",
+    ]:
+        typer.echo(f"{variable}: {'set' if os.environ.get(variable) else 'unset'}")
+
+
+@backend_app.command("smoke-test")
+def backend_smoke_test(
+    backend: Annotated[str, typer.Argument(help="Backend smoke test target. Only `codex` is supported.")],
+    confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+) -> None:
+    """Run a safety-gated real backend smoke test through TicketRunOrchestrator."""
+    if backend != "codex":
+        raise typer.BadParameter("only `codex` smoke test is supported")
+    if os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") != "1":
+        typer.echo(
+            "Refusing real Codex smoke test: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+        )
+        raise typer.Exit(2)
+    if not confirm_execution:
+        typer.echo("Refusing real Codex smoke test: --confirm-execution is required.")
+        raise typer.Exit(2)
+    if not CodexBackend().is_available():
+        typer.echo("Refusing real Codex smoke test: codex command is not available.")
+        raise typer.Exit(2)
+
+    store = AriadneStore(state.root)
+    target_repo = ensure_demo_target_project(state.root)
+    tickets = ingest_sources(store, default_source_fixtures())
+    selected = select_code_task_ticket(store, tickets)
+    result = TicketRunOrchestrator(store).run_ticket(
+        selected.key,
+        backend_name="codex",
+        target_repo_path=str(target_repo),
+        confirm_execution=True,
+    )
+    handoff_file = state.root / ".ariadne" / "handoffs" / f"{result.ticket_key}.md"
+    execution = store.load_execution_result(result.execution_result_id)
+
+    typer.echo(f"ticket: {result.ticket_key} ({result.ticket_id})")
+    typer.echo(f"backend: {result.backend_name}")
+    typer.echo(f"handoff file: {handoff_file}")
+    typer.echo(f"execution result: {result.execution_result_id}")
+    typer.echo(f"exit code: {execution.exit_code}")
+    typer.echo(f"changed files: {', '.join(result.changed_files)}")
+    typer.echo(f"test exit code: {result.test_exit_code}")
+    typer.echo(f"review verdict: {result.review_verdict}")
+    typer.echo(f"board: {result.board_path}")
+    typer.echo(f"memory: {result.memory_path}")
+    typer.echo(f"feishu dry-run plan: {result.feishu_plan_path}")
+    typer.echo(f"next tickets: {result.next_tickets_path}")
 
 
 @ticket_app.command("create")

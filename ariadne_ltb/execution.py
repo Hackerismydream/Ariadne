@@ -78,7 +78,7 @@ class DryRunBackend:
         repo = Path(context.target_repo_path)
         started = utc_now()
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=True,
@@ -130,7 +130,7 @@ class FakeCodexBackend:
         files = changed_files(repo)
         diff = git_diff(repo)
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,
@@ -209,7 +209,7 @@ class ShellBackend:
         started = utc_now()
         if not context.confirm_execution:
             return ExecutionResult(
-                id=stable_id("execution", context.ticket_id, self.name),
+                id=stable_id("execution", context.ticket_id, self.name, started),
                 ticket_id=context.ticket_id,
                 backend_name=self.name,
                 dry_run=False,
@@ -245,7 +245,7 @@ class ShellBackend:
                 check=False,
             )
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,
@@ -333,7 +333,7 @@ class CodexBackend(ShellBackend):
                 check=False,
             )
         return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name),
+            id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,

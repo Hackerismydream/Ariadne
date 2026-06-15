@@ -106,6 +106,20 @@ ARIADNE_CLAUDE_COMMAND_TEMPLATE='claude --print < {handoff_file}'
 Supported placeholders are `{target_repo}`, `{handoff_file}`, `{ticket_id}`,
 and `{ticket_key}`.
 
+## Real CodexBackend Smoke Test
+
+The default demo uses `FakeCodexBackend`. Real `CodexBackend` execution is
+optional, local, safety-gated, and never auto-commits.
+
+Run diagnostics:
+
+```bash
+ari backend doctor
+```
+
+The full smoke-test runbook is in
+[`docs/real_codex_smoke_test.md`](docs/real_codex_smoke_test.md).
+
 ## Feishu
 
 The default loop writes a Feishu dry-run plan only. Real writes use `lark-cli`
