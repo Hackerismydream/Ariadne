@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
 
+from ariadne_ltb.models import FailureReason, utc_now
 from ariadne_ltb.storage import AriadneStore
-from ariadne_ltb.models import FailureReason
 
 
 class TargetPathValidation(BaseModel):
@@ -70,12 +72,34 @@ def validate_target_repo_path(path: str | Path) -> TargetPathValidation:
     return TargetPathValidation(valid=True, path=str(resolved))
 
 
+class LockInfo(BaseModel):
+    path: str
+    pid: int | None = None
+    runtime_id: str = "local"
+    target_path: str = ""
+    ticket_id: str | None = None
+    assignment_id: str | None = None
+    created_at: str = ""
+    heartbeat_at: str = ""
+    stale: bool = False
+
+
 class DirectoryLock:
-    def __init__(self, store: AriadneStore, target_path: str | Path) -> None:
+    def __init__(
+        self,
+        store: AriadneStore,
+        target_path: str | Path,
+        runtime_id: str = "local",
+        ticket_id: str | None = None,
+        assignment_id: str | None = None,
+    ) -> None:
         self.store = store
         self.target_path = Path(target_path).resolve()
         digest = __import__("hashlib").sha256(str(self.target_path).encode("utf-8")).hexdigest()[:16]
         self.lock_path = store.locks_dir / f"{digest}.lock"
+        self.runtime_id = runtime_id
+        self.ticket_id = ticket_id
+        self.assignment_id = assignment_id
         self._held = False
 
     def acquire(self) -> None:
@@ -85,8 +109,18 @@ class DirectoryLock:
         except FileExistsError as exc:
             msg = f"target directory is locked: {self.target_path}"
             raise RuntimeError(msg) from exc
+        metadata = {
+            "pid": os.getpid(),
+            "runtime_id": self.runtime_id,
+            "target_path": str(self.target_path),
+            "ticket_id": self.ticket_id,
+            "assignment_id": self.assignment_id,
+            "created_at": utc_now(),
+            "heartbeat_at": utc_now(),
+        }
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(f"{os.getpid()}\n{self.target_path}\n")
+            json.dump(metadata, handle, indent=2)
+            handle.write("\n")
         self._held = True
 
     def release(self) -> None:
@@ -104,3 +138,49 @@ class DirectoryLock:
 
     def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
         self.release()
+
+
+def list_locks(store: AriadneStore, stale_after_seconds: int = 3600) -> list[LockInfo]:
+    locks: list[LockInfo] = []
+    for path in sorted(store.locks_dir.glob("*.lock")):
+        info = _read_lock(path)
+        info.stale = is_stale_lock(info, stale_after_seconds=stale_after_seconds)
+        locks.append(info)
+    return locks
+
+
+def is_stale_lock(info: LockInfo, stale_after_seconds: int = 3600) -> bool:
+    if not info.heartbeat_at:
+        return True
+    try:
+        heartbeat = datetime.fromisoformat(info.heartbeat_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return (datetime.now(UTC) - heartbeat).total_seconds() > stale_after_seconds
+
+
+def clear_stale_locks(store: AriadneStore, force: bool = False) -> list[LockInfo]:
+    cleared: list[LockInfo] = []
+    for info in list_locks(store):
+        if not info.stale:
+            continue
+        if not force:
+            continue
+        Path(info.path).unlink(missing_ok=True)
+        cleared.append(info)
+    return cleared
+
+
+def _read_lock(path: Path) -> LockInfo:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        data = {
+            "pid": int(lines[0]) if lines and lines[0].isdigit() else None,
+            "runtime_id": "unknown",
+            "target_path": lines[1] if len(lines) > 1 else "",
+            "created_at": "",
+            "heartbeat_at": "",
+        }
+    return LockInfo(path=str(path), **data)

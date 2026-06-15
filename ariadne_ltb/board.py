@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from ariadne_ltb.local_safety import list_locks
 from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus
 from ariadne_ltb.storage import AriadneStore
 
@@ -81,6 +82,57 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             ]
         )
     artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    lines.extend(["## Agent Assignment", ""])
+    if assignment:
+        lines.extend(
+            [
+                f"- Assigned agent: `{assignment.agent_name}` (`{assignment.agent_id}`)",
+                f"- Assignment status: `{assignment.status.value}`",
+                f"- Backend: `{assignment.backend_name or ''}`",
+                f"- Claimed by runtime: `{assignment.claimed_by_runtime_id or ''}`",
+                f"- Created: `{assignment.created_at}`",
+                f"- Claimed: `{assignment.claimed_at or ''}`",
+                f"- Ended: `{assignment.ended_at or ''}`",
+                "",
+            ]
+        )
+    else:
+        lines.extend(["No assignment yet.", ""])
+
+    comments = store.list_comments(ticket.id)
+    lines.extend(["## Comments", ""])
+    if comments:
+        for comment in comments:
+            lines.append(
+                f"- `{comment.created_at}` `{comment.kind.value}` {comment.author}: {comment.body}"
+            )
+    else:
+        lines.append("No comments yet.")
+    lines.append("")
+
+    runtime_events = store.list_runtime_events_for_ticket(ticket.id)
+    lines.extend(["## Runtime Journal", ""])
+    if runtime_events:
+        for event in runtime_events[-12:]:
+            lines.append(
+                f"- `{event.timestamp}` `{event.stage}:{event.event_type}` "
+                f"{event.actor} `{event.idempotency_key}`"
+            )
+    else:
+        lines.append("No runtime journal events yet.")
+    lines.append("")
+
+    open_assignments = store.list_open_assignments()
+    stale_locks = [lock for lock in list_locks(store) if lock.stale]
+    lines.extend(["## Daemon / Worker", ""])
+    lines.append(f"- Open assignments: `{len(open_assignments)}`")
+    lines.append(f"- Stale lock warnings: `{len(stale_locks)}`")
+    if runtime_events:
+        last = runtime_events[-1]
+        lines.append(f"- Latest daemon event: `{last.stage}:{last.event_type}`")
+    lines.append("")
+
     runtime_capability = _latest_json_artifact(store, artifacts, ArtifactType.RUNTIME_CAPABILITY)
     lines.extend(["### Runtime Capability", ""])
     if runtime_capability:
