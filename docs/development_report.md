@@ -1,133 +1,175 @@
-# Ariadne v0.1 Development Report
+# Ariadne 1.0 Development Report
 
 ## Implemented files
 
 - `pyproject.toml`
 - `uv.lock`
 - `.gitignore`
+- `.env.example`
 - `README.md`
 - `ariadne_ltb/__init__.py`
 - `ariadne_ltb/models.py`
 - `ariadne_ltb/storage.py`
 - `ariadne_ltb/runtime.py`
 - `ariadne_ltb/agents.py`
+- `ariadne_ltb/ingest.py`
+- `ariadne_ltb/execution.py`
+- `ariadne_ltb/git_utils.py`
+- `ariadne_ltb/target_project.py`
+- `ariadne_ltb/review.py`
+- `ariadne_ltb/memory.py`
+- `ariadne_ltb/feishu.py`
+- `ariadne_ltb/llm.py`
+- `ariadne_ltb/full_demo.py`
 - `ariadne_ltb/demo.py`
 - `ariadne_ltb/board.py`
 - `ariadne_ltb/cli.py`
 - `examples/multica_research_note.md`
+- `examples/sources/paper_agent_workflows.md`
+- `examples/sources/blog_multica_lessons.md`
+- `examples/sources/github_tiny_cli_readme.md`
 - `templates/BUILD_TICKET_TEMPLATE.md`
 - `templates/CODEX_HANDOFF_TEMPLATE.md`
 - `templates/REVIEW_REPORT_TEMPLATE.md`
 - `templates/FEISHU_WRITE_PLAN_TEMPLATE.md`
 - `docs/adr/ADR-0001-multica-architecture-extraction.md`
+- `docs/codex_workpacks/ariadne_1_0_v3/`
+- `tests/test_1_0_full_demo.py`
 - `tests/test_models.py`
 - `tests/test_storage.py`
 - `tests/test_pipeline.py`
 - `tests/test_cli.py`
 
-## How to run tests
+## What was implemented
+
+Ariadne now demonstrates the 1.0 Learning-to-Build loop:
+
+```text
+external knowledge -> Build Ticket -> Build Packet -> coding backend -> code diff -> review -> memory
+```
+
+The full demo:
+
+- creates/updates `.ariadne/demo_target_project/`;
+- ingests three source fixtures: paper, blog, and GitHub README note;
+- creates Build Tickets with unique keys and Build Packets;
+- selects the GitHub README source as the code task;
+- runs `FakeCodexBackend` against the separate demo target project;
+- adds `demo-todo export-json`;
+- captures stdout, stderr, exit code, changed files, git diff, and test output;
+- produces a conservative review verdict;
+- writes local memory under `.ariadne/memory/`;
+- creates a Feishu dry-run write plan;
+- exports `.ariadne/board/index.md` and `.ariadne/board/index.html`.
+
+## Commands run
 
 ```bash
 pytest
-```
-
-Run linting if Ruff is installed:
-
-```bash
 ruff check .
+uv run python -m ariadne_ltb.cli demo full
+uv run python -m ariadne_ltb.cli export board
+python3.11 -m ariadne_ltb.cli demo full
+python -m ariadne_ltb.cli demo full
 ```
 
-## How to run the demo
+Verification results:
 
-```bash
-python -m ariadne_ltb.cli demo
-python -m ariadne_ltb.cli export board
-```
+- `pytest` - passed, 20 tests.
+- `ruff check .` - passed.
+- `uv run python -m ariadne_ltb.cli demo full` - passed.
+- `uv run python -m ariadne_ltb.cli export board` - passed.
+- `python3.11 -m ariadne_ltb.cli demo full` - passed.
+- `python -m ariadne_ltb.cli demo full` - failed before project code starts because this shell has no `python` executable in `PATH`.
 
-On this machine, the exact `python -m ...` commands currently fail before
-project code starts because there is no `python` executable in `PATH`:
+## Full demo output summary
+
+Latest successful full demo output:
 
 ```text
-zsh:1: command not found: python
+sources ingested: 3
+tickets created: 3
+backend used: fake-codex
+changed files: demo_todo/cli.py, tests/test_cli.py
+test exit code: 0
+reviewer verdict: pass
+board: .ariadne/board/index.md
+memory: .ariadne/memory/tickets/<ticket_id>.md
+feishu plan: .ariadne/feishu_plans/<plan_id>.json
 ```
 
-The same module entrypoints were verified successfully with the available Python
-3.11 runtime and with `uv`:
+## Safety boundaries
+
+- Tests and default demo require no network, Codex, Claude, OpenAI, Anthropic, Feishu, or GitHub credentials.
+- `FakeCodexBackend` modifies only `.ariadne/demo_target_project/`.
+- `ShellBackend` refuses to run unless `--confirm-execution` is passed.
+- `CodexBackend`/`ClaudeCodeBackend` are scaffolds and require explicit enablement plus confirmation.
+- Ariadne itself never auto-commits, auto-pushes, auto-merges, or creates PRs.
+- Feishu write-back is dry-run by default.
+- `.env`, `.env.*`, `*.secret`, and `secrets/` are gitignored.
+- The provided DeepSeek key was not committed or written into repo files.
+
+## Optional real adapter instructions
+
+DeepSeek is the preferred future LLM backend for Ariadne agent intelligence. The code includes an optional `DeepSeekClient` using OpenAI-compatible DeepSeek chat completions through:
 
 ```bash
-python3.11 -m ariadne_ltb.cli demo
-python3.11 -m ariadne_ltb.cli export board
-uv run python -m ariadne_ltb.cli demo
-uv run python -m ariadne_ltb.cli export board
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-pro
 ```
 
-If the package script is installed:
+The default runtime uses deterministic rules when no key is present.
+
+Optional external execution:
 
 ```bash
-ari demo
-ari export board
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ari ticket execute ARI-003 --backend codex --confirm-execution
 ```
 
-The demo creates `.ariadne/artifacts/<ticket_id>/` and exports the static board
-to `.ariadne/board/index.md`.
+Optional Feishu real write-back uses `lark-cli docs +create --api-version v2`
+and remains disabled unless credentials/configuration plus explicit confirmation
+are present:
 
-## Verification results
+```bash
+FEISHU_APP_ID=
+FEISHU_APP_SECRET=
+FEISHU_FOLDER_TOKEN=
+FEISHU_ENABLE_WRITE=1
+```
 
-- `pytest` - passed, 14 tests.
-- `ruff check .` - passed.
-- `python3.11 -m ariadne_ltb.cli demo` - passed.
-- `python3.11 -m ariadne_ltb.cli export board` - passed.
-- `uv run python -m ariadne_ltb.cli demo` - passed.
-- `uv run python -m ariadne_ltb.cli export board` - passed.
-- `uv run ari demo` - passed.
-- `uv run ari export board` - passed.
-- `python -m ariadne_ltb.cli demo` - failed because `python` is not installed in
-  PATH on this machine.
-- `python -m ariadne_ltb.cli export board` - failed for the same environment
-  reason.
+Command:
 
-## Stubbed or dry-run behavior
+```bash
+FEISHU_ENABLE_WRITE=1 ari memory sync <ticket_id_or_key> --target feishu --no-dry-run --confirm-write
+```
 
-- Coding-agent execution is a deterministic dry-run artifact.
-- Feishu write-back is a dry-run plan with `dry_run=true`.
-- Knowledge retrieval uses local seed docs/templates only.
-- Repo inspection is read-only and limited to safe local structure.
-- No external APIs, web crawling, Codex/Claude execution, commits, pushes,
-  merges, PRs, or Feishu writes are performed.
+The default 1.0 demo still generates Feishu dry-run plans only.
 
 ## Assumptions made
 
-- JSON persistence is sufficient for the v0.1 single-project kernel.
-- The demo ticket uses deterministic key `ARI-001` and a stable ticket ID.
-- The required pipeline orders Reviewer before Feishu Plan. Therefore the
-  Reviewer records a warning that the Feishu plan is generated by the following
-  node, while the final Feishu Plan artifact enforces `dry_run=true`.
-- The `ari` command works after package installation; the fallback module command
-  remains the direct local entrypoint.
+- The 1.0 local demo should prioritize a complete deterministic chain over live LLM/API behavior.
+- `FakeCodexBackend` is the default backend for `demo full`.
+- The demo target project can be reset/rewritten because it is generated under `.ariadne/`.
+- If a local `pytest` executable is available, target project tests use it; otherwise they fall back to `sys.executable -m pytest`.
+- The bare `python` command is unavailable on this machine; `python3.11` and `uv run python` were used as documented equivalents.
 
 ## Known limitations
 
-- Static board is Markdown only, not a web UI.
-- Reviewer is rule-based and conservative, not LLM-assisted.
-- No real Codex backend exists yet.
-- No Feishu API adapter exists yet.
-- No retrieval over historical tickets or external documents exists yet.
-- No approval gate exists beyond dry-run-only behavior.
+- Feishu real write support is only a guarded `lark-cli` document-create scaffold, not a production sync adapter.
+- No production Codex/Claude execution adapter yet.
+- Source understanding is deterministic and fixture-oriented, not LLM-ranked.
+- Static board is intentionally simple; no FastAPI board server yet.
+- Local memory is markdown/JSON files, not retrieval-indexed.
+- `DeepSeekClient` is optional and not used by deterministic tests.
 
 ## Next recommended Build Tickets
 
-- ARI-002 - Real Codex backend adapter: add approval-gated Codex CLI execution,
-  capture logs/diffs/tests, and still never auto-commit or auto-push.
-- ARI-003 - Feishu API adapter: add approval-gated document/task write-back with
-  dry-run preview.
-- ARI-004 - Knowledge retrieval: search local markdown notes, historical Build
-  Tickets, Agent Runs, and prior reports.
-- ARI-005 - FastAPI Build Board: replace static board with a local read-only web
-  UI for tickets, runs, artifacts, and review results.
-- ARI-006 - Build Packet quality evaluator: score relevance, evidence coverage,
-  task clarity, acceptance criteria quality, and scope creep risk.
-- ARI-007 - GitHub project analysis skill: analyze a README or cloned repository
-  and convert useful architecture ideas into a Build Packet.
-- ARI-008 - Build Skill system: represent reusable methods such as
-  `paper-to-build-packet`, `github-project-analysis`, `codex-handoff`,
-  `review-diff`, and `feishu-write-plan`.
+- ARI-004 - Knowledge retrieval over local memory, prior tickets, Build Packets, and markdown notes.
+- ARI-005 - FastAPI read-only Build Board with filters for source type, status, backend, verdict, and changed files.
+- ARI-006 - Build Packet quality evaluator for evidence coverage, acceptance criteria quality, and scope risk.
+- ARI-007 - GitHub project analysis adapter for live or cloned repositories.
+- ARI-008 - Skill system for reusable `paper-to-build-packet`, `github-project-analysis`, `codex-handoff`, `review-diff`, and `feishu-write-plan` methods.
+- ARI-009 - Approval-gated real Codex CLI backend with captured logs, diffs, and test output.
+- ARI-010 - Approval-gated Feishu write-back through `lark-cli docs +create --api-version v2`.

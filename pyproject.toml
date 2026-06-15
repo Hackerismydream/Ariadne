@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ariadne-ltb"
-version = "0.1.0"
-description = "Ariadne local deterministic Learning-to-Build ticket kernel."
+version = "1.0.0"
+description = "Ariadne local Learning-to-Build agent workbench."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
