@@ -410,5 +410,161 @@ Latest output paths from the acceptance run:
 Next recommended Build Ticket:
 
 - ARI-006 - Add a local runtime event journal with resumable ticket-run state.
+
+## ARI-006 Agent Teammate Mode
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/daemon.py`
+- `ariadne_ltb/journal.py`
+- `ariadne_ltb/local_safety.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/board.py`
+- `ariadne_ltb/cli.py`
+- `tests/test_agent_teammate_mode.py`
+- `README.md`
+- `docs/adr/ADR-0003-agent-teammate-mode.md`
+- `docs/development_report.md`
+
+New models:
+
+- `AgentProfile`
+- `AssignmentStatus`
+- `TicketAssignment`
+- `CommentAuthorType`
+- `CommentKind`
+- `TicketComment`
+- `RuntimeEvent`
+- `ResumeSafety`
+- `ResumePlan`
+
+New CLI:
+
+```bash
+ari agent list
+ari ticket assign <ticket_id_or_key> --to <agent_id>
+ari ticket comment <ticket_id_or_key> "message"
+ari ticket comments <ticket_id_or_key>
+ari ticket resume <ticket_id_or_key>
+ari daemon run-once
+ari daemon start
+ari daemon status
+ari runtime journal
+ari runtime recover
+ari runtime locks
+```
+
+What now works:
+
+```bash
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari runtime journal
+ari runtime recover
+ari export board
+```
+
+The daemon claims exactly one queued assignment, calls `TicketRunOrchestrator`,
+writes comments and runtime journal events, updates assignment status, and
+exports the board.
+
+Storage added:
+
+- `.ariadne/agents/profiles.json`
+- `.ariadne/assignments/<assignment_id>.json`
+- `.ariadne/comments/<ticket_id>.jsonl`
+- `.ariadne/journal/events.jsonl`
+- `.ariadne/daemon/`
+- `.ariadne/locks/`
+
+Board now shows:
+
+- Agent Assignment
+- Comments
+- Runtime Journal
+- Daemon / Worker
+
+Safety boundaries:
+
+- Real Codex and Claude backends remain gated by
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` plus `--confirm-execution`.
+- Tests use `fake-codex` and require no network, credentials, GitHub token,
+  Codex, Claude, DeepSeek, or Feishu access.
+- Runtime still never auto-commits, auto-pushes, merges, or creates PRs.
+
+Known limitations:
+
+- `daemon start` is a simple polling loop, not an OS service.
+- Recovery is conservative and writes a blocked recovery comment when unsafe.
+- Resume does not implement real session resume or partial stage replay.
+- Assignment queue is JSON-file based and single-user local.
+
+Verification for ARI-006:
+
+```bash
+pytest tests/test_agent_teammate_mode.py -q
+pytest -q
+ruff check .
+```
+
+Interim results:
+
+- `pytest tests/test_agent_teammate_mode.py -q`: passed, 9 tests.
+- `pytest -q`: passed, 55 tests.
+- `ruff check .`: passed.
+
+Final ARI-006 acceptance run:
+
+```bash
+pytest
+ruff check .
+python3.11 -m ariadne_ltb.cli demo full
+python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
+python3.11 -m ariadne_ltb.cli ticket list
+python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
+python3.11 -m ariadne_ltb.cli daemon run-once
+python3.11 -m ariadne_ltb.cli ticket comments ARI-003
+python3.11 -m ariadne_ltb.cli runtime journal
+python3.11 -m ariadne_ltb.cli runtime recover
+python3.11 -m ariadne_ltb.cli export board
+uv run ari ingest examples/sources/*.md
+uv run ari ticket list
+uv run ari ticket assign ARI-003 --to fake-codex
+uv run ari daemon run-once
+uv run ari ticket comments ARI-003
+uv run ari export board
+python3.11 -m ariadne_ltb.cli agent list
+python3.11 -m ariadne_ltb.cli ticket show ARI-003
+python3.11 -m ariadne_ltb.cli daemon status
+python3.11 -m ariadne_ltb.cli runtime locks
+```
+
+Results:
+
+- `pytest`: passed, 55 tests.
+- `ruff check .`: passed.
+- Python CLI Agent Teammate Mode path: passed.
+- `uv run ari` Agent Teammate Mode path: passed.
+- `agent list`, `ticket show`, `daemon status`, and `runtime locks`: passed.
+
+Latest output paths from the acceptance run:
+
+- Board: `.ariadne/board/index.md`
+- Comments: `.ariadne/comments/ticket_91c283a19122.jsonl`
+- Journal: `.ariadne/journal/events.jsonl`
+- Assignment: `.ariadne/assignments/assignment_d50edb01729d.json`
+- Memory: `.ariadne/memory/tickets/ticket_91c283a19122.md`
+- Feishu dry-run plan: `.ariadne/feishu_plans/`
+- Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`
+
+Next recommended Build Ticket:
+
+- ARI-007 - Implement safe partial-stage resume using runtime journal stage
+  checkpoints.
   vs stdin templates, service tier support, reasoning effort, and profile/model
   selection.

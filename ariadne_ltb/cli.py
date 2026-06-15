@@ -8,29 +8,45 @@ from typing import Annotated
 import typer
 
 from ariadne_ltb.board import export_board
+from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
 from ariadne_ltb.execution import CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.full_demo import default_source_fixtures, run_full_demo, select_code_task_ticket
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.journal import build_resume_plan
+from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
+from ariadne_ltb.models import (
+    AssignmentStatus,
+    CommentAuthorType,
+    CommentKind,
+    ExecutionContext,
+    ResumeSafety,
+    TicketStatus,
+)
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.review import review_execution
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
-from ariadne_ltb.models import ExecutionContext, TicketStatus
 
 app = typer.Typer(help="Ariadne local deterministic Learning-to-Build workbench.")
+agent_app = typer.Typer(help="Agent teammate commands.")
 ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
 memory_app = typer.Typer(help="Memory commands.")
 backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
+daemon_app = typer.Typer(help="Local daemon worker commands.")
+runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
+app.add_typer(agent_app, name="agent")
 app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
 app.add_typer(memory_app, name="memory")
 app.add_typer(backend_app, name="backend")
+app.add_typer(daemon_app, name="daemon")
+app.add_typer(runtime_app, name="runtime")
 
 
 class CliState:
@@ -105,6 +121,18 @@ def ingest(
     typer.echo(f"Ingested {len(tickets)} source(s)")
     for ticket in tickets:
         typer.echo(f"{ticket.key} {ticket.source_type} {ticket.title}")
+
+
+@agent_app.command("list")
+def agent_list() -> None:
+    """List local Ariadne Agent teammates."""
+    store = AriadneStore(state.root)
+    for profile in store.ensure_default_agent_profiles():
+        capabilities = ",".join(profile.capabilities)
+        typer.echo(
+            f"{profile.id}\t{profile.name}\t{profile.role}\t"
+            f"{profile.backend_name or ''}\t{profile.enabled}\t{capabilities}"
+        )
 
 
 @backend_app.command("doctor")
@@ -205,6 +233,13 @@ def ticket_show(ticket_id: str) -> None:
     typer.echo(f"Source: {ticket.source_ref}")
     typer.echo(f"Runs: {len(ticket.agent_run_ids)}")
     typer.echo(f"Artifacts: {len(ticket.artifact_ids)}")
+    store = AriadneStore(state.root)
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    if assignment:
+        typer.echo(
+            f"Assignment: {assignment.agent_id} {assignment.status.value} "
+            f"backend={assignment.backend_name or ''}"
+        )
 
 
 @ticket_app.command("list")
@@ -212,6 +247,86 @@ def ticket_list() -> None:
     """List Build Tickets."""
     for ticket in AriadneStore(state.root).list_tickets():
         typer.echo(f"{ticket.key}\t{ticket.status.value}\t{ticket.source_type}\t{ticket.title}")
+
+
+@ticket_app.command("assign")
+def ticket_assign(
+    ticket_id: str,
+    agent_id: Annotated[str, typer.Option("--to", help="Agent profile id or name.")],
+    backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
+) -> None:
+    """Assign a Build Ticket to a local Agent teammate."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    agent = store.resolve_agent_profile(agent_id)
+    assignment = store.create_assignment(ticket, agent, backend_name=backend)
+    status = (
+        TicketStatus.READY_FOR_EXECUTION
+        if (assignment.backend_name or agent.backend_name) == "fake-codex"
+        else TicketStatus.WAITING_APPROVAL
+    )
+    updated = store.load_ticket(ticket.id).with_status(
+        status,
+        "Ariadne",
+        f"Assigned to {agent.name}.",
+    )
+    store.save_ticket(updated)
+    typer.echo(f"Assignment created: {assignment.id}")
+    typer.echo(f"ticket: {ticket.key}")
+    typer.echo(f"agent: {agent.id}")
+    typer.echo(f"backend: {assignment.backend_name or ''}")
+
+
+@ticket_app.command("comment")
+def ticket_comment(ticket_id: str, message: str) -> None:
+    """Add a human comment to a Build Ticket."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    comment = store.add_comment(
+        ticket,
+        CommentAuthorType.HUMAN,
+        "human",
+        CommentKind.COMMENT,
+        message,
+    )
+    typer.echo(f"comment: {comment.id}")
+
+
+@ticket_app.command("comments")
+def ticket_comments(ticket_id: str) -> None:
+    """Show Build Ticket comments."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    comments = store.list_comments(ticket.id)
+    if not comments:
+        typer.echo("No comments.")
+        return
+    for comment in comments:
+        typer.echo(
+            f"{comment.created_at}\t{comment.kind.value}\t{comment.author_type.value}:{comment.author}\t{comment.body}"
+        )
+
+
+@ticket_app.command("resume")
+def ticket_resume(ticket_id: str) -> None:
+    """Create a conservative resume plan for a ticket."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    plan = build_resume_plan(store, ticket)
+    if plan.safety is not ResumeSafety.SAFE_TO_RESUME:
+        store.add_comment(
+            ticket,
+            CommentAuthorType.SYSTEM,
+            "Recovery",
+            CommentKind.RECOVERY,
+            f"Resume blocked: {'; '.join(plan.reasons)}",
+            payload_ref=plan.id,
+        )
+        typer.echo(f"blocked: {plan.safety.value}")
+        for reason in plan.reasons:
+            typer.echo(f"- {reason}")
+        raise typer.Exit(2)
+    typer.echo(f"safe_to_resume: {plan.recommended_command}")
 
 
 @ticket_app.command("plan")
@@ -313,6 +428,111 @@ def ticket_review(ticket_id: str) -> None:
     review = review_execution(store, ticket, packet, execution)
     store.save_review_report(review)
     typer.echo(f"reviewer verdict: {review.verdict.value}")
+
+
+@daemon_app.command("run-once")
+def daemon_run_once(
+    confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+) -> None:
+    """Claim and run one queued assignment."""
+    result = LocalDaemonWorker(AriadneStore(state.root)).run_once(
+        confirm_execution=confirm_execution,
+    )
+    if not result.did_work:
+        typer.echo("no work")
+        return
+    typer.echo(f"Assignment claimed: {result.assignment_id}")
+    typer.echo(f"running ticket: {result.ticket_key}")
+    if result.ticket_run_result:
+        typer.echo(f"reviewer verdict: {result.ticket_run_result.review_verdict}")
+        typer.echo(f"board: {result.ticket_run_result.board_path}")
+    typer.echo(f"assignment {result.status}: {result.assignment_id}")
+
+
+@daemon_app.command("start")
+def daemon_start(
+    interval: Annotated[float, typer.Option("--interval")] = 5.0,
+    max_iterations: Annotated[int | None, typer.Option("--max-iterations")] = None,
+    confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+) -> None:
+    """Run a simple local daemon polling loop."""
+    LocalDaemonWorker(AriadneStore(state.root)).run_loop(
+        interval_seconds=interval,
+        max_iterations=max_iterations,
+        confirm_execution=confirm_execution,
+    )
+    typer.echo("daemon loop finished")
+
+
+@daemon_app.command("status")
+def daemon_status() -> None:
+    """Show local daemon queue status."""
+    store = AriadneStore(state.root)
+    open_assignments = store.list_open_assignments()
+    events = store.list_runtime_events()
+    typer.echo("runtime_id: local")
+    typer.echo(f"open assignments: {len(open_assignments)}")
+    typer.echo(
+        "running assignments: "
+        f"{sum(1 for assignment in open_assignments if assignment.status is AssignmentStatus.RUNNING)}"
+    )
+    if events:
+        last = events[-1]
+        typer.echo(f"last journal event: {last.stage}:{last.event_type}")
+
+
+@runtime_app.command("journal")
+def runtime_journal(
+    limit: Annotated[int, typer.Option("--limit")] = 20,
+) -> None:
+    """Show recent runtime journal events."""
+    events = AriadneStore(state.root).list_runtime_events()[-limit:]
+    if not events:
+        typer.echo("No runtime journal events.")
+        return
+    for event in events:
+        typer.echo(
+            f"{event.timestamp}\t{event.ticket_key or ''}\t{event.assignment_id or ''}\t"
+            f"{event.stage}\t{event.event_type}\t{event.actor}"
+        )
+
+
+@runtime_app.command("recover")
+def runtime_recover() -> None:
+    """Scan local runtime state and print conservative resume plans."""
+    store = AriadneStore(state.root)
+    plans = [build_resume_plan(store, ticket) for ticket in store.list_tickets()]
+    if not plans:
+        typer.echo("No tickets to recover.")
+        return
+    for plan in plans:
+        if plan.assignment_id is None:
+            continue
+        typer.echo(f"{plan.ticket_key}\t{plan.safety.value}\tcurrent={plan.current_stage or ''}")
+        for reason in plan.reasons:
+            typer.echo(f"- {reason}")
+        if plan.recommended_command:
+            typer.echo(f"recommended: {plan.recommended_command}")
+
+
+@runtime_app.command("locks")
+def runtime_locks(
+    force_stale_locks: Annotated[bool, typer.Option("--force-stale-locks")] = False,
+) -> None:
+    """List local directory locks and optionally clear stale ones."""
+    store = AriadneStore(state.root)
+    locks = list_locks(store)
+    if not locks:
+        typer.echo("No locks.")
+        return
+    for lock in locks:
+        typer.echo(
+            f"{lock.target_path}\tpid={lock.pid}\tticket={lock.ticket_id or ''}\t"
+            f"assignment={lock.assignment_id or ''}\tstale={lock.stale}"
+        )
+    cleared = clear_stale_locks(store, force=force_stale_locks)
+    if cleared:
+        typer.echo(f"cleared stale locks: {len(cleared)}")
 
 
 @export_app.command("board")

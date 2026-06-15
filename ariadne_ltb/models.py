@@ -38,6 +38,25 @@ class TicketStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class AssignmentStatus(str, Enum):
+    QUEUED = "queued"
+    CLAIMED = "claimed"
+    RUNNING = "running"
+    BLOCKED = "blocked"
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self in {
+            AssignmentStatus.BLOCKED,
+            AssignmentStatus.DONE,
+            AssignmentStatus.FAILED,
+            AssignmentStatus.CANCELLED,
+        }
+
+
 class AgentRunStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -132,6 +151,29 @@ class ReviewVerdict(str, Enum):
     NEEDS_HUMAN_REVIEW = "needs_human_review"
 
 
+class CommentAuthorType(str, Enum):
+    HUMAN = "human"
+    AGENT = "agent"
+    SYSTEM = "system"
+
+
+class CommentKind(str, Enum):
+    COMMENT = "comment"
+    ASSIGNMENT = "assignment"
+    PROGRESS = "progress"
+    BLOCKER = "blocker"
+    REVIEW = "review"
+    MEMORY = "memory"
+    ROUTE = "route"
+    RECOVERY = "recovery"
+
+
+class ResumeSafety(str, Enum):
+    SAFE_TO_RESUME = "safe_to_resume"
+    NEEDS_HUMAN_REVIEW = "needs_human_review"
+    UNSAFE = "unsafe"
+
+
 class TicketEvent(AriadneModel):
     timestamp: str = Field(default_factory=utc_now)
     ticket_id: str
@@ -162,6 +204,132 @@ class SourceDocument(AriadneModel):
     summary: str
     created_at: str = Field(default_factory=utc_now)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentProfile(AriadneModel):
+    id: str
+    name: str
+    role: str
+    backend_name: str | None = None
+    planner_name: str = "deterministic"
+    description: str = ""
+    capabilities: list[str] = Field(default_factory=list)
+    default_confirm_execution: bool = False
+    enabled: bool = True
+    created_at: str = Field(default_factory=utc_now)
+
+
+class TicketAssignment(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    agent_id: str
+    agent_name: str
+    backend_name: str | None = None
+    planner_name: str = "deterministic"
+    status: AssignmentStatus = AssignmentStatus.QUEUED
+    priority: str = "medium"
+    assigned_by: str = "human"
+    claimed_by_runtime_id: str | None = None
+    created_at: str = Field(default_factory=utc_now)
+    claimed_at: str | None = None
+    started_at: str | None = None
+    ended_at: str | None = None
+    failure_reason: FailureReason | None = None
+    blocker: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status.is_terminal
+
+    def mark_claimed(self, runtime_id: str) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.CLAIMED
+        assignment.claimed_by_runtime_id = runtime_id
+        assignment.claimed_at = assignment.claimed_at or utc_now()
+        return assignment
+
+    def mark_running(self) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.RUNNING
+        assignment.started_at = assignment.started_at or utc_now()
+        return assignment
+
+    def mark_done(self, metadata: dict[str, Any] | None = None) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.DONE
+        assignment.ended_at = utc_now()
+        if metadata:
+            assignment.metadata = assignment.metadata | metadata
+        return assignment
+
+    def mark_blocked(
+        self,
+        blocker: str,
+        failure_reason: FailureReason = FailureReason.UNKNOWN,
+    ) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.BLOCKED
+        assignment.blocker = blocker
+        assignment.failure_reason = failure_reason
+        assignment.ended_at = utc_now()
+        return assignment
+
+    def mark_failed(
+        self,
+        blocker: str,
+        failure_reason: FailureReason = FailureReason.AGENT_ERROR,
+    ) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.FAILED
+        assignment.blocker = blocker
+        assignment.failure_reason = failure_reason
+        assignment.ended_at = utc_now()
+        return assignment
+
+
+class TicketComment(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    author_type: CommentAuthorType
+    author: str
+    kind: CommentKind = CommentKind.COMMENT
+    body: str
+    payload_ref: str | None = None
+    created_at: str = Field(default_factory=utc_now)
+
+
+class RuntimeEvent(AriadneModel):
+    id: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    assignment_id: str | None = None
+    run_id: str | None = None
+    runtime_id: str
+    stage: str
+    event_type: str
+    actor: str
+    timestamp: str = Field(default_factory=utc_now)
+    payload_ref: str | None = None
+    failure_reason: FailureReason | None = None
+    idempotency_key: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResumePlan(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    assignment_id: str | None = None
+    last_completed_stage: str | None = None
+    current_stage: str | None = None
+    next_stage: str | None = None
+    safety: ResumeSafety
+    reasons: list[str] = Field(default_factory=list)
+    recommended_command: str | None = None
+    created_at: str = Field(default_factory=utc_now)
 
 
 class ProjectContext(AriadneModel):

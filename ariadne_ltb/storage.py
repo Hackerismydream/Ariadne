@@ -8,19 +8,27 @@ from pydantic import BaseModel
 
 from ariadne_ltb.models import (
     AgentRun,
+    AgentProfile,
     Artifact,
     ArtifactType,
+    AssignmentStatus,
     BuildPacket,
     BuildTicket,
+    CommentAuthorType,
+    CommentKind,
     ExecutionResult,
     FeishuWritePlan,
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
     ReviewReport,
+    RuntimeEvent,
     RuntimeCapability,
     SourceDocument,
+    TicketAssignment,
+    TicketComment,
     stable_id,
+    utc_now,
 )
 
 T = TypeVar("T", bound=BaseModel)
@@ -31,6 +39,13 @@ class AriadneStore:
         self.root = Path(root).resolve()
         self.base = self.root / ".ariadne"
         self.project_space_path = self.base / "project_space.json"
+        self.agents_dir = self.base / "agents"
+        self.agent_profiles_path = self.agents_dir / "profiles.json"
+        self.assignments_dir = self.base / "assignments"
+        self.comments_dir = self.base / "comments"
+        self.journal_dir = self.base / "journal"
+        self.journal_path = self.journal_dir / "events.jsonl"
+        self.daemon_dir = self.base / "daemon"
         self.tickets_dir = self.base / "tickets"
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
@@ -50,6 +65,11 @@ class AriadneStore:
     def _ensure_layout(self) -> None:
         for directory in [
             self.base,
+            self.agents_dir,
+            self.assignments_dir,
+            self.comments_dir,
+            self.journal_dir,
+            self.daemon_dir,
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
@@ -86,6 +106,47 @@ class AriadneStore:
     def load_project_space(self) -> ProjectSpace:
         return self._read_model(self.project_space_path, ProjectSpace)
 
+    def save_agent_profiles(self, profiles: list[AgentProfile]) -> None:
+        self.agent_profiles_path.write_text(
+            json.dumps(
+                {"profiles": [profile.model_dump(mode="json") for profile in profiles]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def load_agent_profiles(self) -> list[AgentProfile]:
+        if not self.agent_profiles_path.exists():
+            return []
+        data = json.loads(self.agent_profiles_path.read_text(encoding="utf-8"))
+        return [AgentProfile.model_validate(item) for item in data.get("profiles", [])]
+
+    def ensure_default_agent_profiles(self) -> list[AgentProfile]:
+        profiles = self.load_agent_profiles()
+        existing = {profile.id: profile for profile in profiles}
+        defaults = _default_agent_profiles()
+        changed = False
+        for profile in defaults:
+            if profile.id not in existing:
+                existing[profile.id] = profile
+                changed = True
+        merged = sorted(existing.values(), key=lambda profile: profile.id)
+        if changed or not profiles:
+            self.save_agent_profiles(merged)
+        return merged
+
+    def resolve_agent_profile(self, agent_id_or_name: str) -> AgentProfile:
+        normalized = agent_id_or_name.lower()
+        for profile in self.ensure_default_agent_profiles():
+            if profile.id.lower() == normalized or profile.name.lower() == normalized:
+                if not profile.enabled:
+                    msg = f"agent profile is disabled: {agent_id_or_name}"
+                    raise ValueError(msg)
+                return profile
+        msg = f"unknown agent profile: {agent_id_or_name}"
+        raise FileNotFoundError(msg)
+
     def save_ticket(self, ticket: BuildTicket) -> None:
         self._write_model(self.tickets_dir / f"{ticket.id}.json", ticket)
 
@@ -109,6 +170,152 @@ class AriadneStore:
             for path in sorted(self.tickets_dir.glob("*.json"))
         ]
         return sorted(tickets, key=lambda ticket: ticket.key)
+
+    def create_assignment(
+        self,
+        ticket: BuildTicket,
+        agent: AgentProfile,
+        backend_name: str | None = None,
+        assigned_by: str = "human",
+    ) -> TicketAssignment:
+        assignment = TicketAssignment(
+            id=stable_id("assignment", ticket.id, agent.id, utc_now()),
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            agent_id=agent.id,
+            agent_name=agent.name,
+            backend_name=backend_name or agent.backend_name,
+            planner_name=agent.planner_name,
+            priority=ticket.priority,
+            assigned_by=assigned_by,
+        )
+        self.save_assignment(assignment)
+        comment = TicketComment(
+            id=stable_id("comment", ticket.id, assignment.id, "assignment"),
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            author_type=CommentAuthorType.SYSTEM,
+            author="Ariadne",
+            kind=CommentKind.ASSIGNMENT,
+            body=f"Assignment created: {ticket.key} -> {agent.name}.",
+            payload_ref=assignment.id,
+        )
+        self.append_comment(comment)
+        self.append_runtime_event(
+            RuntimeEvent(
+                id=stable_id("event", assignment.id, "assignment", "queued"),
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                assignment_id=assignment.id,
+                runtime_id="local",
+                stage="assignment",
+                event_type="queued",
+                actor="Ariadne",
+                payload_ref=assignment.id,
+                idempotency_key=f"assignment:{assignment.id}:queued",
+            )
+        )
+        updated = ticket.model_copy(
+            deep=True,
+            update={
+                "metadata": ticket.metadata
+                | {
+                    "assigned_agent_id": agent.id,
+                    "assigned_agent_name": agent.name,
+                    "latest_assignment_id": assignment.id,
+                }
+            },
+        )
+        self.save_ticket(updated)
+        return assignment
+
+    def save_assignment(self, assignment: TicketAssignment) -> None:
+        self._write_model(self.assignments_dir / f"{assignment.id}.json", assignment)
+
+    def load_assignment(self, assignment_id: str) -> TicketAssignment:
+        return self._read_model(
+            self.assignments_dir / f"{assignment_id}.json",
+            TicketAssignment,
+        )
+
+    def list_assignments(self) -> list[TicketAssignment]:
+        return [
+            self._read_model(path, TicketAssignment)
+            for path in sorted(self.assignments_dir.glob("*.json"))
+        ]
+
+    def list_open_assignments(self) -> list[TicketAssignment]:
+        return [
+            assignment
+            for assignment in self.list_assignments()
+            if assignment.status
+            in {
+                AssignmentStatus.QUEUED,
+                AssignmentStatus.CLAIMED,
+                AssignmentStatus.RUNNING,
+            }
+        ]
+
+    def find_latest_assignment_for_ticket(self, ticket_id: str) -> TicketAssignment | None:
+        assignments = [
+            assignment for assignment in self.list_assignments() if assignment.ticket_id == ticket_id
+        ]
+        if not assignments:
+            return None
+        return sorted(assignments, key=lambda assignment: assignment.created_at)[-1]
+
+    def append_comment(self, comment: TicketComment) -> None:
+        path = self.comments_dir / f"{comment.ticket_id}.jsonl"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(comment.model_dump_json(exclude_none=False) + "\n")
+
+    def add_comment(
+        self,
+        ticket: BuildTicket,
+        author_type: CommentAuthorType,
+        author: str,
+        kind: CommentKind,
+        body: str,
+        payload_ref: str | None = None,
+    ) -> TicketComment:
+        comment = TicketComment(
+            id=stable_id("comment", ticket.id, author, kind.value, body, utc_now()),
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            author_type=author_type,
+            author=author,
+            kind=kind,
+            body=body,
+            payload_ref=payload_ref,
+        )
+        self.append_comment(comment)
+        return comment
+
+    def list_comments(self, ticket_id: str) -> list[TicketComment]:
+        path = self.comments_dir / f"{ticket_id}.jsonl"
+        if not path.exists():
+            return []
+        return [
+            TicketComment.model_validate_json(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def append_runtime_event(self, event: RuntimeEvent) -> None:
+        with self.journal_path.open("a", encoding="utf-8") as handle:
+            handle.write(event.model_dump_json(exclude_none=False) + "\n")
+
+    def list_runtime_events(self) -> list[RuntimeEvent]:
+        if not self.journal_path.exists():
+            return []
+        return [
+            RuntimeEvent.model_validate_json(line)
+            for line in self.journal_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def list_runtime_events_for_ticket(self, ticket_id: str) -> list[RuntimeEvent]:
+        return [event for event in self.list_runtime_events() if event.ticket_id == ticket_id]
 
     def save_run(self, run: AgentRun) -> None:
         self._write_model(self.runs_dir / f"{run.id}.json", run)
@@ -248,3 +455,53 @@ class AriadneStore:
 
     def read_artifact_json(self, artifact: Artifact) -> dict:
         return json.loads(self.read_artifact_text(artifact))
+
+
+def _default_agent_profiles() -> list[AgentProfile]:
+    return [
+        AgentProfile(
+            id="build-lead",
+            name="Build Lead",
+            role="router",
+            description="Routes tickets and writes route decisions.",
+            capabilities=["route", "plan", "delegate"],
+        ),
+        AgentProfile(
+            id="fake-codex",
+            name="Fake Codex",
+            role="coding_agent",
+            backend_name="fake-codex",
+            description="Safe deterministic local coding agent for demos and tests.",
+            capabilities=["execute", "diff", "tests"],
+        ),
+        AgentProfile(
+            id="codex",
+            name="Codex",
+            role="coding_agent",
+            backend_name="codex",
+            description="Safety-gated real Codex backend adapter.",
+            capabilities=["execute", "diff", "tests", "external"],
+        ),
+        AgentProfile(
+            id="claude-code",
+            name="Claude Code",
+            role="coding_agent",
+            backend_name="claude-code",
+            description="Safety-gated Claude Code backend scaffold.",
+            capabilities=["execute", "diff", "tests", "external"],
+        ),
+        AgentProfile(
+            id="reviewer",
+            name="Reviewer",
+            role="reviewer",
+            description="Conservative local result checker.",
+            capabilities=["review", "acceptance_criteria"],
+        ),
+        AgentProfile(
+            id="memory",
+            name="Memory",
+            role="memory",
+            description="Writes local memory and Feishu dry-run plans.",
+            capabilities=["memory", "feishu_dry_run", "next_tickets"],
+        ),
+    ]
