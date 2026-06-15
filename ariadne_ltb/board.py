@@ -101,6 +101,26 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     else:
         lines.extend(["No assignment yet.", ""])
 
+    assignment_chain = store.list_assignments_for_ticket(ticket.id)
+    lines.extend(["### Assignment Retry Chain", ""])
+    if assignment_chain:
+        lines.extend(
+            [
+                "| Assignment | Status | Attempt | Parent | Failure reason | Retry reason | Created | Ended |",
+                "|---|---|---:|---|---|---|---|---|",
+            ]
+        )
+        for item in assignment_chain:
+            lines.append(
+                f"| `{item.id}` | `{item.status.value}` | {item.attempt} | "
+                f"`{item.parent_assignment_id or ''}` | "
+                f"`{item.failure_reason.value if item.failure_reason else ''}` | "
+                f"{item.retry_reason or ''} | `{item.created_at}` | `{item.ended_at or ''}` |"
+            )
+    else:
+        lines.append("No assignments yet.")
+    lines.append("")
+
     comments = store.list_comments(ticket.id)
     lines.extend(["## Comments", ""])
     if comments:

@@ -277,6 +277,10 @@ class TicketAssignment(AriadneModel):
     ended_at: str | None = None
     failure_reason: FailureReason | None = None
     blocker: str | None = None
+    parent_assignment_id: str | None = None
+    attempt: int = 1
+    retry_reason: str | None = None
+    retry_policy: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property

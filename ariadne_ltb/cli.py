@@ -27,6 +27,7 @@ from ariadne_ltb.models import (
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import planner_for_name
+from ariadne_ltb.retry import create_retry_assignment
 from ariadne_ltb.review import review_execution
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
@@ -34,6 +35,7 @@ from ariadne_ltb.target_project import ensure_demo_target_project, target_test_c
 
 app = typer.Typer(help="Ariadne local deterministic Learning-to-Build workbench.")
 agent_app = typer.Typer(help="Agent teammate commands.")
+assignment_app = typer.Typer(help="Assignment queue commands.")
 ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
 memory_app = typer.Typer(help="Memory commands.")
@@ -41,6 +43,7 @@ backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
 daemon_app = typer.Typer(help="Local daemon worker commands.")
 runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
 app.add_typer(agent_app, name="agent")
+app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
 app.add_typer(memory_app, name="memory")
@@ -133,6 +136,54 @@ def agent_list() -> None:
             f"{profile.id}\t{profile.name}\t{profile.role}\t"
             f"{profile.backend_name or ''}\t{profile.enabled}\t{capabilities}"
         )
+
+
+@assignment_app.command("list")
+def assignment_list() -> None:
+    """List Ticket assignments."""
+    store = AriadneStore(state.root)
+    assignments = store.list_assignments()
+    if not assignments:
+        typer.echo("No assignments.")
+        return
+    for assignment in assignments:
+        typer.echo(
+            f"{assignment.id}\t{assignment.ticket_key}\t{assignment.agent_id}\t"
+            f"{assignment.status.value}\tattempt={assignment.attempt}\t"
+            f"parent={assignment.parent_assignment_id or ''}"
+        )
+
+
+@assignment_app.command("show")
+def assignment_show(assignment_id: str) -> None:
+    """Show one Ticket assignment."""
+    assignment = AriadneStore(state.root).load_assignment(assignment_id)
+    typer.echo(f"id: {assignment.id}")
+    typer.echo(f"ticket: {assignment.ticket_key}")
+    typer.echo(f"agent: {assignment.agent_id}")
+    typer.echo(f"status: {assignment.status.value}")
+    typer.echo(f"attempt: {assignment.attempt}")
+    typer.echo(f"parent: {assignment.parent_assignment_id or ''}")
+    typer.echo(f"failure reason: {assignment.failure_reason.value if assignment.failure_reason else ''}")
+    typer.echo(f"blocker: {assignment.blocker or ''}")
+
+
+@assignment_app.command("retry")
+def assignment_retry(
+    assignment_id: str,
+    reason: Annotated[str, typer.Option("--reason")] = "retry requested",
+    force: Annotated[bool, typer.Option("--force")] = False,
+) -> None:
+    """Create a new queued retry assignment from a blocked or failed assignment."""
+    store = AriadneStore(state.root)
+    try:
+        retry = create_retry_assignment(store, store.load_assignment(assignment_id), reason, force)
+    except ValueError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
+    typer.echo(f"retry assignment: {retry.id}")
+    typer.echo(f"parent: {retry.parent_assignment_id}")
+    typer.echo(f"attempt: {retry.attempt}")
 
 
 @backend_app.command("doctor")
@@ -327,6 +378,30 @@ def ticket_resume(ticket_id: str) -> None:
             typer.echo(f"- {reason}")
         raise typer.Exit(2)
     typer.echo(f"safe_to_resume: {plan.recommended_command}")
+
+
+@ticket_app.command("retry")
+def ticket_retry(
+    ticket_id: str,
+    reason: Annotated[str, typer.Option("--reason")] = "retry requested",
+    force: Annotated[bool, typer.Option("--force")] = False,
+) -> None:
+    """Create a retry assignment for the latest blocked or failed assignment on a ticket."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    if assignment is None:
+        typer.echo(f"No assignment found for {ticket.key}.")
+        raise typer.Exit(2)
+    try:
+        retry = create_retry_assignment(store, assignment, reason, force)
+    except ValueError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
+    typer.echo(f"retry assignment: {retry.id}")
+    typer.echo(f"ticket: {ticket.key}")
+    typer.echo(f"parent: {retry.parent_assignment_id}")
+    typer.echo(f"attempt: {retry.attempt}")
 
 
 @ticket_app.command("plan")

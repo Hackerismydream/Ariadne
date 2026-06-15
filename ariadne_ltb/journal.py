@@ -7,6 +7,7 @@ from ariadne_ltb.models import (
     ResumeSafety,
     RuntimeEvent,
     stable_id,
+    FailureReason,
 )
 from ariadne_ltb.storage import AriadneStore
 
@@ -23,6 +24,7 @@ def runtime_event(
     assignment_id: str | None = None,
     run_id: str | None = None,
     payload_ref: str | None = None,
+    failure_reason: FailureReason | None = None,
     metadata: dict | None = None,
 ) -> RuntimeEvent:
     ticket_id = ticket.id if ticket else None
@@ -49,6 +51,7 @@ def runtime_event(
         event_type=event_type,
         actor=actor,
         payload_ref=payload_ref,
+        failure_reason=failure_reason,
         idempotency_key=idempotency_key,
         metadata=metadata or {},
     )
@@ -69,12 +72,32 @@ def build_resume_plan(store: AriadneStore, ticket: BuildTicket) -> ResumePlan:
         recommended = None
     elif assignment.status is AssignmentStatus.DONE:
         safety = ResumeSafety.NEEDS_HUMAN_REVIEW
-        reasons.append("Latest assignment is already done; Ariadne will not duplicate completed work.")
+        reasons.append("Latest assignment is already done; no resume needed.")
         recommended = None
-    elif assignment.status in {AssignmentStatus.QUEUED, AssignmentStatus.BLOCKED}:
+    elif assignment.status is AssignmentStatus.QUEUED:
         safety = ResumeSafety.SAFE_TO_RESUME
         reasons.append("Assignment is not running and can be picked up by daemon run-once.")
         recommended = "ari daemon run-once"
+    elif assignment.status in {AssignmentStatus.BLOCKED, AssignmentStatus.FAILED}:
+        if assignment.failure_reason in {
+            FailureReason.RUNTIME_OFFLINE,
+            FailureReason.TIMEOUT,
+            FailureReason.COMMAND_UNAVAILABLE,
+            FailureReason.REVIEW_FAILED,
+        }:
+            safety = ResumeSafety.SAFE_TO_RESUME
+            reasons.append(
+                f"Latest assignment is {assignment.status.value} with safe retry reason "
+                f"{assignment.failure_reason.value}."
+            )
+            recommended = f"ari ticket retry {ticket.key}"
+        else:
+            safety = ResumeSafety.NEEDS_HUMAN_REVIEW
+            reasons.append(
+                f"Latest assignment is {assignment.status.value} with unsafe retry reason "
+                f"{assignment.failure_reason.value if assignment.failure_reason else 'missing'}."
+            )
+            recommended = f"ari assignment retry {assignment.id} --force"
     else:
         safety = ResumeSafety.NEEDS_HUMAN_REVIEW
         reasons.append(f"Assignment is {assignment.status.value}; conservative recovery requires review.")

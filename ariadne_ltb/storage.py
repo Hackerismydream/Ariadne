@@ -248,6 +248,12 @@ class AriadneStore:
             for path in sorted(self.assignments_dir.glob("*.json"))
         ]
 
+    def list_assignments_for_ticket(self, ticket_id: str) -> list[TicketAssignment]:
+        return sorted(
+            [assignment for assignment in self.list_assignments() if assignment.ticket_id == ticket_id],
+            key=lambda assignment: (assignment.attempt, assignment.created_at),
+        )
+
     def list_open_assignments(self) -> list[TicketAssignment]:
         return [
             assignment
@@ -261,12 +267,10 @@ class AriadneStore:
         ]
 
     def find_latest_assignment_for_ticket(self, ticket_id: str) -> TicketAssignment | None:
-        assignments = [
-            assignment for assignment in self.list_assignments() if assignment.ticket_id == ticket_id
-        ]
+        assignments = self.list_assignments_for_ticket(ticket_id)
         if not assignments:
             return None
-        return sorted(assignments, key=lambda assignment: assignment.created_at)[-1]
+        return assignments[-1]
 
     def append_comment(self, comment: TicketComment) -> None:
         path = self.comments_dir / f"{comment.ticket_id}.jsonl"
