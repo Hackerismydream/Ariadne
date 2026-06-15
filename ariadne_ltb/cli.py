@@ -12,9 +12,9 @@ from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.full_demo import default_source_fixtures, run_full_demo
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
+from ariadne_ltb.orchestrator import TicketRunOrchestrator
+from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.review import review_execution
-from ariadne_ltb.runtime import PipelineEngine, RuntimeContext
-from ariadne_ltb.agents import default_pipeline_nodes
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 from ariadne_ltb.models import ExecutionContext, TicketStatus
@@ -72,7 +72,7 @@ def demo(
         typer.echo(f"board: {result.board_path}")
         typer.echo(f"memory: {result.memory_path}")
         typer.echo(f"feishu plan: {result.feishu_plan_path}")
-        typer.echo("next recommended tickets: ARI-004 retrieval, ARI-005 board UI, ARI-006 quality evaluator")
+        typer.echo(f"next tickets: {result.next_tickets_path}")
         return
     if mode != "kernel":
         raise typer.BadParameter("mode must be `kernel` or `full`")
@@ -83,10 +83,20 @@ def demo(
 
 
 @app.command()
-def ingest(paths: list[Path]) -> None:
+def ingest(
+    paths: list[Path],
+    planner: Annotated[
+        str | None,
+        typer.Option("--planner", help="Optional planner to run after ingest: deterministic|llm."),
+    ] = None,
+) -> None:
     """Ingest local markdown sources into Build Tickets and Build Packets."""
     store = AriadneStore(state.root)
     tickets = ingest_sources(store, paths)
+    if planner:
+        planner_backend = planner_for_name(planner)
+        for ticket in tickets:
+            planner_backend.plan_ticket(store, ticket)
     typer.echo(f"Ingested {len(tickets)} source(s)")
     for ticket in tickets:
         typer.echo(f"{ticket.key} {ticket.source_type} {ticket.title}")
@@ -126,16 +136,54 @@ def ticket_list() -> None:
         typer.echo(f"{ticket.key}\t{ticket.status.value}\t{ticket.source_type}\t{ticket.title}")
 
 
-@ticket_app.command("run")
-def ticket_run(ticket_id: str) -> None:
-    """Run the deterministic pipeline for an existing Build Ticket."""
+@ticket_app.command("plan")
+def ticket_plan(
+    ticket_id: str,
+    planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+) -> None:
+    """Plan an existing Build Ticket into a Build Packet and handoff artifact."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
-    source_path = Path(ticket.source_ref)
-    source_text = source_path.read_text(encoding="utf-8")
-    context = RuntimeContext(store=store, ticket=ticket, source_text=source_text, source_path=source_path)
-    final_ticket = PipelineEngine(default_pipeline_nodes()).run(context)
-    typer.echo(f"Ran {final_ticket.key} ({final_ticket.id})")
+    result = planner_for_name(planner).plan_ticket(store, ticket)
+    if not result.succeeded:
+        typer.echo(f"planner blocked: {result.error}")
+        typer.echo(f"artifact: {result.error_artifact_path}")
+        raise typer.Exit(2)
+    typer.echo(f"planned {ticket.key} with {result.planner_name}")
+    typer.echo(f"build packet: {result.build_packet_id}")
+    typer.echo(f"handoff: {result.handoff_artifact_path}")
+
+
+@ticket_app.command("run")
+def ticket_run(
+    ticket_id: str,
+    backend: Annotated[str, typer.Option("--backend", help="dry-run|fake-codex|shell|codex|claude-code")] = "fake-codex",
+    target_repo_path: Annotated[
+        Path | None,
+        typer.Option("--target-repo-path", help="Target repository path. Defaults to demo target."),
+    ] = None,
+    command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
+    planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+) -> None:
+    """Run a Build Ticket through the full Ariadne product loop."""
+    result = TicketRunOrchestrator(AriadneStore(state.root)).run_ticket(
+        ticket_id,
+        backend_name=backend,
+        target_repo_path=str(target_repo_path) if target_repo_path else None,
+        command=command,
+        planner=planner,
+        confirm_execution=confirm_execution,
+    )
+    typer.echo(f"ran {result.ticket_key} ({result.ticket_id})")
+    typer.echo(f"backend used: {result.backend_name}")
+    typer.echo(f"changed files: {', '.join(result.changed_files)}")
+    typer.echo(f"test exit code: {result.test_exit_code}")
+    typer.echo(f"reviewer verdict: {result.review_verdict}")
+    typer.echo(f"memory: {result.memory_path}")
+    typer.echo(f"feishu plan: {result.feishu_plan_path}")
+    typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"board: {result.board_path}")
 
 
 @ticket_app.command("execute")

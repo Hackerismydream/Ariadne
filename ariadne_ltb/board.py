@@ -18,7 +18,11 @@ def export_board(store: AriadneStore) -> Path:
         "",
         "Static local board export. No server is required.",
         "",
+        "## Loop Trace",
+        "",
         "`learning input -> build decision -> coding execution -> review -> memory`",
+        "",
+        "Source -> Ticket -> Packet -> Handoff -> Backend -> Diff -> Tests -> Review -> Memory -> Feishu Plan -> Next Tickets",
         "",
     ]
     sources = store.list_source_documents()
@@ -63,8 +67,23 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         f"- Priority: `{ticket.priority}`",
         "",
     ]
+    source_id = ticket.metadata.get("source_document_id")
+    if source_id:
+        source = store.load_source_document(source_id)
+        lines.extend(
+            [
+                "### Source",
+                "",
+                f"- Type: `{source.source_type.value}`",
+                f"- Title: {source.title}",
+                f"- Path: `{source.path_or_url}`",
+                "",
+            ]
+        )
+    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
     if ticket.build_packet_id:
         packet = store.load_build_packet(ticket.build_packet_id)
+        handoff = _latest_artifact(artifacts, ArtifactType.CODEX_HANDOFF)
         lines.extend(
             [
                 "### Build Packet Summary",
@@ -72,20 +91,31 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 f"- Decision: `{packet.build_decision.value}`",
                 f"- Evidence count: `{len(packet.evidence)}`",
                 f"- Project relevance: {packet.project_relevance}",
+                f"- Handoff artifact: `{handoff.path if handoff else 'missing'}`",
                 "",
             ]
         )
     if ticket.metadata.get("execution_result_id"):
         execution = store.load_execution_result(ticket.metadata["execution_result_id"])
+        diff_artifact = _latest_artifact(artifacts, ArtifactType.GIT_DIFF)
+        changed_artifact = _latest_artifact(artifacts, ArtifactType.CHANGED_FILES)
+        test_artifact = _latest_artifact(artifacts, ArtifactType.TEST_OUTPUT)
         lines.extend(
             [
                 "### Execution",
                 "",
                 f"- Backend: `{execution.backend_name}`",
+                f"- External execution enabled: `{str(ticket.metadata.get('external_execution_enabled', False)).lower()}`",
+                f"- Blocked: `{str(execution.blocked).lower()}`",
+                f"- Block reason: {execution.block_reason or 'none'}",
                 f"- Exit code: `{execution.exit_code}`",
+                f"- Test command: `{execution.test_command}`",
                 f"- Test exit code: `{execution.test_exit_code}`",
                 f"- Changed files: `{', '.join(execution.changed_files)}`",
                 f"- Diff captured: `{str(bool(execution.git_diff)).lower()}`",
+                f"- Diff artifact: `{diff_artifact.path if diff_artifact else 'missing'}`",
+                f"- Changed files artifact: `{changed_artifact.path if changed_artifact else 'missing'}`",
+                f"- Test output artifact: `{test_artifact.path if test_artifact else 'missing'}`",
                 "",
             ]
         )
@@ -106,7 +136,6 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         )
 
     lines.extend(["", "### Artifacts", ""])
-    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
     for artifact in artifacts:
         lines.append(
             f"- `{artifact.artifact_type.value}`: `{artifact.path}` - {artifact.summary}"
@@ -128,6 +157,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.extend(["", "### Feishu Write Plan", ""])
     if feishu:
         lines.append(f"- Dry-run: `{str(feishu.get('dry_run')).lower()}`")
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.FEISHU_WRITE_PLAN)}`")
         lines.append(f"- Run summary: {feishu.get('run_summary', '')}")
         lines.append("- Proposed tasks:")
         for task in feishu.get("proposed_tasks", []):
@@ -139,9 +169,19 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.extend(["", "### Memory", ""])
     if memory:
         lines.append(f"- Memory record: `{memory.get('id', 'missing')}`")
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.MEMORY_RECORD)}`")
         lines.append(f"- Decision: {memory.get('decision_log_entry', '')}")
     else:
         lines.append("No local memory record found.")
+
+    next_tickets = _latest_json_artifact(store, artifacts, ArtifactType.NEXT_TICKETS)
+    lines.extend(["", "### Next Tickets", ""])
+    if next_tickets:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.NEXT_TICKETS)}`")
+        for item in next_tickets.get("next_tickets", []):
+            lines.append(f"- `{item.get('priority', 'medium')}` {item.get('title', 'Untitled')}")
+    else:
+        lines.append("No generated next tickets found.")
 
     lines.extend(["", "### Event Log", ""])
     for event in ticket.event_log:
@@ -157,6 +197,18 @@ def _latest_json_artifact(store: AriadneStore, artifacts: list, artifact_type: A
         if artifact.artifact_type is artifact_type:
             return json.loads(Path(artifact.path).read_text(encoding="utf-8"))
     return None
+
+
+def _latest_artifact(artifacts: list, artifact_type: ArtifactType):
+    for artifact in reversed(artifacts):
+        if artifact.artifact_type is artifact_type:
+            return artifact
+    return None
+
+
+def _latest_artifact_path(artifacts: list, artifact_type: ArtifactType) -> str:
+    artifact = _latest_artifact(artifacts, artifact_type)
+    return artifact.path if artifact else "missing"
 
 
 def _html_from_markdown(markdown: str) -> str:

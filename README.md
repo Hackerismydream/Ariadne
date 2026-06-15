@@ -1,83 +1,136 @@
 # Ariadne
 
-Ariadne turns what you learn into what your coding agents build.
+Ariadne turns external knowledge into local software iterations for coding
+agents. It is a single-user, local-first Learning-to-Build workbench: ingest
+Markdown sources, create Build Tickets and Build Packets, hand a selected ticket
+to a backend, capture the result, review it, write memory, generate next ticket
+suggestions, and export a static board.
 
-This repository contains the Ariadne 1.0 local Learning-to-Build MVP for
-`ariadne-ltb`. The Python package is `ariadne_ltb`; the intended CLI command is
-`ari`, with `python -m ariadne_ltb.cli` as the fallback entrypoint.
+Repository name: `ariadne-ltb`. Python package: `ariadne_ltb`. CLI target:
+`ari`. Fallback CLI: `python -m ariadne_ltb.cli`.
 
-## What the MVP does
+## True MVP Path
 
-The full demo ingests three local external source fixtures, creates Build
-Tickets and Build Packets, selects a code task, executes it against a separate
-demo target project, captures stdout/stderr/exit code, git diff, changed files
-and test output, reviews the result, writes local memory, generates a Feishu
-dry-run plan, and exports a static board under `.ariadne/board/`.
-
-Pipeline:
-
-```text
-Build Lead
-  -> Learning
-  -> Knowledge
-  -> Repo
-  -> Planner
-  -> Execution Dry Run
-  -> Reviewer
-  -> Feishu Plan
-```
-
-The execution backend is a dry run. It does not call Codex, Claude Code,
-Feishu, external APIs, or Git automation.
-
-## Run locally
-
-Install the project in your preferred Python 3.11+ environment, then run:
+The normal product path is ticket-driven:
 
 ```bash
-pytest
-python -m ariadne_ltb.cli demo full
-python -m ariadne_ltb.cli export board
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket run ARI-003 --backend fake-codex
+ari export board
 ```
 
-If your shell does not provide a `python` executable, use the environment's
-Python 3.11+ command or let `uv` create the environment:
+Fallback:
+
+```bash
+python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
+python3.11 -m ariadne_ltb.cli ticket list
+python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex
+python3.11 -m ariadne_ltb.cli export board
+```
+
+`ticket run` performs the complete loop:
+
+```text
+Source -> Ticket -> Packet -> Handoff -> Backend -> Diff -> Tests -> Review -> Memory -> Feishu Plan -> Next Tickets
+```
+
+Generated outputs are under `.ariadne/`, including:
+
+```text
+.ariadne/artifacts/<ticket_id>/
+.ariadne/memory/
+.ariadne/feishu_plans/
+.ariadne/board/index.md
+.ariadne/board/index.html
+```
+
+## Demo
+
+`ari demo full` remains available, but it is now a wrapper around the reusable
+`TicketRunOrchestrator`. It ensures the demo target project exists, ingests the
+fixture sources, selects the code-task ticket, and calls the same full-loop path
+as `ari ticket run`.
 
 ```bash
 python3.11 -m ariadne_ltb.cli demo full
 python3.11 -m ariadne_ltb.cli export board
-uv run python -m ariadne_ltb.cli demo full
 ```
 
-If installed as a package, the script entrypoint also works:
+## Planning
+
+Default planning is deterministic and requires no credentials:
 
 ```bash
-ari demo full
-ari export board
+ari ticket plan ARI-003 --planner deterministic
 ```
 
-Inspect generated output:
+Optional LLM planning uses DeepSeek when `DEEPSEEK_API_KEY` is present:
 
-```text
-.ariadne/
-  project_space.json
-  tickets/
-  runs/
-  build_packets/
-  reviews/
-  feishu_plans/
-  memory/
-  demo_target_project/
-  artifacts/
-  board/index.md
-  board/index.html
+```bash
+DEEPSEEK_API_KEY=... ari ticket plan ARI-003 --planner llm
 ```
 
-## Safety boundaries
+If the key is missing, Ariadne writes a blocked planner artifact and exits
+gracefully. Tests do not require network access or a DeepSeek key.
 
-- No real Feishu writes.
-- Full demo uses `fake-codex`, a deterministic local backend.
-- Shell/Codex/Claude-style execution scaffolds require explicit confirmation.
-- No auto-commit, auto-push, auto-merge, or PR creation.
-- No web UI, auth, crawler, vector database, or cloud runtime in v0.1.
-- Every runtime step creates an Agent Run and reaches a terminal state.
+## Execution Backends
+
+- `fake-codex`: deterministic local simulator. It only patches the demo target
+  when the handoff mentions `export-json` and allowed paths include
+  `demo_todo/cli.py` and `tests/test_cli.py`.
+- `dry-run`: records an execution result without changing files.
+- `shell`: low-level command backend, requires `--confirm-execution`.
+- `codex`: gated Codex CLI adapter scaffold.
+- `claude-code`: gated Claude Code adapter scaffold.
+
+Real external execution requires both:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1
+--confirm-execution
+```
+
+Codex command template:
+
+```bash
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}'
+```
+
+Claude command template:
+
+```bash
+ARIADNE_CLAUDE_COMMAND_TEMPLATE='claude --print < {handoff_file}'
+```
+
+Supported placeholders are `{target_repo}`, `{handoff_file}`, `{ticket_id}`,
+and `{ticket_key}`.
+
+## Feishu
+
+The default loop writes a Feishu dry-run plan only. Real writes use `lark-cli`
+and require both:
+
+```bash
+FEISHU_ENABLE_WRITE=1
+--confirm-write
+```
+
+No Feishu credentials are required for tests or the default demo.
+
+## Safety
+
+- No auto-commit, auto-push, auto-merge, or PR creation from Ariadne runtime.
+- No network is required for tests.
+- External execution is blocked unless explicitly enabled and confirmed.
+- Feishu writes are dry-run unless explicitly enabled and confirmed.
+- `.env`, `.env.*`, `*.secret`, `secrets/`, and `.ariadne/` are gitignored.
+
+## Verification
+
+```bash
+pytest
+ruff check .
+python3.11 -m ariadne_ltb.cli demo full
+python3.11 -m ariadne_ltb.cli export board
+```

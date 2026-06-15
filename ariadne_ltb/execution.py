@@ -34,6 +34,40 @@ def _run_command(command: list[str], cwd: Path, timeout: int) -> subprocess.Comp
     )
 
 
+def _blocked_result(
+    context: ExecutionContext,
+    backend_name: str,
+    reason: str,
+    started: str,
+    repo: Path,
+    command: str | None = None,
+    dry_run: bool = False,
+) -> ExecutionResult:
+    return ExecutionResult(
+        id=stable_id("execution", context.ticket_id, backend_name, reason),
+        ticket_id=context.ticket_id,
+        backend_name=backend_name,
+        dry_run=dry_run,
+        blocked=True,
+        block_reason=reason,
+        command=command if command is not None else context.command,
+        exit_code=2,
+        stdout="",
+        stderr=reason,
+        started_at=started,
+        ended_at=utc_now(),
+        git_head_before=git_head(repo),
+        git_head_after=git_head(repo),
+        git_status_before=git_status(repo),
+        git_status_after=git_status(repo),
+        changed_files=changed_files(repo),
+        git_diff=git_diff(repo),
+        test_command=context.test_command,
+        test_exit_code=None,
+        warnings=[reason],
+    )
+
+
 class DryRunBackend:
     name = "dry-run"
 
@@ -77,6 +111,9 @@ class FakeCodexBackend:
         started = utc_now()
         head_before = git_head(repo)
         status_before = git_status(repo)
+        validation_reason = self._validate_context(context)
+        if validation_reason:
+            return _blocked_result(context, self.name, validation_reason, started, repo)
         cli_path = repo / "demo_todo" / "cli.py"
         test_path = repo / "tests" / "test_cli.py"
         self._add_export_json(cli_path)
@@ -97,6 +134,7 @@ class FakeCodexBackend:
             ticket_id=context.ticket_id,
             backend_name=self.name,
             dry_run=False,
+            blocked=False,
             command=context.command,
             exit_code=0,
             stdout=execution_stdout,
@@ -115,6 +153,17 @@ class FakeCodexBackend:
             test_stderr=test.stderr,
             warnings=[] if diff else ["git diff unavailable or empty"],
         )
+
+    def _validate_context(self, context: ExecutionContext) -> str | None:
+        task_text = f"{context.handoff_prompt}\n{context.command}".lower()
+        if "export-json" not in task_text:
+            return "FakeCodexBackend blocked: task or handoff must mention `export-json`."
+        required = {"demo_todo/cli.py", "tests/test_cli.py"}
+        allowed = set(context.allowed_paths)
+        if not required.issubset(allowed):
+            missing = ", ".join(sorted(required - allowed))
+            return f"FakeCodexBackend blocked: allowed paths missing {missing}."
+        return None
 
     def _add_export_json(self, cli_path: Path) -> None:
         text = cli_path.read_text(encoding="utf-8")
@@ -219,27 +268,124 @@ class ShellBackend:
 
 class CodexBackend(ShellBackend):
     name = "codex"
+    template_env_var = "ARIADNE_CODEX_COMMAND_TEMPLATE"
+    default_template = "codex exec --cd {target_repo} --prompt-file {handoff_file}"
+    executable_name = "codex"
 
     def is_available(self) -> bool:
-        return shutil.which("codex") is not None
+        return shutil.which(self.executable_name) is not None
 
     def execute(self, context: ExecutionContext) -> ExecutionResult:
+        repo = Path(context.target_repo_path)
+        started = utc_now()
+        handoff_file = self.write_handoff_file(context)
+        prepared = context.model_copy(update={"handoff_file": str(handoff_file)})
+        command = self.render_command(prepared)
         if os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") != "1":
-            blocked = context.model_copy(
-                update={
-                    "command": "codex backend refused: ARIADNE_ENABLE_EXTERNAL_EXECUTION != 1",
-                    "confirm_execution": False,
-                }
+            return _blocked_result(
+                prepared,
+                self.name,
+                "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.",
+                started,
+                repo,
+                command=command,
             )
-            return super().execute(blocked)
-        return super().execute(context)
+        if not context.confirm_execution:
+            return _blocked_result(
+                prepared,
+                self.name,
+                "External execution blocked: --confirm-execution is required.",
+                started,
+                repo,
+                command=command,
+            )
+        executable = shlex.split(command)[0] if command.strip() else self.executable_name
+        if shutil.which(executable) is None:
+            return _blocked_result(
+                prepared,
+                self.name,
+                f"External execution blocked: `{executable}` command is unavailable.",
+                started,
+                repo,
+                command=command,
+            )
+
+        before_head = git_head(repo)
+        before_status = git_status(repo)
+        result = subprocess.run(
+            command,
+            cwd=repo,
+            shell=True,
+            text=True,
+            capture_output=True,
+            timeout=context.timeout_seconds,
+            check=False,
+        )
+        test = None
+        if context.test_command:
+            test = subprocess.run(
+                context.test_command,
+                cwd=repo,
+                shell=True,
+                text=True,
+                capture_output=True,
+                timeout=context.timeout_seconds,
+                check=False,
+            )
+        return ExecutionResult(
+            id=stable_id("execution", context.ticket_id, self.name),
+            ticket_id=context.ticket_id,
+            backend_name=self.name,
+            dry_run=False,
+            blocked=False,
+            command=command,
+            exit_code=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            started_at=started,
+            ended_at=utc_now(),
+            git_head_before=before_head,
+            git_head_after=git_head(repo),
+            git_status_before=before_status,
+            git_status_after=git_status(repo),
+            changed_files=changed_files(repo),
+            git_diff=git_diff(repo),
+            test_command=context.test_command,
+            test_exit_code=test.returncode if test else None,
+            test_stdout=test.stdout if test else "",
+            test_stderr=test.stderr if test else "",
+        )
+
+    def render_command(self, context: ExecutionContext) -> str:
+        template = os.environ.get(self.template_env_var) or self.default_template
+        handoff_file = context.handoff_file or str(self._handoff_file_path(context))
+        return template.format(
+            target_repo=context.target_repo_path,
+            handoff_file=handoff_file,
+            ticket_id=context.ticket_id,
+            ticket_key=context.ticket_key or context.ticket_id,
+        )
+
+    def write_handoff_file(self, context: ExecutionContext) -> Path:
+        handoff_file = Path(context.handoff_file) if context.handoff_file else self._handoff_file_path(context)
+        handoff_file.parent.mkdir(parents=True, exist_ok=True)
+        handoff_file.write_text(context.handoff_prompt, encoding="utf-8")
+        return handoff_file
+
+    def _handoff_file_path(self, context: ExecutionContext) -> Path:
+        target = Path(context.target_repo_path)
+        handoffs_dir = target.parent / "handoffs" if target.parent.name == ".ariadne" else target / ".ariadne" / "handoffs"
+        return handoffs_dir / f"{context.ticket_key or context.ticket_id}.md"
 
 
 class ClaudeCodeBackend(CodexBackend):
     name = "claude-code"
+    template_env_var = "ARIADNE_CLAUDE_COMMAND_TEMPLATE"
+    default_template = "claude --print < {handoff_file}"
+    executable_name = "claude"
 
     def is_available(self) -> bool:
-        return shutil.which("claude") is not None
+        return shutil.which(self.executable_name) is not None
 
 
 def backend_for_name(name: str) -> ExecutionBackend:
