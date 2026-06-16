@@ -648,6 +648,92 @@ Latest output paths from the v1 acceptance run:
 - Feishu dry-run plan: `.ariadne/feishu_plans/`
 - Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`
 
+## ARI-015 Architecture Freeze
+
+Scope:
+
+- Added v1.0 architecture-freeze documents.
+- Updated README with a concise `Ariadne v1.0 Architecture` entrypoint.
+- Kept this pass docs-only: no runtime features, core business logic,
+  persistence, or CLI behavior changed.
+
+New files:
+
+- `docs/architecture/ARIADNE_V1_ARCHITECTURE.md`
+- `docs/architecture/ARIADNE_V1_OBJECT_MODEL.md`
+- `docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md`
+- `docs/architecture/ARIADNE_V1_MULTICA_MAPPING.md`
+- `docs/demo/ARIADNE_V1_DEMO_CONTRACT.md`
+
+Updated files:
+
+- `README.md`
+- `docs/development_report.md`
+
+Why freeze the architecture:
+
+- Ariadne already has a working local True MVP and Agent Teammate Mode, but
+  future work needs one stable explanation for product positioning, Multica
+  comparison, object boundaries, demo paths, and v1.0 non-goals.
+- The freeze prevents Ariadne from drifting into either a generic CLI wrapper or
+  a Multica clone.
+
+Frozen product position:
+
+- `Ariadne = Goal-driven Multi-Agent Build Team`.
+- Learning-to-Build is the business scenario.
+- Multi-Agent Build Team is the product value.
+- Goal-driven orchestration is the difference from Multica.
+
+Frozen Multica mapping:
+
+- `Multica = Issue-driven Agent Team`.
+- `Ariadne = Goal-driven Agent Team`.
+- Ariadne adopts Multica-style agent work management: teammate identity,
+  assignments, daemon/runtime, comments, provider capability, skills, resources,
+  board, and future autopilot.
+- Ariadne does not copy Multica's Go server, Postgres, multi-tenant workspace,
+  WebSocket collaboration, daemon fleet, or frontend platform.
+
+Frozen main flow:
+
+```text
+Build Goal
+  -> Source / Knowledge / Repo Context
+  -> Multi-Agent Planning
+  -> Build Tickets
+  -> Agent Assignment
+  -> Daemon Worker
+  -> Execution Agent
+  -> Reviewer Agent
+  -> Memory Agent
+  -> Next Tickets / Board
+```
+
+Current implemented bridge:
+
+```bash
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari runtime journal
+ari export board
+```
+
+Verification status:
+
+- `pytest`: passed, 84 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `uv run ari demo full`: passed.
+- `uv run ari doctor v1`: passed.
+- `uv run ari export board`: passed.
+- Latest board output: `.ariadne/board/index.md`.
+
 ## ARI-015 Capability Surface Freeze
 
 Scope:

@@ -215,6 +215,45 @@ Architecture notes:
 - [`docs/adr/ADR-0002-multica-architecture-alignment.md`](docs/adr/ADR-0002-multica-architecture-alignment.md)
 - [`docs/adr/ADR-0003-agent-teammate-mode.md`](docs/adr/ADR-0003-agent-teammate-mode.md)
 
+## Ariadne v1.0 Architecture
+
+Ariadne v1.0 is frozen as a Goal-driven Multi-Agent Build Team:
+
+```text
+Build Goal -> Tickets -> Assignments -> Agent Runs -> Review -> Memory -> Next Tickets
+```
+
+Multica is the fixed benchmark: Multica is an Issue-driven Agent Team; Ariadne
+is a Goal-driven Agent Team. Ariadne keeps a local-first Python architecture
+with JSON/JSONL storage, CLI commands, static/local board output, and explicit
+safety gates for Codex, Claude, and Feishu.
+
+Architecture entrypoints:
+
+- [`docs/architecture/ARIADNE_V1_ARCHITECTURE.md`](docs/architecture/ARIADNE_V1_ARCHITECTURE.md)
+- [`docs/architecture/ARIADNE_V1_OBJECT_MODEL.md`](docs/architecture/ARIADNE_V1_OBJECT_MODEL.md)
+- [`docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md`](docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md)
+- [`docs/architecture/ARIADNE_V1_MULTICA_MAPPING.md`](docs/architecture/ARIADNE_V1_MULTICA_MAPPING.md)
+- [`docs/demo/ARIADNE_V1_DEMO_CONTRACT.md`](docs/demo/ARIADNE_V1_DEMO_CONTRACT.md)
+
+Main local demo path:
+
+```bash
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari export board
+```
+
+Real Codex path remains optional and gated:
+
+```bash
+ari ticket assign ARI-003 --to codex
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+```
+
 ## Capability Surface Freeze
 
 Ariadne v1.x is frozen around the product surface:
