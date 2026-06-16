@@ -647,3 +647,59 @@ Latest output paths from the v1 acceptance run:
 - Memory: `.ariadne/memory/tickets/ticket_91c283a19122.md`
 - Feishu dry-run plan: `.ariadne/feishu_plans/`
 - Next tickets: `.ariadne/artifacts/ticket_91c283a19122/next_tickets.json`
+
+## ARI-015 Capability Surface Freeze
+
+Scope:
+
+- Integrated `/Users/martinlos/Downloads/ariadne_capability_surface_pack.zip`
+  into `docs/capability_surface/`.
+- Added the capability-surface entrypoint
+  `docs/capability_surface/ARIADNE_CAPABILITY_SURFACE.md`.
+- Kept this pass docs-only: no runtime code, model, persistence, CLI, or test
+  behavior was changed.
+
+Documents written:
+
+- `docs/capability_surface/00_START_HERE.md`
+- `docs/capability_surface/01_PRODUCT_POSITIONING.md`
+- `docs/capability_surface/02_MULTICA_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/03_ARIADNE_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/04_CORE_OBJECT_MODEL.md`
+- `docs/capability_surface/05_PRIORITY_ROADMAP.md`
+- `docs/capability_surface/06_ACCEPTANCE_FRAMEWORK.md`
+- `docs/capability_surface/07_CODEX_MASTER_PROMPT.md`
+- `docs/capability_surface/ARIADNE_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/aris/ARI-015-architecture-freeze.md`
+  through `docs/capability_surface/aris/ARI-025-workbench-board-productization.md`
+- `docs/capability_surface/templates/*.md`
+- `docs/capability_surface/ops/CODEX_IMPLEMENTATION_RULES.md`
+
+Capability surface decision:
+
+- Ariadne v1.x is positioned as a local-first
+  `Goal-driven Multi-Agent Build Team`.
+- Multica remains the fixed benchmark for agent work-management capabilities:
+  agent teammate, task lifecycle, daemon/runtime, provider capability, skills,
+  squads, project resources, comments, board, and autopilot.
+- Ariadne's differentiation is goal-driven upstream planning:
+  `Build Goal -> Research / Knowledge / Repo Context / Memory -> Build Tickets`.
+- Learning-to-Build is treated as Ariadne's scenario; multi-agent build-team
+  orchestration is the product capability.
+
+Known roadmap:
+
+- P0: ARI-016 Build Goal, ARI-017 Build Team routing, ARI-018 real Codex
+  teammate main demo, ARI-019 provider capability matrix.
+- P1: ARI-020 skill materialization, ARI-021 project resource boundaries,
+  ARI-022 memory retrieval, ARI-023 review/eval agent.
+- P2: ARI-024 autopilot and recurring work, ARI-025 workbench board
+  productization.
+
+Verification status:
+
+- `pytest`: passed, 84 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- Board output: `.ariadne/board/index.md`.

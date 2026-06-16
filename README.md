@@ -215,6 +215,19 @@ Architecture notes:
 - [`docs/adr/ADR-0002-multica-architecture-alignment.md`](docs/adr/ADR-0002-multica-architecture-alignment.md)
 - [`docs/adr/ADR-0003-agent-teammate-mode.md`](docs/adr/ADR-0003-agent-teammate-mode.md)
 
+## Capability Surface Freeze
+
+Ariadne v1.x is frozen around the product surface:
+
+```text
+Goal-driven Multi-Agent Build Team
+```
+
+The capability-surface entrypoint is
+[`docs/capability_surface/ARIADNE_CAPABILITY_SURFACE.md`](docs/capability_surface/ARIADNE_CAPABILITY_SURFACE.md).
+It fixes the Multica benchmark surface, Ariadne's current coverage, remaining
+gaps, and the ARI-015 through ARI-025 roadmap.
+
 ## Feishu
 
 The default loop writes a Feishu dry-run plan only. Real writes use `lark-cli`
