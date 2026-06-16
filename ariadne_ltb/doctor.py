@@ -33,7 +33,7 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     gitignore_text = gitignore_path.read_text(encoding="utf-8")
     safety_ok = all(
         pattern in gitignore_text
-        for pattern in [".env", ".env.*", "*.secret", "secrets/", ".ariadne/"]
+        for pattern in [".env", ".env.*", "*.secret", ".secrets", "secrets/", ".ariadne/"]
     )
     return [
         f"agent profiles: {'ok' if profiles else 'missing'}",

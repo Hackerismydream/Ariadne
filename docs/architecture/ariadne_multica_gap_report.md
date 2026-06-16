@@ -76,12 +76,13 @@ Decision: defer.
 Ariadne is single-user and local. A durable queued/dispatched/claim protocol
 would add operational weight before Ariadne needs multi-runtime scheduling.
 
-### Heartbeat and offline recovery
+### Offline recovery automation
 
 Decision: defer.
 
-The local MVP can surface runtime capability snapshots and blocked results
-without a background daemon heartbeat loop.
+Ariadne now has local worker heartbeat and runtime capability surfaces. The
+remaining deferred work is automatic offline recovery across long-running or
+multi-runtime workers.
 
 ### Provider-specific skill materialization
 
@@ -117,6 +118,6 @@ visible in the user's checkout without auto-commit, auto-push, or PR creation.
 
 - No retrieval index over Ariadne memory.
 - No queue with `queued -> dispatched -> running` granularity.
-- No runtime heartbeat or automatic retry.
+- No automatic offline recovery or retry across long-running runtime workers.
 - No provider-specific skill injection.
 - No UI beyond the static board.

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This report evaluates Ariadne v1.0 as a local-first, Ticket-driven Agent teammate workbench.
+This report evaluates Ariadne v1.0 as a local-first, Ticket-centered Agent Workbench.
 
 ## Commands
 

@@ -11,11 +11,11 @@ Create `.env.example`:
 ```bash
 # Optional OpenAI / Codex-related configuration
 OPENAI_API_KEY=
-ARIADNE_CODEX_COMMAND_TEMPLATE=codex exec --cd {target_repo} --prompt-file {handoff_path}
+ARIADNE_CODEX_COMMAND_TEMPLATE=codex exec --cd {target_repo} --prompt-file {handoff_file}
 
 # Optional Anthropic / Claude Code-related configuration
 ANTHROPIC_API_KEY=
-ARIADNE_CLAUDE_COMMAND_TEMPLATE=claude --print --dangerously-skip-permissions < {handoff_path}
+ARIADNE_CLAUDE_COMMAND_TEMPLATE=claude --print < {handoff_file}
 
 # Optional GitHub read access for future repo analysis
 GITHUB_TOKEN=

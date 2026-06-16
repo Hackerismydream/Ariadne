@@ -241,7 +241,7 @@ def test_board_includes_loop_trace_after_export(tmp_path: Path) -> None:
 def test_env_and_workspace_outputs_are_gitignored() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
 
-    for pattern in [".env", ".env.*", "*.secret", "secrets/", ".ariadne/"]:
+    for pattern in [".env", ".env.*", "*.secret", ".secrets", "secrets/", ".ariadne/"]:
         assert pattern in gitignore
 
 

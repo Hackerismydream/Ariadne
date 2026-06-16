@@ -11,7 +11,7 @@ Repository name: `ariadne-ltb`. Python package: `ariadne_ltb`. CLI target:
 
 ## Ariadne v1.0 Quickstart
 
-Ariadne v1.0 is a local-first, Ticket-driven Agent teammate workbench:
+Ariadne v1.0 is a local-first, Ticket-centered Agent Workbench:
 
 ```bash
 ari ingest examples/sources/*.md

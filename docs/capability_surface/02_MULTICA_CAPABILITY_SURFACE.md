@@ -224,8 +224,8 @@ Memory Agent
 Ariadne 仍需实现：
 
 ```text
-ari goal assign GOAL-001 --to build-team
-Build Lead 自动生成 tickets
+ari ticket assign ARI-003 --to build-team
+Build Lead 根据 source / memory / review feedback 更新 tickets
 Build Lead 自动分配 assignments
 Handoff 从记录变成真实 assignment 接力
 ```

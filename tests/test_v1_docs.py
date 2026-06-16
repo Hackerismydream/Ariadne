@@ -55,3 +55,33 @@ def test_ticket_centered_architecture_is_current_positioning() -> None:
     assert "knowledge and feedback update tickets" in architecture
     assert "Goal-driven Multi-Agent Build Team" not in readme
     assert "Goal-driven Multi-Agent Build Team" not in capability
+
+
+def test_active_docs_do_not_reintroduce_goal_first_commands() -> None:
+    active_docs = [
+        ROOT / "README.md",
+        ROOT / "docs" / "demo" / "ARIADNE_V1_DEMO_CONTRACT.md",
+        ROOT / "docs" / "capability_surface" / "00_START_HERE.md",
+        ROOT / "docs" / "capability_surface" / "01_PRODUCT_POSITIONING.md",
+        ROOT / "docs" / "capability_surface" / "02_MULTICA_CAPABILITY_SURFACE.md",
+        ROOT / "docs" / "capability_surface" / "03_ARIADNE_CAPABILITY_SURFACE.md",
+        ROOT / "docs" / "capability_surface" / "04_CORE_OBJECT_MODEL.md",
+        ROOT / "docs" / "capability_surface" / "05_PRIORITY_ROADMAP.md",
+        ROOT / "docs" / "capability_surface" / "06_ACCEPTANCE_FRAMEWORK.md",
+        ROOT / "docs" / "capability_surface" / "ARIADNE_CAPABILITY_SURFACE.md",
+        ROOT
+        / "docs"
+        / "capability_surface"
+        / "aris"
+        / "ARI-017-build-team-squad-routing.md",
+        ROOT
+        / "docs"
+        / "capability_surface"
+        / "aris"
+        / "ARI-022-memory-retrieval.md",
+    ]
+
+    for path in active_docs:
+        text = path.read_text(encoding="utf-8").lower()
+        assert "ari goal " not in text, path
+        assert "goal-driven" not in text, path

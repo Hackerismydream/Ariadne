@@ -61,7 +61,7 @@ Call installed `codex` CLI only when:
 The CodexBackend should be configurable by command template, for example:
 
 ```text
-codex exec --full-auto --cd {target_repo} --prompt-file {handoff_path}
+codex exec --cd {target_repo} --prompt-file {handoff_file}
 ```
 
 If the local Codex CLI uses a different non-interactive syntax, detect availability and document the required command in `docs/development_report.md`. Do not fail tests if Codex CLI is unavailable.

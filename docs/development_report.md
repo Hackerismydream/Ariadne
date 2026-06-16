@@ -882,3 +882,33 @@ Verification status for this correction:
   `Goal-to-Ticket`, and `ARI-016`: remaining matches are explicitly
   historical, superseded, negative guidance, or current ARI-016 ticket-backlog
   roadmap references.
+
+## Ticket-Centered Review Follow-Up
+
+Scope:
+
+- Removed remaining actionable `ari goal ...` examples from active capability
+  docs.
+- Updated the v1 demo contract to use ticket-centered positioning.
+- Corrected the Multica gap report so heartbeat is no longer described as
+  entirely absent; only offline recovery automation remains deferred.
+- Aligned README's quickstart wording with ADR-0004 terminology.
+- Removed a dangerous Claude Code example flag from `.env.example`.
+- Added `.secrets` to `.gitignore`.
+- Strengthened docs tests to reject active-doc `ari goal` examples and current
+  `goal-driven` positioning.
+
+Verification status:
+
+- `pytest`: passed, 86 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `uv run ari demo full`: passed when run sequentially.
+- `uv run ari doctor v1`: passed.
+- `uv run ari export board`: passed.
+- Residual scan for active `ari goal`, current `goal-driven` positioning,
+  dangerous Claude flags, `handoff_path`, and `--full-auto`: no active
+  guidance remains outside this report entry.

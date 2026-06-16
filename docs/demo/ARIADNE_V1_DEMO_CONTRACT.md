@@ -145,5 +145,5 @@ Do not present Ariadne v1.0 as:
 Present it as:
 
 ```text
-local-first goal-driven multi-agent build orchestration
+local-first ticket-centered agent workbench
 ```

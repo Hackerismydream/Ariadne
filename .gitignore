@@ -4,6 +4,7 @@
 .env.*
 !.env.example
 *.secret
+.secrets
 secrets/
 .pytest_cache/
 .ruff_cache/

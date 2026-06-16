@@ -45,7 +45,7 @@ def test_doctor_v1_reports_local_readiness(tmp_path: Path) -> None:
 
 def test_gitignore_contains_v1_secret_patterns() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
-    for pattern in [".env", ".env.*", "*.secret", "secrets/", ".ariadne/"]:
+    for pattern in [".env", ".env.*", "*.secret", ".secrets", "secrets/", ".ariadne/"]:
         assert pattern in gitignore
 
 
