@@ -67,6 +67,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     events = store.list_runtime_events()
     heartbeats = store.list_worker_heartbeats()
     capabilities = store.load_runtime_capabilities() or collect_runtime_capabilities()
+    backlog_updates = store.list_backlog_updates()
     executed = [ticket for ticket in tickets if ticket.metadata.get("execution_result_id")]
     next_ticket_paths = [
         ticket.metadata.get("next_tickets_path")
@@ -141,6 +142,18 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
             lines.append(f"- `{path}`")
     else:
         lines.append("No next-ticket artifacts yet.")
+    lines.extend(["", "## Ticket Backlog Updates", ""])
+    if backlog_updates:
+        for update in backlog_updates[-10:]:
+            lines.append(
+                f"- `{update.id}` `{update.trigger_type.value}` Created "
+                f"`{len(update.created_ticket_ids)}` Updated `{len(update.updated_ticket_ids)}` "
+                f"Superseded `{len(update.superseded_ticket_ids)}` - {update.rationale}"
+            )
+            if update.evidence_refs:
+                lines.append(f"  - Evidence: `{', '.join(update.evidence_refs)}`")
+    else:
+        lines.append("No ticket backlog updates yet.")
     lines.extend(["", "## Backend Capability", ""])
     for capability in capabilities:
         lines.append(
@@ -243,6 +256,22 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.append("")
 
     runtime_events = store.list_runtime_events_for_ticket(ticket.id)
+    backlog_updates = store.list_backlog_updates_for_ticket(ticket.id)
+    lines.extend(["## Backlog Update Trace", ""])
+    if backlog_updates:
+        for update in backlog_updates:
+            lines.append(
+                f"- `{update.created_at}` `{update.trigger_type.value}` `{update.id}` - {update.rationale}"
+            )
+            for change in update.ticket_changes:
+                if change.ticket_id == ticket.id:
+                    lines.append(
+                        f"  - `{change.change_type.value}` {change.before_status or ''} "
+                        f"-> {change.after_status or ''}: {change.reason}"
+                    )
+    else:
+        lines.append("No backlog updates for this ticket.")
+    lines.append("")
     lines.extend(["## Runtime Journal", ""])
     if runtime_events:
         for event in runtime_events[-12:]:

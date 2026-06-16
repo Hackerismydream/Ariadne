@@ -15,6 +15,7 @@ Ariadne v1.0 is a local-first, Ticket-centered Agent Workbench:
 
 ```bash
 ari ingest examples/sources/*.md
+ari backlog history
 ari ticket list
 ari ticket assign ARI-003 --to fake-codex
 ari daemon run-once
@@ -29,6 +30,15 @@ This path shows the full local loop:
 
 ```text
 Source -> Ticket -> Assignment -> Daemon -> Planner -> Backend -> Review -> Memory -> Board
+```
+
+Ticket backlog updates are persisted under `.ariadne/backlog/updates.jsonl` and
+shown on the board. The explicit backlog commands are:
+
+```bash
+ari backlog update --from-source examples/sources/*.md
+ari backlog history
+ari ticket supersede ARI-003 --reason "Replaced by narrower follow-up work"
 ```
 
 ## True MVP Path
@@ -85,6 +95,7 @@ Generated outputs are under `.ariadne/`, including:
 ```text
 .ariadne/artifacts/<ticket_id>/
 .ariadne/assignments/
+.ariadne/backlog/updates.jsonl
 .ariadne/comments/
 .ariadne/journal/events.jsonl
 .ariadne/memory/

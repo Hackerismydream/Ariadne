@@ -9,6 +9,7 @@ import typer
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.board_server import board_serve_command
+from ariadne_ltb.backlog import supersede_ticket
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
 from ariadne_ltb.execution import CodexBackend, backend_for_name
@@ -45,6 +46,7 @@ daemon_app = typer.Typer(help="Local daemon worker commands.")
 runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
 board_app = typer.Typer(help="Local board commands.")
 doctor_app = typer.Typer(help="Release and safety doctors.")
+backlog_app = typer.Typer(help="Ticket backlog update commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
@@ -55,6 +57,7 @@ app.add_typer(daemon_app, name="daemon")
 app.add_typer(runtime_app, name="runtime")
 app.add_typer(board_app, name="board")
 app.add_typer(doctor_app, name="doctor")
+app.add_typer(backlog_app, name="backlog")
 
 
 class CliState:
@@ -129,6 +132,55 @@ def ingest(
     typer.echo(f"Ingested {len(tickets)} source(s)")
     for ticket in tickets:
         typer.echo(f"{ticket.key} {ticket.source_type} {ticket.title}")
+
+
+@backlog_app.command("update")
+def backlog_update(
+    source_paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Additional source paths, useful for shell-expanded globs."),
+    ] = None,
+    from_sources: Annotated[
+        list[Path] | None,
+        typer.Option("--from-source", help="Source markdown path to ingest into the ticket backlog."),
+    ] = None,
+) -> None:
+    """Update the ticket backlog from local source documents."""
+    paths = [*(from_sources or []), *(source_paths or [])]
+    if not paths:
+        typer.echo("No --from-source paths provided.")
+        raise typer.Exit(2)
+    store = AriadneStore(state.root)
+    tickets = ingest_sources(store, paths)
+    update = store.list_backlog_updates()[-1]
+    typer.echo(f"backlog update: {update.id}")
+    typer.echo(f"trigger: {update.trigger_type.value}")
+    typer.echo(f"created tickets: {len(update.created_ticket_ids)}")
+    typer.echo(f"updated tickets: {len(update.updated_ticket_ids)}")
+    typer.echo(f"superseded tickets: {len(update.superseded_ticket_ids)}")
+    typer.echo(f"rationale: {update.rationale}")
+    for ticket in tickets:
+        typer.echo(f"{ticket.key}\t{ticket.status.value}\t{ticket.title}")
+
+
+@backlog_app.command("history")
+def backlog_history(limit: Annotated[int, typer.Option("--limit")] = 20) -> None:
+    """Show recent ticket backlog updates."""
+    updates = AriadneStore(state.root).list_backlog_updates()[-limit:]
+    if not updates:
+        typer.echo("No backlog updates.")
+        return
+    for update in updates:
+        typer.echo(f"{update.created_at}\t{update.id}\t{update.trigger_type.value}")
+        typer.echo(f"rationale: {update.rationale}")
+        typer.echo(
+            "tickets: "
+            f"created={len(update.created_ticket_ids)} "
+            f"updated={len(update.updated_ticket_ids)} "
+            f"superseded={len(update.superseded_ticket_ids)}"
+        )
+        if update.evidence_refs:
+            typer.echo(f"evidence: {', '.join(update.evidence_refs)}")
 
 
 @agent_app.command("list")
@@ -436,6 +488,22 @@ def ticket_retry(
     typer.echo(f"ticket: {ticket.key}")
     typer.echo(f"parent: {retry.parent_assignment_id}")
     typer.echo(f"attempt: {retry.attempt}")
+
+
+@ticket_app.command("supersede")
+def ticket_supersede(
+    ticket_id: str,
+    reason: Annotated[str, typer.Option("--reason", help="Why this ticket is superseded.")],
+) -> None:
+    """Supersede a Build Ticket and record a backlog update."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    update = supersede_ticket(store, ticket, reason)
+    updated = store.load_ticket(ticket.id)
+    typer.echo(f"superseded: {updated.key}")
+    typer.echo(f"status: {updated.status.value}")
+    typer.echo(f"backlog update: {update.id}")
+    typer.echo(f"reason: {reason}")
 
 
 @ticket_app.command("plan")

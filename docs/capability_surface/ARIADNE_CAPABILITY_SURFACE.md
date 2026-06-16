@@ -155,8 +155,8 @@ These gaps define the v1.x roadmap:
 
 | Gap | Why it matters | Planned ARI |
 |---|---|---|
-| Ticket backlog update loop | New knowledge and execution feedback must create, update, downgrade, or supersede tickets | ARI-016 |
-| Knowledge / feedback to ticket planning | Differentiates Ariadne from systems that only execute existing issues | ARI-016 / ARI-017 |
+| Automated feedback-to-ticket updates | Review, execution, and memory gaps should generate ticket deltas without manual supersede commands | ARI-017 |
+| Knowledge / feedback to ticket planning | Differentiates Ariadne from systems that only execute existing issues | ARI-017 |
 | Build Team / Squad routing | Makes multi-agent positioning real | ARI-017 |
 | Real Codex teammate as main demo | Proves Ariadne is not only fake-codex | ARI-018 |
 | Provider capability matrix | Makes backend differences explicit and inspectable | ARI-019 |
@@ -172,7 +172,7 @@ These gaps define the v1.x roadmap:
 | Priority | ARI | Focus | Status |
 |---|---|---|---|
 | P0 | ARI-015 | Architecture freeze correction with Multica mapping | This document set |
-| P0 | ARI-016 | Ticket backlog update loop | Next implementation candidate |
+| P0 | ARI-016 | Ticket backlog update loop | Implemented |
 | P0 | ARI-017 | Knowledge / feedback to ticket multi-agent flow | Next implementation candidate |
 | P0 | ARI-018 | Real Codex teammate main demo | Next implementation candidate |
 | P0 | ARI-019 | Provider capability matrix | Next implementation candidate |

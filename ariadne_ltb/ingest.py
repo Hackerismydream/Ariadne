@@ -3,6 +3,7 @@ from __future__ import annotations
 from hashlib import sha256
 from pathlib import Path
 
+from ariadne_ltb.backlog import record_source_ingest_backlog_update
 from ariadne_ltb.models import (
     BuildDecision,
     BuildPacket,
@@ -10,6 +11,8 @@ from ariadne_ltb.models import (
     Evidence,
     SourceDocument,
     SourceType,
+    TicketChange,
+    TicketChangeType,
     TicketEvent,
     TicketStatus,
     stable_id,
@@ -21,6 +24,8 @@ from ariadne_ltb.storage import AriadneStore
 
 def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
     tickets: list[BuildTicket] = []
+    changes: list[TicketChange] = []
+    evidence_refs: list[str] = []
     next_index = 1
     existing_by_source = {
         ticket.metadata.get("source_document_id"): ticket for ticket in store.list_tickets()
@@ -28,11 +33,18 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
     for path in sorted(paths, key=_path_ingest_order):
         document = source_document_from_path(path)
         store.save_source_document(document)
+        evidence_refs.append(document.id)
         if document.id in existing_by_source:
             ticket = existing_by_source[document.id]
+            change_type = TicketChangeType.UPDATED
+            before_status = ticket.status.value
+            before_priority = ticket.priority
         else:
             ticket = ticket_from_source(document, next_ticket_key(store, next_index))
             next_index += 1
+            change_type = TicketChangeType.CREATED
+            before_status = None
+            before_priority = None
         packet = build_packet_from_source(ticket, document)
         store.save_build_packet(packet)
         ticket = ticket.model_copy(
@@ -45,7 +57,28 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
             payload_ref=document.id,
         )
         store.save_ticket(ticket)
+        changes.append(
+            TicketChange(
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                change_type=change_type,
+                reason=f"Ingested {document.source_type.value} source: {document.title}.",
+                before_status=before_status,
+                after_status=ticket.status.value,
+                before_priority=before_priority,
+                after_priority=ticket.priority,
+            )
+        )
         tickets.append(ticket)
+    if tickets:
+        record_source_ingest_backlog_update(
+            store,
+            tickets,
+            changes,
+            evidence_refs,
+            paths,
+        )
+        tickets = [store.load_ticket(ticket.id) for ticket in tickets]
     return sorted(tickets, key=lambda ticket: ticket.key)
 
 

@@ -1,6 +1,21 @@
 # ARI-016 Ticket Backlog Update Loop
 
-Status: Supersedes the older BuildGoal-first ARI-016 direction.
+Status: Implemented.
+
+Implementation notes:
+
+- `BacklogUpdate`, `TicketChange`, `BacklogUpdateTrigger`, and
+  `TicketChangeType` are implemented in `ariadne_ltb.models`.
+- Backlog updates are persisted as JSONL at `.ariadne/backlog/updates.jsonl`.
+- `ari ingest ...` and `ari backlog update --from-source ...` record
+  `source_ingest` backlog updates.
+- `ari backlog history` shows update rationale, evidence refs, and ticket
+  counts.
+- `ari ticket supersede <ticket> --reason ...` marks a ticket superseded,
+  writes a backlog update, appends a comment, and adds ticket events.
+- `ari export board` shows `Ticket Backlog Updates` and per-ticket
+  `Backlog Update Trace`.
+- The older BuildGoal-first direction remains superseded.
 
 Do not implement a BuildGoal-first root workflow from the old version of this
 file. This ticket keeps the historical filename for link stability, but its
@@ -94,7 +109,7 @@ backlog update 应该：
 读取新 source / review / memory / execution result / repo observation
 读取已有 tickets 概要
 判断新增、更新、降级、拆分、关闭或 supersede 哪些 tickets
-写 BacklogUpdate artifact
+写 BacklogUpdate 本地持久化记录
 更新相关 ticket comments / event log
 让 board 展示 backlog update rationale
 ```

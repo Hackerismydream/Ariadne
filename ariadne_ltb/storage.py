@@ -13,6 +13,7 @@ from ariadne_ltb.models import (
     Artifact,
     ArtifactType,
     AssignmentStatus,
+    BacklogUpdate,
     BuildPacket,
     BuildTicket,
     CommentAuthorType,
@@ -60,6 +61,8 @@ class AriadneStore:
         self.project_dir = self.base / "project"
         self.runtimes_dir = self.base / "runtimes"
         self.locks_dir = self.base / "locks"
+        self.backlog_dir = self.base / "backlog"
+        self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
         self.artifacts_dir = self.base / "artifacts"
@@ -89,6 +92,7 @@ class AriadneStore:
             self.project_dir,
             self.runtimes_dir,
             self.locks_dir,
+            self.backlog_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
             self.artifacts_dir,
@@ -373,6 +377,29 @@ class AriadneStore:
 
     def list_runtime_events_for_ticket(self, ticket_id: str) -> list[RuntimeEvent]:
         return [event for event in self.list_runtime_events() if event.ticket_id == ticket_id]
+
+    def save_backlog_update(self, update: BacklogUpdate) -> None:
+        with self.backlog_updates_path.open("a", encoding="utf-8") as handle:
+            handle.write(update.model_dump_json(exclude_none=False) + "\n")
+
+    def list_backlog_updates(self) -> list[BacklogUpdate]:
+        if not self.backlog_updates_path.exists():
+            return []
+        return [
+            BacklogUpdate.model_validate_json(line)
+            for line in self.backlog_updates_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def list_backlog_updates_for_ticket(self, ticket_id: str) -> list[BacklogUpdate]:
+        return [
+            update
+            for update in self.list_backlog_updates()
+            if ticket_id in update.created_ticket_ids
+            or ticket_id in update.updated_ticket_ids
+            or ticket_id in update.superseded_ticket_ids
+            or any(change.ticket_id == ticket_id for change in update.ticket_changes)
+        ]
 
     def save_run(self, run: AgentRun) -> None:
         self._write_model(self.runs_dir / f"{run.id}.json", run)

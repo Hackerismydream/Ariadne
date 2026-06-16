@@ -912,3 +912,60 @@ Verification status:
 - Residual scan for active `ari goal`, current `goal-driven` positioning,
   dangerous Claude flags, `handoff_path`, and `--full-auto`: no active
   guidance remains outside this report entry.
+
+## ARI-016 Ticket Backlog Update Loop
+
+Scope:
+
+- Implemented the ticket-centered backlog update loop from
+  `docs/capability_surface/aris/ARI-016-build-goal-and-goal-to-ticket.md`.
+- Kept Goal as directional input only; no BuildGoal-first command surface was
+  added.
+- Used `.ariadne/backlog/updates.jsonl` as the durable local BacklogUpdate
+  record because backlog updates can span multiple tickets.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/backlog.py`
+- `ariadne_ltb/ingest.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_backlog_update_loop.py`
+- `README.md`
+- `docs/capability_surface/aris/ARI-016-build-goal-and-goal-to-ticket.md`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- `ari ingest examples/sources/*.md` now records a `source_ingest`
+  BacklogUpdate.
+- `ari backlog update --from-source examples/sources/*.md` explicitly updates
+  the ticket backlog from source docs.
+- `ari backlog history` shows update time, trigger, rationale, counts, and
+  evidence refs.
+- `ari ticket supersede ARI-003 --reason "..."` marks a ticket as
+  `superseded`, records a backlog update, writes a ticket comment, and appends
+  ticket events.
+- `ari export board` now includes `Ticket Backlog Updates` and per-ticket
+  `Backlog Update Trace`.
+
+Verification status:
+
+- `pytest`: passed, 90 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed and printed
+  environment/key state without secret values.
+- `uv run ari demo full && uv run ari doctor v1 && uv run ari export board`:
+  passed.
+- `uv run ari ticket list && uv run ari ticket run ARI-003 --backend
+  fake-codex`: passed.
+- Manual backlog smoke with `python3.11 -m ariadne_ltb.cli --root
+  /tmp/ariadne-backlog-smoke backlog update --from-source
+  examples/sources/*.md`, `backlog history`, `ticket supersede`, and
+  `export board`: passed. The board showed both global `Ticket Backlog
+  Updates` and per-ticket `Backlog Update Trace` sections.

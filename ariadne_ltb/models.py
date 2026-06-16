@@ -37,6 +37,26 @@ class TicketStatus(str, Enum):
     BLOCKED = "blocked"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    SUPERSEDED = "superseded"
+
+
+class BacklogUpdateTrigger(str, Enum):
+    SOURCE_INGEST = "source_ingest"
+    REVIEW_FEEDBACK = "review_feedback"
+    EXECUTION_RESULT = "execution_result"
+    MEMORY_GAP = "memory_gap"
+    CODEBASE_OBSERVATION = "codebase_observation"
+    MANUAL_GOAL = "manual_goal"
+
+
+class TicketChangeType(str, Enum):
+    CREATED = "created"
+    UPDATED = "updated"
+    REPRIORITIZED = "reprioritized"
+    DOWNGRADED = "downgraded"
+    SPLIT = "split"
+    CLOSED = "closed"
+    SUPERSEDED = "superseded"
 
 
 class AssignmentStatus(str, Enum):
@@ -250,6 +270,30 @@ class TicketEvent(AriadneModel):
     actor: str
     summary: str
     payload_ref: str | None = None
+
+
+class TicketChange(AriadneModel):
+    ticket_id: str
+    ticket_key: str
+    change_type: TicketChangeType
+    reason: str
+    before_status: str | None = None
+    after_status: str | None = None
+    before_priority: str | None = None
+    after_priority: str | None = None
+
+
+class BacklogUpdate(AriadneModel):
+    id: str
+    trigger_type: BacklogUpdateTrigger
+    trigger_ref: str
+    created_ticket_ids: list[str] = Field(default_factory=list)
+    updated_ticket_ids: list[str] = Field(default_factory=list)
+    superseded_ticket_ids: list[str] = Field(default_factory=list)
+    rationale: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    ticket_changes: list[TicketChange] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
 
 
 class ProjectSpace(AriadneModel):
