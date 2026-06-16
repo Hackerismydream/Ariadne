@@ -78,6 +78,13 @@ def supersede_ticket(store: AriadneStore, ticket: BuildTicket, reason: str) -> B
         update={"metadata": updated.metadata | {"superseded_reason": reason}},
     )
     store.save_ticket(updated)
+    for assignment in store.list_assignments_for_ticket(updated.id):
+        if not assignment.is_terminal:
+            store.save_assignment(
+                assignment.mark_cancelled(
+                    f"Ticket superseded: {reason}",
+                )
+            )
     store.add_comment(
         updated,
         CommentAuthorType.SYSTEM,

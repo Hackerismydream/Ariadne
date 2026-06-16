@@ -14,6 +14,7 @@ from ariadne_ltb.models import (
     DaemonStatus,
     FailureReason,
     TicketAssignment,
+    TicketStatus,
     WorkerHeartbeat,
     utc_now,
 )
@@ -225,9 +226,15 @@ class LocalDaemonWorker:
             for assignment in self.store.list_open_assignments()
             if assignment.status is AssignmentStatus.QUEUED
         ]
-        if not open_assignments:
-            return None
-        return sorted(open_assignments, key=lambda item: item.created_at)[0]
+        for assignment in sorted(open_assignments, key=lambda item: item.created_at):
+            ticket = self.store.load_ticket(assignment.ticket_id)
+            if ticket.status is TicketStatus.SUPERSEDED:
+                self.store.save_assignment(
+                    assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
+                )
+                continue
+            return assignment
+        return None
 
     def _write_blocker(self, ticket: BuildTicket, assignment: TicketAssignment, body: str) -> None:
         self.store.add_comment(

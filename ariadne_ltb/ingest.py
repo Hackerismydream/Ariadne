@@ -23,6 +23,7 @@ from ariadne_ltb.storage import AriadneStore
 
 
 def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
+    paths = _dedupe_paths(paths)
     tickets: list[BuildTicket] = []
     changes: list[TicketChange] = []
     evidence_refs: list[str] = []
@@ -30,26 +31,44 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
     existing_by_source = {
         ticket.metadata.get("source_document_id"): ticket for ticket in store.list_tickets()
     }
+    existing_by_path = {
+        source_path: ticket
+        for ticket in store.list_tickets()
+        if (source_path := _ticket_source_path_key(ticket)) is not None
+    }
     for path in sorted(paths, key=_path_ingest_order):
         document = source_document_from_path(path)
         store.save_source_document(document)
         evidence_refs.append(document.id)
-        if document.id in existing_by_source:
-            ticket = existing_by_source[document.id]
+        if document.id in existing_by_source or document.path_or_url in existing_by_path:
+            ticket = existing_by_source.get(document.id) or existing_by_path[document.path_or_url]
             change_type = TicketChangeType.UPDATED
             before_status = ticket.status.value
             before_priority = ticket.priority
+            next_status = ticket.status
         else:
             ticket = ticket_from_source(document, next_ticket_key(store, next_index))
             next_index += 1
             change_type = TicketChangeType.CREATED
             before_status = None
             before_priority = None
+            next_status = TicketStatus.PLANNING
         packet = build_packet_from_source(ticket, document)
         store.save_build_packet(packet)
         ticket = ticket.model_copy(
             deep=True,
-            update={"build_packet_id": packet.id, "status": TicketStatus.PLANNING},
+            update={
+                "build_packet_id": packet.id,
+                "description": document.summary,
+                "source_ref": document.path_or_url,
+                "source_type": document.source_type.value,
+                "status": next_status,
+                "metadata": ticket.metadata
+                | {
+                    "source_document_id": document.id,
+                    "source_content_hash": document.content_hash,
+                },
+            },
         ).append_event(
             "source_ingested",
             "Source Router",
@@ -70,6 +89,8 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
             )
         )
         tickets.append(ticket)
+        existing_by_source[document.id] = ticket
+        existing_by_path[document.path_or_url] = ticket
     if tickets:
         record_source_ingest_backlog_update(
             store,
@@ -80,6 +101,28 @@ def ingest_sources(store: AriadneStore, paths: list[Path]) -> list[BuildTicket]:
         )
         tickets = [store.load_ticket(ticket.id) for ticket in tickets]
     return sorted(tickets, key=lambda ticket: ticket.key)
+
+
+def _dedupe_paths(paths: list[Path]) -> list[Path]:
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        resolved = path.expanduser().resolve()
+        key = str(resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(resolved)
+    return unique
+
+
+def _ticket_source_path_key(ticket: BuildTicket) -> str | None:
+    if not ticket.source_ref:
+        return None
+    try:
+        return str(Path(ticket.source_ref).expanduser().resolve())
+    except OSError:
+        return ticket.source_ref
 
 
 def _path_ingest_order(path: Path) -> tuple[int, str]:
@@ -97,13 +140,14 @@ def _path_ingest_order(path: Path) -> tuple[int, str]:
 
 
 def source_document_from_path(path: Path) -> SourceDocument:
+    path = path.expanduser().resolve()
     content = path.read_text(encoding="utf-8")
     content_hash = sha256(content.encode("utf-8")).hexdigest()
     source_type = infer_source_type(path, content)
     title = infer_title(path, content)
     summary = summarize_source(source_type, content)
     return SourceDocument(
-        id=stable_id("source", content_hash),
+        id=stable_id("source", path),
         source_type=source_type,
         title=title,
         path_or_url=str(path.resolve()),

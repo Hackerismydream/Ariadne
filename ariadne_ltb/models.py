@@ -405,6 +405,18 @@ class TicketAssignment(AriadneModel):
         assignment.ended_at = utc_now()
         return assignment
 
+    def mark_cancelled(
+        self,
+        blocker: str | None = None,
+        failure_reason: FailureReason = FailureReason.USER_CANCELLED,
+    ) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.CANCELLED
+        assignment.blocker = blocker
+        assignment.failure_reason = failure_reason
+        assignment.ended_at = utc_now()
+        return assignment
+
 
 class TicketComment(AriadneModel):
     id: str

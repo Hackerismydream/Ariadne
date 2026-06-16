@@ -7,8 +7,10 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.cli import app
+from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import BacklogUpdateTrigger, TicketChangeType, TicketStatus
+from ariadne_ltb.models import AssignmentStatus, BacklogUpdateTrigger, TicketChangeType, TicketStatus
+from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -117,3 +119,143 @@ def test_ticket_supersede_records_backlog_update_comment_and_status(tmp_path: Pa
     assert comments[-1].kind.value == "progress"
     assert "superseded" in comments[-1].body.lower()
     assert raw_update["superseded_ticket_ids"] == [updated.id]
+
+
+def test_duplicate_source_inputs_are_deduped_in_one_backlog_update(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+
+    tickets = ingest_sources(store, [SOURCE_FIXTURES[0], SOURCE_FIXTURES[0]])
+    update = store.list_backlog_updates()[-1]
+
+    assert len(tickets) == 1
+    assert len(store.list_tickets()) == 1
+    assert len(update.created_ticket_ids) == 1
+    assert len(update.ticket_changes) == 1
+
+
+def test_modified_source_path_updates_existing_ticket_instead_of_creating_duplicate(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.md"
+    source.write_text("# Source\n\nBuild a small feature.\n", encoding="utf-8")
+    store = AriadneStore(tmp_path)
+    first = ingest_sources(store, [source])[0]
+
+    source.write_text("# Source\n\nBuild a small feature with more evidence.\n", encoding="utf-8")
+    second = ingest_sources(store, [source])[0]
+    latest = store.list_backlog_updates()[-1]
+
+    assert first.id == second.id
+    assert len(store.list_tickets()) == 1
+    assert latest.updated_ticket_ids == [first.id]
+    assert latest.ticket_changes[0].change_type is TicketChangeType.UPDATED
+
+
+def test_reingest_preserves_superseded_ticket_status(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[0]])[0]
+    runner = CliRunner()
+    supersede = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "supersede",
+            ticket.key,
+            "--reason",
+            "Replaced by a narrower ticket.",
+        ],
+    )
+    assert supersede.exit_code == 0, supersede.output
+
+    ingest_sources(store, [SOURCE_FIXTURES[0]])
+    updated = store.resolve_ticket(ticket.key)
+
+    assert updated.status is TicketStatus.SUPERSEDED
+
+
+def test_supersede_cancels_open_assignments_and_daemon_skips_ticket(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    runner = CliRunner()
+
+    supersede = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "supersede",
+            ticket.key,
+            "--reason",
+            "No longer needed.",
+        ],
+    )
+    daemon = LocalDaemonWorker(store).run_once()
+
+    assert supersede.exit_code == 0, supersede.output
+    assert store.load_assignment(assignment.id).status is AssignmentStatus.CANCELLED
+    assert daemon.did_work is False
+    assert store.resolve_ticket(ticket.key).status is TicketStatus.SUPERSEDED
+
+
+def test_orchestrator_refuses_superseded_ticket(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "supersede",
+            ticket.key,
+            "--reason",
+            "Replaced by a narrower ticket.",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    try:
+        TicketRunOrchestrator(store).run_ticket(ticket.key)
+    except RuntimeError as exc:
+        assert "superseded" in str(exc)
+    else:  # pragma: no cover - assertion clarity
+        raise AssertionError("orchestrator should refuse superseded ticket")
+    assert store.resolve_ticket(ticket.key).status is TicketStatus.SUPERSEDED
+
+
+def test_backlog_history_and_board_ignore_invalid_jsonl_lines(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, [SOURCE_FIXTURES[0]])
+    with store.backlog_updates_path.open("a", encoding="utf-8") as handle:
+        handle.write("{bad json\n")
+
+    history = CliRunner().invoke(app, ["--root", str(tmp_path), "backlog", "history"])
+    board = export_board(store).read_text(encoding="utf-8")
+
+    assert history.exit_code == 0, history.output
+    assert "source_ingest" in history.output
+    assert "Ticket Backlog Updates" in board
+
+
+def test_backlog_update_and_supersede_show_stable_cli_errors(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    missing = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "backlog", "update", "--from-source", str(tmp_path / "missing.md")],
+    )
+    unknown = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "ticket", "supersede", "ARI-999", "--reason", "No longer needed."],
+    )
+
+    assert missing.exit_code == 2
+    assert "No such file" in missing.output or "not found" in missing.output.lower()
+    assert "Traceback" not in missing.output
+    assert unknown.exit_code == 2
+    assert "unknown ticket: ARI-999" in unknown.output
+    assert "Traceback" not in unknown.output

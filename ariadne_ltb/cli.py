@@ -151,7 +151,11 @@ def backlog_update(
         typer.echo("No --from-source paths provided.")
         raise typer.Exit(2)
     store = AriadneStore(state.root)
-    tickets = ingest_sources(store, paths)
+    try:
+        tickets = ingest_sources(store, paths)
+    except OSError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
     update = store.list_backlog_updates()[-1]
     typer.echo(f"backlog update: {update.id}")
     typer.echo(f"trigger: {update.trigger_type.value}")
@@ -166,6 +170,9 @@ def backlog_update(
 @backlog_app.command("history")
 def backlog_history(limit: Annotated[int, typer.Option("--limit")] = 20) -> None:
     """Show recent ticket backlog updates."""
+    if limit < 1:
+        typer.echo("--limit must be greater than 0.")
+        raise typer.Exit(2)
     updates = AriadneStore(state.root).list_backlog_updates()[-limit:]
     if not updates:
         typer.echo("No backlog updates.")
@@ -497,7 +504,11 @@ def ticket_supersede(
 ) -> None:
     """Supersede a Build Ticket and record a backlog update."""
     store = AriadneStore(state.root)
-    ticket = store.resolve_ticket(ticket_id)
+    try:
+        ticket = store.resolve_ticket(ticket_id)
+    except FileNotFoundError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
     update = supersede_ticket(store, ticket, reason)
     updated = store.load_ticket(ticket.id)
     typer.echo(f"superseded: {updated.key}")

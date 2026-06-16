@@ -89,6 +89,9 @@ class TicketRunOrchestrator:
         timeout_seconds: int = 60,
     ) -> TicketRunResult:
         ticket = self.store.resolve_ticket(ticket_id_or_key)
+        if ticket.status is TicketStatus.SUPERSEDED:
+            msg = f"ticket {ticket.key} is superseded and cannot be run"
+            raise RuntimeError(msg)
         ticket = ticket.with_status(TicketStatus.PLANNING, "Build Lead")
         self.store.save_ticket(ticket)
         record_handoff(

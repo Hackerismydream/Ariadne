@@ -969,3 +969,32 @@ Verification status:
   examples/sources/*.md`, `backlog history`, `ticket supersede`, and
   `export board`: passed. The board showed both global `Ticket Backlog
   Updates` and per-ticket `Backlog Update Trace` sections.
+
+Post-merge review hardening:
+
+- Source ingest now deduplicates repeated paths in a single backlog update.
+- Local source identity is path-stable; editing the same source path updates
+  the existing ticket instead of creating a duplicate ticket.
+- Re-ingesting a source no longer reopens a `superseded` ticket.
+- Superseding a ticket cancels open assignments for that ticket.
+- Daemon and orchestrator paths refuse to execute `superseded` tickets.
+- Backlog history and board export tolerate malformed backlog JSONL lines by
+  ignoring invalid records.
+- CLI error paths for missing source files and unknown tickets now return
+  concise exit-2 messages instead of tracebacks.
+
+Verification after review hardening:
+
+- `pytest tests/test_backlog_update_loop.py -q`: passed, 11 tests.
+- `pytest tests/test_agent_teammate_mode.py tests/test_true_mvp_product_loop.py
+  tests/test_1_0_full_demo.py tests/test_v1_daemon_supervision.py
+  tests/test_backlog_update_loop.py -q`: passed, 43 tests.
+- `pytest`: passed, 97 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed and printed
+  environment/key state without secret values.
+- `uv run ari demo full && uv run ari doctor v1 && uv run ari export board`:
+  passed.

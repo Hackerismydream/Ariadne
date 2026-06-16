@@ -385,11 +385,15 @@ class AriadneStore:
     def list_backlog_updates(self) -> list[BacklogUpdate]:
         if not self.backlog_updates_path.exists():
             return []
-        return [
-            BacklogUpdate.model_validate_json(line)
-            for line in self.backlog_updates_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        updates: list[BacklogUpdate] = []
+        for line in self.backlog_updates_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                updates.append(BacklogUpdate.model_validate_json(line))
+            except ValueError:
+                continue
+        return updates
 
     def list_backlog_updates_for_ticket(self, ticket_id: str) -> list[BacklogUpdate]:
         return [
