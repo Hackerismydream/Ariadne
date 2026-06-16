@@ -1,24 +1,27 @@
 # Ariadne v1.0 Architecture
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 Ariadne v1.0 is frozen around one product definition:
 
 ```text
-Ariadne = Goal-driven Multi-Agent Build Team
+Ariadne = local-first Ticket-centered Agent Workbench
 ```
 
 Chinese expression:
 
 ```text
-Ariadne 是一个目标驱动的多 Agent 构建团队。
-它从一个 Build Goal 出发，结合外部知识、历史记忆和当前代码上下文，
-生成 Build Tickets，并组织多个 Agent 协作完成软件迭代。
+Ariadne 是一个本地优先、以 Ticket 为中心的 Agent 工作台。
+它让外部知识、执行反馈、Review、Memory 和当前代码状态持续更新 Ticket 列表，
+再把 Ticket 分配给 Agent，通过本地 runtime 执行、审查、沉淀和继续迭代。
 ```
 
 ## One-Sentence Positioning
 
-Ariadne is a Goal-driven Multi-Agent Build Team for AI builders. It converts a
-build goal, external knowledge, and project context into executable,
-reviewable, and memorable software iterations.
+Ariadne is a local-first Ticket-centered Agent Workbench for AI builders. It
+turns knowledge and feedback into an evolving Build Ticket backlog, then lets
+agents execute those tickets through a Multica-style local runtime.
 
 ## Product Core
 
@@ -28,57 +31,72 @@ Ariadne is not:
 - a knowledge base;
 - a meeting summarizer;
 - a Codex replacement;
-- a Multica clone.
+- a Multica clone;
+- a BuildGoal-first planner.
 
 Ariadne is:
 
 ```text
-Goal-driven Multi-Agent Build Team
+Ticket-centered Agent Workbench
 ```
 
 Its core loop is:
 
 ```text
-Goal -> Tickets -> Assignments -> Agent Runs -> Review -> Memory -> Next Tickets
+Knowledge / Feedback / Codebase
+  -> update Ticket backlog
+  -> Ticket management center
+  -> assign to Agent
+  -> local Daemon / Runtime
+  -> Codex / Claude / fake-codex
+  -> Review / Comments / Board / Memory
+  -> update Ticket backlog again
 ```
 
-Learning-to-Build is the business scenario. Multi-Agent Build Team is the
-product value. Goal-driven orchestration is the architectural difference between
-Ariadne and Multica.
+Learning-to-Build is the business scenario. The product value is the local
+agent workbench that keeps work visible, assignable, reviewable, and
+remembered. Ariadne's difference from Multica is not that it replaces issues
+with goals. The difference is that knowledge and feedback can continuously
+change the ticket set before and after agents execute work.
 
 ## Six-Layer Architecture
 
 ```mermaid
 flowchart TB
-  A["Goal & Source Layer"] --> B["Work Management Layer"]
+  A["Knowledge / Feedback / Codebase Layer"] --> B["Ticket Management Layer"]
   B --> C["Agent Team Layer"]
   C --> D["Runtime Layer"]
   D --> E["Execution Layer"]
   E --> F["Memory & Presentation Layer"]
+  F --> B
 ```
 
-### 1. Goal & Source Layer
+### 1. Knowledge / Feedback / Codebase Layer
 
 Responsibilities:
 
-- receive Build Goals;
 - receive external sources;
+- receive optional user goals as directional input;
 - read historical knowledge and memory;
 - read current repository context;
-- decide which information is worth turning into project work.
+- read review and execution feedback;
+- decide whether the ticket backlog should be added to, reprioritized,
+  downgraded, split, closed, or superseded.
 
 Core objects:
 
-- `BuildGoal`
 - `SourceDocument`
 - `KnowledgeSource`
 - `RepoContext`
 - `MemoryContext`
+- `ReviewFeedback`
+- optional goal metadata
 
 This is Ariadne's upstream difference from Multica. Multica starts from an
-existing issue. Ariadne starts from a build goal plus knowledge.
+existing issue. Ariadne can let external knowledge and feedback reshape the
+ticket backlog.
 
-### 2. Work Management Layer
+### 2. Ticket Management Layer
 
 Responsibilities:
 
@@ -88,6 +106,7 @@ Responsibilities:
 - record comments;
 - record handoffs;
 - record runtime events;
+- preserve reviewable artifacts;
 - support recovery decisions.
 
 Core objects:
@@ -105,8 +124,8 @@ Core objects:
 Most important objects:
 
 - `BuildTicket`: the visible work carrier, similar to a Multica issue.
-- `BuildPacket`: the structured translation from goal or knowledge to an
-  executable task.
+- `BuildPacket`: the structured translation from source, memory, review,
+  codebase context, or a goal into executable work.
 - `TicketAssignment`: the act of assigning a ticket to an agent teammate.
 
 ### 3. Agent Team Layer
@@ -124,8 +143,7 @@ Fixed v1.0 agent roles:
 
 Role responsibilities:
 
-- Build Lead: understands the goal, routes work, and decides who should handle
-  each stage.
+- Build Lead: routes ticket work and decides who should handle each stage.
 - Research: reads papers, blogs, and GitHub projects.
 - Knowledge: retrieves historical memory, prior tickets, and decision records.
 - Project Context: understands the current repository, modules, tests, and
@@ -205,7 +223,8 @@ Responsibilities:
 - preserve execution results;
 - generate next iteration entry points;
 - display the full loop;
-- support demos, reviews, and interview explanation.
+- support demos, reviews, and interview explanation;
+- feed review and memory back into the ticket backlog.
 
 Core objects:
 
@@ -232,24 +251,22 @@ Capabilities:
 
 ```mermaid
 flowchart LR
-  Goal["Build Goal"] --> Source["Sources / Knowledge / Repo Context"]
-  Source --> Plan["Multi-Agent Planning"]
-  Plan --> Ticket["Build Tickets"]
+  Input["Knowledge / Feedback / Codebase / Optional Goal"] --> Update["Ticket Backlog Update"]
+  Update --> Ticket["Build Tickets"]
   Ticket --> Assignment["Agent Assignment"]
   Assignment --> Daemon["Daemon Worker"]
   Daemon --> Exec["Execution Agent"]
   Exec --> Review["Reviewer Agent"]
   Review --> Memory["Memory / Feishu / Next Tickets"]
   Memory --> Board["Build Board"]
+  Memory --> Update
 ```
 
 ## Object Relationship
 
 ```mermaid
 flowchart TB
-  Goal["BuildGoal"] --> Source["SourceDocument"]
-  Goal --> Ticket["BuildTicket"]
-  Ticket --> Packet["BuildPacket"]
+  Ticket["BuildTicket"] --> Packet["BuildPacket"]
   Ticket --> Assignment["TicketAssignment"]
   Ticket --> Run["AgentRun"]
   Ticket --> Handoff["AgentHandoff"]
@@ -258,6 +275,8 @@ flowchart TB
   Ticket --> Review["ReviewReport"]
   Ticket --> Memory["MemoryRecord"]
   Ticket --> Next["NextTickets"]
+  Source["SourceDocument / Memory / Review / Repo Context / Optional Goal"] --> Packet
+  Next --> Ticket
 ```
 
 ## Agent Team
@@ -302,14 +321,15 @@ Ariadne v1.0 does not do:
 - automatic commit, push, merge, or PR;
 - default real Feishu writes;
 - default real Codex execution;
-- long-running unattended operation.
+- long-running unattended operation;
+- BuildGoal-first scheduler.
 
 Ariadne v1.0 does:
 
 - local-first operation;
 - single-user workflow;
-- goal-driven multi-agent architecture;
-- ticket-driven work management;
+- ticket-centered work management;
+- knowledge and feedback driven backlog updates;
 - optional Codex and Claude execution;
 - review, memory, and next tickets;
 - static or local board presentation.

@@ -380,5 +380,4 @@ Board
 Autopilot
 ```
 
-Ariadne 不应该只做“上游调度”。Ariadne 的差异是从 Build Goal 和外部知识开始，但它也必须具备这些 Agent 工作管理能力，才能像真正的大厂 Agent 项目。
-
+Ariadne 不应该只做“上游调度”。Ariadne 的差异是让外部知识、执行反馈、Review、Memory 和代码状态持续更新 Ticket backlog，但它也必须具备这些 Agent 工作管理能力，才能像真正的大厂 Agent 项目。

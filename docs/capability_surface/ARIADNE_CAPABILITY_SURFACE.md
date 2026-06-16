@@ -1,17 +1,20 @@
 # Ariadne Capability Surface
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 This document freezes Ariadne's v1.x product capability surface.
 
 Ariadne is a local-first, single-user, Python workbench for AI builders. Its
 product form is:
 
 ```text
-Goal-driven Multi-Agent Build Team
+Ticket-centered Agent Workbench
 ```
 
-Learning-to-Build is the scenario. The product capability is the multi-agent
-team that turns goals, sources, project context, and memory into executable
-software iterations.
+Learning-to-Build is the scenario. The product capability is the agent
+workbench that turns knowledge, feedback, project context, and memory into an
+evolving ticket backlog, then runs agents against those tickets.
 
 ## Source Documents
 
@@ -49,9 +52,10 @@ Ariadne answers the questions that become more important when writing code is
 cheap:
 
 ```text
-What should we build?
-Why should we build it?
-How does external knowledge relate to this repo?
+What tickets should exist now?
+Why should this work exist?
+Did new knowledge change ticket priority?
+Did execution or review feedback create follow-up work?
 How should the work be split for coding agents?
 What context should Codex or Claude receive?
 How do we review the result?
@@ -61,13 +65,14 @@ How do we remember the decision and create the next iteration?
 The fixed product position is:
 
 ```text
-Build Goal + External Knowledge + Project Context + Memory
-  -> Multi-Agent Planning
+Knowledge / Feedback / Project Context / Memory / Optional Goal
+  -> Ticket Backlog Update
   -> Build Tickets
   -> Agent Assignment
   -> Codex / Claude Execution
   -> Review
   -> Memory / Feishu Plan / Next Tickets
+  -> Ticket Backlog Update
 ```
 
 Ariadne remains local-first in v1.x:
@@ -103,11 +108,11 @@ Autopilot
 ```
 
 Ariadne should not become a Multica clone. Ariadne should absorb the work
-management capabilities while preserving its own upstream difference:
+management capabilities while preserving its own backlog-update difference:
 
 ```text
 Multica: existing issue -> assign agent -> task lifecycle -> result
-Ariadne: build goal + knowledge + repo context -> tickets -> agent lifecycle -> result
+Ariadne: knowledge / feedback / repo context -> ticket updates -> agent lifecycle -> result -> ticket updates
 ```
 
 ## Multica Capability Surface
@@ -150,8 +155,8 @@ These gaps define the v1.x roadmap:
 
 | Gap | Why it matters | Planned ARI |
 |---|---|---|
-| Build Goal | Ariadne must start from goals, not only sources or tickets | ARI-016 |
-| Goal-to-ticket planning | Differentiates Ariadne from issue-driven systems | ARI-016 / ARI-017 |
+| Ticket backlog update loop | New knowledge and execution feedback must create, update, downgrade, or supersede tickets | ARI-016 |
+| Knowledge / feedback to ticket planning | Differentiates Ariadne from systems that only execute existing issues | ARI-016 / ARI-017 |
 | Build Team / Squad routing | Makes multi-agent positioning real | ARI-017 |
 | Real Codex teammate as main demo | Proves Ariadne is not only fake-codex | ARI-018 |
 | Provider capability matrix | Makes backend differences explicit and inspectable | ARI-019 |
@@ -166,9 +171,9 @@ These gaps define the v1.x roadmap:
 
 | Priority | ARI | Focus | Status |
 |---|---|---|---|
-| P0 | ARI-015 | Architecture freeze with Multica mapping | This document set |
-| P0 | ARI-016 | Build Goal and goal-to-ticket planning | Next implementation candidate |
-| P0 | ARI-017 | Build Team / squad routing | Next implementation candidate |
+| P0 | ARI-015 | Architecture freeze correction with Multica mapping | This document set |
+| P0 | ARI-016 | Ticket backlog update loop | Next implementation candidate |
+| P0 | ARI-017 | Knowledge / feedback to ticket multi-agent flow | Next implementation candidate |
 | P0 | ARI-018 | Real Codex teammate main demo | Next implementation candidate |
 | P0 | ARI-019 | Provider capability matrix | Next implementation candidate |
 | P1 | ARI-020 | Skill materialization | Planned |
@@ -189,9 +194,9 @@ ari daemon run-once
 ari export board
 ```
 
-## Goal-Driven vs Issue-Driven
+## Ticket-Centered vs Issue-Driven
 
-Multica is issue-driven:
+Multica is issue-centered:
 
 ```text
 Issue -> Agent assignment -> Task execution -> Progress / review / result
@@ -199,20 +204,20 @@ Issue -> Agent assignment -> Task execution -> Progress / review / result
 
 This is strong once work already exists.
 
-Ariadne is goal-driven:
+Ariadne is ticket-centered with backlog updates:
 
 ```text
-Build Goal
-  -> Research / Knowledge / Project Context / Memory
+Knowledge / Feedback / Project Context / Memory
   -> Build Tickets
   -> Agent assignment
   -> Codex / Claude execution
   -> Review / memory / next tickets
+  -> Build Tickets
 ```
 
-This is stronger for Learning-to-Build because the system helps decide what
-should become work. The upstream goal-to-ticket transformation is Ariadne's
-main product difference.
+This is stronger for Learning-to-Build because the system helps decide how the
+work set should change over time. The upstream and feedback-driven ticket
+update loop is Ariadne's main product difference.
 
 ## Multi-Agent Is The Product, Learning-To-Build Is The Scenario
 
@@ -220,19 +225,19 @@ Learning-to-Build describes the user journey: learning from papers, blogs,
 GitHub repos, project notes, and previous iterations, then turning that learning
 into software.
 
-The product mechanism is the multi-agent build team:
+The product mechanism is the agent workbench:
 
-- Build Lead routes work.
+- Build Lead routes ticket work.
 - Research and Knowledge agents gather context.
 - Project Context agent reads the current repo.
-- Planner creates tickets and packets.
+- Planner creates or updates tickets and packets.
 - Execution agent calls Codex, Claude, fake-codex, or another backend.
 - Reviewer checks the result conservatively.
 - Memory records the decision and generates next tickets.
 
 This distinction matters for implementation. Ariadne should prioritize
-capabilities that make agent teamwork explicit and inspectable, not only
-capabilities that ingest more documents.
+capabilities that make ticket state, agent teamwork, and runtime behavior
+explicit and inspectable, not only capabilities that ingest more documents.
 
 ## Implementation Rules
 
@@ -249,7 +254,7 @@ Future ARI work must follow `ops/CODEX_IMPLEMENTATION_RULES.md`:
 - each new capability needs CLI, model, persistence, tests, docs, safety gate,
   and failure path;
 - each new capability must map to either Multica's capability surface or
-  Ariadne's goal-driven difference.
+  Ariadne's ticket-backlog update difference.
 
 ## Acceptance Baseline
 

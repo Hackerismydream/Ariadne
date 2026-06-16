@@ -1,14 +1,19 @@
 # Ariadne v1.0 Object Model
 
-This document freezes the object relationships Ariadne v1.0 should preserve
-while it evolves from a ticket-driven local MVP toward a Goal-driven
-Multi-Agent Build Team.
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
+This document freezes the object relationships Ariadne v1.0 should preserve as
+a local-first Ticket-centered Agent Workbench.
 
 ## Relationship Summary
 
 ```text
-BuildGoal
+Knowledge / Feedback / Codebase / Optional Goal
   └── SourceDocument[]
+  └── MemoryRecord[]
+  └── ReviewReport[]
+  └── BuildPacket[]
   └── BuildTicket[]
 
 BuildTicket
@@ -27,9 +32,8 @@ BuildTicket
 
 ```mermaid
 flowchart TB
-  Goal["BuildGoal"] --> Source["SourceDocument[]"]
-  Goal --> Ticket["BuildTicket[]"]
-  Ticket --> Packet["BuildPacket"]
+  Input["Source / Memory / Review / Repo Context / Optional Goal"] --> Packet["BuildPacket"]
+  Packet --> Ticket["BuildTicket[]"]
   Ticket --> Assignment["TicketAssignment[]"]
   Ticket --> Run["AgentRun[]"]
   Ticket --> Handoff["AgentHandoff[]"]
@@ -40,11 +44,13 @@ flowchart TB
   Ticket --> Memory["MemoryRecord"]
   Ticket --> Feishu["FeishuWritePlan"]
   Ticket --> Next["NextTickets"]
+  Next --> Ticket
 ```
 
-## BuildGoal
+## Optional Goal Metadata
 
-`BuildGoal` is what the user actually wants to accomplish.
+A goal is directional input. It can explain why a set of tickets exists, but it
+is not the root object of the runtime.
 
 Examples:
 
@@ -52,9 +58,9 @@ Examples:
 - turn real Codex execution into the main demo path;
 - improve source intelligence and memory retrieval.
 
-BuildGoal is the architectural object that makes Ariadne goal-driven rather
-than issue-driven. If the current implementation uses source ingestion as a
-bridge, BuildGoal remains the frozen v1.0 direction.
+The implementation should not introduce a second BuildGoal-first state machine
+parallel to tickets and assignments. If goal metadata is added later, it should
+attach to tickets, sources, planning artifacts, or backlog update records.
 
 ## SourceDocument
 
@@ -74,7 +80,8 @@ agents to coordinate work.
 
 ## BuildPacket
 
-`BuildPacket` is the structured translation from goal or knowledge to work.
+`BuildPacket` is the structured translation from knowledge, feedback, current
+repo context, review output, or optional goal input into work.
 
 It should contain source summary, insight, evidence, project relevance, build
 decision, tasks, acceptance criteria, affected modules, risks, and assumptions.
@@ -155,15 +162,15 @@ both present.
 
 `NextTickets` is the next iteration entry point.
 
-It converts review results, memory gaps, failed checks, warnings, and changed
-files into candidate future Build Tickets.
+It converts review results, memory gaps, failed checks, warnings, changed files,
+new sources, and codebase observations into candidate future Build Tickets.
 
 ## Design Rule
 
 The core object boundary is:
 
 ```text
-Goal decides why.
+Goal explains why when present.
 Ticket decides what.
 Packet translates context into executable work.
 Assignment decides who.
@@ -173,5 +180,5 @@ Comment exposes collaboration.
 Journal records runtime facts.
 Artifact preserves reviewable output.
 Memory preserves long-term context.
-Next Tickets start the next loop.
+Next Tickets update the backlog.
 ```

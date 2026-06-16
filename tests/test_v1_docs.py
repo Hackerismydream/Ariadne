@@ -33,3 +33,25 @@ def test_readme_has_v1_quickstart_and_limitations() -> None:
     assert "ari daemon run-once" in readme
     assert "ari board serve" in readme
     assert "JSON/JSONL" in readme
+
+
+def test_ticket_centered_architecture_is_current_positioning() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    architecture = (
+        ROOT / "docs" / "architecture" / "ARIADNE_TICKET_CENTERED_ARCHITECTURE.md"
+    ).read_text(encoding="utf-8")
+    capability = (
+        ROOT / "docs" / "capability_surface" / "ARIADNE_CAPABILITY_SURFACE.md"
+    ).read_text(encoding="utf-8")
+    adr = (
+        ROOT / "docs" / "adr" / "ADR-0004-ticket-centered-agent-workbench.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Ticket-centered Agent Workbench" in readme
+    assert "Ticket-centered Agent Workbench" in architecture
+    assert "Ticket-centered Agent Workbench" in capability
+    assert "Ticket-centered Agent Workbench" in adr
+    assert "Multica lets agents work issues" in architecture
+    assert "knowledge and feedback update tickets" in architecture
+    assert "Goal-driven Multi-Agent Build Team" not in readme
+    assert "Goal-driven Multi-Agent Build Team" not in capability

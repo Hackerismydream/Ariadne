@@ -678,29 +678,31 @@ Why freeze the architecture:
 - The freeze prevents Ariadne from drifting into either a generic CLI wrapper or
   a Multica clone.
 
-Frozen product position:
+Historical product position from ARI-015:
 
-- `Ariadne = Goal-driven Multi-Agent Build Team`.
-- Learning-to-Build is the business scenario.
-- Multi-Agent Build Team is the product value.
-- Goal-driven orchestration is the difference from Multica.
+- This section originally froze Ariadne as a Goal-driven Multi-Agent Build Team.
+- That direction is now superseded by ADR-0004.
+- Current product position is `Ariadne = local-first Ticket-centered Agent Workbench`.
+- Learning-to-Build remains the business scenario.
+- Ariadne's difference from Multica is that knowledge, feedback, memory,
+  review, and codebase state update the ticket backlog before agents execute
+  tickets.
 
-Frozen Multica mapping:
+Updated Multica mapping:
 
-- `Multica = Issue-driven Agent Team`.
-- `Ariadne = Goal-driven Agent Team`.
+- `Multica = issue-centered agent work management`.
+- `Ariadne = ticket-centered local agent workbench with knowledge/feedback backlog updates`.
 - Ariadne adopts Multica-style agent work management: teammate identity,
   assignments, daemon/runtime, comments, provider capability, skills, resources,
   board, and future autopilot.
 - Ariadne does not copy Multica's Go server, Postgres, multi-tenant workspace,
   WebSocket collaboration, daemon fleet, or frontend platform.
 
-Frozen main flow:
+Current main flow:
 
 ```text
-Build Goal
-  -> Source / Knowledge / Repo Context
-  -> Multi-Agent Planning
+Knowledge / Feedback / Codebase / Optional Goal
+  -> Ticket Backlog Update
   -> Build Tickets
   -> Agent Assignment
   -> Daemon Worker
@@ -708,6 +710,7 @@ Build Goal
   -> Reviewer Agent
   -> Memory Agent
   -> Next Tickets / Board
+  -> Ticket Backlog Update
 ```
 
 Current implemented bridge:
@@ -761,22 +764,22 @@ Documents written:
 - `docs/capability_surface/templates/*.md`
 - `docs/capability_surface/ops/CODEX_IMPLEMENTATION_RULES.md`
 
-Capability surface decision:
+Capability surface decision, corrected by ADR-0004:
 
 - Ariadne v1.x is positioned as a local-first
-  `Goal-driven Multi-Agent Build Team`.
+  `Ticket-centered Agent Workbench`.
 - Multica remains the fixed benchmark for agent work-management capabilities:
   agent teammate, task lifecycle, daemon/runtime, provider capability, skills,
   squads, project resources, comments, board, and autopilot.
-- Ariadne's differentiation is goal-driven upstream planning:
-  `Build Goal -> Research / Knowledge / Repo Context / Memory -> Build Tickets`.
-- Learning-to-Build is treated as Ariadne's scenario; multi-agent build-team
-  orchestration is the product capability.
+- Ariadne's differentiation is the ticket backlog update loop:
+  `Knowledge / Feedback / Repo Context / Memory -> Build Tickets`.
+- Learning-to-Build is treated as Ariadne's scenario; the ticket-centered agent
+  workbench is the product capability.
 
-Known roadmap:
+Known roadmap, corrected by ADR-0004:
 
-- P0: ARI-016 Build Goal, ARI-017 Build Team routing, ARI-018 real Codex
-  teammate main demo, ARI-019 provider capability matrix.
+- P0: ARI-016 Ticket Backlog Update Loop, ARI-017 Build Team routing,
+  ARI-018 real Codex teammate main demo, ARI-019 provider capability matrix.
 - P1: ARI-020 skill materialization, ARI-021 project resource boundaries,
   ARI-022 memory retrieval, ARI-023 review/eval agent.
 - P2: ARI-024 autopilot and recurring work, ARI-025 workbench board
@@ -789,3 +792,93 @@ Verification status:
 - `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
 - `python3.11 -m ariadne_ltb.cli export board`: passed.
 - Board output: `.ariadne/board/index.md`.
+
+## ADR-0004 Ticket-Centered Architecture Correction
+
+Scope:
+
+- Corrected the v1.x architecture docs from BuildGoal-first positioning to
+  ticket-centered agent workbench positioning.
+- Added an ADR and a new current architecture entrypoint.
+- Preserved historical file paths and reports, but marked old BuildGoal-first
+  instructions as superseded where future agents might otherwise execute them.
+- Added a docs test to keep README and capability-surface positioning from
+  drifting back to the old wording.
+
+Files added:
+
+- `docs/adr/ADR-0004-ticket-centered-agent-workbench.md`
+- `docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md`
+
+Files updated:
+
+- `README.md`
+- `docs/architecture/ARIADNE_V1_ARCHITECTURE.md`
+- `docs/architecture/ARIADNE_V1_OBJECT_MODEL.md`
+- `docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md`
+- `docs/architecture/ARIADNE_V1_MULTICA_MAPPING.md`
+- `docs/capability_surface/00_START_HERE.md`
+- `docs/capability_surface/01_PRODUCT_POSITIONING.md`
+- `docs/capability_surface/02_MULTICA_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/03_ARIADNE_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/04_CORE_OBJECT_MODEL.md`
+- `docs/capability_surface/05_PRIORITY_ROADMAP.md`
+- `docs/capability_surface/06_ACCEPTANCE_FRAMEWORK.md`
+- `docs/capability_surface/07_CODEX_MASTER_PROMPT.md`
+- `docs/capability_surface/ARIADNE_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/aris/ARI-015-architecture-freeze.md`
+- `docs/capability_surface/aris/ARI-016-build-goal-and-goal-to-ticket.md`
+- `docs/capability_surface/aris/ARI-017-build-team-squad-routing.md`
+- `docs/capability_surface/aris/ARI-024-autopilot-and-recurring-work.md`
+- `docs/capability_surface/aris/ARI-025-workbench-board-productization.md`
+- `docs/capability_surface/ops/CODEX_IMPLEMENTATION_RULES.md`
+- `docs/capability_surface/templates/BUILD_GOAL_SCHEMA.md`
+- `docs/capability_surface/templates/CAPABILITY_STATUS_TABLE.md`
+- `docs/demo/ARIADNE_V1_DEMO_CONTRACT.md`
+- `docs/development_report.md`
+- `tests/test_v1_docs.py`
+
+Architecture decision:
+
+- Ariadne v1.x is now documented as a local-first
+  `Ticket-centered Agent Workbench`.
+- Goal is allowed as directional input, but it is not the runtime center,
+  scheduler unit, or root state machine.
+- Ticket is the work unit, audit unit, board unit, and assignment unit.
+- Ariadne's differentiation is:
+
+```text
+Multica lets agents work issues.
+Ariadne lets knowledge and feedback update tickets, then lets agents work tickets.
+```
+
+Corrected next roadmap:
+
+- ARI-016: Ticket Backlog Update Loop.
+- ARI-017: Knowledge / Feedback To Ticket Multi-Agent Flow.
+- ARI-018: Real Codex teammate main demo.
+- ARI-019: Provider Capability Matrix.
+
+Historical notes:
+
+- Older references to the previous BuildGoal-first direction are retained only
+  where they are explicitly historical, negative, or superseded.
+- `docs/capability_surface/aris/ARI-016-build-goal-and-goal-to-ticket.md`
+  keeps its filename for link stability, but its current content is the
+  Ticket Backlog Update Loop.
+
+Verification status for this correction:
+
+- `pytest`: passed, 85 tests.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor v1`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `uv run ari demo full`: passed.
+- `uv run ari doctor v1`: passed.
+- `uv run ari export board`: passed.
+- Residual scan for `Goal-driven`, `BuildGoal`, `Goal-first`,
+  `Goal-to-Ticket`, and `ARI-016`: remaining matches are explicitly
+  historical, superseded, negative guidance, or current ARI-016 ticket-backlog
+  roadmap references.

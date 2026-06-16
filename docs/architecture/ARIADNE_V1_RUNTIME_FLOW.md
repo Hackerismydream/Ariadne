@@ -1,34 +1,15 @@
 # Ariadne v1.0 Runtime Flow
 
-This document freezes the Ariadne v1.0 runtime paths. It distinguishes the
-future goal-first path from the currently implemented source-ingestion bridge.
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
 
-## Future Goal-First Path
+This document freezes the Ariadne v1.0 runtime paths around ticket-centered
+agent work. Historical BuildGoal-first command sketches are superseded; a goal
+may be an input, but the runtime works tickets and assignments.
 
-Target command shape:
+## Current v1.0 Product Path
 
-```bash
-ari goal create "把 Ariadne 做成对标 Multica 的多 Agent 构建团队"
-ari goal attach-source GOAL-001 examples/real_inputs/ariadne_review_to_build.md
-ari goal plan GOAL-001
-ari ticket list
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
-ari ticket comments ARI-003
-ari export board
-```
-
-`BuildGoal` is a v1.0 architecture-freeze object. If the current implementation
-does not yet expose `ari goal ...`, the supported bridge is source ingestion.
-That bridge should not change the product direction:
-
-```text
-Build Goal -> Sources / Knowledge / Repo Context -> Tickets -> Agent Team
-```
-
-## Current v1.0 Implemented Path
-
-The current stable local path is:
+The stable local path is Agent Teammate Mode:
 
 ```bash
 ari ingest examples/sources/*.md
@@ -55,7 +36,7 @@ python3.11 -m ariadne_ltb.cli export board
 This path proves:
 
 ```text
-Source
+Source / Knowledge / Feedback
   -> Build Ticket
   -> Build Packet
   -> Assignment
@@ -65,7 +46,32 @@ Source
   -> Reviewer
   -> Memory / Feishu Dry Run / Next Tickets
   -> Board
+  -> Backlog update
 ```
+
+## Backlog Update Rule
+
+When new external knowledge or execution feedback arrives, Ariadne should update
+the ticket set instead of rewriting a global goal object:
+
+- add new tickets;
+- change priority;
+- split or merge work;
+- mark work blocked;
+- supersede obsolete tickets;
+- create next-ticket artifacts with rationale.
+
+## Direct Full-Loop Path
+
+`ticket run` remains available for direct orchestration:
+
+```bash
+ari ticket run ARI-003 --backend fake-codex
+```
+
+It performs the complete loop without requiring a separate daemon assignment
+step. Agent Teammate Mode is preferred for product demonstrations because it
+makes assignment, claim, comments, and runtime state visible.
 
 ## Real Codex Path
 
@@ -128,6 +134,7 @@ flowchart TB
   Retryable -->|"Yes"| Retry["Create Retry Assignment"]
   Retryable -->|"No"| Human["Needs Human Review"]
   Review --> Memory["Memory / Next Tickets"]
+  Memory --> Backlog["Ticket Backlog Update"]
   Retry --> Assignment
 ```
 

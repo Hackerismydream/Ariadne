@@ -1,85 +1,93 @@
 # 03. Ariadne 需要固定的能力面
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 本文件定义 Ariadne 未来实施时必须坚持的能力面。
 
-## 一级卖点：Goal-driven Multi-Agent Build Team
+## 一级卖点：Ticket-centered Agent Workbench
 
-Ariadne 的卖点是多 Agent，不是单纯 Learning-to-Build。
+Ariadne 的卖点是一个本地 agent 工作台，不是单纯 Learning-to-Build。
 
 Learning-to-Build 是 Ariadne 的业务场景。Ariadne 的产品形态是：
 
 ```text
-Goal-driven Multi-Agent Build Team
+Ticket-centered Agent Workbench
 ```
 
 核心表达：
 
 ```text
-用户给出一个 Build Goal。
-Ariadne 组织多个 Agent 理解目标、读取知识、分析项目、生成 Build Tickets、分配任务、调用 Codex / Claude、Review、Memory、生成下一轮任务。
+知识、反馈、代码状态和可选目标进入 Ariadne。
+Ariadne 更新 Build Ticket 列表。
+Agent 通过 assignment、daemon、runtime、handoff、review、memory、board 完成 ticket。
+执行结果再反馈到下一轮 ticket 更新。
 ```
 
 ---
 
 ## Ariadne 必须支持的能力
 
-## 1. Build Goal
+## 1. Ticket Backlog Update Loop
 
-Ariadne 应从 Build Goal 开始，而不是只从 source 或 ticket 开始。
+Ariadne 应从 Ticket backlog 开始组织工作。Goal 可以作为方向输入，但不能成为 v1.x 的根状态机。
 
-Build Goal 示例：
+输入示例：
 
 ```text
-把 Ariadne 做成对标 Multica 的多 Agent 构建团队。
-把真实 Codex path 变成主 demo。
-把外部知识转成 Ariadne 自己的下一轮任务。
+一篇新博客指出 agent teammate 的关键是 task lifecycle + visible progress。
+一次 Review 发现 board 仍然不是 issue-centric。
+一次 fake-codex 执行失败并产生 blocker。
+当前代码库新增了 runtime capability snapshot。
+```
+
+输出应该是 ticket set 的增量变化：
+
+```text
+新增 ticket
+调整优先级
+拆分 ticket
+降级 ticket
+关闭或 supersede ticket
+记录 backlog update rationale
 ```
 
 目标能力：
 
 ```bash
-ari goal create "把 Ariadne 做成对标 Multica 的多 Agent 构建团队"
-ari goal attach-source GOAL-001 docs/notes/*.md
-ari goal plan GOAL-001
-ari goal assign GOAL-001 --to build-team
-```
-
-输出：
-
-```text
-多个 Build Tickets
-优先级
-依赖关系
-建议 Agent
-验收标准
-执行顺序
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari export board
 ```
 
 ---
 
-## 2. Goal-to-Ticket 多 Agent 规划
+## 2. Knowledge / Feedback To Ticket Planning
 
 这是真正体现 Ariadne 区别于 Multica 的地方。
 
-Multica 从 issue 开始。
+Multica 从已有 issue 开始。
 
-Ariadne 从 goal 开始。
+Ariadne 让知识和反馈改变 ticket 列表。
 
 需要有这些 Agent：
 
 ```text
-Build Lead Agent：理解目标和拆分方向
+Build Lead Agent：理解当前 ticket 状态和更新方向
 Research Agent：读取论文 / 博客 / GitHub README
 Knowledge Agent：检索历史 memory / ticket / decision
 Project Context Agent：读取当前 repo / README / tests / modules
-Planner Agent：生成 Build Tickets / Build Packets
+Planner Agent：生成或更新 Build Tickets / Build Packets
 ```
 
 目标链路：
 
 ```text
-Build Goal
-  -> Research / Knowledge / Repo Context
+Knowledge / Feedback / Repo Context
+  -> Ticket Backlog Update
   -> Build Tickets
   -> Ticket Assignment
 ```
@@ -107,14 +115,8 @@ Memory
 
 ```bash
 ari team list
-ari goal assign GOAL-001 --to build-team
-ari daemon run-once
-```
-
-或者：
-
-```bash
 ari ticket assign ARI-003 --to build-team
+ari daemon run-once
 ```
 
 Build Lead 负责路由：
@@ -125,6 +127,7 @@ Build Lead 负责路由：
 哪些 repo 信息给 Project Context
 哪些 ticket 给 Codex
 哪些结果给 Reviewer
+哪些反馈更新 ticket backlog
 ```
 
 ---
@@ -183,7 +186,7 @@ Reviewer needs_fix -> 创建 Execution retry Assignment
 
 fake-codex 只是稳定 demo backend。
 
-Ariadne 必须把真实 Codex path 做成主 demo 能力。
+Ariadne 必须把真实 Codex path 做成可验证能力。
 
 目标命令：
 
@@ -259,132 +262,42 @@ requires_external_execution_gate
 后续需要 materialization：
 
 ```text
-CodexBackend：把 skill 展开进 handoff 或写入适合 Codex 的目录
-ClaudeBackend：把 skill 展开进 Claude prompt / skill dir
-ReviewerAgent：把 review-diff skill 变成 checklist
-FeishuAgent：把 feishu-write-plan skill 变成 schema
+BuildSkill
+SkillPack
+skill -> handoff snippet
+skill -> backend adapter hint
+skill -> review checklist
 ```
-
-Skill 不是文档列表，而是 Agent 执行方法。
 
 ---
 
 ## 9. Project Resource Boundaries
 
-Project Resource 不应只支持 local_directory。
+Agent 不能只拿一堆无边界上下文。
 
-应扩展为：
-
-```text
-local_directory
-github_repo
-feishu_space
-memory_store
-source_collection
-target_project
-```
-
-每个资源要有访问边界：
+需要清楚定义：
 
 ```text
-read_only
-read_write
-allowed_paths
-blocked_paths
-requires_confirmation
-```
-
-这对安全很重要。
-
----
-
-## 10. Memory Retrieval
-
-Memory 不能只写入，还要被下一轮使用。
-
-需要支持：
-
-```bash
-ari memory search "codex smoke test"
-ari goal plan GOAL-001 --use-memory
-ari ticket plan ARI-003 --use-memory
-```
-
-Planner 应能引用：
-
-```text
-历史 Build Tickets
-历史 ReviewReports
-历史 ExecutionResults
-Decision Log
-Next Tickets
+Source documents
+Target repo
+Allowed paths
+Test commands
+Memory records
+Feishu dry-run targets
 ```
 
 ---
 
-## 11. Review / Eval Agent
+## 10. Review / Eval Agent
 
-Reviewer 不应该只是规则检查。
+Reviewer 不能只是检查测试是否通过。
 
-应增强为：
-
-```text
-diff 语义总结
-验收标准对齐
-测试覆盖判断
-风险评分
-是否需要人工 review
-是否生成返工 ticket
-是否可进入 memory
-```
-
-还要有评估指标：
+它应该检查：
 
 ```text
-Build Packet evidence coverage
-Acceptance criteria quality
-Changed file scope compliance
-Execution success rate
-Review pass rate
-Retry rate
-Human intervention count
+diff 是否符合 ticket
+是否超出 allowed paths
+tests 是否覆盖验收标准
+是否产生新的风险
+是否需要 next tickets
 ```
-
----
-
-## 12. Autopilot
-
-Ariadne 后续可支持定期任务：
-
-```text
-weekly review
-daily source inbox triage
-periodic Codex smoke check
-memory summary
-next goal generation
-```
-
-这不是当前 P0，但属于对标 Multica 的能力面。
-
----
-
-## 13. Workbench Board
-
-Board 需要从静态结果页走向本地工作台：
-
-```text
-Ticket board
-Ticket detail
-Comments timeline
-Assignment panel
-Handoff chain
-Runtime status
-Retry button
-Review report
-Diff summary
-Memory
-Next tickets
-```
-
-v1.0 可以保持静态 / simple serve，v1.1 再做交互。
-

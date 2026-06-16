@@ -217,24 +217,32 @@ Architecture notes:
 
 ## Ariadne v1.0 Architecture
 
-Ariadne v1.0 is frozen as a Goal-driven Multi-Agent Build Team:
+Ariadne v1.0 is frozen as a local-first Ticket-centered Agent Workbench:
 
 ```text
-Build Goal -> Tickets -> Assignments -> Agent Runs -> Review -> Memory -> Next Tickets
+Knowledge / Feedback / Codebase
+  -> Ticket Backlog Update
+  -> Ticket Assignment
+  -> Agent Run
+  -> Review / Memory / Board
+  -> Ticket Backlog Update
 ```
 
-Multica is the fixed benchmark: Multica is an Issue-driven Agent Team; Ariadne
-is a Goal-driven Agent Team. Ariadne keeps a local-first Python architecture
-with JSON/JSONL storage, CLI commands, static/local board output, and explicit
-safety gates for Codex, Claude, and Feishu.
+Multica is the fixed benchmark for agent work management. Multica lets agents
+work issues. Ariadne lets knowledge and feedback update tickets, then lets
+agents work tickets. Ariadne keeps a local-first Python architecture with
+JSON/JSONL storage, CLI commands, static/local board output, and explicit safety
+gates for Codex, Claude, and Feishu.
 
 Architecture entrypoints:
 
+- [`docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md`](docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md)
 - [`docs/architecture/ARIADNE_V1_ARCHITECTURE.md`](docs/architecture/ARIADNE_V1_ARCHITECTURE.md)
 - [`docs/architecture/ARIADNE_V1_OBJECT_MODEL.md`](docs/architecture/ARIADNE_V1_OBJECT_MODEL.md)
 - [`docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md`](docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md)
 - [`docs/architecture/ARIADNE_V1_MULTICA_MAPPING.md`](docs/architecture/ARIADNE_V1_MULTICA_MAPPING.md)
 - [`docs/demo/ARIADNE_V1_DEMO_CONTRACT.md`](docs/demo/ARIADNE_V1_DEMO_CONTRACT.md)
+- [`docs/adr/ADR-0004-ticket-centered-agent-workbench.md`](docs/adr/ADR-0004-ticket-centered-agent-workbench.md)
 
 Main local demo path:
 
@@ -259,7 +267,7 @@ ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 Ariadne v1.x is frozen around the product surface:
 
 ```text
-Goal-driven Multi-Agent Build Team
+Ticket-centered Agent Workbench
 ```
 
 The capability-surface entrypoint is

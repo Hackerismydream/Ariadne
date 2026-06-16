@@ -20,19 +20,18 @@ weekly project review
 daily source inbox triage
 periodic Codex smoke check
 memory summary
-next goal generation
+ticket backlog update
 ```
 
 ## 输出
 
 ```text
-Build Goal
 Build Tickets
 Weekly Summary
 Next Tickets
+Backlog Update
 ```
 
 ## 验收
 
 可以先实现 `weekly-review` 的本地手动 run。
-

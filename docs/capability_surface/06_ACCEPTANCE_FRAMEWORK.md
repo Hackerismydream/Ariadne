@@ -1,5 +1,8 @@
 # 06. 能力验收框架
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 后续每个 ARI 必须按以下框架验收。
 
 ## 1. 产品验收
@@ -7,8 +10,9 @@
 必须回答：
 
 ```text
-这个能力是否让 Ariadne 更像 Goal-driven Multi-Agent Build Team？
-是否增强了与 Multica 的对标能力？
+这个能力是否让 Ariadne 更像 Ticket-centered Agent Workbench？
+是否增强了与 Multica 的 issue / agent / runtime / board 对标能力？
+是否让知识、反馈或代码状态更明确地更新 ticket backlog？
 是否服务 AI Builder 的 Learning-to-Build 场景？
 是否减少人工介入？
 是否提高 Codex / Claude 执行质量？
@@ -19,7 +23,8 @@
 至少命中以下一种能力：
 
 ```text
-Goal planning
+Ticket backlog update
+Knowledge / feedback planning
 Multi-agent routing
 Agent assignment
 Daemon/runtime
@@ -105,7 +110,7 @@ docs/development_report.md
 为什么需要它？
 它解决了 Agent 系统什么问题？
 它和 Multica 什么能力对应？
+它如何改变 ticket 状态或 agent runtime？
 它体现了什么工程能力？
 它当前限制是什么？
 ```
-

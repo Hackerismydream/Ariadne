@@ -44,6 +44,5 @@ run-once button
 打开 board 后，用户应能理解完整链路：
 
 ```text
-Goal -> Ticket -> Assignment -> Agent -> Execution -> Review -> Memory -> Next Tickets
+Knowledge / Feedback -> Ticket -> Assignment -> Agent -> Execution -> Review -> Memory -> Next Tickets
 ```
-

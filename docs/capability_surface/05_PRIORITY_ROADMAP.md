@@ -1,51 +1,59 @@
 # 05. Ariadne 功能优先级路线
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 本文件定义后续实施优先级。
 
 ## P0：必须补齐，才能让 Ariadne 成为大厂 Agent 岗项目
 
-### P0-1：Build Goal
+### P0-1：Ticket Backlog Update Loop
 
 为什么重要：
 
 ```text
-Multica 从 issue 开始。
-Ariadne 必须从 goal 开始。
+Multica 从 issue 开始，并让 agent 执行 issue。
+Ariadne 必须让知识、反馈和代码状态持续改变 ticket 列表，再让 agent 执行 ticket。
 ```
 
 交付：
 
 ```bash
-ari goal create "..."
-ari goal attach-source GOAL-001 examples/*.md
-ari goal plan GOAL-001
+ari ingest examples/sources/*.md
+ari ticket list
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari ticket comments ARI-003
+ari export board
 ```
 
 输出：
 
 ```text
-多个 Build Tickets
-优先级
+新增 / 更新 / 降级 / supersede tickets
+优先级变化
 建议 Agent
 依赖关系
 验收标准
+backlog update rationale
 ```
 
 ---
 
-### P0-2：Goal-to-Ticket Multi-Agent Flow
+### P0-2：Knowledge / Feedback To Ticket Multi-Agent Flow
 
 交付：
 
 ```text
-Build Lead -> Research -> Knowledge -> Project Context -> Planner -> Tickets
+Build Lead -> Research -> Knowledge -> Project Context -> Planner -> Ticket Updates
 ```
 
 重点：
 
 ```text
 不是 source type 固定映射
-而是基于 goal + source + memory + repo context 生成 tickets
+也不是 BuildGoal-first
+而是基于 source + memory + repo context + review feedback 生成或更新 tickets
 ```
 
 ---
@@ -56,7 +64,7 @@ Build Lead -> Research -> Knowledge -> Project Context -> Planner -> Tickets
 
 ```bash
 ari team list
-ari goal assign GOAL-001 --to build-team
+ari ticket assign ARI-003 --to build-team
 ```
 
 Build Lead 负责路由。
@@ -125,7 +133,7 @@ Memory 要被 Planner 使用，而不只是写入。
 
 ### P2-2：Autopilot
 
-定期 review / source triage / smoke test。
+定期 review / source triage / smoke test，并产生 ticket backlog updates。
 
 ### P2-3：Feishu richer dry-run / gated real write
 
@@ -136,10 +144,10 @@ Memory 要被 Planner 使用，而不只是写入。
 ## 建议实施顺序
 
 ```text
-Sprint A：架构冻结 + Build Goal
-  ARI-015 Architecture Freeze
-  ARI-016 Build Goal
-  ARI-017 Goal-to-Ticket Multi-Agent Flow
+Sprint A：架构修正 + Ticket backlog update loop
+  ARI-015 Architecture Freeze correction
+  ARI-016 Ticket Backlog Update Loop
+  ARI-017 Knowledge / Feedback To Ticket Multi-Agent Flow
 
 Sprint B：Agent Team 对齐 Multica
   ARI-018 Build Team / Squad Routing
@@ -152,4 +160,3 @@ Sprint C：真实性与展示
   ARI-023 Review / Eval Agent
   ARI-024 Demo Hardening
 ```
-

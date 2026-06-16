@@ -1,12 +1,15 @@
 # Ariadne v1.0 Multica Mapping
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 This document freezes Ariadne's relationship to Multica.
 
 ## Mapping Conclusion
 
 ```text
-Multica = Issue-driven Agent Team
-Ariadne = Goal-driven Agent Team
+Multica = issue-centered agent work management
+Ariadne = ticket-centered local agent workbench with knowledge/feedback backlog updates
 ```
 
 Multica starts from existing issues:
@@ -18,12 +21,12 @@ Issue
   -> Progress / blocker / result
 ```
 
-Ariadne starts from build goals and external knowledge:
+Ariadne starts from sources, feedback, codebase context, memory, or an optional
+goal, then updates tickets:
 
 ```text
-Build Goal
-  -> Source / Knowledge / Repo Context
-  -> Multi-Agent Planning
+Knowledge / Feedback / Codebase / Optional Goal
+  -> Ticket Backlog Update
   -> Build Tickets
   -> Agent Assignment
   -> Daemon Worker
@@ -31,13 +34,14 @@ Build Goal
   -> Reviewer Agent
   -> Memory Agent
   -> Next Tickets / Board
+  -> Ticket Backlog Update
 ```
 
 ## Concept Mapping
 
 | Multica Concept | Ariadne Concept | Notes |
 |---|---|---|
-| Issue | BuildTicket | Work carrier |
+| Issue | BuildTicket | Work carrier and board unit |
 | Task | AgentRun / TicketAssignment | One execution attempt or assignment |
 | Agent | AgentProfile | Assignable teammate |
 | Squad Leader | Build Lead Agent | Routing and assignment |
@@ -47,7 +51,7 @@ Build Goal
 | Skills | BuildSkill | Reusable work method |
 | Project Resources | ProjectResource | Context boundary |
 | Board | BuildBoard | Workbench presentation |
-| Autopilot | Goal / Recurring Work | Future recurring work |
+| Autopilot | Recurring ticket update | Future recurring work |
 | Provider Matrix | Backend Capability Matrix | Codex / Claude / Shell capability differences |
 
 ## What Ariadne Adopts From Multica
@@ -83,30 +87,33 @@ Ariadne v1.0 remains:
 - CLI plus static board or simple local serve;
 - explicitly safety-gated.
 
-## Why Ariadne Is Goal-Driven
+## Why Ariadne Is Not Just Multica Local
 
 Multica is strongest when a user already has an issue and needs an agent
 teammate to work it.
 
-Ariadne is designed for AI builders who are still deciding what should become
-work. It uses build goals, source documents, project context, and memory to
-produce tickets before coding agents execute.
+Ariadne is designed for AI builders whose project work changes as they read new
+sources, run agents, review output, and inspect the codebase. Ariadne does not
+replace the issue/ticket center with a global goal object. It keeps the ticket
+as the work center and lets knowledge and feedback mutate the ticket backlog.
 
 The difference is:
 
 ```text
 Multica coordinates execution of known issues.
-Ariadne creates executable work from goals and knowledge, then coordinates execution.
+Ariadne updates the ticket set from knowledge and feedback, then coordinates execution.
 ```
 
 ## Why This Matters For v1.0
 
 If Ariadne is described only as a CLI or fake-codex demo, it loses its product
-shape. The frozen v1.0 interpretation is:
+shape. If Ariadne is described as BuildGoal-first, future agents will build the
+wrong center of gravity. The frozen v1.0 interpretation is:
 
 ```text
-Goal-driven upstream planning
-  + Multica-style agent work management
+Ticket-centered work management
+  + knowledge / feedback / codebase driven backlog updates
+  + Multica-style local agent runtime
   + safety-gated coding backends
   + review / memory / next-ticket loop
 ```

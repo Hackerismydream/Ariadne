@@ -6,7 +6,7 @@
 
 ## 背景
 
-现在可以把 ticket 分配给一个 agent，但 Ariadne 的多 Agent 卖点需要支持把 goal 或 ticket 分配给一个 team，由 Build Lead 路由。
+现在可以把 ticket 分配给一个 agent，但 Ariadne 的多 Agent 卖点需要支持把 ticket 分配给一个 team，由 Build Lead 路由。
 
 ## 数据模型
 
@@ -45,13 +45,12 @@ memory
 ```bash
 ari team list
 ari team show build-team
-ari goal assign GOAL-001 --to build-team
 ari ticket assign ARI-003 --to build-team
 ```
 
 ## 路由行为
 
-Build Lead 应根据 goal / ticket 判断：
+Build Lead 应根据 ticket、source、memory、review feedback 和 repo context 判断：
 
 ```text
 是否需要 research
@@ -67,11 +66,10 @@ Build Lead 应根据 goal / ticket 判断：
 
 ```bash
 ari team list
-ari goal assign GOAL-001 --to build-team
+ari ticket assign ARI-003 --to build-team
 ari daemon run-once
-ari ticket comments <generated-ticket>
+ari ticket comments ARI-003
 ari export board
 ```
 
 Board 应展示 team routing 和 handoff。
-

@@ -11,5 +11,4 @@
 | Project resources | Typed resources | local_directory | 多资源类型 | P1 |
 | Board | Workbench | 静态 board | 本地 UX | P2 |
 | Autopilot | Recurring work | 待补 | weekly review | P2 |
-| Goal upstream | 无直接对应 | Ariadne 差异点 | BuildGoal | P0 |
-
+| Ticket backlog update | 无直接对应 | Ariadne 差异点 | BacklogUpdate | P0 |

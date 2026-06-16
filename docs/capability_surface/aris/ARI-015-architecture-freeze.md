@@ -33,7 +33,7 @@ Ariadne 与 Multica 映射表
 核心对象模型
 主运行流程
 Agent Teammate Mode
-Goal-driven Multi-Agent Build Team 定位
+Ticket-centered Agent Workbench 定位
 fake-codex / Codex / Claude 边界
 安全 gate
 当前限制
@@ -60,4 +60,3 @@ ruff check .
 python3.11 -m ariadne_ltb.cli doctor v1
 python3.11 -m ariadne_ltb.cli export board
 ```
-

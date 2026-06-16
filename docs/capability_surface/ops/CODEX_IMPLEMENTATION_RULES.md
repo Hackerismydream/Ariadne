@@ -10,6 +10,5 @@ Codex 在实现本包能力时必须遵守：
 6. 不要提交 secrets。
 7. 真实外部执行必须 gated。
 8. 每个新增能力必须有 CLI、模型、持久化、测试、文档。
-9. 每个新增能力必须能映射到 Multica 能力面或 Ariadne 的 Goal-driven 差异点。
+9. 每个新增能力必须能映射到 Multica 能力面或 Ariadne 的 ticket-backlog update 差异点。
 10. 实现不完时必须在 development_report 里标记 blocked 和原因。
-

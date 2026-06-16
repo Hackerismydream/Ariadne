@@ -86,7 +86,7 @@ Expected story:
 
 ```text
 Review note
-  -> Source ingestion / goal planning
+  -> Source ingestion / backlog update
   -> Build Tickets
   -> Assignments
   -> Agent execution
@@ -99,7 +99,7 @@ What this proves:
 
 - Ariadne can use project review to keep improving Ariadne itself;
 - the system converts learning and critique into build work;
-- the loop is goal-driven, not only issue-driven;
+- the loop is ticket-centered, not only a backend execution demo;
 - next tickets are first-class artifacts, not notes buried in a report.
 
 ## Demo Explanation Script
@@ -107,18 +107,18 @@ What this proves:
 Short explanation:
 
 ```text
-Ariadne is a Goal-driven Multi-Agent Build Team. It starts with a build goal or
-source input, creates Build Tickets, assigns work to agent teammates, runs a
-local daemon, calls a coding backend, reviews the result, writes memory, and
-exports the board.
+Ariadne is a local-first Ticket-centered Agent Workbench. Knowledge, feedback,
+codebase context, memory, and optional goals update Build Tickets. Ariadne then
+assigns tickets to agent teammates, runs a local daemon, calls a coding backend,
+reviews the result, writes memory, and exports the board.
 ```
 
 Multica comparison:
 
 ```text
 Multica starts from issues and makes agents work those issues.
-Ariadne starts earlier: from goals, sources, memory, and repo context, then
-creates the issues and coordinates the agents.
+Ariadne lets sources, memory, review feedback, repo context, and optional goals
+update tickets, then coordinates agents around those tickets.
 ```
 
 ## Demo Outputs To Inspect

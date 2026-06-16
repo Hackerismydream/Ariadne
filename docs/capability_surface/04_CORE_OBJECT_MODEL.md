@@ -1,39 +1,45 @@
 # 04. Ariadne 核心对象模型
 
+Status: Updated by
+[`ADR-0004`](../adr/ADR-0004-ticket-centered-agent-workbench.md).
+
 本文件定义 Ariadne 面向 Multica 对标时应固定的核心对象。
 
-## 1. BuildGoal
+## 1. BuildTicket
 
-Ariadne 相比 Multica 的上游差异对象。
-
-Multica 从 Issue 开始，Ariadne 从 Build Goal 开始。
+工作载体，对应 Multica Issue。它是 Ariadne v1.x 的中心对象。
 
 ```python
-class BuildGoal:
+class BuildTicket:
     id: str
     key: str
     title: str
     description: str
-    success_criteria: list[str]
-    source_refs: list[str]
-    project_context_refs: list[str]
+    source_type: str
+    source_ref: str
     status: str
-    generated_ticket_ids: list[str]
-    assigned_team_id: str | None
-    created_at: str
-    updated_at: str
+    priority: str
+    owner_agent: str
+    directional_goal_ref: str | None
+    build_packet_id: str | None
+    assignment_ids: list[str]
+    agent_run_ids: list[str]
+    artifact_ids: list[str]
+    event_log: list[TicketEvent]
+    metadata: dict
 ```
 
 状态：
 
 ```text
-created
-analyzing
+new
 planned
 assigned
 running
 blocked
+reviewed
 done
+superseded
 cancelled
 ```
 
@@ -67,34 +73,9 @@ review
 
 ---
 
-## 3. BuildTicket
+## 3. BuildPacket
 
-工作载体，对应 Multica Issue。
-
-```python
-class BuildTicket:
-    id: str
-    key: str
-    title: str
-    description: str
-    source_type: str
-    source_ref: str
-    status: str
-    priority: str
-    owner_agent: str
-    build_goal_id: str | None
-    build_packet_id: str | None
-    agent_run_ids: list[str]
-    artifact_ids: list[str]
-    event_log: list[TicketEvent]
-    metadata: dict
-```
-
----
-
-## 4. BuildPacket
-
-知识到构建的结构化任务。
+知识、反馈、代码状态或可选目标到构建任务的结构化转换。
 
 ```python
 class BuildPacket:
@@ -128,7 +109,45 @@ reject_for_now
 
 ---
 
-## 5. AgentProfile
+## 4. BacklogUpdate
+
+Ticket 列表的版本化变化记录。
+
+```python
+class BacklogUpdate:
+    id: str
+    trigger_type: str
+    trigger_ref: str
+    created_ticket_ids: list[str]
+    updated_ticket_ids: list[str]
+    superseded_ticket_ids: list[str]
+    rationale: str
+    evidence_refs: list[str]
+    created_at: str
+```
+
+trigger_type：
+
+```text
+source_ingest
+review_feedback
+execution_result
+memory_gap
+codebase_observation
+manual_goal
+```
+
+---
+
+## 5. Optional Directional Goal
+
+Goal 是方向输入，不是中心状态机。
+
+如果后续需要记录 goal，应作为 ticket/backlog update 的 metadata 或独立 artifact，而不是替代 BuildTicket、TicketAssignment、AgentRun。
+
+---
+
+## 6. AgentProfile
 
 可被分配任务的 Agent 队友。
 
@@ -162,7 +181,7 @@ memory
 
 ---
 
-## 6. BuildTeam
+## 7. BuildTeam
 
 对应 Multica Squad 的 Ariadne 版本。
 
@@ -176,28 +195,9 @@ class BuildTeam:
     enabled: bool
 ```
 
-默认 team：
-
-```text
-build-team
-```
-
-成员：
-
-```text
-Build Lead
-Research
-Knowledge
-Project Context
-Planner
-Execution
-Reviewer
-Memory
-```
-
 ---
 
-## 7. TicketAssignment
+## 8. TicketAssignment
 
 Ticket 被分配给 Agent 或 Team。
 
@@ -234,129 +234,18 @@ cancelled
 
 ---
 
-## 8. AgentHandoff
+## 9. AgentHandoff
 
 Agent 接力记录，后续应能驱动 assignment。
 
-```python
-class AgentHandoff:
-    id: str
-    ticket_id: str
-    from_agent: str
-    to_agent: str
-    from_assignment_id: str | None
-    to_assignment_id: str | None
-    reason: str
-    payload_ref: str | None
-    status: str
-    created_at: str
-```
+---
 
-目标：
+## 10. TicketComment / RuntimeEvent / Artifact
+
+这些对象让 agent 工作可见、可审计、可恢复：
 
 ```text
-记录 -> 调度
+TicketComment: progress / blocker / review / memory / recovery
+RuntimeEvent: claim / execute / review / board export / failure
+Artifact: handoff / execution result / review / memory / next tickets / route decision
 ```
-
-即从仅记录 handoff，升级到 handoff 产生下一步 assignment。
-
----
-
-## 9. RuntimeCapability / ProviderCapability
-
-Backend 能力矩阵。
-
-```python
-class ProviderCapability:
-    backend_name: str
-    available: bool
-    command_path: str | None
-    supports_prompt_file: bool
-    supports_stdin: bool
-    supports_session_resume: bool
-    supports_mcp: bool
-    skill_materialization_strategy: str
-    supports_model_selection: bool
-    supports_reasoning_effort: bool
-    supports_timeout: bool
-    supports_diff_capture: bool
-    supports_test_capture: bool
-    requires_confirmation: bool
-    requires_external_execution_gate: bool
-```
-
----
-
-## 10. BuildSkill
-
-Agent 工作方法包。
-
-```python
-class BuildSkill:
-    id: str
-    name: str
-    description: str
-    applies_to_agent_roles: list[str]
-    applies_to_backend_names: list[str]
-    body_markdown: str
-    materialization_strategy: str
-```
-
----
-
-## 11. MemoryRecord
-
-项目记忆。
-
-```python
-class MemoryRecord:
-    id: str
-    ticket_id: str
-    build_goal_id: str | None
-    title: str
-    decision_log_entry: str
-    build_summary: str
-    review_summary: str
-    source_refs: list[str]
-    artifact_refs: list[str]
-    next_actions: list[str]
-```
-
----
-
-## 12. ReviewReport
-
-执行结果审查。
-
-```python
-class ReviewReport:
-    id: str
-    ticket_id: str
-    verdict: str
-    passed_checks: list[str]
-    failed_checks: list[str]
-    warnings: list[str]
-    required_fixes: list[str]
-    risk_score: float | None
-    quality_score: float | None
-```
-
----
-
-## 13. Autopilot
-
-周期性任务定义。
-
-```python
-class Autopilot:
-    id: str
-    name: str
-    trigger_type: str
-    schedule: str | None
-    goal_template: str
-    enabled: bool
-    last_run_at: str | None
-```
-
-v1 可不实现完整 Autopilot，但需要作为后续设计保留。
-
