@@ -1804,6 +1804,20 @@ def search_command(
 @evidence_app.command("packet")
 def evidence_packet(
     output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+    require_acceptance_ready: Annotated[
+        bool,
+        typer.Option(
+            "--require-acceptance-ready",
+            help="Exit non-zero unless production acceptance status is ready.",
+        ),
+    ] = False,
+    require_run_gates_ready: Annotated[
+        bool,
+        typer.Option(
+            "--require-run-gates-ready",
+            help="Exit non-zero unless real execution/write run gates are ready.",
+        ),
+    ] = False,
 ) -> None:
     """Generate a local release evidence packet from current Ariadne evidence."""
     if output not in {"table", "json"}:
@@ -1811,16 +1825,32 @@ def evidence_packet(
     packet, path = generate_release_evidence_packet(AriadneStore(state.root))
     if output == "json":
         typer.echo(packet.model_dump_json(indent=2, exclude_none=False))
-        return
-    typer.echo(f"release evidence packet: {packet.id}")
-    typer.echo(f"path: {path}")
-    typer.echo(f"tickets: {packet.ticket_count}")
-    typer.echo(f"executions: {packet.execution_result_count}")
-    typer.echo(f"reviews: {packet.review_report_count}")
-    typer.echo(f"store invariants: {'ok' if packet.store_invariants_ok else 'blocked'}")
-    typer.echo(f"secret scan: {'ok' if packet.secret_scan_ok else 'blocked'}")
-    typer.echo(f"active workdirs: {packet.active_workdir_count}")
-    typer.echo(f"dirty workdirs: {packet.dirty_workdir_count}")
+    else:
+        typer.echo(f"release evidence packet: {packet.id}")
+        typer.echo(f"path: {path}")
+        typer.echo(f"tickets: {packet.ticket_count}")
+        typer.echo(f"executions: {packet.execution_result_count}")
+        typer.echo(f"reviews: {packet.review_report_count}")
+        typer.echo(f"store invariants: {'ok' if packet.store_invariants_ok else 'blocked'}")
+        typer.echo(f"secret scan: {'ok' if packet.secret_scan_ok else 'blocked'}")
+        typer.echo(f"production acceptance: {packet.production_acceptance_status or 'unknown'}")
+        typer.echo(f"product readiness: {packet.product_readiness_status or 'unknown'}")
+        typer.echo(f"run gates: {packet.run_gate_status or 'unknown'}")
+        typer.echo(f"active workdirs: {packet.active_workdir_count}")
+        typer.echo(f"dirty workdirs: {packet.dirty_workdir_count}")
+    failed_requirements: list[str] = []
+    if require_acceptance_ready and packet.production_acceptance_status != "ready":
+        failed_requirements.append(
+            f"production acceptance is {packet.production_acceptance_status or 'unknown'}, expected ready"
+        )
+    if require_run_gates_ready and packet.run_gate_status != "ready":
+        failed_requirements.append(
+            f"run gates are {packet.run_gate_status or 'unknown'}, expected ready"
+        )
+    if failed_requirements:
+        for requirement in failed_requirements:
+            typer.echo(f"requirement failed: {requirement}", err=True)
+        raise typer.Exit(2)
 
 
 @workdir_app.command("list")

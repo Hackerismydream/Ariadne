@@ -57,7 +57,7 @@ FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
 ari github sync ARI-003 --confirm-write
 ari ticket comments ARI-003
 ari export board
-ari evidence packet
+ari evidence packet --require-acceptance-ready
 ```
 
 In this mode, a human assigns a Build Ticket to an Agent teammate, the local
@@ -513,7 +513,7 @@ Generate a local release evidence packet from the current Ariadne store:
 
 ```bash
 ari doctor product
-ari evidence packet
+ari evidence packet --require-acceptance-ready
 ari evidence packet --output json
 ```
 
@@ -528,9 +528,12 @@ GitHub. LLM agent acceptance requires planner, reviewer, and backlog-update
 evidence. GitHub acceptance is checked at the operation level and requires issue
 creation, PR creation, issue comment sync, and status snapshot evidence. Unset
 write/execution gates are reported as `action_required` instead of being hidden.
-`ari evidence packet` also embeds the product readiness status, readiness check
+`ari evidence packet --require-acceptance-ready` also embeds the product readiness status, readiness check
 statuses, production acceptance status, run-gate status, real-success evidence
-summary, and latest redacted failure summary.
+summary, and latest redacted failure summary. It exits non-zero when production
+acceptance is not ready, so release evidence cannot silently pass with only
+`fake-codex` or dry-run evidence. Use `--require-run-gates-ready` when the
+current run must also prove that real external execution/write gates are set.
 
 List and clean Ariadne-generated isolated workdirs:
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -8,8 +9,14 @@ from typer.testing import CliRunner
 from ariadne_ltb.cli import app
 from ariadne_ltb.evidence import generate_release_evidence_packet
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.models import ExecutionResult, FeishuWriteResult
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
+from test_v1_doctor_release import (
+    _seed_full_github_product_evidence,
+    _seed_llm_agent_product_evidence,
+    _seed_release_packet,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,3 +91,123 @@ def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> Non
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
     assert (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").exists()
     assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()
+
+
+def test_evidence_packet_require_acceptance_ready_blocks_fake_only_store(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    TicketRunOrchestrator(store).run_ticket("ARI-003", backend_name="fake-codex")
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "evidence", "packet", "--require-acceptance-ready"],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "production acceptance: blocked" in result.output
+    assert "requirement failed: production acceptance is blocked, expected ready" in result.output
+    assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()
+
+
+def test_evidence_packet_requirement_flags_separate_acceptance_and_run_gates(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+    monkeypatch.delenv("FEISHU_ENABLE_WRITE", raising=False)
+
+    store = AriadneStore(tmp_path)
+    _seed_release_packet(tmp_path)
+    store.save_execution_result(
+        ExecutionResult(
+            id="exec_codex_success",
+            ticket_id="ticket_ari_003",
+            backend_name="codex",
+            dry_run=False,
+            blocked=False,
+            command="codex exec --cd /repo --prompt-file handoff.md",
+            exit_code=0,
+            test_command="pytest",
+            test_exit_code=0,
+        )
+    )
+    store.save_execution_result(
+        ExecutionResult(
+            id="exec_claude_success",
+            ticket_id="ticket_ari_003",
+            backend_name="claude-code",
+            dry_run=False,
+            blocked=False,
+            command="claude --print < handoff.md",
+            exit_code=0,
+            test_command="pytest",
+            test_exit_code=0,
+        )
+    )
+    store.save_feishu_write_result(
+        FeishuWriteResult(
+            id="feishu_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            plan_id="feishu_plan",
+            ok=True,
+            blocked=False,
+            dry_run=False,
+            command="lark-cli docs create @content.md",
+            returncode=0,
+            document_id="doc_123",
+            document_url="https://example.feishu.cn/docx/doc_123",
+            operation_summary="Created Feishu doc.",
+        )
+    )
+    _seed_llm_agent_product_evidence(store)
+    _seed_full_github_product_evidence(store)
+
+    def fake_which(command: str) -> str | None:
+        return {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command)
+
+    def fake_github_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        if command[:3] == ["gh", "auth", "status"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "remote.origin.url":
+            return subprocess.CompletedProcess(command, 0, "https://github.com/owner/repo.git\n", "")
+        if command[:3] == ["git", "config", "--get"]:
+            return subprocess.CompletedProcess(command, 1, "", "")
+        if command[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(command, 0, "codex/product\n", "")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            return subprocess.CompletedProcess(command, 0, "abc123\trefs/heads/codex/product\n", "")
+        return subprocess.CompletedProcess(command, 1, "", f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_github_run)
+
+    acceptance_required = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "evidence", "packet", "--require-acceptance-ready"],
+    )
+    assert acceptance_required.exit_code == 0, acceptance_required.output
+    assert "production acceptance: ready" in acceptance_required.output
+    assert "run gates: action_required" in acceptance_required.output
+
+    gates_required = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "evidence", "packet", "--require-run-gates-ready"],
+    )
+    assert gates_required.exit_code == 2, gates_required.output
+    assert "production acceptance: ready" in gates_required.output
+    assert "requirement failed: run gates are action_required, expected ready" in (
+        gates_required.output
+    )

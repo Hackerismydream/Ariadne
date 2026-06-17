@@ -25,5 +25,5 @@ python3.11 -m ariadne_ltb.cli doctor product --require-acceptance-ready
 python3.11 -m ariadne_ltb.cli doctor secrets
 python3.11 -m ariadne_ltb.cli doctor store
 python3.11 -m ariadne_ltb.cli doctor v1
-python3.11 -m ariadne_ltb.cli evidence packet
+python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready
 scripts/verify_workbench.sh

@@ -15,7 +15,7 @@ ari github sync ARI-003 --confirm-write
 ari ticket comments ARI-003
 ari runtime journal
 ari export board
-ari evidence packet
+ari evidence packet --require-acceptance-ready
 ari board serve
 ```
 

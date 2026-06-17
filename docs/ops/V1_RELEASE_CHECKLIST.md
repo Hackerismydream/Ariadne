@@ -22,7 +22,7 @@
 - [ ] `ari runtime journal`
 - [ ] `ari runtime recover`
 - [ ] `ari export board`
-- [ ] `ari evidence packet`
+- [ ] `ari evidence packet --require-acceptance-ready`
 - [ ] `ari board serve`
 
 ## Deterministic Regression Path

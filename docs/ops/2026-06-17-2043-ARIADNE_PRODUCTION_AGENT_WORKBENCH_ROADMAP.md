@@ -182,7 +182,7 @@ ari review run ARI-003 --reviewer llm
 FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
 ari github sync ARI-003 --confirm-write
 ari export board
-ari evidence packet
+ari evidence packet --require-acceptance-ready
 ```
 
 Tests can use fakes. The product path must use real integrations when the

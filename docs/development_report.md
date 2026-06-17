@@ -4571,3 +4571,72 @@ Result:
 - The release verification path can no longer pass solely because the
   deterministic fake backend works. It now requires previously captured real
   production evidence for LLM agents, Codex, Claude Code, Feishu, and GitHub.
+
+## 2026-06-18 03:55 CST Release Evidence Packet Gate Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Problem found during release evidence audit:
+
+- `ari doctor product --require-acceptance-ready` already enforced production
+  acceptance, but `ari evidence packet` still succeeded as a pure reporting
+  command.
+- `scripts/verify_v1.sh` generated the release evidence packet without asking
+  the packet command itself to fail when production acceptance was not ready.
+- This left one release artifact path that could still look successful in a
+  demo-only or fake-only store.
+
+Implemented:
+
+- Added `ari evidence packet --require-acceptance-ready`.
+  - The command still writes `.ariadne/evidence/release_evidence_packet.json`.
+  - It exits with code 2 unless `production_acceptance_status == ready`.
+- Added `ari evidence packet --require-run-gates-ready`.
+  - This is stricter and requires the current real execution/write run gates to
+    be ready as well.
+  - It remains optional because normal local safety keeps external execution and
+    Feishu writes gated until explicitly confirmed.
+- Expanded table output to show:
+  - production acceptance;
+  - product readiness;
+  - run gates.
+- Updated `scripts/verify_v1.sh` so release verification now runs
+  `ari evidence packet --require-acceptance-ready`.
+- Updated `README.md`, `docs/ops/V1_RELEASE_CHECKLIST.md`,
+  `docs/ops/HUMAN_DEMO_SCRIPT.md`, the production roadmap, and the execution
+  plan so future agents use the gated release packet command.
+- Added deterministic tests proving:
+  - fake-only stores fail `--require-acceptance-ready`;
+  - production acceptance can be ready while run gates remain action-required;
+  - `--require-run-gates-ready` fails in that default-safe state.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_release_evidence.py tests/test_v1_doctor_release.py -q`:
+  passed, `14 passed`.
+- `python3.11 -m ruff check ariadne_ltb/cli.py tests/test_release_evidence.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli evidence packet --help`: passed and shows both
+  new requirement flags.
+- `python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready`:
+  passed on the current local store with production acceptance `ready`, product
+  readiness `action_required`, and run gates `action_required`.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json --require-acceptance-ready`:
+  passed and returned `production_acceptance_status=ready`.
+- `python3.11 -m pytest`: passed, `230 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_e747aba122aa`.
+
+Result:
+
+- Release evidence generation is now a real production acceptance gate, not just
+  a report writer.
+- `fake-codex` remains available for deterministic regression, but release
+  verification can no longer pass solely on fake/offline evidence.
+- Current local product acceptance is ready based on recorded real integration
+  evidence; current run gates remain action-required until explicitly enabled.
