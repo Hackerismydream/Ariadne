@@ -127,6 +127,108 @@ def integration_doctor_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     return lines
 
 
+def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str, Any]:
+    """Summarize the production acceptance path without performing remote writes."""
+    integration = integration_doctor_snapshot(store, repo_root)
+    release_packet = _release_packet_snapshot(store)
+    checks = [
+        _product_check(
+            "deepseek_llm",
+            integration["llm"]["deepseek_api_key"] == "set",
+            "DeepSeek API key is available for LLM planner/reviewer.",
+            "Set DEEPSEEK_API_KEY in the environment or ignored local .env.",
+        ),
+        _product_check(
+            "codex_backend",
+            bool(integration["coding_backends"]["codex"]["command_path"]),
+            "Codex CLI is available.",
+            "Install or repair the local codex command.",
+        ),
+        _product_check(
+            "claude_code_backend",
+            bool(integration["coding_backends"]["claude-code"]["command_path"]),
+            "Claude Code CLI is available.",
+            "Install or repair the local claude command.",
+        ),
+        _product_check(
+            "external_execution_gate",
+            integration["safety"]["ARIADNE_ENABLE_EXTERNAL_EXECUTION"] == "set",
+            "External execution gate is set for a confirmed real coding run.",
+            "Set ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 only when running a confirmed Codex/Claude task.",
+            action_required_ok=True,
+        ),
+        _product_check(
+            "feishu_write_gate",
+            integration["feishu"]["FEISHU_ENABLE_WRITE"] == "set",
+            "Feishu write gate is set for a confirmed real write.",
+            "Set FEISHU_ENABLE_WRITE=1 only when running `ari feishu write --confirm-write`.",
+            action_required_ok=True,
+        ),
+        _product_check(
+            "feishu_lark_cli",
+            bool(integration["feishu"]["lark_cli_path"]),
+            "lark-cli is available for Feishu integration.",
+            "Install or repair lark-cli before real Feishu writes.",
+        ),
+        _product_check(
+            "github_cli_auth",
+            bool(integration["github"]["gh_path"]) and integration["github"]["auth_status"] == "ok",
+            "GitHub CLI is installed and authenticated.",
+            "Run `gh auth login -h github.com` and retry `ari github doctor`.",
+        ),
+        _product_check(
+            "github_git_transport",
+            integration["github"]["git_transport"]["status"] == "ok",
+            "Local git transport can read the GitHub branch.",
+            "Fix git proxy/credential/SSH transport, then retry `ari github doctor`.",
+        ),
+        _product_check(
+            "release_evidence_packet",
+            release_packet["exists"],
+            "Release evidence packet exists.",
+            "Run `ari evidence packet` after the product workflow.",
+        ),
+        _product_check(
+            "integration_evidence_refs",
+            release_packet["has_integration_refs"],
+            "Release evidence packet references integration doctor, Feishu, and GitHub evidence.",
+            "Run `ari evidence packet` with the current release evidence implementation.",
+        ),
+    ]
+    blocking = [check for check in checks if check["status"] == "blocked"]
+    action_required = [check for check in checks if check["status"] == "action_required"]
+    snapshot = {
+        "generated_at": utc_now(),
+        "overall_status": "blocked" if blocking else "action_required" if action_required else "ready",
+        "checks": checks,
+        "integration_report": str(store.doctor_dir / "integrations.json"),
+        "release_evidence_packet": release_packet,
+        "next_actions": [
+            check["next_action"]
+            for check in checks
+            if check["status"] in {"blocked", "action_required"}
+        ],
+    }
+    path = store.doctor_dir / "product_readiness.json"
+    path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return snapshot
+
+
+def product_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
+    snapshot = product_readiness_snapshot(store, repo_root)
+    lines = [
+        f"Product readiness: {snapshot['overall_status']}",
+        f"report: {store.doctor_dir / 'product_readiness.json'}",
+        f"integration report: {snapshot['integration_report']}",
+    ]
+    for check in snapshot["checks"]:
+        lines.append(f"{check['name']}: {check['status']}")
+        if check["status"] != "ready":
+            lines.append(f"  next: {check['next_action']}")
+    lines.append("Secrets: values redacted")
+    return lines
+
+
 def _llm_snapshot() -> dict[str, Any]:
     base_url = (
         os.environ.get("ARIADNE_LLM_BASE_URL")
@@ -215,3 +317,49 @@ def _safe_url_origin(value: str) -> str:
     if parsed.port:
         host = f"{host}:{parsed.port}"
     return urlunsplit((parsed.scheme, host, "", "", ""))
+
+
+def _product_check(
+    name: str,
+    passed: bool,
+    ready_summary: str,
+    next_action: str,
+    *,
+    action_required_ok: bool = False,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "status": "ready" if passed else "action_required" if action_required_ok else "blocked",
+        "summary": ready_summary if passed else next_action,
+        "next_action": "" if passed else next_action,
+    }
+
+
+def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
+    path = store.release_evidence_packet_path
+    if not path.exists():
+        return {
+            "exists": False,
+            "path": str(path),
+            "has_integration_refs": False,
+            "evidence_refs": {},
+        }
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            "exists": True,
+            "path": str(path),
+            "has_integration_refs": False,
+            "evidence_refs": {},
+            "error": "release evidence packet is not valid JSON",
+        }
+    refs = data.get("evidence_refs") if isinstance(data.get("evidence_refs"), dict) else {}
+    required_refs = {"integration_doctor", "runtime_capabilities", "feishu_integrations", "github_integrations"}
+    return {
+        "exists": True,
+        "path": str(path),
+        "id": data.get("id"),
+        "has_integration_refs": required_refs.issubset(set(refs)),
+        "evidence_refs": {key: refs.get(key) for key in sorted(required_refs)},
+    }

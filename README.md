@@ -41,24 +41,35 @@ ari backlog history
 ari ticket supersede ARI-003 --reason "Replaced by narrower follow-up work"
 ```
 
-## True MVP Path
+## Production Product Path
 
-The recommended product path is Agent Teammate Mode:
+The recommended product path is the real, gated Agent Teammate Mode:
 
 ```bash
-ari ingest examples/sources/*.md
+ari doctor integrations
+ari doctor product
+ari ingest examples/sources/*.md --planner llm
 ari ticket list
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
+ari ticket assign ARI-003 --to codex
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+ari review run ARI-003 --reviewer llm
+FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
+ari github sync ARI-003 --confirm-write
 ari ticket comments ARI-003
 ari export board
+ari evidence packet
 ```
 
 In this mode, a human assigns a Build Ticket to an Agent teammate, the local
 daemon claims one assignment, the Agent runs the ticket through Ariadne's full
 loop, writes comments and journal events, and updates the board.
 
-The direct ticket-run path remains available:
+Real writes and external coding execution remain gated. `ari doctor product`
+summarizes which parts of the production path are ready, blocked, or waiting
+for an explicit execution/write gate.
+
+The deterministic offline fallback remains available for tests and local
+regression checks:
 
 ```bash
 ari ingest examples/sources/*.md
@@ -443,6 +454,7 @@ only and does not require network access or credentials.
 Generate a local release evidence packet from the current Ariadne store:
 
 ```bash
+ari doctor product
 ari evidence packet
 ari evidence packet --output json
 ```
@@ -450,7 +462,9 @@ ari evidence packet --output json
 The packet is written to `.ariadne/evidence/release_evidence_packet.json` and
 summarizes tickets, assignments, executions, reviews, memory, inbox items,
 runtime capabilities, store invariants, secret scan status, board path, and
-managed workdirs.
+managed workdirs. `ari doctor product` writes
+`.ariadne/doctor/product_readiness.json` with production-path readiness checks
+and next actions.
 
 List and clean Ariadne-generated isolated workdirs:
 

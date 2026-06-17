@@ -18,6 +18,7 @@ python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
 python3.11 -m ariadne_ltb.cli export board
 python3.11 -m ariadne_ltb.cli backend doctor
 python3.11 -m ariadne_ltb.cli doctor integrations
+python3.11 -m ariadne_ltb.cli doctor product
 python3.11 -m ariadne_ltb.cli doctor secrets
 python3.11 -m ariadne_ltb.cli doctor store
 python3.11 -m ariadne_ltb.cli doctor v1

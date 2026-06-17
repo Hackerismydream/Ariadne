@@ -1323,6 +1323,24 @@ def doctor_integrations(
         typer.echo(line)
 
 
+@doctor_app.command("product")
+def doctor_product(
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print the machine-readable product readiness snapshot."),
+    ] = False,
+) -> None:
+    """Report production product-path readiness without performing external writes."""
+    from ariadne_ltb.doctor import product_readiness_lines, product_readiness_snapshot
+
+    store = AriadneStore(state.root)
+    if json_output:
+        typer.echo(json.dumps(product_readiness_snapshot(store, state.root), indent=2, sort_keys=True))
+        return
+    for line in product_readiness_lines(store, state.root):
+        typer.echo(line)
+
+
 @inbox_app.command("refresh")
 def inbox_refresh() -> None:
     """Refresh local inbox items from blocked runs and integration results."""

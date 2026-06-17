@@ -3173,3 +3173,69 @@ Verification:
   GitHub integration refs.
 - `scripts/verify_v1.sh`: passed; release evidence packet generated as
   `release_evidence_0491ee3622e7`.
+
+## 2026-06-17 23:55 CST Product Readiness Doctor Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- `ari doctor integrations` reports raw integration readiness, and
+  `ari evidence packet` records evidence, but users still needed one command
+  that maps the production roadmap acceptance path to concrete ready / blocked /
+  action-required checks.
+- README still presented `fake-codex` as the recommended product path, which
+  conflicted with the production-first roadmap. This slice moves fake-codex back
+  to deterministic offline fallback positioning.
+
+Implemented:
+
+- Added `ari doctor product`.
+- Added `ari doctor product --json`.
+- The command writes `.ariadne/doctor/product_readiness.json`.
+- The readiness snapshot checks:
+  - DeepSeek key presence;
+  - Codex CLI availability;
+  - Claude Code CLI availability;
+  - external execution gate state;
+  - Feishu write gate state;
+  - lark-cli availability;
+  - GitHub CLI auth;
+  - GitHub git transport;
+  - release evidence packet presence;
+  - integration refs inside the release evidence packet.
+- Added `ari doctor product` to `scripts/verify_v1.sh`.
+- Updated README to show the real gated production product path first and the
+  `fake-codex` path only as deterministic offline fallback.
+
+Safety boundaries:
+
+- `ari doctor product` performs no external writes.
+- Execution and Feishu gates are reported as `action_required` when unset, not
+  treated as a test failure.
+- Secret values remain redacted; JSON output contains only set/unset, statuses,
+  local paths, and next-action text.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py -q`: passed,
+  `7 passed`.
+- `python3.11 -m pytest`: passed, `208 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `python3.11 -m ariadne_ltb.cli doctor integrations`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and reports
+  `Product readiness: action_required`.
+- `scripts/verify_v1.sh`: passed; release evidence packet generated as
+  `release_evidence_d6b60f5ba572`.
+
+Current readiness interpretation:
+
+- DeepSeek, CodexBackend, ClaudeCodeBackend, lark-cli, GitHub CLI auth, and
+  GitHub git transport are locally detectable.
+- The product readiness result is still `action_required` because the real
+  external execution and Feishu write gates are intentionally unset outside a
+  confirmed write/execution command.

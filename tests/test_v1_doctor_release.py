@@ -129,6 +129,86 @@ def test_doctor_integrations_json_output_is_machine_readable(
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
 
 
+def test_doctor_product_reports_acceptance_readiness_without_external_writes(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+    monkeypatch.delenv("FEISHU_ENABLE_WRITE", raising=False)
+
+    evidence_dir = tmp_path / ".ariadne" / "evidence"
+    evidence_dir.mkdir(parents=True)
+    (evidence_dir / "release_evidence_packet.json").write_text(
+        json.dumps(
+            {
+                "id": "release_evidence_test",
+                "evidence_refs": {
+                    "integration_doctor": str(tmp_path / ".ariadne" / "doctor" / "integrations.json"),
+                    "runtime_capabilities": str(
+                        tmp_path / ".ariadne" / "runtimes" / "capability_snapshot.json"
+                    ),
+                    "feishu_integrations": str(tmp_path / ".ariadne" / "integrations" / "feishu"),
+                    "github_integrations": str(tmp_path / ".ariadne" / "integrations" / "github"),
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def fake_which(command: str) -> str | None:
+        return {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command)
+
+    def fake_github_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        if command[:3] == ["gh", "auth", "status"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "remote.origin.url":
+            return subprocess.CompletedProcess(command, 0, "https://github.com/owner/repo.git\n", "")
+        if command[:3] == ["git", "config", "--get"]:
+            return subprocess.CompletedProcess(command, 1, "", "")
+        if command[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(command, 0, "codex/product\n", "")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            return subprocess.CompletedProcess(command, 0, "abc123\trefs/heads/codex/product\n", "")
+        return subprocess.CompletedProcess(command, 1, "", f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_github_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "product"])
+
+    assert result.exit_code == 0, result.output
+    assert "Product readiness: action_required" in result.output
+    assert "deepseek_llm: ready" in result.output
+    assert "codex_backend: ready" in result.output
+    assert "github_git_transport: ready" in result.output
+    assert "external_execution_gate: action_required" in result.output
+    assert "feishu_write_gate: action_required" in result.output
+    assert "do-not-leak" not in result.output
+
+    snapshot_path = tmp_path / ".ariadne" / "doctor" / "product_readiness.json"
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["overall_status"] == "action_required"
+    assert snapshot["release_evidence_packet"]["has_integration_refs"] is True
+    statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
+    assert statuses["release_evidence_packet"] == "ready"
+    assert statuses["integration_evidence_refs"] == "ready"
+    assert statuses["external_execution_gate"] == "action_required"
+    assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
+
+
 def test_gitignore_contains_v1_secret_patterns() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     for pattern in [".env", ".env.*", "*.secret", ".secrets", "secrets/", ".ariadne/"]:
