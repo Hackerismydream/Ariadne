@@ -92,6 +92,7 @@ class TicketRunOrchestrator:
         target_repo_path: str | None = None,
         command: str | None = None,
         planner: str = "deterministic",
+        use_memory: bool = False,
         confirm_execution: bool = False,
         timeout_seconds: int = 60,
         isolate_worktree: bool = False,
@@ -112,7 +113,7 @@ class TicketRunOrchestrator:
             self.assignment_id,
         )
 
-        planner_result = planner_for_name(planner).plan_ticket(self.store, ticket)
+        planner_result = planner_for_name(planner, use_memory=use_memory).plan_ticket(self.store, ticket)
         if not planner_result.succeeded:
             board_path = export_board(self.store)
             msg = planner_result.error or "planner failed"

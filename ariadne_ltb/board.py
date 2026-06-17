@@ -525,6 +525,8 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 f"- Task clarity: `{quality.get('task_clarity_score', '')}`",
                 f"- Scope risk: `{quality.get('scope_risk_score', '')}`",
                 f"- Planner mode: `{packet.metadata.get('planner_mode', '')}`",
+                f"- Memory search enabled: `{str(packet.metadata.get('memory_search_enabled', False)).lower()}`",
+                f"- Memory evidence count: `{packet.metadata.get('memory_evidence_count', 0)}`",
                 f"- Trust boundary: `{packet.metadata.get('trust_boundary', 'missing')}`",
                 f"- Prompt-injection warnings: `{packet.metadata.get('prompt_injection_warning_count', 0)}`",
                 f"- Project relevance: {packet.project_relevance}",
@@ -532,6 +534,20 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 "",
             ]
         )
+        memory_hits = packet.metadata.get("memory_hits", [])
+        lines.extend(["### Planner Memory Evidence", ""])
+        if memory_hits:
+            for hit in memory_hits:
+                terms = ", ".join(hit.get("matched_terms", []))
+                lines.append(
+                    f"- `{hit.get('title')}` score `{hit.get('score')}` "
+                    f"terms `{terms}` source `{hit.get('source_ref')}`"
+                )
+        elif packet.metadata.get("memory_search_enabled"):
+            lines.append("Memory search ran but found no relevant prior records.")
+        else:
+            lines.append("Memory search was not enabled for this planner run.")
+        lines.append("")
         findings = packet.metadata.get("prompt_injection_findings", [])
         lines.extend(["### Prompt Injection Guard", ""])
         if findings:

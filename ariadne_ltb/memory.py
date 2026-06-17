@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from ariadne_ltb.models import (
@@ -13,6 +15,61 @@ from ariadne_ltb.models import (
     stable_id,
 )
 from ariadne_ltb.storage import AriadneStore
+
+
+@dataclass(frozen=True)
+class MemorySearchHit:
+    memory_id: str
+    ticket_id: str
+    title: str
+    snippet: str
+    source_ref: str
+    score: float
+    matched_terms: list[str]
+    artifact_refs: list[str]
+
+
+def search_memory(
+    store: AriadneStore,
+    query: str,
+    limit: int = 5,
+) -> list[MemorySearchHit]:
+    """Return deterministic local memory matches using simple lexical scoring."""
+    query_terms = _terms(query)
+    if not query_terms:
+        return []
+
+    hits: list[MemorySearchHit] = []
+    for record in store.list_memory_records():
+        haystack = " ".join(
+            [
+                record.title,
+                record.decision_log_entry,
+                record.build_summary,
+                record.review_summary,
+                " ".join(record.next_actions),
+                " ".join(record.source_refs),
+            ]
+        )
+        haystack_terms = _terms(haystack)
+        matched = sorted(set(query_terms) & set(haystack_terms))
+        if not matched:
+            continue
+        score = _score_terms(query_terms, haystack_terms, matched)
+        hits.append(
+            MemorySearchHit(
+                memory_id=record.id,
+                ticket_id=record.ticket_id,
+                title=record.title,
+                snippet=_snippet(record, matched),
+                source_ref=str(store.memory_dir / "tickets" / f"{record.ticket_id}.json"),
+                score=score,
+                matched_terms=matched,
+                artifact_refs=record.artifact_refs[-20:],
+            )
+        )
+
+    return sorted(hits, key=lambda hit: (-hit.score, hit.title, hit.memory_id))[:limit]
 
 
 def write_memory_record(
@@ -123,3 +180,55 @@ def generate_feishu_plan(
 
 def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items) if items else "- None"
+
+
+def _terms(text: str) -> list[str]:
+    words = re.findall(r"[a-zA-Z0-9_./-]+", text.lower())
+    return [word for word in words if len(word) >= 3 and word not in _STOP_WORDS]
+
+
+def _score_terms(query_terms: list[str], haystack_terms: list[str], matched: list[str]) -> float:
+    coverage = len(matched) / max(len(set(query_terms)), 1)
+    frequency = sum(haystack_terms.count(term) for term in matched) / max(len(haystack_terms), 1)
+    return round(min(1.0, coverage * 0.85 + frequency * 2.0), 4)
+
+
+def _snippet(record: MemoryRecord, matched: list[str]) -> str:
+    fields = [
+        record.decision_log_entry,
+        record.build_summary,
+        record.review_summary,
+        *record.next_actions,
+    ]
+    best_field = ""
+    best_count = 0
+    for field in fields:
+        lowered = field.lower()
+        count = sum(1 for term in matched if term in lowered)
+        if count > best_count:
+            best_field = field
+            best_count = count
+    if best_field:
+        return best_field[:240]
+    return record.decision_log_entry[:240]
+
+
+_STOP_WORDS = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "this",
+    "that",
+    "from",
+    "into",
+    "should",
+    "would",
+    "could",
+    "before",
+    "after",
+    "local",
+    "ariadne",
+    "ticket",
+    "build",
+}

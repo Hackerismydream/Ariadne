@@ -26,7 +26,7 @@ from ariadne_ltb.full_demo import (
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_safety import clear_stale_locks, list_locks
-from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
+from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory_record
 from ariadne_ltb.models import (
     AssignmentStatus,
     BacklogUpdate,
@@ -147,12 +147,16 @@ def ingest(
         str | None,
         typer.Option("--planner", help="Optional planner to run after ingest: deterministic|llm."),
     ] = None,
+    use_memory: Annotated[
+        bool,
+        typer.Option("--use-memory", help="Cite local memory records while planning."),
+    ] = False,
 ) -> None:
     """Ingest local markdown sources into Build Tickets and Build Packets."""
     store = AriadneStore(state.root)
     tickets = ingest_sources(store, paths)
     if planner:
-        planner_backend = planner_for_name(planner)
+        planner_backend = planner_for_name(planner, use_memory=use_memory)
         for ticket in tickets:
             planner_backend.plan_ticket(store, ticket)
     typer.echo(f"Ingested {len(tickets)} source(s)")
@@ -836,11 +840,15 @@ def run_messages(
 def ticket_plan(
     ticket_id: str,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    use_memory: Annotated[
+        bool,
+        typer.Option("--use-memory", help="Cite local memory records in the Build Packet."),
+    ] = False,
 ) -> None:
     """Plan an existing Build Ticket into a Build Packet and handoff artifact."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
-    result = planner_for_name(planner).plan_ticket(store, ticket)
+    result = planner_for_name(planner, use_memory=use_memory).plan_ticket(store, ticket)
     if not result.succeeded:
         typer.echo(f"planner blocked: {result.error}")
         typer.echo(f"artifact: {result.error_artifact_path}")
@@ -860,6 +868,10 @@ def ticket_run(
     ] = None,
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    use_memory: Annotated[
+        bool,
+        typer.Option("--use-memory", help="Cite local memory records during planning."),
+    ] = False,
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
     isolate_worktree: Annotated[
         bool,
@@ -873,6 +885,7 @@ def ticket_run(
         target_repo_path=str(target_repo_path) if target_repo_path else None,
         command=command,
         planner=planner,
+        use_memory=use_memory,
         confirm_execution=confirm_execution,
         isolate_worktree=isolate_worktree,
     )
@@ -1140,6 +1153,31 @@ def memory_export(ticket_id: str) -> None:
     plan, feishu_path = generate_feishu_plan(store, ticket, packet, execution, review)
     typer.echo(f"memory record: {record.id} {path}")
     typer.echo(f"feishu dry-run plan: {plan.id} {feishu_path}")
+
+
+@memory_app.command("search")
+def memory_search(
+    query: str,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=20)] = 5,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Search local Ariadne memory records without a network or vector DB."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    store = AriadneStore(state.root)
+    hits = search_memory(store, query, limit=limit)
+    if output == "json":
+        typer.echo(json.dumps([hit.__dict__ for hit in hits], indent=2, ensure_ascii=False))
+        return
+    if not hits:
+        typer.echo("No memory matches.")
+        return
+    for hit in hits:
+        terms = ", ".join(hit.matched_terms)
+        typer.echo(f"{hit.score:.4f} {hit.title}")
+        typer.echo(f"  source: {hit.source_ref}")
+        typer.echo(f"  terms: {terms}")
+        typer.echo(f"  snippet: {hit.snippet}")
 
 
 @memory_app.command("sync")

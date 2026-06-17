@@ -25,6 +25,7 @@ from ariadne_ltb.models import (
     TicketStatus,
     stable_id,
 )
+from ariadne_ltb.memory import MemorySearchHit, search_memory
 from ariadne_ltb.planner_quality import score_build_packet
 from ariadne_ltb.prompt_guard import prompt_guard_handoff_section, quote_untrusted_snippet
 from ariadne_ltb.skills import handoff_skill_references
@@ -56,9 +57,13 @@ class PlannerBackend(Protocol):
 class DeterministicPlanner:
     name = "deterministic"
 
+    def __init__(self, use_memory: bool = False) -> None:
+        self.use_memory = use_memory
+
     def plan_ticket(self, store: AriadneStore, ticket: BuildTicket) -> PlannerResult:
         source = _load_source(store, ticket)
         packet = build_packet_from_source(ticket, source)
+        packet = _attach_memory_evidence(store, ticket, source, packet, self.use_memory)
         store.save_build_packet(packet)
 
         run = _start_planner_run(store, ticket, self.name)
@@ -105,8 +110,9 @@ class DeterministicPlanner:
 class LLMPlanner:
     name = "llm"
 
-    def __init__(self, client: DeepSeekClient | None = None) -> None:
+    def __init__(self, client: DeepSeekClient | None = None, use_memory: bool = False) -> None:
         self.client = client
+        self.use_memory = use_memory
 
     def plan_ticket(self, store: AriadneStore, ticket: BuildTicket) -> PlannerResult:
         if not os.environ.get("DEEPSEEK_API_KEY") and self.client is None:
@@ -117,6 +123,7 @@ class LLMPlanner:
         try:
             data = client.complete_json(_llm_prompt(ticket, source), "ariadne_build_packet")
             packet = _packet_from_llm_json(ticket, source, data)
+            packet = _attach_memory_evidence(store, ticket, source, packet, self.use_memory)
         except (RuntimeError, json.JSONDecodeError, KeyError, TypeError, ValidationError, ValueError) as exc:
             return self._blocked(store, ticket, f"LLM planner failed: {exc}")
 
@@ -198,11 +205,11 @@ class LLMPlanner:
         )
 
 
-def planner_for_name(name: str) -> PlannerBackend:
+def planner_for_name(name: str, use_memory: bool = False) -> PlannerBackend:
     if name == "deterministic":
-        return DeterministicPlanner()
+        return DeterministicPlanner(use_memory=use_memory)
     if name == "llm":
-        return LLMPlanner()
+        return LLMPlanner(use_memory=use_memory)
     msg = f"unknown planner: {name}"
     raise ValueError(msg)
 
@@ -217,6 +224,7 @@ def render_handoff(ticket: BuildTicket, packet: BuildPacket) -> str:
     )
     skill_refs = handoff_skill_references()
     injection_findings = packet.metadata.get("prompt_injection_findings", [])
+    memory_context = _render_memory_context(packet)
     return f"""# Ariadne Coding Handoff - {ticket.key}
 
 Ticket: {ticket.title}
@@ -244,6 +252,10 @@ Build decision: {packet.build_decision.value}
 
 {evidence}
 
+## Memory Context
+
+{memory_context}
+
 ## Skills
 
 {skill_refs}
@@ -257,6 +269,100 @@ Build decision: {packet.build_decision.value}
 - Capture stdout, stderr, exit code, changed files, diff, and tests.
 - When the acceptance criteria pass, stop and report the result; do not continue iterating.
 """
+
+
+def _attach_memory_evidence(
+    store: AriadneStore,
+    ticket: BuildTicket,
+    source: SourceDocument,
+    packet: BuildPacket,
+    use_memory: bool,
+) -> BuildPacket:
+    if not use_memory:
+        return packet.model_copy(
+            update={
+                "metadata": packet.metadata
+                | {
+                    "memory_search_enabled": False,
+                    "memory_evidence_count": 0,
+                    "memory_hits": [],
+                }
+            }
+        )
+
+    query = _memory_query(ticket, source, packet)
+    hits = search_memory(store, query, limit=3)
+    memory_evidence = [
+        Evidence(
+            id=stable_id("memory_evidence", packet.id, hit.memory_id),
+            source_ref=hit.source_ref,
+            quote_or_summary=hit.snippet,
+            location=f"memory:{hit.ticket_id}",
+            confidence=min(0.95, max(0.55, hit.score)),
+        )
+        for hit in hits
+    ]
+    metadata_hits = [_memory_hit_metadata(hit) for hit in hits]
+    updated = packet.model_copy(
+        update={
+            "evidence": [*packet.evidence, *memory_evidence],
+            "metadata": packet.metadata
+            | {
+                "memory_search_enabled": True,
+                "memory_search_query": query,
+                "memory_evidence_count": len(memory_evidence),
+                "memory_hits": metadata_hits,
+            },
+        }
+    )
+    quality = score_build_packet(updated)
+    return updated.model_copy(
+        update={
+            "metadata": updated.metadata | {"quality": quality}
+        }
+    )
+
+
+def _memory_query(ticket: BuildTicket, source: SourceDocument, packet: BuildPacket) -> str:
+    return " ".join(
+        [
+            ticket.title,
+            source.summary,
+            packet.insight,
+            " ".join(packet.tasks[:3]),
+            " ".join(packet.acceptance_criteria[:3]),
+            " ".join(packet.affected_modules[:3]),
+        ]
+    )
+
+
+def _memory_hit_metadata(hit: MemorySearchHit) -> dict:
+    return {
+        "memory_id": hit.memory_id,
+        "ticket_id": hit.ticket_id,
+        "title": hit.title,
+        "snippet": hit.snippet,
+        "source_ref": hit.source_ref,
+        "score": hit.score,
+        "matched_terms": hit.matched_terms,
+        "artifact_refs": hit.artifact_refs,
+    }
+
+
+def _render_memory_context(packet: BuildPacket) -> str:
+    if not packet.metadata.get("memory_search_enabled"):
+        return "- Memory search disabled for this planner run."
+    hits = packet.metadata.get("memory_hits", [])
+    if not hits:
+        return "- Memory search enabled; no relevant prior memory found."
+    lines = []
+    for hit in hits:
+        terms = ", ".join(hit.get("matched_terms", []))
+        lines.append(
+            f"- `{hit.get('title')}` score `{hit.get('score')}` "
+            f"terms `{terms}` source `{hit.get('source_ref')}`: {hit.get('snippet')}"
+        )
+    return "\n".join(lines)
 
 
 def _load_source(store: AriadneStore, ticket: BuildTicket) -> SourceDocument:

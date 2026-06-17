@@ -147,6 +147,20 @@ Default planning is deterministic and requires no credentials:
 ari ticket plan ARI-003 --planner deterministic
 ```
 
+Planning can optionally cite prior local memory records. This stays local and
+deterministic; it uses keyword search over `.ariadne/memory/tickets/*.json`, not
+a vector database or network service:
+
+```bash
+ari memory search "planner memory retrieval"
+ari ticket plan ARI-003 --planner deterministic --use-memory
+ari ticket run ARI-003 --backend fake-codex --use-memory
+```
+
+When enabled, planner artifacts include memory evidence with source refs, and
+the handoff plus board show a `Memory Context` / `Planner Memory Evidence`
+section.
+
 Optional LLM planning uses DeepSeek when `DEEPSEEK_API_KEY` is present:
 
 ```bash

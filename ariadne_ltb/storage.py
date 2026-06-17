@@ -688,6 +688,13 @@ class AriadneStore:
     def load_memory_record(self, ticket_id: str) -> MemoryRecord:
         return self._read_model(self.memory_dir / "tickets" / f"{ticket_id}.json", MemoryRecord)
 
+    def list_memory_records(self) -> list[MemoryRecord]:
+        records = [
+            self._read_model(path, MemoryRecord)
+            for path in sorted((self.memory_dir / "tickets").glob("*.json"))
+        ]
+        return sorted(records, key=lambda record: record.created_at)
+
     def save_review_report(self, review_report: ReviewReport) -> None:
         self._write_model(self.reviews_dir / f"{review_report.id}.json", review_report)
 

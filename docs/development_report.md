@@ -131,7 +131,8 @@ gitignored.
 
 ## Known limitations
 
-- No retrieval index over local memory yet.
+- Local memory retrieval now exists as deterministic keyword search over
+  `.ariadne/memory/tickets/*.json`; it is not a vector index.
 - No production web UI or FastAPI board.
 - Codex and Claude adapters are gated scaffolds, not CI-verified real agent
   integrations.
@@ -2058,3 +2059,72 @@ Known limitations:
   CLI config parser accepts it; the documented successful run uses `fast`.
 - The real Codex demo is still optional and default-off. The default Ariadne
   demo remains `fake-codex`.
+
+## Core Batch 17: Memory Retrieval Into Planning
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-10 / LOC-15` by making local memory searchable
+and optionally visible to future planner runs.
+
+Implemented files:
+
+- `ariadne_ltb/memory.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/planner.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_memory_retrieval_planning.py`
+- `README.md`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added deterministic local memory search over
+  `.ariadne/memory/tickets/*.json`.
+- Added `ari memory search <query>` with table output and `--output json`.
+- Added `--use-memory` to `ari ingest --planner`, `ari ticket plan`, and
+  `ari ticket run`.
+- When memory search is enabled, planner output adds memory evidence to the
+  `BuildPacket`, including source refs pointing at local memory records and
+  artifact refs from the prior run.
+- Handoff prompts now include a `Memory Context` section.
+- Board output now includes `Planner Memory Evidence` and memory-search status.
+
+Safety boundaries:
+
+- No vector database, network service, hosted backend, Postgres dependency,
+  default external execution, Feishu write, auto-commit, auto-push, auto-merge,
+  or PR creation was added.
+- Memory use is opt-in for planning; default planner behavior remains stable.
+- Memory records are treated as local evidence, not higher-priority
+  instructions.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_memory_retrieval_planning.py tests/test_v1_planner_quality.py tests/test_true_mvp_product_loop.py::test_deterministic_planner_creates_valid_build_packet_from_arbitrary_markdown -q`:
+  passed, 8 tests.
+- `python3.11 -m ruff check ariadne_ltb/memory.py ariadne_ltb/planner.py ariadne_ltb/cli.py ariadne_ltb/board.py tests/test_memory_retrieval_planning.py`:
+  passed.
+- `python3.11 -m pytest`: passed, 158 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket list`: passed.
+- `python3.11 -m ariadne_ltb.cli memory search "backend fake-codex review verdict" --output json`:
+  passed and returned a local memory hit with capped artifact refs.
+- `python3.11 -m ariadne_ltb.cli ticket plan ARI-005 --planner deterministic --use-memory`:
+  passed and wrote memory-citing planner artifacts.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex --use-memory`:
+  passed with reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; no secrets were
+  printed and external execution remained disabled.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Retrieval is lexical keyword matching, not semantic retrieval.
+- Memory search ranks local `MemoryRecord` fields only; it cites artifact IDs
+  from memory records but does not recursively parse every referenced artifact.
+- Memory is opt-in for planning to avoid historical state changing deterministic
+  demo behavior unexpectedly.
