@@ -1520,6 +1520,7 @@ def ticket_run(
     typer.echo(f"backlog planner: {result.backlog_planner_name}")
     if result.backlog_planner_artifact_path:
         typer.echo(f"backlog planner artifact: {result.backlog_planner_artifact_path}")
+    typer.echo(f"backlog previews: {', '.join(result.backlog_preview_ids)}")
     typer.echo(f"backlog updates: {', '.join(result.backlog_update_ids)}")
     if result.worktree_path:
         typer.echo(f"worktree: {result.worktree_path}")

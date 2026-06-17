@@ -448,12 +448,17 @@ def apply_backlog_preview(store: AriadneStore, preview_id: str) -> BacklogApplyR
                 ticket = ticket.with_status(TicketStatus.BLOCKED, "Backlog", operation.reason)
                 change_type = TicketChangeType.DOWNGRADED
             else:
+                promoted_status = operation.status or TicketStatus.READY_FOR_EXECUTION
                 ticket = ticket.with_status(
-                    operation.status or TicketStatus.READY_FOR_EXECUTION,
+                    promoted_status,
                     "Backlog",
                     operation.reason,
                 )
-                change_type = TicketChangeType.REPRIORITIZED
+                change_type = (
+                    TicketChangeType.CLOSED
+                    if promoted_status is TicketStatus.DONE
+                    else TicketChangeType.UPDATED
+                )
             store.save_ticket(ticket)
             updated_ticket_ids.append(ticket.id)
             touched_ticket_ids.append(ticket.id)
@@ -774,6 +779,10 @@ def record_feedback_backlog_updates(
     review: ReviewReport,
     memory_record_id: str,
     next_tickets_artifact_path: str,
+    include_execution_result: bool = True,
+    include_review_feedback: bool = True,
+    include_memory_gap: bool = True,
+    include_codebase_observation: bool = True,
 ) -> list[BacklogUpdate]:
     """Record ticket-set deltas caused by one completed ticket run.
 
@@ -783,37 +792,46 @@ def record_feedback_backlog_updates(
     """
 
     suggestions = _read_next_ticket_suggestions(next_tickets_artifact_path)
-    updates = [
-        _record_execution_result_update(store, ticket, execution, review),
-        _record_review_feedback_update(
-            store,
-            ticket,
-            packet,
-            execution,
-            review,
-            suggestions,
-            next_tickets_artifact_path,
-        ),
-        _record_memory_gap_update(
-            store,
-            ticket,
-            packet,
-            execution,
-            review,
-            suggestions,
-            memory_record_id,
-            next_tickets_artifact_path,
-        ),
-        _record_codebase_observation_update(
-            store,
-            ticket,
-            packet,
-            execution,
-            review,
-            suggestions,
-            next_tickets_artifact_path,
-        ),
-    ]
+    updates: list[BacklogUpdate] = []
+    if include_execution_result:
+        updates.append(_record_execution_result_update(store, ticket, execution, review))
+    if include_review_feedback:
+        updates.append(
+            _record_review_feedback_update(
+                store,
+                ticket,
+                packet,
+                execution,
+                review,
+                suggestions,
+                next_tickets_artifact_path,
+            )
+        )
+    if include_memory_gap:
+        updates.append(
+            _record_memory_gap_update(
+                store,
+                ticket,
+                packet,
+                execution,
+                review,
+                suggestions,
+                memory_record_id,
+                next_tickets_artifact_path,
+            )
+        )
+    if include_codebase_observation:
+        updates.append(
+            _record_codebase_observation_update(
+                store,
+                ticket,
+                packet,
+                execution,
+                review,
+                suggestions,
+                next_tickets_artifact_path,
+            )
+        )
     for update in updates:
         _attach_backlog_update_to_source_ticket(store, ticket.id, update)
     return updates

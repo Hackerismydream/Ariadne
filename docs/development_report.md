@@ -4898,3 +4898,69 @@ Known limitation:
   entries directly. The next slice should either create feedback previews during
   ticket runs or introduce an explicit apply mode so production operators can
   choose preview-only vs preview-and-apply behavior.
+
+## 2026-06-18 04:36 CST Ticket Run Feedback Preview Apply Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Connected feedback backlog previews into the normal `TicketRunOrchestrator`
+  product loop.
+- `ticket run` now generates and applies:
+  - an execution feedback `BacklogPreview` after execution result capture;
+  - a review feedback `BacklogPreview` after memory/next-ticket direct updates,
+    so the preview fingerprint is current before apply.
+- `TicketRunResult` now exposes `backlog_preview_ids` alongside
+  `backlog_update_ids`.
+- `ari ticket run ...` now prints `backlog previews: ...` so the new audit path
+  is visible from CLI output.
+- `record_feedback_backlog_updates()` now accepts include flags so orchestrator
+  can route execution/review feedback through preview/apply while leaving memory
+  gap and codebase observation updates on the existing direct path.
+- `apply_backlog_preview()` now records `PROMOTE_TICKET` to `done` as a
+  `closed` ticket change instead of a generic reprioritization/update.
+
+Why this matters:
+
+- Ariadne's common ticket run path now uses preview/apply for the two feedback
+  signals that are already modeled as backlog previews.
+- This moves the product loop closer to:
+  `execution/review feedback -> preview backlog mutation -> apply mutation ->
+  assign next ticket`.
+
+Engineering note:
+
+- The review preview is intentionally generated after memory/next-ticket direct
+  backlog updates. `apply_backlog_preview()` rejects stale previews based on the
+  ticket backlog fingerprint; generating the review preview after direct
+  memory/codebase updates avoids making it stale in the same ticket run.
+- Memory gap and codebase observation updates still use the older direct
+  `BacklogUpdate` path. They should move to dedicated preview generators in a
+  later slice.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_backlog_update_loop.py tests/test_true_mvp_product_loop.py tests/test_backlog_preview_apply.py -q`:
+  passed, `39 passed`.
+- `python3.11 -m ruff check ariadne_ltb/orchestrator.py ariadne_ltb/backlog.py ariadne_ltb/cli.py tests/test_backlog_update_loop.py tests/test_true_mvp_product_loop.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `244 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_17f70be2bdfb`.
+- Release evidence path:
+  `.ariadne/evidence/release_evidence_packet.json`.
+- Board path:
+  `.ariadne/board/index.md`.
+
+Known limitation:
+
+- Memory gap and codebase observation backlog mutations are still direct updates.
+  The next production slice should add `generate_memory_gap_preview` and
+  `generate_codebase_observation_preview`, then let ticket run apply all four
+  feedback classes through the same preview/apply mechanism.

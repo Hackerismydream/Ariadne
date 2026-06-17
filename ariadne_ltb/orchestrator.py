@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ariadne_ltb.board import export_board
-from ariadne_ltb.backlog import record_feedback_backlog_updates
+from ariadne_ltb.backlog import (
+    apply_backlog_preview,
+    generate_execution_feedback_preview,
+    generate_review_feedback_preview,
+    record_feedback_backlog_updates,
+)
 from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.execution import backend_for_name
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
@@ -74,6 +79,7 @@ class TicketRunResult:
     backlog_planner_name: str
     backlog_planner_artifact_path: str | None
     llm_agent_artifact_paths: list[str]
+    backlog_preview_ids: list[str]
     backlog_update_ids: list[str]
     board_path: str
     board_html_path: str
@@ -118,6 +124,8 @@ class TicketRunOrchestrator:
             msg = f"unknown agent runtime: {agent_runtime}"
             raise ValueError(msg)
         llm_agent_artifact_paths: list[str] = []
+        backlog_preview_ids: list[str] = []
+        applied_preview_update_ids: list[str] = []
         ticket = ticket.with_status(TicketStatus.PLANNING, "Build Lead")
         self.store.save_ticket(ticket)
         record_handoff(
@@ -477,9 +485,21 @@ class TicketRunOrchestrator:
             update={"metadata": ticket.metadata | {"execution_result_id": execution.id}},
         )
         self.store.save_ticket(ticket)
+        execution_preview = generate_execution_feedback_preview(self.store, self.store.load_ticket(ticket.id), execution)
+        execution_preview_result = apply_backlog_preview(self.store, execution_preview.id)
+        backlog_preview_ids.append(execution_preview.id)
+        if execution_preview_result.update:
+            applied_preview_update_ids.append(execution_preview_result.update.id)
+        self._progress(
+            self.store.load_ticket(ticket.id),
+            "backlog_preview",
+            "succeeded",
+            "Applied execution feedback backlog preview.",
+            payload_ref=execution_preview.id,
+        )
 
-        ticket_for_review = ticket
-        review_run = _start_run(self.store, ticket, "Reviewer", "reviewer")
+        ticket_for_review = self.store.load_ticket(ticket.id)
+        review_run = _start_run(self.store, ticket_for_review, "Reviewer", "reviewer")
         ticket = self.store.load_ticket(ticket.id).append_event(
             "review_started",
             "Reviewer",
@@ -719,7 +739,7 @@ class TicketRunOrchestrator:
             "Generated next Build Ticket suggestions.",
             payload_ref=next_tickets_artifact.id,
         )
-        backlog_updates = record_feedback_backlog_updates(
+        direct_backlog_updates = record_feedback_backlog_updates(
             self.store,
             ticket,
             packet,
@@ -727,7 +747,18 @@ class TicketRunOrchestrator:
             review,
             memory.id,
             backlog_next_tickets_path,
+            include_execution_result=False,
+            include_review_feedback=False,
         )
+        review_preview = generate_review_feedback_preview(self.store, self.store.load_ticket(ticket.id), review)
+        review_preview_result = apply_backlog_preview(self.store, review_preview.id)
+        backlog_preview_ids.append(review_preview.id)
+        if review_preview_result.update:
+            applied_preview_update_ids.append(review_preview_result.update.id)
+        backlog_update_ids = [*applied_preview_update_ids, *[update.id for update in direct_backlog_updates]]
+        current_backlog_updates = [
+            update for update in self.store.list_backlog_updates() if update.id in backlog_update_ids
+        ]
         ticket = self.store.load_ticket(ticket.id)
         self.store.append_run_message(
             memory_run.id,
@@ -735,15 +766,16 @@ class TicketRunOrchestrator:
             RunMessageType.RESULT,
             "Recorded feedback-driven backlog updates.",
             metadata={
-                "backlog_update_ids": [update.id for update in backlog_updates],
+                "backlog_preview_ids": backlog_preview_ids,
+                "backlog_update_ids": backlog_update_ids,
                 "created_ticket_ids": [
                     ticket_id
-                    for update in backlog_updates
+                    for update in current_backlog_updates
                     for ticket_id in update.created_ticket_ids
                 ],
                 "updated_ticket_ids": [
                     ticket_id
-                    for update in backlog_updates
+                    for update in current_backlog_updates
                     for ticket_id in update.updated_ticket_ids
                 ],
             },
@@ -752,8 +784,8 @@ class TicketRunOrchestrator:
             ticket,
             "backlog_update",
             "succeeded",
-            f"Recorded {len(backlog_updates)} feedback-driven backlog update(s).",
-            payload_ref=",".join(update.id for update in backlog_updates),
+            f"Recorded {len(backlog_update_ids)} feedback-driven backlog update(s) from direct updates and applied previews.",
+            payload_ref=",".join(backlog_update_ids),
         )
         if agent_runtime == "llm":
             memory_role_result = run_ticket_llm_agent(
@@ -825,7 +857,8 @@ class TicketRunOrchestrator:
                 else None,
                 "backlog_next_tickets_path": backlog_next_tickets_path,
                 "llm_agent_artifact_paths": llm_agent_artifact_paths,
-                "backlog_update_ids": [update.id for update in backlog_updates],
+                "backlog_preview_ids": backlog_preview_ids,
+                "backlog_update_ids": backlog_update_ids,
                 "board_path": str(board_path),
                 "board_html_path": str(self.store.board_dir / "index.html"),
                 "worktree_path": worktree_path,
@@ -902,7 +935,8 @@ class TicketRunOrchestrator:
             if backlog_planner_artifact
             else None,
             llm_agent_artifact_paths=llm_agent_artifact_paths,
-            backlog_update_ids=[update.id for update in backlog_updates],
+            backlog_preview_ids=backlog_preview_ids,
+            backlog_update_ids=backlog_update_ids,
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),
             orchestrator_result_path=manifest_artifact.path,

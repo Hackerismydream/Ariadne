@@ -16,7 +16,15 @@ from ariadne_ltb.execution import (
 from ariadne_ltb.full_demo import run_full_demo
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.llm import DeepSeekClient
-from ariadne_ltb.models import AgentRun, ArtifactType, BuildDecision, ReviewVerdict, TicketStatus, stable_id
+from ariadne_ltb.models import (
+    AgentRun,
+    ArtifactType,
+    BacklogUpdateTrigger,
+    BuildDecision,
+    ReviewVerdict,
+    TicketStatus,
+    stable_id,
+)
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import DeterministicPlanner, LLMPlanner
 from ariadne_ltb.storage import AriadneStore
@@ -143,6 +151,7 @@ def test_cli_ticket_run_completes_review_memory_next_tickets_and_board(tmp_path:
     )
     assert run_result.exit_code == 0, run_result.output
     assert "reviewer verdict: pass" in run_result.output
+    assert "backlog previews:" in run_result.output
     assert (tmp_path / ".ariadne" / "board" / "index.md").exists()
     assert (tmp_path / ".ariadne" / "memory" / "decision_log.md").exists()
 
@@ -170,9 +179,26 @@ def test_cli_ticket_run_defaults_to_real_codex_and_records_blocked_evidence(
     store = AriadneStore(tmp_path)
     ticket = store.resolve_ticket("ARI-003")
     execution = store.load_execution_result(ticket.metadata["execution_result_id"])
+    previews = store.list_backlog_previews()
+    execution_previews = [
+        preview for preview in previews if preview.trigger_type is BacklogUpdateTrigger.EXECUTION_RESULT
+    ]
+    repair_tickets = [
+        item
+        for item in store.list_tickets()
+        if item.metadata.get("execution_result_id") == execution.id
+    ]
     assert execution.backend_name == "codex"
     assert execution.blocked is True
     assert "ARIADNE_ENABLE_EXTERNAL_EXECUTION" in (execution.block_reason or "")
+    assert execution_previews
+    assert execution_previews[0].applied_update_id
+    assert repair_tickets
+    assert any(
+        update.trigger_ref == execution_previews[0].id
+        for update in store.list_backlog_updates_for_ticket(ticket.id)
+        if update.trigger_type is BacklogUpdateTrigger.EXECUTION_RESULT
+    )
 
 
 def test_orchestrator_supersedes_stale_non_terminal_execution_run(tmp_path: Path) -> None:

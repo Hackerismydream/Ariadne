@@ -235,6 +235,10 @@ def test_ticket_run_generates_feedback_backlog_updates_and_followups(tmp_path: P
 
     result = TicketRunOrchestrator(store).run_ticket("ARI-003", backend_name="fake-codex")
     updates = store.list_backlog_updates_for_ticket(result.ticket_id)
+    previews = store.list_backlog_previews()
+    preview_ids = {preview.id for preview in previews}
+    applied_preview_update_ids = {preview.applied_update_id for preview in previews}
+    applied_preview_refs = {preview.applied_update_id: preview.id for preview in previews}
     triggers = {update.trigger_type for update in updates}
     changes = [change for update in updates for change in update.ticket_changes]
     followups = [
@@ -249,7 +253,20 @@ def test_ticket_run_generates_feedback_backlog_updates_and_followups(tmp_path: P
     assert BacklogUpdateTrigger.MEMORY_GAP in triggers
     assert BacklogUpdateTrigger.CODEBASE_OBSERVATION in triggers
     assert TicketChangeType.CLOSED in {change.change_type for change in changes}
-    assert TicketChangeType.NO_OP in {change.change_type for change in changes}
+    assert {BacklogUpdateTrigger.EXECUTION_RESULT, BacklogUpdateTrigger.REVIEW_FEEDBACK} <= {
+        preview.trigger_type for preview in previews
+    }
+    assert all(preview.applied_update_id for preview in previews)
+    assert result.backlog_preview_ids
+    assert set(result.backlog_preview_ids) <= preview_ids
+    preview_applied_updates = [
+        update
+        for update in updates
+        if update.trigger_type
+        in {BacklogUpdateTrigger.EXECUTION_RESULT, BacklogUpdateTrigger.REVIEW_FEEDBACK}
+    ]
+    assert {update.id for update in preview_applied_updates} <= applied_preview_update_ids
+    assert all(update.trigger_ref == applied_preview_refs[update.id] for update in preview_applied_updates)
     assert followups
     assert any(ticket.build_packet_id for ticket in followups)
     assert result.backlog_update_ids
@@ -268,6 +285,7 @@ def test_daemon_run_once_generates_feedback_backlog_updates(tmp_path: Path) -> N
 
     assert result.did_work is True
     assert result.ticket_run_result is not None
+    assert result.ticket_run_result.backlog_preview_ids
     assert result.ticket_run_result.backlog_update_ids
     assert any(update.trigger_type is BacklogUpdateTrigger.MEMORY_GAP for update in updates)
     assert any(update.created_ticket_ids for update in updates)
