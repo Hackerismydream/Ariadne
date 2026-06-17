@@ -4242,3 +4242,49 @@ Known UI limitation:
   The ticket inspector can display backend smoke evidence when the executed
   ticket is selected, but a future slice should add explicit ticket search or a
   stable detail route.
+
+## 2026-06-18 03:20 CST Workbench Issue Deep Link And Search Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added stable workbench hash routes for pages and issue details, including
+  `#issues/<ticket_key>`.
+- Added issue selection routing so clicking a ticket updates the URL to the
+  selected ticket key.
+- Added `hashchange` handling so pasted links such as `#issues/ARI-003` select
+  the correct ticket after local workbench data loads.
+- Added issue search across key, title, summary, owner, decision, review
+  verdict, backend smoke backend, and GitHub branch.
+- Made exact ticket-key searches such as `ARI-003` match only that ticket key
+  or id, preventing related follow-up tickets like `ARI-009` from hijacking
+  manual review.
+- Added CSS for the search row and adjusted the issue board height/padding.
+
+Verification:
+
+- `npm --prefix frontend/ariadne-workbench run sync:data`: passed and synced
+  local workbench data.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- Browser QA through local Vite (`http://127.0.0.1:4178/#issues/ARI-003`)
+  confirmed:
+  - the inspector selected `ARI-003`;
+  - backend smoke evidence remained visible for that ticket;
+  - searching `ARI-003` returned `1 / 9`;
+  - the visible cards did not include `ARI-009`.
+- Full `python3.11 -m pytest`: passed, `226 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict
+  `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored
+  `.env` remained redacted and no secret value was printed.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_8c4471fea35c` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.
+
+Result:
+
+- The previous UI limitation around selecting `ARI-003` from text that also
+  mentioned related tickets is resolved for direct issue-key review paths.

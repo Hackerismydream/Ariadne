@@ -20,6 +20,29 @@ import type { AriadneTicket, BackendSmokeEvidence, RuntimeInfo, TicketStatus, Ti
 
 type PageKey = "goal" | "knowledge" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
 
+function parseHashRoute(hash = globalThis.location?.hash ?? "") {
+  const value = hash.replace(/^#/, "").trim();
+  if (!value) return {};
+  const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
+  if (issueMatch) return { page: "issues" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
+  if (["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(value)) {
+    return { page: value as PageKey };
+  }
+  return {};
+}
+
+function findTicketByRef(tickets: AriadneTicket[], ticketRef: string | undefined) {
+  if (!ticketRef) return undefined;
+  const normalized = ticketRef.trim().toLowerCase();
+  return tickets.find(
+    (ticket) => ticket.id.toLowerCase() === normalized || ticket.key.toLowerCase() === normalized,
+  );
+}
+
+function issueHash(ticket: AriadneTicket) {
+  return `#issues/${encodeURIComponent(ticket.key)}`;
+}
+
 const navGroups: Array<{
   label: string;
   items: Array<{ key: PageKey | "projects" | "automation" | "squads" | "usage" | "settings"; label: string; icon: typeof Inbox }>;
@@ -64,12 +87,32 @@ const statusColumns: Array<{ status: TicketStatus; label: string; tone: string }
 ];
 
 export function App() {
-  const [page, setPage] = useState<PageKey>("knowledge");
+  const initialRoute = parseHashRoute();
+  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "knowledge");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
   const [dataSource, setDataSource] = useState<"local" | "fixture">("fixture");
-  const [selectedTicketId, setSelectedTicketId] = useState(workbenchData.tickets[0]?.id ?? "");
+  const [selectedTicketId, setSelectedTicketId] = useState(
+    findTicketByRef(workbenchData.tickets, initialRoute.ticketRef)?.id ?? workbenchData.tickets[0]?.id ?? "",
+  );
   const [selectedRuntime, setSelectedRuntime] = useState(workbenchData.runtimes[0]?.backend ?? "fake-codex");
   const selectedTicket = data.tickets.find((ticket) => ticket.id === selectedTicketId) ?? data.tickets[0];
+
+  function navigate(nextPage: PageKey) {
+    setPage(nextPage);
+    if (globalThis.location?.hash !== `#${nextPage}`) {
+      globalThis.history?.replaceState(null, "", `#${nextPage}`);
+    }
+  }
+
+  function selectTicket(ticketId: string) {
+    const ticket = data.tickets.find((candidate) => candidate.id === ticketId);
+    if (!ticket) return;
+    setSelectedTicketId(ticket.id);
+    setPage("issues");
+    if (globalThis.location?.hash !== issueHash(ticket)) {
+      globalThis.history?.replaceState(null, "", issueHash(ticket));
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -77,7 +120,15 @@ export function App() {
       if (!mounted) return;
       setData(result.data);
       setDataSource(result.source);
-      setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
+      const route = parseHashRoute();
+      const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
+      if (route.page) setPage(route.page);
+      if (routeTicket) {
+        setPage("issues");
+        setSelectedTicketId(routeTicket.id);
+      } else {
+        setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
+      }
       setSelectedRuntime((current) => result.data.runtimes.some((runtime) => runtime.backend === current) ? current : result.data.runtimes[0]?.backend ?? "fake-codex");
     });
     return () => {
@@ -85,9 +136,23 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    function applyHashRoute() {
+      const route = parseHashRoute();
+      if (route.page) setPage(route.page);
+      const routeTicket = findTicketByRef(data.tickets, route.ticketRef);
+      if (routeTicket) {
+        setPage("issues");
+        setSelectedTicketId(routeTicket.id);
+      }
+    }
+    globalThis.addEventListener?.("hashchange", applyHashRoute);
+    return () => globalThis.removeEventListener?.("hashchange", applyHashRoute);
+  }, [data.tickets]);
+
   return (
     <div className="app-shell">
-      <Sidebar data={data} page={page} onNavigate={setPage} />
+      <Sidebar data={data} page={page} onNavigate={navigate} />
       <main className="main">
         <PageFrame
           data={data}
@@ -95,9 +160,9 @@ export function App() {
           page={page}
           selectedRuntime={selectedRuntime}
           selectedTicket={selectedTicket}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onRuntimeSelect={setSelectedRuntime}
-          onTicketSelect={setSelectedTicketId}
+          onTicketSelect={selectTicket}
         />
       </main>
       {page === "knowledge" ? null : (
@@ -525,12 +590,37 @@ function IssuesPage({
   selectedTicket: AriadneTicket;
   onTicketSelect: (ticketId: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const visibleTickets = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return data.tickets;
+    if (/^ari-\d+$/.test(needle)) {
+      return data.tickets.filter(
+        (ticket) => ticket.key.toLowerCase() === needle || ticket.id.toLowerCase() === needle,
+      );
+    }
+    return data.tickets.filter((ticket) => {
+      return [
+        ticket.key,
+        ticket.title,
+        ticket.summary,
+        ticket.owner,
+        ticket.decision,
+        ticket.reviewVerdict,
+        ticket.backendSmoke?.backendName ?? "",
+        ticket.github?.branch ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [data.tickets, query]);
   const grouped = useMemo(() => {
     return statusColumns.map((column) => ({
       ...column,
-      tickets: data.tickets.filter((ticket) => ticket.status === column.status),
+      tickets: visibleTickets.filter((ticket) => ticket.status === column.status),
     }));
-  }, [data.tickets]);
+  }, [visibleTickets]);
 
   return (
     <section className="page full-bleed">
@@ -547,6 +637,16 @@ function IssuesPage({
           </div>
         }
       />
+      <div className="issue-search-bar">
+        <Search size={16} />
+        <input
+          aria-label="Search issues by key, title, owner, backend, or branch"
+          placeholder="Search issue key, title, owner, backend..."
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <span>{visibleTickets.length} / {data.tickets.length}</span>
+      </div>
       <div className="issues-layout">
         <div className="kanban">
           {grouped.map((column) => (

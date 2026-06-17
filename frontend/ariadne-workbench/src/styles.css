@@ -817,8 +817,33 @@ button {
   font-style: normal;
 }
 
+.issue-search-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  background: var(--card);
+}
+
+.issue-search-bar input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 9px 11px;
+  color: var(--foreground);
+}
+
+.issue-search-bar span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
 .issues-layout {
-  height: calc(100vh - 56px);
+  height: calc(100vh - 108px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
 }
@@ -827,7 +852,7 @@ button {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 56px 16px 14px;
+  padding: 16px 16px 14px;
 }
 
 .kanban-column {
