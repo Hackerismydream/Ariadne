@@ -43,6 +43,7 @@ from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory_record
 from ariadne_ltb.models import (
     AssignmentStatus,
+    ArtifactType,
     BacklogUpdate,
     BackendSmokeEvidence,
     CommentAuthorType,
@@ -896,6 +897,113 @@ def ticket_show(ticket_id: str) -> None:
             f"Assignment: {assignment.agent_id} {assignment.status.value} "
             f"backend={assignment.backend_name or ''}"
         )
+    for line in _ticket_production_evidence_lines(store, ticket):
+        typer.echo(line)
+
+
+def _ticket_production_evidence_lines(store: AriadneStore, ticket) -> list[str]:  # noqa: ANN001
+    lines = ["Production Evidence:"]
+    smoke_results = [
+        result
+        for result in store.list_backend_smoke_evidence()
+        if result.ticket_id == ticket.id or result.ticket_key == ticket.key
+    ]
+    if smoke_results:
+        lines.append("  Backend smoke:")
+        for result in sorted(smoke_results, key=lambda item: item.created_at)[-5:]:
+            status = "pass" if result.succeeded and not result.blocked else "blocked" if result.blocked else "fail"
+            lines.append(
+                "    "
+                f"{result.backend_name}: {status} "
+                f"execution={result.execution_result_id or 'missing'} "
+                f"tests={result.test_exit_code} "
+                f"review={result.review_verdict or 'missing'} "
+                f"path={store.backend_smoke_evidence_dir / result.backend_name / f'{result.id}.json'}"
+            )
+    else:
+        lines.append("  Backend smoke: none")
+
+    llm_artifacts = [
+        artifact
+        for artifact in store.list_artifacts_for_ticket(ticket.id)
+        if artifact.artifact_type is ArtifactType.LLM_AGENT_RESULT
+    ]
+    if llm_artifacts:
+        lines.append("  LLM agents:")
+        latest_by_role = {
+            artifact.metadata.get("llm_role", "unknown"): artifact
+            for artifact in sorted(llm_artifacts, key=lambda item: item.created_at)
+        }
+        for artifact in latest_by_role.values():
+            lines.append(
+                "    "
+                f"{artifact.metadata.get('llm_role', 'unknown')}: "
+                f"{'pass' if artifact.metadata.get('succeeded') else 'blocked'} "
+                f"provider={artifact.metadata.get('provider', 'unknown')} "
+                f"model={artifact.metadata.get('model', 'unknown')} "
+                f"path={artifact.path}"
+            )
+    else:
+        lines.append("  LLM agents: none")
+
+    feishu_results = [
+        result
+        for result in store.list_feishu_write_results(ticket.key)
+        if result.ticket_id == ticket.id or result.ticket_key == ticket.key
+    ]
+    if feishu_results:
+        latest = sorted(feishu_results, key=lambda item: item.created_at)[-1]
+        status = "pass" if latest.ok and not latest.blocked and not latest.dry_run else "blocked" if latest.blocked else "fail"
+        lines.append(
+            "  Feishu: "
+            f"{status} "
+            f"doc={latest.document_url or latest.document_id or 'missing'} "
+            f"path={store.feishu_integrations_dir / latest.ticket_key / f'{latest.id}.json'}"
+        )
+    else:
+        lines.append("  Feishu: none")
+
+    github_results = [
+        result
+        for result in store.list_github_integration_results(ticket.key)
+        if result.ticket_id == ticket.id or result.ticket_key == ticket.key
+    ]
+    if github_results:
+        ok_ops = sorted({result.operation for result in github_results if result.ok and not result.blocked})
+        latest = sorted(github_results, key=lambda item: item.created_at)[-1]
+        issue = _latest_non_empty(result.issue_url or result.issue_number for result in github_results)
+        pr = _latest_non_empty(result.pr_url or result.pr_number for result in github_results)
+        comment = _latest_non_empty(result.comment_url for result in github_results)
+        lines.append(
+            "  GitHub: "
+            f"ops={','.join(ok_ops) or 'none'} "
+            f"issue={issue or 'missing'} "
+            f"pr={pr or 'missing'} "
+            f"comment={comment or 'missing'} "
+            f"path={store.github_integrations_dir / latest.ticket_key / f'{latest.id}.json'}"
+        )
+    else:
+        lines.append("  GitHub: none")
+
+    if store.release_evidence_packet_path.exists():
+        packet = json.loads(store.release_evidence_packet_path.read_text(encoding="utf-8"))
+        lines.append(
+            "  Release packet: "
+            f"production_acceptance={packet.get('production_acceptance_status', 'unknown')} "
+            f"product_readiness={packet.get('product_readiness_status', 'unknown')} "
+            f"path={store.release_evidence_packet_path}"
+        )
+    else:
+        lines.append("  Release packet: missing")
+    return lines
+
+
+def _latest_non_empty(values) -> object | None:  # noqa: ANN001
+    found: object | None = None
+    for value in values:
+        if value:
+            found = value
+    return found
 
 
 @ticket_app.command("list")

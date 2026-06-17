@@ -4398,3 +4398,58 @@ Result:
 - The static board is now a top-level review surface for production acceptance
   evidence, instead of requiring reviewers to inspect doctor JSON or release
   evidence JSON directly.
+
+## 2026-06-18 03:34 CST Ticket Production Evidence Trace Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Problem found during production-goal audit:
+
+- The board, search, release packet, and product doctor could show production
+  evidence, but `ari ticket show ARI-003` still only showed ticket counts,
+  artifact counts, and latest assignment.
+- A user starting from a single ticket could not directly trace that ticket to
+  real Codex, Claude Code, DeepSeek LLM agent, Feishu, GitHub, or release
+  evidence.
+
+Implemented:
+
+- Extended `ari ticket show <ticket>` with a `Production Evidence` section.
+- The section shows:
+  - backend smoke evidence per backend, including execution result, test exit
+    code, review verdict, and evidence path;
+  - latest DeepSeek LLM role artifacts, grouped by role;
+  - latest Feishu write result and document URL;
+  - GitHub operations plus issue, PR, and comment URL evidence;
+  - release packet production acceptance and product readiness status.
+- The command reads only local evidence files and does not trigger external
+  execution or writes.
+- Added deterministic test coverage for the enriched ticket show output.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_board_ux.py::test_cli_outputs_readable_ticket_state -q`:
+  passed.
+- `python3.11 -m ruff check ariadne_ltb/cli.py tests/test_v1_board_ux.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli ticket show ARI-003` on the current local
+  store now shows:
+  - real Codex backend smoke evidence;
+  - real Claude Code backend smoke evidence;
+  - DeepSeek LLM role artifacts for build lead, knowledge, and memory;
+  - real Feishu document URL;
+  - real GitHub issue, PR, and comment URL;
+  - release packet `production_acceptance=ready`.
+- `python3.11 -m pytest`: passed, `227 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env`
+  secrets were reported only as redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_acdf7befb841`.
+
+Result:
+
+- A reviewer can now start from one Build Ticket and trace its real production
+  integration evidence without manually searching the board or release packet.

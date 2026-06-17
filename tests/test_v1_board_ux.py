@@ -7,7 +7,13 @@ from typer.testing import CliRunner
 from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.cli import app
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import GitHubIntegrationResult, ReleaseEvidencePacket
+from ariadne_ltb.models import (
+    ArtifactType,
+    BackendSmokeEvidence,
+    FeishuWriteResult,
+    GitHubIntegrationResult,
+    ReleaseEvidencePacket,
+)
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 
@@ -197,7 +203,71 @@ def test_board_serve_command_builds_expected_handler(tmp_path: Path) -> None:
 
 def test_cli_outputs_readable_ticket_state(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
-    ingest_sources(store, SOURCE_FIXTURES)
+    tickets = ingest_sources(store, SOURCE_FIXTURES)
+    ticket = next(ticket for ticket in tickets if ticket.key == "ARI-003")
+    store.save_backend_smoke_evidence(
+        BackendSmokeEvidence(
+            id="backend_smoke_ticket_show",
+            backend_name="codex",
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            assignment_id="assignment_ticket_show",
+            assignment_status="done",
+            succeeded=True,
+            execution_result_id="execution_ticket_show",
+            exit_code=0,
+            test_exit_code=0,
+            review_verdict="pass",
+        )
+    )
+    store.write_artifact(
+        ticket.id,
+        "run_llm_ticket_show",
+        ArtifactType.LLM_AGENT_RESULT,
+        "llm_build_lead.json",
+        "{}\n",
+        "DeepSeek LLM build lead result",
+        metadata={
+            "llm_role": "build_lead",
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "succeeded": True,
+        },
+    )
+    store.save_feishu_write_result(
+        FeishuWriteResult(
+            id="feishu_ticket_show",
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            plan_id="feishu_plan_ticket_show",
+            ok=True,
+            document_url="https://example.feishu.cn/docx/ticket-show",
+            operation_summary="created doc",
+        )
+    )
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_ticket_show",
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            operation="status",
+            ok=True,
+            repo="Hackerismydream/Ariadne",
+            issue_number=8,
+            issue_url="https://github.com/Hackerismydream/Ariadne/issues/8",
+            pr_number=9,
+            pr_url="https://github.com/Hackerismydream/Ariadne/pull/9",
+            comment_url="https://github.com/Hackerismydream/Ariadne/issues/8#issuecomment-1",
+        )
+    )
+    store.save_release_evidence_packet(
+        ReleaseEvidencePacket(
+            id="release_evidence_ticket_show",
+            root_path=str(tmp_path),
+            product_readiness_status="action_required",
+            production_acceptance_status="ready",
+        )
+    )
     runner = CliRunner()
     assign = runner.invoke(app, ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "fake-codex"])
     show = runner.invoke(app, ["--root", str(tmp_path), "ticket", "show", "ARI-003"])
@@ -206,3 +276,11 @@ def test_cli_outputs_readable_ticket_state(tmp_path: Path) -> None:
     assert show.exit_code == 0, show.output
     assert "Assignment:" in show.output
     assert "Status:" in show.output
+    assert "Production Evidence:" in show.output
+    assert "Backend smoke:" in show.output
+    assert "codex: pass execution=execution_ticket_show" in show.output
+    assert "LLM agents:" in show.output
+    assert "build_lead: pass provider=deepseek model=deepseek-v4-pro" in show.output
+    assert "Feishu: pass doc=https://example.feishu.cn/docx/ticket-show" in show.output
+    assert "GitHub: ops=status issue=https://github.com/Hackerismydream/Ariadne/issues/8" in show.output
+    assert "Release packet: production_acceptance=ready" in show.output
