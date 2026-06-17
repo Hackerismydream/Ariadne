@@ -13,6 +13,7 @@ from ariadne_ltb.models import FailureReason, TicketStatus
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
+from ariadne_ltb.worktrees import branch_binding_for_ticket, prepare_isolated_worktree
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +54,9 @@ def test_cli_ticket_run_isolate_worktree_creates_and_records_worktree(tmp_path: 
     assert run_git(worktree_path, "branch", "--show-current").stdout.strip() == record["branch_name"]
     assert record["ticket_id"] == ticket.id
     assert record["ticket_key"] == "ARI-003"
+    assert record["branch_policy"] == "codex-ticket-slug-v1"
+    assert record["branch_name"].startswith("codex/ari-003-")
+    assert record["target_repo_path"] == str(target)
     assert record["base_branch"]
     assert record["base_sha"] == base_sha
     assert record["active"] is True
@@ -150,6 +154,10 @@ def test_worktree_isolation_metadata_persists_to_file_and_artifact(tmp_path: Pat
     assert record_path.exists()
     record = json.loads(record_path.read_text(encoding="utf-8"))
     assert record == metadata
+    resolved = store.resolve_active_worktree("ARI-003")
+    assert resolved is not None
+    assert resolved.branch_name == metadata["branch_name"]
+    assert resolved.worktree_path == metadata["worktree_path"]
 
     artifacts = store.list_artifacts_for_ticket(ticket.id)
     worktree_artifacts = [
@@ -158,3 +166,85 @@ def test_worktree_isolation_metadata_persists_to_file_and_artifact(tmp_path: Pat
     assert len(worktree_artifacts) == 1
     artifact_record = json.loads(Path(worktree_artifacts[0].path).read_text(encoding="utf-8"))
     assert artifact_record == metadata
+
+
+def test_branch_binding_is_canonical_deterministic_and_collision_resistant(
+    tmp_path: Path,
+) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    ticket = store.resolve_ticket("ARI-003")
+
+    first = branch_binding_for_ticket(ticket)
+    second = branch_binding_for_ticket(ticket)
+    duplicate_title = ticket.model_copy(update={"id": "ticket_different"})
+
+    assert first == second
+    assert first.policy == "codex-ticket-slug-v1"
+    assert first.branch_name.startswith("codex/ari-003-")
+    assert first.branch_name == first.branch_name.lower()
+    assert "/" not in first.worktree_dir_name
+    assert branch_binding_for_ticket(duplicate_title).branch_name != first.branch_name
+
+
+def test_isolate_worktree_blocks_when_canonical_branch_already_exists(
+    tmp_path: Path,
+) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    ticket = store.resolve_ticket("ARI-003")
+    binding = branch_binding_for_ticket(ticket)
+    create_branch = run_git(target, "branch", binding.branch_name)
+    assert create_branch.returncode == 0, create_branch.stderr
+
+    result = prepare_isolated_worktree(store, ticket, target)
+
+    assert result.record is None
+    assert result.block is not None
+    assert result.block.failure_reason is FailureReason.RESOURCE_LOCKED
+    assert "isolated branch already exists" in result.block.reason
+    assert not store.worktree_record_path(ticket.key).exists()
+    assert not store.worktree_path(binding.worktree_dir_name).exists()
+
+
+def test_isolate_worktree_rejects_invalid_ticket_key_before_filesystem_mutation(
+    tmp_path: Path,
+) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    ticket = store.resolve_ticket("ARI-003").model_copy(update={"key": "ARI/003"})
+
+    result = prepare_isolated_worktree(store, ticket, target)
+
+    assert result.record is None
+    assert result.block is not None
+    assert result.block.failure_reason is FailureReason.INVALID_RESOURCE
+    assert "invalid ticket key" in result.block.reason
+    assert not any(store.worktree_records_dir.glob("*.json"))
+    assert not any(path.name != "records" for path in store.worktrees_dir.iterdir())
+    branches = run_git(target, "branch", "--list", "codex/*").stdout.strip()
+    assert branches == ""
+
+
+def test_isolate_worktree_rejects_invalid_explicit_branch_slug_before_mutation(
+    tmp_path: Path,
+) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    ticket = store.resolve_ticket("ARI-003").model_copy(
+        update={"metadata": {"branch_slug": "../unsafe"}}
+    )
+
+    result = prepare_isolated_worktree(store, ticket, target)
+
+    assert result.record is None
+    assert result.block is not None
+    assert result.block.failure_reason is FailureReason.INVALID_RESOURCE
+    assert "invalid branch slug" in result.block.reason
+    assert not any(store.worktree_records_dir.glob("*.json"))
+    assert not any(path.name != "records" for path in store.worktrees_dir.iterdir())
+    branches = run_git(target, "branch", "--list", "codex/*").stdout.strip()
+    assert branches == ""

@@ -563,6 +563,20 @@ class AriadneStore:
     def load_worktree_isolation(self, ticket_key: str) -> WorktreeIsolation:
         return self._read_model(self.worktree_record_path(ticket_key), WorktreeIsolation)
 
+    def resolve_active_worktree(self, ticket_id_or_key: str) -> WorktreeIsolation | None:
+        ticket = self.resolve_ticket(ticket_id_or_key)
+        metadata = ticket.metadata.get("worktree_isolation")
+        if isinstance(metadata, dict):
+            record = WorktreeIsolation.model_validate(metadata)
+            if record.active:
+                return record
+
+        record_path = self.worktree_record_path(ticket.key)
+        if not record_path.exists():
+            return None
+        record = self.load_worktree_isolation(ticket.key)
+        return record if record.active else None
+
 
 def _default_agent_profiles() -> list[AgentProfile]:
     return [

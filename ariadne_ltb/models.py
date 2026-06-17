@@ -718,6 +718,9 @@ class WorktreeIsolation(AriadneModel):
     id: str
     ticket_id: str
     ticket_key: str
+    branch_policy: str = "codex-ticket-slug-v1"
+    branch_slug: str | None = None
+    target_repo_path: str | None = None
     base_repo_path: str
     base_branch: str
     base_sha: str

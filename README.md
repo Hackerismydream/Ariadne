@@ -127,6 +127,25 @@ ari daemon start --interval 2 --max-iterations 3
 It is not a system service, and it does not introduce auth, networking,
 PostgreSQL, or WebSockets.
 
+## Isolated Worktree Branch Binding
+
+When ticket execution uses isolated worktrees, Ariadne creates a local git
+branch with the canonical policy `codex/<ticket-key>-<slug>`. The generated
+slug is derived deterministically from the ticket title and includes a short
+ticket-bound collision token, for example
+`codex/ari-003-add-json-export-1a2b3c4d`.
+
+Branch binding is validated before git worktree creation. Ticket keys must use
+the `PREFIX-NUMBER` shape, explicit `metadata.branch_slug` values must contain
+only lowercase letters, digits, and single `-` separators, and unsafe path/ref
+characters are rejected.
+
+The active binding is stored in ticket metadata under `worktree_isolation` and
+in `.ariadne/worktrees/records/<ticket-key>.json`. The record includes the
+ticket id/key, branch policy, branch name, branch slug, base SHA, target repo
+path, and isolated worktree path. Ariadne does not commit, push, merge, or open
+PRs as part of this binding.
+
 ## Demo
 
 `ari demo full` remains available, but it is now a wrapper around the reusable
