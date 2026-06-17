@@ -2962,3 +2962,58 @@ Real integration status:
   ARI-003`: passed and recorded issue #8, PR #9, branch
   `codex/ariadne-production-frontend-integration`, and an empty check list as
   valid status evidence.
+
+## 2026-06-17 22:42 CST GitHub Evidence Visibility Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Re-checked the production integration branch against the separate frontend
+  lane. A direct merge would have brought older core/runtime changes from the
+  frontend branch history, so the merge was aborted and only the safe frontend
+  generated-data ignore rule was kept.
+- Extended the Markdown board GitHub section to show PR status evidence:
+  issue state, PR state, base/head branch, mergeability, review decision,
+  checks status, check counts, and recent GitHub operations.
+- Extended the read-only frontend workbench data contract with per-ticket
+  GitHub evidence.
+- Updated the frontend sync script to aggregate
+  `.ariadne/integrations/github/<ticket>/*.json` into each ticket.
+- Added a GitHub panel in the ticket inspector showing issue/PR links, branch,
+  commit, checks, mergeability, review decision, and recent GitHub operation
+  history.
+- Added deterministic board coverage for `checks_status=no_checks_reported`.
+- Fixed a reviewer finding where `state=completed` was incorrectly treated as
+  a passing GitHub check. Check counts now prefer `bucket`, then `conclusion`,
+  and only use state/status for pending detection.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_v1_board_ux.py -q`: passed, `5 passed`.
+- `python3.11 -m pytest`: passed, `204 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed and the board includes
+  `Checks status: no_checks_reported` and `Checks summary`.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_846f049d3807`.
+- `cd frontend/ariadne-workbench && npm run sync:data`: passed and generated a
+  local ignored `web_data/workbench.json` snapshot with `8` tickets, `5`
+  runtimes, and `18` inbox items.
+- `cd frontend/ariadne-workbench && npm run typecheck`: passed.
+- `cd frontend/ariadne-workbench && npm run build`: passed.
+- Secret grep: no real DeepSeek, GitHub, or Feishu token found in tracked
+  source/docs/test/frontend paths; only placeholder `FEISHU_APP_SECRET=` docs
+  remain.
+
+Safety boundaries:
+
+- This slice did not perform new GitHub writes and did not claim a new real
+  GitHub run. It surfaces the previously recorded issue #8 / PR #9 status
+  evidence.
+- The frontend remains read-only.
+- `frontend/ariadne-workbench/public/web_data/*.json` is ignored because it is
+  a generated local snapshot and can contain local filesystem paths.

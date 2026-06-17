@@ -621,6 +621,7 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
           ["Next tickets", ticket.nextTicketsPath ?? "missing"],
         ]}
       />
+      <GitHubEvidencePanel ticket={ticket} />
       <section className="panel nested">
         <h3>Run progress timeline</h3>
         <Timeline items={ticket.progress} />
@@ -636,6 +637,58 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
         </div>
       </section>
     </aside>
+  );
+}
+
+function GitHubEvidencePanel({ ticket }: { ticket: AriadneTicket }) {
+  const github = ticket.github;
+  if (!github) {
+    return (
+      <section className="panel nested">
+        <h3>GitHub</h3>
+        <p className="muted">No GitHub evidence recorded.</p>
+      </section>
+    );
+  }
+  const checks = github.checkCounts;
+  return (
+    <section className="panel nested github-panel">
+      <h3>GitHub</h3>
+      <PropertyGrid
+        rows={[
+          ["Operation", github.operation],
+          ["Repo", github.repo ?? "missing"],
+          ["Issue", github.issueUrl ? `#${github.issueNumber ?? ""}` : "missing"],
+          ["PR", github.prUrl ? `#${github.prNumber ?? ""}` : "missing"],
+          ["Branch", github.branch ?? "missing"],
+          ["Base", github.baseBranch ?? "missing"],
+          ["Mergeable", github.mergeable ?? "missing"],
+          ["Review", github.reviewDecision ?? "none"],
+          ["Checks", github.checksStatus ?? "missing"],
+        ]}
+      />
+      <div className="link-row">
+        {github.issueUrl ? <a href={github.issueUrl}>Issue</a> : null}
+        {github.prUrl ? <a href={github.prUrl}>Pull request</a> : null}
+        {github.commentUrl ? <a href={github.commentUrl}>Comment</a> : null}
+      </div>
+      {github.commitSha ? <code className="commit-sha">{github.commitSha}</code> : null}
+      {checks ? (
+        <div className="check-summary">
+          <span>pass {checks.pass}</span>
+          <span>pending {checks.pending}</span>
+          <span>fail {checks.fail}</span>
+          <span>total {checks.total}</span>
+        </div>
+      ) : null}
+      <div className="github-history">
+        {github.history.map((item) => (
+          <span key={`${item.operation}-${item.createdAt}`}>
+            {item.operation} · {item.ok ? "ok" : item.blocked ? "blocked" : "failed"}
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
 

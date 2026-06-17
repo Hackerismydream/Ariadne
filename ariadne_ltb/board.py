@@ -701,6 +701,19 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             lines.append(f"- Comment: {latest_github.comment_url}")
         if latest_github.reason:
             lines.append(f"- Reason: {latest_github.reason}")
+        if latest_github.failure_reason:
+            lines.append(f"- Failure reason: `{latest_github.failure_reason.value}`")
+        status_result = next(
+            (result for result in reversed(github_results) if result.operation == "status"),
+            latest_github,
+        )
+        lines.extend(_github_status_evidence_lines(status_result.evidence))
+        if len(github_results) > 1:
+            lines.append("- Recent GitHub operations:")
+            for result in github_results[-5:]:
+                outcome = "ok" if result.ok else "blocked" if result.blocked else "failed"
+                target = result.pr_url or result.issue_url or result.comment_url or result.reason or ""
+                lines.append(f"  - `{result.operation}` `{outcome}` `{result.created_at}` {target}")
     else:
         lines.append("No GitHub integration result found.")
 
@@ -791,6 +804,55 @@ def _latest_json_artifact(store: AriadneStore, artifacts: list, artifact_type: A
         if artifact.artifact_type is artifact_type:
             return json.loads(Path(artifact.path).read_text(encoding="utf-8"))
     return None
+
+
+def _github_status_evidence_lines(evidence: dict) -> list[str]:
+    if not evidence:
+        return []
+    lines: list[str] = []
+    issue = evidence.get("issue")
+    if isinstance(issue, dict) and issue:
+        lines.append(f"- Issue state: `{issue.get('state', '')}`")
+    pr = evidence.get("pr")
+    if isinstance(pr, dict) and pr:
+        if pr.get("state"):
+            lines.append(f"- PR state: `{pr.get('state')}`")
+        if pr.get("baseRefName"):
+            lines.append(f"- PR base: `{pr.get('baseRefName')}`")
+        if pr.get("headRefName"):
+            lines.append(f"- PR head: `{pr.get('headRefName')}`")
+        if pr.get("mergeable"):
+            lines.append(f"- Mergeable: `{pr.get('mergeable')}`")
+        lines.append(f"- Review decision: `{pr.get('reviewDecision') or 'none'}`")
+    checks_status = evidence.get("checks_status")
+    checks = evidence.get("checks")
+    if checks_status:
+        lines.append(f"- Checks status: `{checks_status}`")
+    if isinstance(checks, list):
+        counts = _github_check_counts(checks)
+        lines.append(
+            "- Checks summary: "
+            f"pass=`{counts['pass']}` pending=`{counts['pending']}` "
+            f"fail=`{counts['fail']}` total=`{counts['total']}`"
+        )
+    return lines
+
+
+def _github_check_counts(checks: list) -> dict[str, int]:
+    counts = {"pass": 0, "pending": 0, "fail": 0, "total": len(checks)}
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        bucket = str(check.get("bucket") or "").lower()
+        conclusion = str(check.get("conclusion") or "").lower()
+        state = str(check.get("state") or check.get("status") or "").lower()
+        if bucket in {"pass", "success"} or conclusion in {"success", "neutral", "skipped"}:
+            counts["pass"] += 1
+        elif bucket in {"pending"} or state in {"pending", "queued", "in_progress", "waiting"}:
+            counts["pending"] += 1
+        else:
+            counts["fail"] += 1
+    return counts
 
 
 def _latest_artifact(artifacts: list, artifact_type: ArtifactType):

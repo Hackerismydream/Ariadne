@@ -22,7 +22,38 @@ export type AriadneTicket = {
   reviewVerdict: "pass" | "needs_fix" | "blocked" | "pending";
   memoryPath?: string;
   nextTicketsPath?: string;
+  github?: GitHubTicketEvidence;
   acceptance: string[];
+};
+
+export type GitHubTicketEvidence = {
+  operation: string;
+  ok: boolean;
+  blocked: boolean;
+  repo?: string | null;
+  issueNumber?: number | null;
+  issueUrl?: string | null;
+  prNumber?: number | null;
+  prUrl?: string | null;
+  branch?: string | null;
+  commitSha?: string | null;
+  commentUrl?: string | null;
+  checksStatus?: string | null;
+  checkCounts?: {
+    pass: number;
+    pending: number;
+    fail: number;
+    total: number;
+  };
+  reviewDecision?: string | null;
+  mergeable?: string | null;
+  baseBranch?: string | null;
+  history: Array<{
+    operation: string;
+    ok: boolean;
+    blocked: boolean;
+    createdAt: string;
+  }>;
 };
 
 export type TimelineEvent = {

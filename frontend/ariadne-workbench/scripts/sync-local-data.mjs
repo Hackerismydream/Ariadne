@@ -112,6 +112,62 @@ function latestByTicket(items, ticketKey, ticketId, predicate = () => true) {
     .at(-1);
 }
 
+function byTicket(items, ticketKey, ticketId) {
+  return items
+    .filter((item) => item.ticket_key === ticketKey || item.ticket_id === ticketId)
+    .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+}
+
+function githubCheckCounts(checks) {
+  const counts = { pass: 0, pending: 0, fail: 0, total: Array.isArray(checks) ? checks.length : 0 };
+  if (!Array.isArray(checks)) return counts;
+  for (const check of checks) {
+    const bucket = String(check?.bucket ?? "").toLowerCase();
+    const conclusion = String(check?.conclusion ?? "").toLowerCase();
+    const state = String(check?.state ?? check?.status ?? "").toLowerCase();
+    if (["pass", "success"].includes(bucket) || ["success", "neutral", "skipped"].includes(conclusion)) {
+      counts.pass += 1;
+    } else if (bucket === "pending" || ["pending", "queued", "in_progress", "waiting"].includes(state)) {
+      counts.pending += 1;
+    } else {
+      counts.fail += 1;
+    }
+  }
+  return counts;
+}
+
+function githubEvidenceForTicket(ticket, githubResults) {
+  const history = byTicket(githubResults, ticket.key, ticket.id);
+  if (!history.length) return undefined;
+  const latest = [...history].reverse().find((item) => item.operation === "status") ?? history.at(-1);
+  const evidence = latest.evidence ?? {};
+  const pr = evidence.pr ?? {};
+  return {
+    operation: latest.operation,
+    ok: Boolean(latest.ok),
+    blocked: Boolean(latest.blocked),
+    repo: latest.repo,
+    issueNumber: latest.issue_number,
+    issueUrl: latest.issue_url ?? evidence.issue?.url,
+    prNumber: latest.pr_number ?? pr.number,
+    prUrl: latest.pr_url ?? pr.url,
+    branch: latest.branch ?? pr.headRefName,
+    commitSha: latest.commit_sha ?? pr.headRefOid,
+    commentUrl: latest.comment_url,
+    checksStatus: evidence.checks_status,
+    checkCounts: githubCheckCounts(evidence.checks),
+    reviewDecision: pr.reviewDecision || "none",
+    mergeable: pr.mergeable,
+    baseBranch: pr.baseRefName,
+    history: history.slice(-5).map((item) => ({
+      operation: item.operation,
+      ok: Boolean(item.ok),
+      blocked: Boolean(item.blocked),
+      createdAt: eventTime(item.created_at),
+    })),
+  };
+}
+
 function ticketProgress(ticket, comments, journalEvents) {
   const commentEvents = comments
     .filter((comment) => comment.ticket_id === ticket.id || comment.ticket_key === ticket.key)
@@ -140,6 +196,7 @@ function ticketFromStore(ticket, context) {
   const changedFiles = context.changedFiles[ticket.id] ?? [];
   const nextTicketsPath = context.nextTicketsPath[ticket.id];
   const memoryPath = context.memoryPaths[ticket.id];
+  const github = githubEvidenceForTicket(ticket, context.githubResults);
   return {
     id: ticket.id,
     key: ticket.key,
@@ -155,6 +212,7 @@ function ticketFromStore(ticket, context) {
     reviewVerdict: review?.verdict ?? "pending",
     memoryPath,
     nextTicketsPath,
+    github,
     acceptance: buildPacket.acceptance_criteria ?? [],
   };
 }
@@ -283,6 +341,7 @@ async function main() {
     changedFiles,
     comments,
     journalEvents,
+    githubResults,
     memoryPaths,
     nextTicketsPath,
     reviews,
