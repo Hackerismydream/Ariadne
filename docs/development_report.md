@@ -3703,3 +3703,49 @@ Verification so far:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_e62746eb3b4c` and verified product doctor plus workbench
   sync/build.
+
+## 2026-06-18 03:26 CST Ingest LLM Planner Visibility Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The product acceptance command `ari ingest examples/sources/*.md --planner llm`
+  works, but real LLM planning can take long enough that the CLI previously
+  appeared silent.
+- For a production Agent Workbench, long-running real agent steps need visible
+  progress and exact blocked evidence.
+
+Implemented:
+
+- `ari ingest ... --planner <name>` now prints per-ticket planning progress:
+  - `planning ARI-001 with llm...`
+  - success lines with Build Packet id and handoff artifact path;
+  - blocked lines with the exact error and planner error artifact path.
+- Existing ingest behavior is preserved: source ingestion succeeds even if an
+  optional planner is blocked, and the blocked planner writes evidence.
+
+Real product check:
+
+- `python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md --planner llm`
+  completed with real DeepSeek planning for four sources.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_cli.py tests/test_1_0_full_demo.py tests/test_llm_runtime.py -q`:
+  passed, `16 passed`.
+- `python3.11 -m ruff check ariadne_ltb/cli.py tests/test_cli.py`: passed.
+
+Final verification:
+
+- `python3.11 -m pytest`: passed, `216 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; the deterministic
+  offline path still writes execution, review, memory, Feishu dry-run, next
+  tickets, and board artifacts.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  presence was reported without printing secret values.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_e49a873baeab` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.

@@ -189,7 +189,17 @@ def ingest(
     if planner:
         planner_backend = planner_for_name(planner, use_memory=use_memory)
         for ticket in tickets:
-            planner_backend.plan_ticket(store, ticket)
+            typer.echo(f"planning {ticket.key} with {planner_backend.name}...")
+            result = planner_backend.plan_ticket(store, ticket)
+            if result.succeeded:
+                typer.echo(
+                    f"planned {ticket.key}: packet {result.build_packet_id}; "
+                    f"handoff: {result.handoff_artifact_path}"
+                )
+            else:
+                typer.echo(f"planner blocked for {ticket.key}: {result.error}")
+                if result.error_artifact_path:
+                    typer.echo(f"planner error artifact: {result.error_artifact_path}")
     typer.echo(f"Ingested {len(tickets)} source(s)")
     for ticket in tickets:
         typer.echo(f"{ticket.key} {ticket.source_type} {ticket.title}")
