@@ -35,6 +35,17 @@ The deployable static output is:
 frontend/ariadne-workbench/dist/
 ```
 
+## Verify
+
+From the repository root:
+
+```bash
+scripts/verify_workbench.sh
+```
+
+The script syncs local `.ariadne/` data into the ignored
+`public/web_data/workbench.json` snapshot and then runs the production build.
+
 ## Current Pages
 
 - 当前 Goal

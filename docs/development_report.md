@@ -3352,3 +3352,54 @@ Verification so far:
   GitHub evidence summaries.
 - `scripts/verify_v1.sh`: passed; release evidence packet generated as
   `release_evidence_2b62f61367c9`.
+
+## 2026-06-18 00:35 CST Workbench Verification Integration Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Branch integration decision:
+
+- Rechecked `codex/ariadne-workbench-frontend-lane`; direct branch merge remains
+  unsafe because it would roll back the current production backend line.
+- Attempted to cherry-pick the latest frontend-only commit
+  `21b1ff9084ad40d4567bfd726a3f2e5ff244c103`; the cherry-pick was empty,
+  proving the frontend source changes are already present on the production
+  integration branch.
+
+Why this slice exists:
+
+- The workbench frontend was present and manually buildable, but the release
+  verification path did not exercise it.
+- A production Agent Workbench should verify that the UI can consume the current
+  local `.ariadne/` evidence snapshot, even though the frontend remains
+  read-only and static.
+
+Implemented:
+
+- Added `scripts/verify_workbench.sh`.
+- The script:
+  - requires local `npm`;
+  - installs frontend dependencies with `npm ci --prefer-offline` only when
+    `node_modules` is missing;
+  - runs `npm run sync:data`;
+  - runs `npm run build`.
+- Added `scripts/verify_workbench.sh` to `scripts/verify_v1.sh`.
+- Updated root README and frontend README with the verification command.
+
+Safety boundaries:
+
+- The frontend remains read-only.
+- `npm run sync:data` writes only ignored generated data under
+  `frontend/ariadne-workbench/public/web_data/`.
+- Generated frontend build output, node modules, and TypeScript build info stay
+  ignored.
+
+Verification so far:
+
+- `cd frontend/ariadne-workbench && npm run sync:data`: passed and synced `8`
+  tickets, `5` runtimes, and `18` inbox items.
+- `cd frontend/ariadne-workbench && npm run build`: passed.
+- `scripts/verify_workbench.sh`: passed.
+- `scripts/verify_v1.sh`: passed; it now includes workbench data sync and
+  production build. Release evidence packet generated as
+  `release_evidence_232f98638ae9`.

@@ -400,6 +400,12 @@ Build static assets:
 npm run build
 ```
 
+Verify the workbench against the current local `.ariadne/` snapshot:
+
+```bash
+scripts/verify_workbench.sh
+```
+
 `npm run sync:data` writes `public/web_data/workbench.json` from local tickets,
 runtime capability, project resources, inbox items, Feishu/GitHub integration
 results, release evidence, and progress events. That generated file is ignored
