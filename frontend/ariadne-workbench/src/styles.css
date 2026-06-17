@@ -1049,6 +1049,49 @@ button {
   margin-top: 10px;
 }
 
+.llm-panel,
+.feishu-panel,
+.release-panel {
+  overflow: hidden;
+}
+
+.llm-agent-list {
+  display: grid;
+  gap: 10px;
+}
+
+.llm-agent-row {
+  display: grid;
+  grid-template-columns: 88px 76px 90px minmax(92px, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 12px;
+}
+
+.llm-agent-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.llm-agent-row p,
+.llm-agent-row code {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.llm-agent-row p {
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.llm-agent-row code,
+.feishu-panel .property-grid strong,
+.release-panel .property-grid strong {
+  overflow-wrap: anywhere;
+}
+
 .commit-sha {
   display: block;
   margin-top: 10px;

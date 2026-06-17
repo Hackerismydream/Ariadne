@@ -16,7 +16,17 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadWorkbenchData, workbenchData } from "./data";
-import type { AriadneTicket, BackendSmokeEvidence, RuntimeInfo, TicketStatus, TimelineEvent, WorkbenchData } from "./types";
+import type {
+  AriadneTicket,
+  BackendSmokeEvidence,
+  FeishuTicketEvidence,
+  LLMAgentEvidence,
+  ReleaseEvidenceSummary,
+  RuntimeInfo,
+  TicketStatus,
+  TimelineEvent,
+  WorkbenchData,
+} from "./types";
 
 type PageKey = "goal" | "knowledge" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
 
@@ -723,6 +733,9 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
       />
       <GitHubEvidencePanel ticket={ticket} />
       <BackendSmokePanel smoke={ticket.backendSmoke} />
+      <LLMAgentEvidencePanel agents={ticket.llmAgents ?? []} />
+      <FeishuEvidencePanel feishu={ticket.feishu} />
+      <ReleaseEvidencePanel evidence={ticket.releaseEvidence} />
       <section className="panel nested">
         <h3>Run progress timeline</h3>
         <Timeline items={ticket.progress} />
@@ -738,6 +751,92 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
         </div>
       </section>
     </aside>
+  );
+}
+
+function LLMAgentEvidencePanel({ agents }: { agents: LLMAgentEvidence[] }) {
+  if (!agents.length) {
+    return (
+      <section className="panel nested">
+        <h3>LLM agents</h3>
+        <p className="muted">No upstream LLM agent evidence recorded.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="panel nested llm-panel">
+      <h3>LLM agents</h3>
+      <div className="llm-agent-list">
+        {agents.map((agent) => (
+          <div className="llm-agent-row" key={`${agent.role}-${agent.id}`}>
+            <strong>{agent.role}</strong>
+            <span className={`state ${agent.succeeded ? "online" : "offline"}`}>
+              {agent.succeeded ? "passed" : "blocked"}
+            </span>
+            <span>{agent.provider}</span>
+            <span>{agent.model}</span>
+            <span>{agent.totalTokens ? `${agent.totalTokens} tokens` : "usage missing"}</span>
+            <p>{agent.summary ?? agent.decision ?? "No summary recorded."}</p>
+            <code>{agent.path}</code>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FeishuEvidencePanel({ feishu }: { feishu?: FeishuTicketEvidence }) {
+  if (!feishu) {
+    return (
+      <section className="panel nested">
+        <h3>Feishu</h3>
+        <p className="muted">No Feishu write evidence recorded.</p>
+      </section>
+    );
+  }
+  const status = feishu.ok && !feishu.blocked && !feishu.dryRun ? "passed" : feishu.blocked ? "blocked" : "failed";
+  return (
+    <section className="panel nested feishu-panel">
+      <h3>Feishu</h3>
+      <PropertyGrid
+        rows={[
+          ["Status", status],
+          ["Dry run", feishu.dryRun ? "yes" : "no"],
+          ["Return code", String(feishu.returncode ?? "missing")],
+          ["Document", feishu.documentUrl ?? feishu.documentId ?? "missing"],
+          ["Created", feishu.createdAt],
+          ["Evidence", feishu.path],
+        ]}
+      />
+      {feishu.documentUrl ? <a href={feishu.documentUrl}>Open Feishu document</a> : null}
+      {feishu.operationSummary ? <p>{feishu.operationSummary}</p> : null}
+      {feishu.reason ? <p className="muted">{feishu.reason}</p> : null}
+    </section>
+  );
+}
+
+function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary }) {
+  if (!evidence) {
+    return (
+      <section className="panel nested">
+        <h3>Release packet</h3>
+        <p className="muted">No release evidence packet synced.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="panel nested release-panel">
+      <h3>Release packet</h3>
+      <PropertyGrid
+        rows={[
+          ["Production", evidence.productionAcceptanceStatus ?? "unknown"],
+          ["Product readiness", evidence.productReadinessStatus ?? "unknown"],
+          ["Run gates", evidence.runGateStatus ?? "unknown"],
+          ["Generated", evidence.generatedAt ?? "missing"],
+          ["Packet", evidence.packetPath ?? "missing"],
+        ]}
+      />
+    </section>
   );
 }
 

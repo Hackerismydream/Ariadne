@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const frontendRoot = resolve(here, "..");
 const repoRoot = resolve(frontendRoot, "..", "..");
-const ariadneRoot = resolve(repoRoot, ".ariadne");
+const ariadneRoot = resolve(process.env.ARIADNE_WORKBENCH_ARIADNE_ROOT ?? resolve(repoRoot, ".ariadne"));
+const outputPath = resolve(
+  process.env.ARIADNE_WORKBENCH_OUTPUT_PATH ?? resolve(frontendRoot, "public", "web_data", "workbench.json"),
+);
 
 async function readJson(path, fallback) {
   try {
@@ -205,6 +208,73 @@ function backendSmokeForTicket(ticket, backendSmokeResults) {
     .at(-1);
 }
 
+async function llmAgentResultsFromIndex(artifactIndex) {
+  const llmArtifacts = artifactIndex.filter((artifact) => artifact.artifact_type === "llm_agent_result");
+  return (
+    await Promise.all(
+      llmArtifacts.map(async (artifact) => {
+        const payload = await readJson(artifact.path, {});
+        const metadata = artifact.metadata ?? {};
+        const output = payload.output_json ?? {};
+        return {
+          id: artifact.id,
+          ticketId: artifact.ticket_id,
+          role: metadata.llm_role ?? payload.role ?? "unknown",
+          provider: metadata.provider ?? payload.provider ?? "unknown",
+          model: metadata.model ?? payload.model ?? "unknown",
+          succeeded: Boolean(metadata.succeeded ?? payload.succeeded),
+          summary: output.summary ?? null,
+          decision: output.decision ?? null,
+          totalTokens: payload.usage?.total_tokens ?? null,
+          path: artifact.path,
+          createdAt: eventTime(artifact.created_at),
+        };
+      }),
+    )
+  ).filter((item) => item.role !== "unknown");
+}
+
+function llmAgentsForTicket(ticket, llmAgentResults) {
+  const latestByRole = new Map();
+  for (const result of llmAgentResults
+    .filter((item) => item.ticketId === ticket.id)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+    latestByRole.set(result.role, result);
+  }
+  return Array.from(latestByRole.values()).sort((a, b) => a.role.localeCompare(b.role));
+}
+
+function feishuEvidenceForTicket(ticket, feishuResults) {
+  const history = byTicket(feishuResults, ticket.key, ticket.id);
+  if (!history.length) return undefined;
+  const latest = [...history].reverse().find((item) => item.ok && !item.blocked && !item.dry_run) ?? history.at(-1);
+  return {
+    id: latest.id,
+    ok: Boolean(latest.ok),
+    blocked: Boolean(latest.blocked),
+    dryRun: Boolean(latest.dry_run),
+    documentUrl: latest.document_url,
+    documentId: latest.document_id,
+    operationSummary: latest.operation_summary,
+    reason: latest.reason,
+    returncode: latest.returncode,
+    path: `.ariadne/integrations/feishu/${latest.ticket_key}/${latest.id}.json`,
+    createdAt: eventTime(latest.created_at),
+  };
+}
+
+function releaseEvidenceSummary(releaseEvidence) {
+  if (!releaseEvidence?.id) return undefined;
+  return {
+    id: releaseEvidence.id,
+    productionAcceptanceStatus: releaseEvidence.production_acceptance_status,
+    productReadinessStatus: releaseEvidence.product_readiness_status,
+    runGateStatus: releaseEvidence.run_gate_status,
+    packetPath: ".ariadne/evidence/release_evidence_packet.json",
+    generatedAt: eventTime(releaseEvidence.generated_at),
+  };
+}
+
 function ticketProgress(ticket, comments, journalEvents) {
   const commentEvents = comments
     .filter((comment) => comment.ticket_id === ticket.id || comment.ticket_key === ticket.key)
@@ -235,6 +305,8 @@ function ticketFromStore(ticket, context) {
   const memoryPath = context.memoryPaths[ticket.id];
   const github = githubEvidenceForTicket(ticket, context.githubResults);
   const backendSmoke = backendSmokeForTicket(ticket, context.backendSmokeResults);
+  const llmAgents = llmAgentsForTicket(ticket, context.llmAgentResults);
+  const feishu = feishuEvidenceForTicket(ticket, context.feishuResults);
   return {
     id: ticket.id,
     key: ticket.key,
@@ -252,6 +324,9 @@ function ticketFromStore(ticket, context) {
     nextTicketsPath,
     github,
     backendSmoke,
+    llmAgents,
+    feishu,
+    releaseEvidence: context.releaseEvidenceSummary,
     acceptance: buildPacket.acceptance_criteria ?? [],
   };
 }
@@ -341,6 +416,8 @@ async function main() {
   const githubResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "github"));
   const feishuResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "feishu"));
   const backendSmokeResults = await readNestedJsonFiles(resolve(ariadneRoot, "evidence", "backend_smoke"));
+  const artifactIndex = await readJsonFiles(resolve(ariadneRoot, "artifact_index"));
+  const llmAgentResults = await llmAgentResultsFromIndex(artifactIndex);
   const journalEvents = await readJsonl(resolve(ariadneRoot, "journal", "events.jsonl"));
   const comments = (await Promise.all(tickets.map((ticket) => readJsonl(resolve(ariadneRoot, "comments", `${ticket.id}.jsonl`))))).flat();
 
@@ -381,10 +458,13 @@ async function main() {
     backendSmokeResults,
     changedFiles,
     comments,
+    feishuResults,
     journalEvents,
     githubResults,
+    llmAgentResults,
     memoryPaths,
     nextTicketsPath,
+    releaseEvidenceSummary: releaseEvidenceSummary(releaseEvidence),
     reviews,
   };
   const runtimes = (runtimeSnapshot.capabilities ?? releaseEvidence.runtime_capabilities ?? []).map(runtimeFromCapability);
@@ -465,6 +545,7 @@ async function main() {
     runtimes,
     projectResources: (projectResources.resources ?? []).map(resourceFromProjectResource),
     backendSmokeEvidence,
+    releaseEvidence: releaseEvidenceSummary(releaseEvidence),
     skills: [
       {
         name: "ariadne-local-workbench-data-sync",
@@ -482,7 +563,6 @@ async function main() {
     inbox: [...(inboxPayload.items ?? []).slice(0, 12).map(inboxFromStore), ...realIntegrationCards],
   };
 
-  const outputPath = resolve(frontendRoot, "public", "web_data", "workbench.json");
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
   console.log(`Wrote ${outputPath}`);

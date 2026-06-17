@@ -24,6 +24,9 @@ export type AriadneTicket = {
   nextTicketsPath?: string;
   github?: GitHubTicketEvidence;
   backendSmoke?: BackendSmokeEvidence;
+  llmAgents?: LLMAgentEvidence[];
+  feishu?: FeishuTicketEvidence;
+  releaseEvidence?: ReleaseEvidenceSummary;
   acceptance: string[];
 };
 
@@ -82,6 +85,42 @@ export type GitHubTicketEvidence = {
     blocked: boolean;
     createdAt: string;
   }>;
+};
+
+export type LLMAgentEvidence = {
+  id: string;
+  role: string;
+  provider: string;
+  model: string;
+  succeeded: boolean;
+  summary?: string | null;
+  decision?: string | null;
+  totalTokens?: number | null;
+  path: string;
+  createdAt: string;
+};
+
+export type FeishuTicketEvidence = {
+  id: string;
+  ok: boolean;
+  blocked: boolean;
+  dryRun: boolean;
+  documentUrl?: string | null;
+  documentId?: string | null;
+  operationSummary?: string | null;
+  reason?: string | null;
+  returncode?: number | null;
+  path: string;
+  createdAt: string;
+};
+
+export type ReleaseEvidenceSummary = {
+  id?: string;
+  productionAcceptanceStatus?: string;
+  productReadinessStatus?: string;
+  runGateStatus?: string;
+  packetPath?: string;
+  generatedAt?: string;
 };
 
 export type TimelineEvent = {
@@ -220,6 +259,7 @@ export type WorkbenchData = {
   runtimes: RuntimeInfo[];
   projectResources?: ProjectResource[];
   backendSmokeEvidence?: BackendSmokeEvidence[];
+  releaseEvidence?: ReleaseEvidenceSummary;
   skills: SkillInfo[];
   inbox: InboxItem[];
 };

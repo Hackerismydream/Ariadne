@@ -4453,3 +4453,61 @@ Result:
 
 - A reviewer can now start from one Build Ticket and trace its real production
   integration evidence without manually searching the board or release packet.
+
+## 2026-06-18 04:06 CST Workbench Production Evidence Contract Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Branch integration decision:
+
+- Re-checked `codex/ariadne-workbench-frontend-lane` against the current
+  production branch.
+- Full merge is deferred because the frontend lane was cut from an older base;
+  merging it directly would delete current production backend modules, doctors,
+  tests, roadmap files, and evidence surfaces.
+- The current branch already contains the stable workbench shell, hash routing,
+  issue search, local data sync, GitHub panel, backend smoke panel, and
+  workbench verification.
+- The safe integration move for this slice was to extend the current workbench
+  data contract rather than merge the stale branch wholesale.
+
+Implemented:
+
+- Extended the workbench data model with ticket-level:
+  - DeepSeek LLM role agent evidence;
+  - Feishu write evidence;
+  - release evidence packet summary.
+- Updated `sync-local-data.mjs` to read:
+  - `.ariadne/artifact_index/*.json` for `llm_agent_result` artifacts;
+  - `.ariadne/integrations/feishu/<ticket_key>/*.json`;
+  - `.ariadne/evidence/release_evidence_packet.json`.
+- Added `ARIADNE_WORKBENCH_ARIADNE_ROOT` and
+  `ARIADNE_WORKBENCH_OUTPUT_PATH` so the sync contract can be tested against a
+  temporary Ariadne store without touching the real workspace snapshot.
+- Updated the ticket inspector to show `LLM agents`, `Feishu`, and `Release
+  packet` panels beside the existing GitHub and backend smoke evidence.
+- Added deterministic test coverage for the generated workbench JSON evidence
+  fields.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_workbench_data_sync.py tests/test_v1_board_ux.py -q`:
+  passed, `7 passed`.
+- `python3.11 -m ruff check tests/test_workbench_data_sync.py`: passed.
+- `npm run sync:data && npm run build` from `frontend/ariadne-workbench`:
+  passed.
+- `python3.11 -m pytest`: passed, `228 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env`
+  secret was reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_50de889966b1`; this also ran product doctor, integration
+  doctor, store doctor, workbench sync, and workbench build.
+
+Result:
+
+- The web workbench can now start from one ticket and show the same production
+  evidence chain as the CLI: real LLM agent output, Feishu write evidence,
+  backend execution evidence, GitHub evidence, and release packet status.
