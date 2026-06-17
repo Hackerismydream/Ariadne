@@ -37,6 +37,16 @@ def git_head(repo: Path) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def git_branch(repo: Path) -> str | None:
+    if not is_git_repo(repo):
+        return None
+    result = run_git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    if result.returncode != 0:
+        return None
+    branch = result.stdout.strip()
+    return branch if branch and branch != "HEAD" else None
+
+
 def git_status(repo: Path) -> str:
     if not is_git_repo(repo):
         return ""

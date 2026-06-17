@@ -26,7 +26,7 @@ def export_board(store: AriadneStore) -> Path:
         "",
         "`learning input -> build decision -> coding execution -> review -> memory`",
         "",
-        "Source -> Ticket -> Packet -> Handoff -> Backend -> Diff -> Tests -> Review -> Memory -> Feishu Plan -> Next Tickets",
+        "Source -> Ticket -> Packet -> Handoff -> Backend -> Diff -> Tests -> Review -> Memory -> Feishu Plan -> Next Tickets -> Landing Evidence",
         "",
     ]
     sections.extend(_workbench_summary_sections(store, tickets))
@@ -133,7 +133,9 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     lines.extend(["", "## Executed Tickets", ""])
     if executed:
         for ticket in executed:
-            lines.append(f"- `{ticket.key}` {ticket.title}")
+            evidence_path = ticket.metadata.get("landing_evidence_json_path")
+            suffix = f" evidence=`{evidence_path}`" if evidence_path else ""
+            lines.append(f"- `{ticket.key}` {ticket.title}{suffix}")
     else:
         lines.append("No executed tickets yet.")
     lines.extend(["", "## Next Tickets", ""])
@@ -473,6 +475,26 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     else:
         lines.append("No generated next tickets found.")
 
+    landing_evidence = _latest_json_artifact(store, artifacts, ArtifactType.LANDING_EVIDENCE)
+    lines.extend(["", "### Landing Evidence", ""])
+    if landing_evidence:
+        lines.append(f"- JSON: `{ticket.metadata.get('landing_evidence_json_path', 'missing')}`")
+        lines.append(f"- Markdown: `{ticket.metadata.get('landing_evidence_md_path', 'missing')}`")
+        lines.append(f"- Partial: `{str(landing_evidence.get('partial', False)).lower()}`")
+        lines.append(f"- Review verdict: `{landing_evidence.get('review_verdict', 'missing')}`")
+        diff = landing_evidence.get("git_diff_summary", {})
+        lines.append(
+            f"- Diff summary: files=`{diff.get('files_changed', 0)}` "
+            f"additions=`{diff.get('additions', 0)}` deletions=`{diff.get('deletions', 0)}`"
+        )
+        linked = landing_evidence.get("linked_artifacts", [])
+        if linked:
+            lines.append("- Linked raw artifacts:")
+            for artifact in linked:
+                lines.append(f"  - `{artifact.get('kind')}`: `{artifact.get('path')}`")
+    else:
+        lines.append("No landing evidence packet found.")
+
     lines.extend(["", "### Event Log", ""])
     for event in ticket.event_log:
         lines.append(
@@ -488,6 +510,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             "review_finished",
             "memory_written",
             "next_tickets_generated",
+            "landing_evidence_written",
             "board_exported",
         }:
             lines.append(
@@ -500,7 +523,10 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
 def _latest_json_artifact(store: AriadneStore, artifacts: list, artifact_type: ArtifactType) -> dict | None:
     for artifact in reversed(artifacts):
         if artifact.artifact_type is artifact_type:
-            return json.loads(Path(artifact.path).read_text(encoding="utf-8"))
+            try:
+                return json.loads(Path(artifact.path).read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
     return None
 
 

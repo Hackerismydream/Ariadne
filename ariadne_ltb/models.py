@@ -162,6 +162,7 @@ class ArtifactType(str, Enum):
     RUNTIME_CAPABILITY = "runtime_capability"
     PROJECT_RESOURCES = "project_resources"
     WORKTREE_ISOLATION = "worktree_isolation"
+    LANDING_EVIDENCE = "landing_evidence"
     PLANNER_ERROR = "planner_error"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
@@ -654,6 +655,46 @@ class Artifact(AriadneModel):
     summary: str
     created_at: str = Field(default_factory=utc_now)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LandingArtifactRef(AriadneModel):
+    kind: str
+    path: str
+    artifact_id: str | None = None
+    summary: str = ""
+
+
+class LandingTestResult(AriadneModel):
+    command: str
+    exit_code: int | None = None
+    status: str
+    output_artifact_path: str | None = None
+
+
+class LandingEvidence(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    ticket_title: str
+    ticket_status: TicketStatus
+    backend_name: str
+    planner_name: str
+    branch: str | None = None
+    worktree: str | None = None
+    target_repo_path: str | None = None
+    target_worktree_path: str | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    git_diff_summary: dict[str, Any] = Field(default_factory=dict)
+    test_results: list[LandingTestResult] = Field(default_factory=list)
+    review_verdict: ReviewVerdict | None = None
+    memory_path: str | None = None
+    board_path: str | None = None
+    next_tickets_path: str | None = None
+    gate_inputs: dict[str, Any] = Field(default_factory=dict)
+    linked_artifacts: list[LandingArtifactRef] = Field(default_factory=list)
+    partial: bool = False
+    missing_fields: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
 
 
 class ReviewReport(AriadneModel):

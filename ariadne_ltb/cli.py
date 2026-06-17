@@ -569,6 +569,8 @@ def ticket_run(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"landing evidence json: {result.landing_evidence_json_path}")
+    typer.echo(f"landing evidence md: {result.landing_evidence_md_path}")
     if result.worktree_path:
         typer.echo(f"worktree: {result.worktree_path}")
     typer.echo(f"board: {result.board_path}")
