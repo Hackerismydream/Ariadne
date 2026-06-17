@@ -445,6 +445,13 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     assert statuses["real_llm_agent_evidence"] == "action_required"
     assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
 
+    required = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "doctor", "product", "--require-acceptance-ready"],
+    )
+    assert required.exit_code == 2, required.output
+    assert "requirement failed: production acceptance is action_required, expected ready" in required.output
+
 
 def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
@@ -827,6 +834,20 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
     assert snapshot["production_acceptance_status"] == "ready"
     assert snapshot["run_gate_status"] == "action_required"
 
+    acceptance_required = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "doctor", "product", "--require-acceptance-ready"],
+    )
+    assert acceptance_required.exit_code == 0, acceptance_required.output
+    assert "Production acceptance: ready" in acceptance_required.output
+
+    gates_required = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "doctor", "product", "--require-run-gates-ready"],
+    )
+    assert gates_required.exit_code == 2, gates_required.output
+    assert "requirement failed: run gates are action_required, expected ready" in gates_required.output
+
 
 def test_gitignore_contains_v1_secret_patterns() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
@@ -836,5 +857,8 @@ def test_gitignore_contains_v1_secret_patterns() -> None:
 
 def test_verify_v1_script_exists_and_is_executable() -> None:
     script = ROOT / "scripts" / "verify_v1.sh"
+    text = script.read_text(encoding="utf-8")
     assert script.exists()
-    assert script.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash")
+    assert text.startswith("#!/usr/bin/env bash")
+    assert "doctor product --require-acceptance-ready" in text
+    assert "Deterministic regression loop only" in text

@@ -311,8 +311,13 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     return snapshot
 
 
-def product_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
-    snapshot = product_readiness_snapshot(store, repo_root)
+def product_readiness_lines(
+    store: AriadneStore,
+    repo_root: Path,
+    *,
+    snapshot: dict[str, Any] | None = None,
+) -> list[str]:
+    snapshot = snapshot or product_readiness_snapshot(store, repo_root)
     lines = [
         f"Product readiness: {snapshot['overall_status']}",
         f"Production acceptance: {snapshot['production_acceptance_status']}",

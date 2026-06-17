@@ -123,7 +123,8 @@ Generated outputs are under `.ariadne/`, including:
 Agent Teammate Mode adds a small local work-management layer:
 
 - `ari agent list` shows assignable local Agent profiles.
-- `ari ticket assign <ticket> --to fake-codex` creates a queued assignment.
+- `ari ticket assign <ticket> --to codex --agent-runtime llm --backlog-planner llm`
+  creates a queued production assignment for the Codex teammate.
 - `ari daemon run-once` claims one assignment and runs it through
   `TicketRunOrchestrator`.
 - `ari ticket comments <ticket>` shows human comments, agent progress, blocker,
@@ -140,6 +141,10 @@ ari daemon start --interval 2 --max-iterations 3
 
 It is not a system service, and it does not introduce auth, networking,
 PostgreSQL, or WebSockets.
+
+For deterministic regression tests or offline local development, use
+`ari ticket assign <ticket> --to fake-codex`. That path is intentionally not
+the production acceptance path.
 
 ## Demo
 

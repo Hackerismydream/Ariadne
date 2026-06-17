@@ -1706,16 +1706,42 @@ def doctor_product(
         bool,
         typer.Option("--json", help="Print the machine-readable product readiness snapshot."),
     ] = False,
+    require_acceptance_ready: Annotated[
+        bool,
+        typer.Option(
+            "--require-acceptance-ready",
+            help="Exit non-zero unless real production acceptance evidence is ready.",
+        ),
+    ] = False,
+    require_run_gates_ready: Annotated[
+        bool,
+        typer.Option(
+            "--require-run-gates-ready",
+            help="Exit non-zero unless current external execution/write gates are set.",
+        ),
+    ] = False,
 ) -> None:
     """Report production product-path readiness without performing external writes."""
     from ariadne_ltb.doctor import product_readiness_lines, product_readiness_snapshot
 
     store = AriadneStore(state.root)
+    snapshot = product_readiness_snapshot(store, state.root)
     if json_output:
-        typer.echo(json.dumps(product_readiness_snapshot(store, state.root), indent=2, sort_keys=True))
-        return
-    for line in product_readiness_lines(store, state.root):
-        typer.echo(line)
+        typer.echo(json.dumps(snapshot, indent=2, sort_keys=True))
+    else:
+        for line in product_readiness_lines(store, state.root, snapshot=snapshot):
+            typer.echo(line)
+    failed_requirements: list[str] = []
+    if require_acceptance_ready and snapshot["production_acceptance_status"] != "ready":
+        failed_requirements.append(
+            f"production acceptance is {snapshot['production_acceptance_status']}, expected ready"
+        )
+    if require_run_gates_ready and snapshot["run_gate_status"] != "ready":
+        failed_requirements.append(f"run gates are {snapshot['run_gate_status']}, expected ready")
+    if failed_requirements:
+        for requirement in failed_requirements:
+            typer.echo(f"requirement failed: {requirement}", err=True)
+        raise typer.Exit(2)
 
 
 @inbox_app.command("refresh")

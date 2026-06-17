@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pytest
-ruff check .
+python3.11 -m pytest
+python3.11 -m ruff check .
 python3.11 -m ariadne_ltb.cli demo full
 python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
 python3.11 -m ariadne_ltb.cli ticket list
 python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
+
+# Deterministic regression loop only. Product acceptance is enforced below by
+# doctor product --require-acceptance-ready using real integration evidence.
 python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
 python3.11 -m ariadne_ltb.cli daemon run-once
 python3.11 -m ariadne_ltb.cli ticket comments ARI-003
@@ -18,7 +21,7 @@ python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
 python3.11 -m ariadne_ltb.cli export board
 python3.11 -m ariadne_ltb.cli backend doctor
 python3.11 -m ariadne_ltb.cli doctor integrations
-python3.11 -m ariadne_ltb.cli doctor product
+python3.11 -m ariadne_ltb.cli doctor product --require-acceptance-ready
 python3.11 -m ariadne_ltb.cli doctor secrets
 python3.11 -m ariadne_ltb.cli doctor store
 python3.11 -m ariadne_ltb.cli doctor v1

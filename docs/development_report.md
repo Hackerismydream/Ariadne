@@ -4511,3 +4511,63 @@ Result:
 - The web workbench can now start from one ticket and show the same production
   evidence chain as the CLI: real LLM agent output, Feishu write evidence,
   backend execution evidence, GitHub evidence, and release packet status.
+
+## 2026-06-18 04:29 CST Production Acceptance Gate Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Problem found during product-path audit:
+
+- `doctor product` already separated production acceptance from current run
+  gates, but it only reported statuses.
+- `scripts/verify_v1.sh` still executed `fake-codex` as part of the release
+  verification flow without an explicit production-acceptance assertion.
+- Operator-facing release/demo docs still presented `fake-codex` as the normal
+  release path, which conflicted with the production-first roadmap.
+
+Implemented:
+
+- Added `ari doctor product --require-acceptance-ready`.
+  - The command exits non-zero unless real production acceptance evidence is
+    `ready`.
+  - It does not require current run gates to be open; external execution and
+    Feishu writes remain default-off until explicitly confirmed.
+- Added `ari doctor product --require-run-gates-ready` for cases where an
+  operator intentionally wants to assert that execution/write gates are set for
+  a live run.
+- Updated `scripts/verify_v1.sh`:
+  - uses `python3.11 -m pytest`;
+  - uses `python3.11 -m ruff check .`;
+  - labels `fake-codex` as a deterministic regression loop only;
+  - enforces `doctor product --require-acceptance-ready`.
+- Updated `README.md`, `docs/ops/V1_RELEASE_CHECKLIST.md`, and
+  `docs/ops/HUMAN_DEMO_SCRIPT.md` so production flow points to real Codex,
+  DeepSeek LLM agents, Feishu, GitHub, board, and release evidence. The
+  `fake-codex` flow is now explicitly documented as deterministic fallback.
+- Added deterministic tests for the new product doctor requirements and release
+  script guard.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py tests/test_v1_docs.py -q`:
+  passed, `14 passed`.
+- `python3.11 -m ruff check ariadne_ltb/cli.py ariadne_ltb/doctor.py tests/test_v1_doctor_release.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli doctor product --require-acceptance-ready`:
+  passed on the current local store, with production acceptance `ready` and run
+  gates `action_required`.
+- `python3.11 -m pytest`: passed, `228 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env`
+  secret was reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed with
+  `doctor product --require-acceptance-ready`; the run generated release
+  evidence packet `release_evidence_caa850075e2a`.
+
+Result:
+
+- The release verification path can no longer pass solely because the
+  deterministic fake backend works. It now requires previously captured real
+  production evidence for LLM agents, Codex, Claude Code, Feishu, and GitHub.
