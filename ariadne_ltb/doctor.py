@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from ariadne_ltb.runtime import collect_runtime_capabilities
+from ariadne_ltb.secret_safety import secret_status_lines as secret_scan_status_lines
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -17,8 +18,10 @@ SECRET_ENV_VARS = [
 ]
 
 
-def secret_status_lines() -> list[str]:
-    return [f"{name}: {'set' if os.environ.get(name) else 'unset'}" for name in SECRET_ENV_VARS]
+def secret_status_lines(root: Path | str = ".") -> list[str]:
+    lines = [f"{name}: {'set' if os.environ.get(name) else 'unset'}" for name in SECRET_ENV_VARS]
+    lines.extend(secret_scan_status_lines(root))
+    return lines
 
 
 def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
@@ -44,4 +47,5 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
         f"journal exists: {'ok' if store.journal_path.exists() else 'missing'}",
         f"board: {'ok' if board_ok else 'missing'}",
         f"safety gates: {'ok' if safety_ok else 'missing'}",
+        *secret_scan_status_lines(repo_root),
     ]

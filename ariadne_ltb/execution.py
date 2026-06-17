@@ -12,6 +12,7 @@ from typing import Protocol
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
 from ariadne_ltb.models import ExecutionContext, ExecutionResult, FailureReason, stable_id, utc_now
 from ariadne_ltb.permissions import validate_changed_files, validate_execution_context_permissions
+from ariadne_ltb.secret_safety import validate_secret_safety
 
 
 class ExecutionBackend(Protocol):
@@ -79,7 +80,14 @@ def _permission_block(
 ) -> ExecutionResult | None:
     validation = validate_execution_context_permissions(context)
     if validation.valid:
-        return None
+        secret_validation = validate_secret_safety(
+            context.target_repo_path,
+            command=context.command,
+            allowed_paths=context.allowed_paths,
+        )
+        if secret_validation.valid:
+            return None
+        validation = secret_validation
     return _blocked_result(
         context,
         backend_name,

@@ -1233,3 +1233,70 @@ Known limitations:
 - The guard prevents source/skill text from being treated as higher-priority
   instructions in Ariadne handoff and review artifacts; it is not a provider
   model jailbreak detector.
+
+## Core Batch 6: Secret and Sensitive File Safety Doctor
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch completes `ARI-MUL-37 / LOC-42` by adding local secret-safety checks
+for doctor commands, backend execution preflight, and board visibility.
+
+Implemented files:
+
+- `ariadne_ltb/secret_safety.py`
+- `ariadne_ltb/execution.py`
+- `ariadne_ltb/doctor.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_secret_safety.py`
+- `tests/test_backend_smoke_cli.py`
+- `tests/test_v1_doctor_release.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added deterministic scanning for sensitive filenames, sensitive directories,
+  private key markers, and common token/key assignment patterns.
+- Scan results report paths, line numbers, and `[REDACTED]`, never secret
+  values.
+- `ari doctor secrets` now reports environment set/unset state plus local secret
+  scan status.
+- `ari backend doctor` reports secret scan status without printing values.
+- `ari doctor v1` includes secret scan status in the readiness output.
+- Board system summary shows `Secret safety` and `Secret findings`.
+- Backend execution preflight blocks commands that reference sensitive paths,
+  allowed paths that include sensitive paths, or target repositories containing
+  detected sensitive material.
+- Tests construct fake tokens at runtime so no token-like literals remain in the
+  repository.
+
+Safety boundaries:
+
+- This is a local deterministic scanner, not a full secret-detection service.
+- `.git`, `.ariadne`, virtualenvs, `node_modules`, and cache directories are
+  skipped to avoid scanning generated local state.
+- Block messages cite paths only and redact values.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_secret_safety.py
+  tests/test_v1_doctor_release.py tests/test_backend_smoke_cli.py
+  tests/test_true_mvp_product_loop.py -q`: passed, 31 tests.
+- Targeted `ruff check`: passed.
+- Repository secret scan: ok, 0 findings.
+- `python3.11 -m pytest`: passed, 114 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed and reported
+  `secret scan: ok` with 0 findings.
+- `python3.11 -m ariadne_ltb.cli doctor secrets`: passed and reported
+  `secret scan: ok` with 0 findings.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Pattern matching is intentionally conservative and may miss uncommon secret
+  formats.
+- The scanner is designed for local preflight and review evidence; it is not a
+  replacement for dedicated repository secret scanning in CI.

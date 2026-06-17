@@ -9,6 +9,7 @@ from pathlib import Path
 from ariadne_ltb.local_safety import list_locks
 from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus, WorkerHeartbeat
 from ariadne_ltb.runtime import collect_runtime_capabilities
+from ariadne_ltb.secret_safety import scan_for_secrets
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -68,6 +69,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     heartbeats = store.list_worker_heartbeats()
     capabilities = store.load_runtime_capabilities() or collect_runtime_capabilities()
     backlog_updates = store.list_backlog_updates()
+    secret_scan = scan_for_secrets(store.root)
     executed = [ticket for ticket in tickets if ticket.metadata.get("execution_result_id")]
     next_ticket_paths = [
         ticket.metadata.get("next_tickets_path")
@@ -82,6 +84,8 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         f"- Open assignments: `{len(open_assignments)}`",
         f"- Runtime events: `{len(events)}`",
         f"- Executed tickets: `{len(executed)}`",
+        f"- Secret safety: `{'ok' if secret_scan.ok else 'blocked'}`",
+        f"- Secret findings: `{len(secret_scan.findings)}`",
         "",
         "## Agent Queue",
         "",

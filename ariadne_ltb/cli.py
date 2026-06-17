@@ -282,6 +282,10 @@ def backend_doctor() -> None:
         "DEEPSEEK_API_KEY",
     ]:
         typer.echo(f"{variable}: {'set' if os.environ.get(variable) else 'unset'}")
+    from ariadne_ltb.secret_safety import secret_status_lines
+
+    for line in secret_status_lines(state.root):
+        typer.echo(line)
 
 
 @backend_app.command("smoke-test")
@@ -771,7 +775,7 @@ def doctor_secrets() -> None:
     """Report secret-related environment variables without printing values."""
     from ariadne_ltb.doctor import secret_status_lines
 
-    for line in secret_status_lines():
+    for line in secret_status_lines(state.root):
         typer.echo(line)
 
 

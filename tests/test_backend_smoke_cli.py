@@ -26,6 +26,7 @@ def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Pat
     assert "ARIADNE_ENABLE_EXTERNAL_EXECUTION: unset" in result.output
     assert "ARIADNE_CODEX_COMMAND_TEMPLATE: set" in result.output
     assert "DEEPSEEK_API_KEY: set" in result.output
+    assert "secret scan:" in result.output
     assert "do-not-print" not in result.output
 
 

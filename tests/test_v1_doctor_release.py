@@ -22,6 +22,7 @@ def test_doctor_secrets_does_not_print_secret_values(monkeypatch, tmp_path: Path
     assert result.exit_code == 0, result.output
     assert "DEEPSEEK_API_KEY: set" in result.output
     assert "FEISHU_APP_SECRET: set" in result.output
+    assert "secret scan:" in result.output
     assert "do-not-leak" not in result.output
 
 
@@ -41,6 +42,7 @@ def test_doctor_v1_reports_local_readiness(tmp_path: Path) -> None:
     assert "source fixtures: ok" in result.output
     assert "board: ok" in result.output
     assert "safety gates: ok" in result.output
+    assert "secret scan:" in result.output
 
 
 def test_gitignore_contains_v1_secret_patterns() -> None:
