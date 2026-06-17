@@ -384,6 +384,75 @@ def test_github_status_reads_issue_pr_checks_and_records_evidence(
     assert persisted["evidence"]["checks"][0]["bucket"] == "pending"
 
 
+def test_github_status_treats_no_checks_as_success(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _seed_ticket(tmp_path)
+    CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "github",
+            "link",
+            "ARI-003",
+            "--repo",
+            "owner/repo",
+            "--issue",
+            "7",
+            "--pr",
+            "11",
+            "--branch",
+            "codex/phase-4",
+        ],
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", lambda command: "/usr/local/bin/gh")
+
+    def fake_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        text = " ".join(command)
+        if command[:3] == ["git", "config", "--get"]:
+            return CompletedProcess(command, 0, stdout="https://github.com/owner/repo.git\n", stderr="")
+        if command[:2] == ["git", "rev-parse"]:
+            return CompletedProcess(command, 0, stdout="abc123def456\n", stderr="")
+        if "issue view 7" in text:
+            return CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps({"number": 7, "title": "Issue", "state": "OPEN", "url": "https://github.com/owner/repo/issues/7"}),
+                stderr="",
+            )
+        if "pr view 11" in text:
+            return CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps(
+                    {
+                        "number": 11,
+                        "title": "PR",
+                        "state": "OPEN",
+                        "url": "https://github.com/owner/repo/pull/11",
+                        "headRefName": "codex/phase-4",
+                        "headRefOid": "abc123def456",
+                    }
+                ),
+                stderr="",
+            )
+        if "pr checks 11" in text:
+            return CompletedProcess(command, 1, stdout="", stderr="no checks reported on the branch\n")
+        return CompletedProcess(command, 1, stdout="", stderr=f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "github", "status", "ARI-003"])
+
+    assert result.exit_code == 0, result.output
+    persisted = _latest_result(tmp_path)
+    assert persisted["ok"] is True
+    assert persisted["evidence"]["checks"] == []
+    assert persisted["evidence"]["checks_status"] == "no_checks_reported"
+
+
 def test_github_sync_uses_gh_records_remote_evidence_and_redacts_token(
     tmp_path: Path,
     monkeypatch,

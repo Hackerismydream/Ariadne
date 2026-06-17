@@ -2922,29 +2922,43 @@ Implemented:
   through `gh issue view`, `gh pr view`, and `gh pr checks`.
 - `gh pr checks` exit code `8` is treated as a successful status capture with
   pending checks, not as a failed integration.
+- `gh pr checks` output containing `no checks reported` is treated as a
+  successful status capture with an empty check list, not as a failed
+  integration.
 - Added deterministic tests for missing confirmation, successful PR creation,
-  secret redaction, and status capture.
+  secret redaction, status capture, pending checks, and no-checks branches.
 
 Verification so far:
 
-- `python3.11 -m pytest tests/test_github_integration.py`: passed, `10 passed`.
+- `python3.11 -m pytest tests/test_github_integration.py`: passed, `11 passed`.
 - `python3.11 -m ruff check ariadne_ltb/github_integration.py
   ariadne_ltb/cli.py tests/test_github_integration.py`: passed.
 - `python3.11 -m ruff check .`: passed.
-- `python3.11 -m pytest`: passed, `201 passed`.
+- `python3.11 -m pytest`: passed, `202 passed`.
 - `python3.11 -m ariadne_ltb.cli demo full`: passed.
 - `python3.11 -m ariadne_ltb.cli export board`: passed.
 - `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
   reported as a redacted blocked secret finding.
 - `scripts/verify_v1.sh`: passed; final release evidence packet
-  `release_evidence_824c4715493b` reports store invariants ok, active workdirs
+  `release_evidence_0c426f1aa231` reports store invariants ok, active workdirs
   `0`, dirty workdirs `0`.
 - `npm run sync:data`: passed and generated a frontend snapshot with `8`
-  tickets, `5` runtimes, and `16` inbox items.
+  tickets, `5` runtimes, and `18` inbox items.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 
 Real integration status:
 
-- Real PR creation will be attempted after this implementation is committed and
-  pushed, so the PR head includes the current slice.
+- `python3.11 -m ariadne_ltb.cli github link ARI-003 --repo
+  Hackerismydream/Ariadne --issue 8 --branch
+  codex/ariadne-production-frontend-integration`: passed locally.
+- `python3.11 -m ariadne_ltb.cli github create-pr ARI-003 --repo
+  Hackerismydream/Ariadne --base main --head
+  codex/ariadne-production-frontend-integration --confirm-write`: passed and
+  created PR #9 at `https://github.com/Hackerismydream/Ariadne/pull/9`.
+- First real `github status` read exposed a product bug: `gh pr checks` returns
+  non-zero when there are no checks reported on the branch.
+- After the no-checks fix, `python3.11 -m ariadne_ltb.cli github status
+  ARI-003`: passed and recorded issue #8, PR #9, branch
+  `codex/ariadne-production-frontend-integration`, and an empty check list as
+  valid status evidence.

@@ -401,8 +401,11 @@ def github_status_for_ticket(
             commands,
         )
         checks_payload = check_payload
-        if check_result.returncode not in (0, 8):
+        no_checks_reported = _is_no_checks_reported(check_result)
+        if check_result.returncode not in (0, 8) and not no_checks_reported:
             return _failed_result(result_id, ticket, "status", repo, issue, pr, branch, commands, check_result, store.root)
+    else:
+        no_checks_reported = False
 
     return GitHubIntegrationResult(
         id=result_id,
@@ -421,7 +424,12 @@ def github_status_for_ticket(
         remote_url=_git_output(["git", "config", "--get", "remote.origin.url"], store.root),
         command_summaries=commands,
         stderr=_redact_text(check_result.stderr) if check_result else "",
-        evidence={"issue": issue_payload, "pr": pr_payload, "checks": checks_payload},
+        evidence={
+            "issue": issue_payload,
+            "pr": pr_payload,
+            "checks": checks_payload,
+            "checks_status": "no_checks_reported" if no_checks_reported else "captured",
+        },
     )
 
 
@@ -749,6 +757,10 @@ def _classify_failure(stdout: str, stderr: str) -> FailureReason:
     if any(marker in text for marker in ["rate limit", "quota", "too many requests"]):
         return FailureReason.QUOTA_EXCEEDED
     return FailureReason.AGENT_ERROR
+
+
+def _is_no_checks_reported(process: subprocess.CompletedProcess[str]) -> bool:
+    return "no checks reported" in f"{process.stdout}\n{process.stderr}".lower()
 
 
 def _run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
