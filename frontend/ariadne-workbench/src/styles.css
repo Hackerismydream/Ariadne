@@ -993,6 +993,7 @@ button {
 }
 
 .github-panel .link-row,
+.smoke-panel .link-row,
 .check-summary,
 .github-history {
   display: flex;
@@ -1002,6 +1003,7 @@ button {
 }
 
 .github-panel a,
+.smoke-panel code,
 .check-summary span,
 .github-history span {
   border: 1px solid var(--border);
@@ -1010,6 +1012,16 @@ button {
   color: var(--muted-foreground);
   font-size: 12px;
   text-decoration: none;
+}
+
+.smoke-panel .link-row code {
+  border-radius: 6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.smoke-files {
+  margin-top: 10px;
 }
 
 .commit-sha {
@@ -1222,6 +1234,29 @@ button {
   border-radius: 8px;
   padding: 10px 12px;
   background: var(--card);
+}
+
+.smoke-summary {
+  margin-top: 16px;
+}
+
+.smoke-row {
+  display: grid;
+  grid-template-columns: 110px 86px 92px 78px 82px 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+  font-size: 12px;
+}
+
+.smoke-row:first-of-type {
+  border-top: 0;
+}
+
+.smoke-row code {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
 }
 
 .runtime-capability span,

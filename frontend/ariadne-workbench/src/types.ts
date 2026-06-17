@@ -23,7 +23,35 @@ export type AriadneTicket = {
   memoryPath?: string;
   nextTicketsPath?: string;
   github?: GitHubTicketEvidence;
+  backendSmoke?: BackendSmokeEvidence;
   acceptance: string[];
+};
+
+export type BackendSmokeEvidence = {
+  id: string;
+  backendName: string;
+  ticketId: string;
+  ticketKey: string;
+  assignmentId: string;
+  assignmentStatus: string;
+  succeeded: boolean;
+  blocked: boolean;
+  blocker?: string | null;
+  executionResultId?: string | null;
+  exitCode?: number | null;
+  changedFiles: string[];
+  testExitCode?: number | null;
+  reviewVerdict?: string | null;
+  handoffFile?: string | null;
+  boardPath?: string | null;
+  memoryPath?: string | null;
+  feishuPlanPath?: string | null;
+  nextTicketsPath?: string | null;
+  agentRuntime: string;
+  backlogPlannerName: string;
+  externalExecutionEnabled: boolean;
+  confirmExecution: boolean;
+  createdAt: string;
 };
 
 export type GitHubTicketEvidence = {
@@ -191,6 +219,7 @@ export type WorkbenchData = {
   agents: AgentRole[];
   runtimes: RuntimeInfo[];
   projectResources?: ProjectResource[];
+  backendSmokeEvidence?: BackendSmokeEvidence[];
   skills: SkillInfo[];
   inbox: InboxItem[];
 };

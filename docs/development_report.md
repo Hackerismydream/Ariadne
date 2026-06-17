@@ -4186,3 +4186,59 @@ Fresh real smoke evidence:
     `backend_smoke`.
   - Claude temp root: `real_claude_execution_evidence: ready`, source
     `backend_smoke`.
+
+## 2026-06-18 10:42 CST Workbench Backend Smoke Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Branch integration decision:
+
+- The separate `codex/ariadne-workbench-frontend-lane` branch was re-checked.
+  It is based on an older core baseline; merging it directly would delete or
+  overwrite current runtime, evidence, doctor, and roadmap work.
+- Instead of merging the stale branch, this slice ports the useful frontend
+  direction into the production integration branch by consuming the stable
+  backend smoke evidence data contract.
+
+Implemented:
+
+- `frontend/ariadne-workbench/scripts/sync-local-data.mjs` now reads
+  `.ariadne/evidence/backend_smoke/<backend>/*.json`.
+- Workbench data now includes `backendSmokeEvidence` and each ticket can expose
+  its latest `backendSmoke` record.
+- The runtime page now shows a `Backend smoke evidence` table for recent Codex
+  and Claude Code smoke runs.
+- The issue inspector now includes a `Backend smoke` panel with assignment,
+  execution id, exit code, test exit code, review verdict, changed files,
+  handoff path, and board path.
+- Backend smoke success records are also surfaced into the inbox integration
+  stream.
+
+Verification:
+
+- Copied the latest ignored real Codex and Claude smoke evidence artifacts into
+  the local ignored `.ariadne/evidence/backend_smoke/` directory for frontend
+  sync verification.
+- `npm --prefix frontend/ariadne-workbench run sync:data`: passed and synced
+  `2` backend smoke evidence records.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- Browser QA through local Vite (`http://127.0.0.1:4178/`) confirmed the runtime
+  page renders `Backend smoke evidence` with both `codex` and `claude-code`
+  passed rows.
+- Full `python3.11 -m pytest`: passed, `226 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_9fadcda12b24` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.
+
+Known UI limitation:
+
+- The issue board currently has no direct ticket-key search. Clicking text that
+  contains `ARI-003` can select a related follow-up ticket such as `ARI-009`.
+  The ticket inspector can display backend smoke evidence when the executed
+  ticket is selected, but a future slice should add explicit ticket search or a
+  stable detail route.

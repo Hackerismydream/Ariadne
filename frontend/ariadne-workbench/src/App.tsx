@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadWorkbenchData, workbenchData } from "./data";
-import type { AriadneTicket, RuntimeInfo, TicketStatus, TimelineEvent, WorkbenchData } from "./types";
+import type { AriadneTicket, BackendSmokeEvidence, RuntimeInfo, TicketStatus, TimelineEvent, WorkbenchData } from "./types";
 
 type PageKey = "goal" | "knowledge" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
 
@@ -622,6 +622,7 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
         ]}
       />
       <GitHubEvidencePanel ticket={ticket} />
+      <BackendSmokePanel smoke={ticket.backendSmoke} />
       <section className="panel nested">
         <h3>Run progress timeline</h3>
         <Timeline items={ticket.progress} />
@@ -637,6 +638,42 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
         </div>
       </section>
     </aside>
+  );
+}
+
+function BackendSmokePanel({ smoke }: { smoke?: BackendSmokeEvidence }) {
+  if (!smoke) {
+    return (
+      <section className="panel nested">
+        <h3>Backend smoke</h3>
+        <p className="muted">No backend smoke evidence recorded.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="panel nested smoke-panel">
+      <h3>Backend smoke</h3>
+      <PropertyGrid
+        rows={[
+          ["Backend", smoke.backendName],
+          ["Succeeded", smoke.succeeded ? "yes" : "no"],
+          ["Assignment", smoke.assignmentStatus],
+          ["Execution", smoke.executionResultId ?? "missing"],
+          ["Exit", String(smoke.exitCode ?? "missing")],
+          ["Tests", String(smoke.testExitCode ?? "missing")],
+          ["Review", smoke.reviewVerdict ?? "missing"],
+          ["Agent runtime", smoke.agentRuntime],
+        ]}
+      />
+      <div className="file-list smoke-files">
+        {smoke.changedFiles.map((file) => <code key={file}>{file}</code>)}
+      </div>
+      <div className="link-row">
+        {smoke.handoffFile ? <code>{smoke.handoffFile}</code> : null}
+        {smoke.boardPath ? <code>{smoke.boardPath}</code> : null}
+      </div>
+      {smoke.blocker ? <p className="muted">{smoke.blocker}</p> : null}
+    </section>
   );
 }
 
@@ -796,6 +833,7 @@ function RuntimesPage({
               ))}
             </section>
           ) : null}
+          <BackendSmokeSummary items={data.backendSmokeEvidence ?? []} />
         </section>
       </div>
     </section>
@@ -829,6 +867,28 @@ function RuntimeCapability({ runtime }: { runtime: RuntimeInfo }) {
         <span>Checked</span>
         <strong>{runtime.checkedAt ?? "fixture"}</strong>
       </div>
+    </section>
+  );
+}
+
+function BackendSmokeSummary({ items }: { items: BackendSmokeEvidence[] }) {
+  const latest = [...items].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-6).reverse();
+  return (
+    <section className="panel resource-panel smoke-summary">
+      <h3>Backend smoke evidence</h3>
+      {latest.length ? latest.map((item) => (
+        <div className="smoke-row" key={item.id}>
+          <strong>{item.backendName}</strong>
+          <span className={`state ${item.succeeded ? "online" : "offline"}`}>
+            {item.succeeded ? "passed" : item.blocked ? "blocked" : "failed"}
+          </span>
+          <span>{item.ticketKey}</span>
+          <span>exit {String(item.exitCode ?? "missing")}</span>
+          <span>tests {String(item.testExitCode ?? "missing")}</span>
+          <span>{item.reviewVerdict ?? "no review"}</span>
+          <code>{item.id}</code>
+        </div>
+      )) : <p className="muted">No backend smoke evidence synced yet.</p>}
     </section>
   );
 }

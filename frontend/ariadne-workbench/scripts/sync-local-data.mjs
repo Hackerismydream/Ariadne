@@ -168,6 +168,43 @@ function githubEvidenceForTicket(ticket, githubResults) {
   };
 }
 
+function backendSmokeFromStore(item) {
+  return {
+    id: item.id,
+    backendName: item.backend_name,
+    ticketId: item.ticket_id,
+    ticketKey: item.ticket_key,
+    assignmentId: item.assignment_id,
+    assignmentStatus: item.assignment_status,
+    succeeded: Boolean(item.succeeded),
+    blocked: Boolean(item.blocked),
+    blocker: item.blocker,
+    executionResultId: item.execution_result_id,
+    exitCode: item.exit_code,
+    changedFiles: item.changed_files ?? [],
+    testExitCode: item.test_exit_code,
+    reviewVerdict: item.review_verdict,
+    handoffFile: item.handoff_file,
+    boardPath: item.board_path,
+    memoryPath: item.memory_path,
+    feishuPlanPath: item.feishu_plan_path,
+    nextTicketsPath: item.next_tickets_path,
+    agentRuntime: item.agent_runtime ?? "deterministic",
+    backlogPlannerName: item.backlog_planner_name ?? "deterministic",
+    externalExecutionEnabled: Boolean(item.external_execution_enabled),
+    confirmExecution: Boolean(item.confirm_execution),
+    createdAt: eventTime(item.created_at),
+  };
+}
+
+function backendSmokeForTicket(ticket, backendSmokeResults) {
+  return backendSmokeResults
+    .filter((item) => item.ticket_key === ticket.key || item.ticket_id === ticket.id)
+    .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+    .map(backendSmokeFromStore)
+    .at(-1);
+}
+
 function ticketProgress(ticket, comments, journalEvents) {
   const commentEvents = comments
     .filter((comment) => comment.ticket_id === ticket.id || comment.ticket_key === ticket.key)
@@ -197,6 +234,7 @@ function ticketFromStore(ticket, context) {
   const nextTicketsPath = context.nextTicketsPath[ticket.id];
   const memoryPath = context.memoryPaths[ticket.id];
   const github = githubEvidenceForTicket(ticket, context.githubResults);
+  const backendSmoke = backendSmokeForTicket(ticket, context.backendSmokeResults);
   return {
     id: ticket.id,
     key: ticket.key,
@@ -213,6 +251,7 @@ function ticketFromStore(ticket, context) {
     memoryPath,
     nextTicketsPath,
     github,
+    backendSmoke,
     acceptance: buildPacket.acceptance_criteria ?? [],
   };
 }
@@ -301,6 +340,7 @@ async function main() {
   const inboxPayload = await readJson(resolve(ariadneRoot, "inbox", "items.json"), { items: [] });
   const githubResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "github"));
   const feishuResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "feishu"));
+  const backendSmokeResults = await readNestedJsonFiles(resolve(ariadneRoot, "evidence", "backend_smoke"));
   const journalEvents = await readJsonl(resolve(ariadneRoot, "journal", "events.jsonl"));
   const comments = (await Promise.all(tickets.map((ticket) => readJsonl(resolve(ariadneRoot, "comments", `${ticket.id}.jsonl`))))).flat();
 
@@ -338,6 +378,7 @@ async function main() {
 
   const context = {
     buildPackets,
+    backendSmokeResults,
     changedFiles,
     comments,
     journalEvents,
@@ -347,7 +388,16 @@ async function main() {
     reviews,
   };
   const runtimes = (runtimeSnapshot.capabilities ?? releaseEvidence.runtime_capabilities ?? []).map(runtimeFromCapability);
+  const backendSmokeEvidence = backendSmokeResults.map(backendSmokeFromStore);
   const realIntegrationCards = [
+    ...backendSmokeEvidence.filter((item) => item.succeeded).map((item) => ({
+      id: `backend-smoke-${item.id}`,
+      title: `${item.backendName} smoke passed`,
+      body: `${item.ticketKey} · tests ${item.testExitCode ?? "missing"} · review ${item.reviewVerdict ?? "missing"}`,
+      time: item.createdAt,
+      kind: "memory",
+      ticketId: item.ticketId,
+    })),
     ...githubResults.filter((item) => item.ok).map((item) => ({
       id: `github-${item.id}`,
       title: `GitHub ${item.operation}`,
@@ -408,12 +458,13 @@ async function main() {
       lastPreviewAt: eventTime(releaseEvidence.generated_at),
     },
     agents: [
-      agentFromRuns("Ariadne Codex", "Codex", githubResults.length + feishuResults.length),
+      agentFromRuns("Ariadne Codex", "Codex", githubResults.length + feishuResults.length + backendSmokeEvidence.filter((item) => item.backendName === "codex").length),
       agentFromRuns("Ariadne Reviewer", "Codex", reviews.length),
       agentFromRuns("Ariadne Release Verifier", "fake-codex", releaseEvidence.execution_result_count ?? 0, "idle"),
     ],
     runtimes,
     projectResources: (projectResources.resources ?? []).map(resourceFromProjectResource),
+    backendSmokeEvidence,
     skills: [
       {
         name: "ariadne-local-workbench-data-sync",
