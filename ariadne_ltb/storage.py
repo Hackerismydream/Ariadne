@@ -32,6 +32,7 @@ from ariadne_ltb.models import (
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
+    ReleaseEvidencePacket,
     ReviewReport,
     RuntimeEvent,
     RunMessage,
@@ -83,6 +84,8 @@ class AriadneStore:
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
         self.inbox_dir = self.base / "inbox"
         self.inbox_items_path = self.inbox_dir / "items.json"
+        self.evidence_dir = self.base / "evidence"
+        self.release_evidence_packet_path = self.evidence_dir / "release_evidence_packet.json"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
         self.integrations_dir = self.base / "integrations"
@@ -121,6 +124,7 @@ class AriadneStore:
             self.worktree_records_dir,
             self.backlog_dir,
             self.inbox_dir,
+            self.evidence_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
             self.integrations_dir,
@@ -881,6 +885,16 @@ class AriadneStore:
 
     def load_worktree_isolation(self, ticket_key: str) -> WorktreeIsolation:
         return self._read_model(self.worktree_record_path(ticket_key), WorktreeIsolation)
+
+    def list_worktree_isolations(self) -> list[WorktreeIsolation]:
+        return [
+            self._read_model(path, WorktreeIsolation)
+            for path in sorted(self.worktree_records_dir.glob("*.json"))
+        ]
+
+    def save_release_evidence_packet(self, packet: ReleaseEvidencePacket) -> Path:
+        self._write_model(self.release_evidence_packet_path, packet)
+        return self.release_evidence_packet_path
 
 
 def _default_agent_profiles() -> list[AgentProfile]:

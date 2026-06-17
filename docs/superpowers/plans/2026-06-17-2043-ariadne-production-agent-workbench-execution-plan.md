@@ -357,6 +357,14 @@ ari workdir cleanup --confirm-cleanup
 Repeated verification must not pollute the main workspace with stale blocked
 assignments.
 
+- [x] Add `ReleaseEvidencePacket` and `.ariadne/evidence/release_evidence_packet.json`.
+- [x] Add `ari evidence packet`.
+- [x] Add `ari workdir list`.
+- [x] Add `ari workdir cleanup --confirm-cleanup`.
+- [x] Keep dirty generated workdirs unless `--force-dirty` is explicit.
+- [x] Add release evidence and workdir policy tests.
+- [x] Add workdir cleanup and evidence packet generation to `scripts/verify_v1.sh`.
+
 ## Phase 8: Product Dogfood
 
 Run real dogfood when credentials and logins are present:

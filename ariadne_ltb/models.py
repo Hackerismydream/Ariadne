@@ -878,6 +878,29 @@ class WorktreeIsolation(AriadneModel):
     owner_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkdirStatus(AriadneModel):
+    ticket_id: str
+    ticket_key: str
+    worktree_path: str
+    branch_name: str
+    base_repo_path: str
+    active: bool
+    exists: bool
+    dirty: bool
+    git_status: str = ""
+    record_path: str
+
+
+class WorkdirCleanupResult(AriadneModel):
+    ticket_key: str
+    worktree_path: str
+    removed: bool = False
+    skipped: bool = False
+    reason: str = ""
+    dirty: bool = False
+    record_path: str
+
+
 class RuntimeCapability(AriadneModel):
     backend_name: str
     command: str
@@ -1103,3 +1126,31 @@ class StoreInvariantReport(AriadneModel):
     checked_files: int
     issues: list[StoreInvariantIssue] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
+
+
+class ReleaseEvidencePacket(AriadneModel):
+    id: str
+    root_path: str
+    generated_at: str = Field(default_factory=utc_now)
+    git_head: str | None = None
+    git_branch: str | None = None
+    ticket_count: int = 0
+    assignment_count: int = 0
+    open_assignment_count: int = 0
+    execution_result_count: int = 0
+    review_report_count: int = 0
+    memory_record_count: int = 0
+    inbox_item_count: int = 0
+    workdir_count: int = 0
+    active_workdir_count: int = 0
+    dirty_workdir_count: int = 0
+    board_path: str | None = None
+    store_invariant_report_path: str | None = None
+    store_invariants_ok: bool = False
+    store_invariant_errors: int = 0
+    store_invariant_warnings: int = 0
+    secret_scan_ok: bool = False
+    secret_finding_count: int = 0
+    runtime_capabilities: list[RuntimeCapability] = Field(default_factory=list)
+    latest_review_verdicts: dict[str, str] = Field(default_factory=dict)
+    evidence_refs: dict[str, str] = Field(default_factory=dict)

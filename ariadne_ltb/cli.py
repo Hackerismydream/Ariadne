@@ -15,6 +15,7 @@ from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.backlog import supersede_ticket
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
+from ariadne_ltb.evidence import generate_release_evidence_packet
 from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.full_demo import (
@@ -56,6 +57,7 @@ from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 from ariadne_ltb.team import route_ticket_to_build_team
+from ariadne_ltb.workdir_policy import cleanup_workdirs, list_workdirs
 
 app = typer.Typer(help="Ariadne local deterministic Learning-to-Build workbench.")
 agent_app = typer.Typer(help="Agent teammate commands.")
@@ -76,6 +78,8 @@ board_app = typer.Typer(help="Local board commands.")
 doctor_app = typer.Typer(help="Release and safety doctors.")
 backlog_app = typer.Typer(help="Ticket backlog update commands.")
 inbox_app = typer.Typer(help="Local inbox for failures, blockers, and integration issues.")
+evidence_app = typer.Typer(help="Release evidence packet commands.")
+workdir_app = typer.Typer(help="Generated workdir and isolated worktree commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
@@ -94,6 +98,8 @@ app.add_typer(board_app, name="board")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(backlog_app, name="backlog")
 app.add_typer(inbox_app, name="inbox")
+app.add_typer(evidence_app, name="evidence")
+app.add_typer(workdir_app, name="workdir")
 
 
 class CliState:
@@ -1351,6 +1357,87 @@ def search_command(
         typer.echo(f"  source: {hit.source_ref}")
         typer.echo(f"  terms: {terms}")
         typer.echo(f"  snippet: {hit.snippet}")
+
+
+@evidence_app.command("packet")
+def evidence_packet(
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Generate a local release evidence packet from current Ariadne evidence."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    packet, path = generate_release_evidence_packet(AriadneStore(state.root))
+    if output == "json":
+        typer.echo(packet.model_dump_json(indent=2, exclude_none=False))
+        return
+    typer.echo(f"release evidence packet: {packet.id}")
+    typer.echo(f"path: {path}")
+    typer.echo(f"tickets: {packet.ticket_count}")
+    typer.echo(f"executions: {packet.execution_result_count}")
+    typer.echo(f"reviews: {packet.review_report_count}")
+    typer.echo(f"store invariants: {'ok' if packet.store_invariants_ok else 'blocked'}")
+    typer.echo(f"secret scan: {'ok' if packet.secret_scan_ok else 'blocked'}")
+    typer.echo(f"active workdirs: {packet.active_workdir_count}")
+    typer.echo(f"dirty workdirs: {packet.dirty_workdir_count}")
+
+
+@workdir_app.command("list")
+def workdir_list(
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """List Ariadne-managed isolated workdirs under .ariadne/worktrees."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    items = list_workdirs(AriadneStore(state.root))
+    if output == "json":
+        typer.echo(json.dumps([item.model_dump(mode="json") for item in items], indent=2))
+        return
+    if not items:
+        typer.echo("No Ariadne workdirs.")
+        return
+    for item in items:
+        typer.echo(
+            f"{item.ticket_key}\tactive={str(item.active).lower()}\t"
+            f"exists={str(item.exists).lower()}\tdirty={str(item.dirty).lower()}\t"
+            f"{item.worktree_path}"
+        )
+
+
+@workdir_app.command("cleanup")
+def workdir_cleanup(
+    confirm_cleanup: Annotated[
+        bool,
+        typer.Option("--confirm-cleanup", help="Allow removal of Ariadne-managed generated workdirs."),
+    ] = False,
+    force_dirty: Annotated[
+        bool,
+        typer.Option("--force-dirty", help="Also remove dirty generated workdirs under .ariadne/worktrees."),
+    ] = False,
+    ticket_key: Annotated[str | None, typer.Option("--ticket", help="Limit cleanup to one ticket key.")] = None,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Clean up Ariadne-managed generated workdirs."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    try:
+        results = cleanup_workdirs(
+            AriadneStore(state.root),
+            confirm_cleanup=confirm_cleanup,
+            force_dirty=force_dirty,
+            ticket_key=ticket_key,
+        )
+    except PermissionError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
+    if output == "json":
+        typer.echo(json.dumps([item.model_dump(mode="json") for item in results], indent=2))
+        return
+    if not results:
+        typer.echo("No matching Ariadne workdirs.")
+        return
+    for item in results:
+        status = "removed" if item.removed else "skipped" if item.skipped else "recorded"
+        typer.echo(f"{item.ticket_key}\t{status}\tdirty={str(item.dirty).lower()}\t{item.reason}")
 
 
 @memory_app.command("export")

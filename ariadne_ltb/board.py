@@ -81,6 +81,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     inbox_items = store.list_inbox_items()
     secret_scan = scan_for_secrets(store.root)
     store_invariants = load_latest_store_invariant_report(store)
+    evidence_packet_exists = store.release_evidence_packet_path.exists()
     executed = [ticket for ticket in tickets if ticket.metadata.get("execution_result_id")]
     next_ticket_paths = [
         ticket.metadata.get("next_tickets_path")
@@ -101,6 +102,8 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         f"- Store invariants: `{_store_invariant_status(store_invariants)}`",
         f"- Store invariant errors: `{store_invariants.error_count if store_invariants else 'not_run'}`",
         f"- Store invariant warnings: `{store_invariants.warning_count if store_invariants else 'not_run'}`",
+        f"- Release evidence packet: `{'present' if evidence_packet_exists else 'missing'}`",
+        f"- Release evidence path: `{store.release_evidence_packet_path}`",
         "",
         "## Agent Queue",
         "",

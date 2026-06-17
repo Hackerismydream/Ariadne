@@ -407,6 +407,30 @@ Search indexes tickets, comments, artifacts, reviews, execution results,
 memory records, inbox items, Feishu results, and GitHub results. It is local
 only and does not require network access or credentials.
 
+## Release Evidence And Workdirs
+
+Generate a local release evidence packet from the current Ariadne store:
+
+```bash
+ari evidence packet
+ari evidence packet --output json
+```
+
+The packet is written to `.ariadne/evidence/release_evidence_packet.json` and
+summarizes tickets, assignments, executions, reviews, memory, inbox items,
+runtime capabilities, store invariants, secret scan status, board path, and
+managed workdirs.
+
+List and clean Ariadne-generated isolated workdirs:
+
+```bash
+ari workdir list
+ari workdir cleanup --confirm-cleanup
+```
+
+Cleanup only targets workdirs under `.ariadne/worktrees`. Dirty generated
+workdirs are skipped unless `--force-dirty` is explicitly supplied.
+
 ## Safety
 
 - No auto-commit, auto-push, auto-merge, or PR creation from Ariadne runtime.

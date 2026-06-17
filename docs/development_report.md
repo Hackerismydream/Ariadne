@@ -2680,3 +2680,70 @@ Known limitations:
   against a production corpus of real agent runs.
 - Next-ticket suggestions are review-local hints; full ticket generation still
   happens through the existing next-ticket/backlog path.
+
+## 2026-06-17 Store Workdir Release Evidence Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Added `ReleaseEvidencePacket` to summarize current release evidence from the
+  local Ariadne store.
+- Added `.ariadne/evidence/release_evidence_packet.json` persistence through
+  `AriadneStore`.
+- Added `ariadne_ltb/evidence.py` and `ari evidence packet`.
+- Added `WorkdirStatus`, `WorkdirCleanupResult`, `ariadne_ltb/workdir_policy.py`,
+  `ari workdir list`, and `ari workdir cleanup --confirm-cleanup`.
+- Workdir cleanup only targets Ariadne-managed paths under `.ariadne/worktrees`.
+- Dirty generated workdirs are skipped unless `--force-dirty` is explicit.
+- Cleanup also deletes Ariadne-generated local branches such as
+  `ariadne/ari-003-ticket88`, preventing repeated verification from blocking on
+  stale branch names after the worktree directory is gone.
+- Updated `scripts/verify_v1.sh` to clean generated workdirs before and after
+  the daemon verification path, then generate a release evidence packet.
+- Added deterministic tests for release evidence packet generation, machine
+  readable CLI output, workdir listing, cleanup confirmation gating, and dirty
+  generated workdir force cleanup.
+- Updated README and the active production execution plan.
+
+Real integration smoke:
+
+- No new real external provider call was attempted in this slice.
+- Current dogfood evidence packet recorded local Codex and Claude CLI
+  availability, external execution gate disabled, DeepSeek key set, and local
+  `.env` redacted by secret scan.
+
+Safety boundaries:
+
+- `ari workdir cleanup` requires `--confirm-cleanup`.
+- Cleanup is scoped to `.ariadne/worktrees` and refuses paths outside the
+  Ariadne-managed workdir root.
+- Branch cleanup is limited to branch names starting with `ariadne/`.
+- Dirty workdirs are preserved by default; `--force-dirty` is explicit and used
+  by `scripts/verify_v1.sh` only for generated verification cleanup.
+- `ari evidence packet` is local-only and does not call external services.
+
+Verification so far:
+
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest tests/test_workdir_policy.py
+  tests/test_release_evidence.py tests/test_worktree_isolation.py
+  tests/test_store_doctor.py`: passed.
+- `python3.11 -m pytest`: 196 passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env`
+  finding was redacted.
+- `python3.11 -m ariadne_ltb.cli workdir list --output json`: passed.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json`: passed and
+  wrote `.ariadne/evidence/release_evidence_packet.json`.
+- `scripts/verify_v1.sh`: passed. The script removed stale generated workdirs
+  and deleted `ariadne/ari-003-ticket88`, then the daemon assignment completed
+  successfully and final cleanup removed the generated dirty workdir and branch.
+
+Known limitations:
+
+- Release evidence is a local JSON packet, not yet a signed or immutable release
+  attestation.
+- Workdir cleanup does not delete assignment history; it only removes generated
+  workdirs and marks worktree isolation records inactive.
