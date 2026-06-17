@@ -701,6 +701,12 @@ class AriadneStore:
     def load_review_report(self, review_report_id: str) -> ReviewReport:
         return self._read_model(self.reviews_dir / f"{review_report_id}.json", ReviewReport)
 
+    def list_review_reports(self) -> list[ReviewReport]:
+        return [
+            self._read_model(path, ReviewReport)
+            for path in sorted(self.reviews_dir.glob("*.json"))
+        ]
+
     def save_feishu_write_plan(self, write_plan: FeishuWritePlan) -> None:
         self._write_model(self.feishu_plans_dir / f"{write_plan.id}.json", write_plan)
 

@@ -98,7 +98,7 @@ storage, orchestrator, and safety behavior.
 - Test: `tests/test_llm_client.py`
 - Test: `tests/test_llm_agents.py`
 
-- [ ] **Step 1: Add deterministic tests**
+- [x] **Step 1: Add deterministic tests**
 
 Tests must use a fake transport and cover:
 
@@ -108,7 +108,7 @@ Tests must use a fake transport and cover:
 - JSON output is parsed and validated;
 - provider errors are recorded with secret redaction.
 
-- [ ] **Step 2: Implement DeepSeek client**
+- [x] **Step 2: Implement DeepSeek client**
 
 Implement:
 
@@ -130,7 +130,7 @@ ARIADNE_LLM_FAST_MODEL=deepseek-v4-flash
 ARIADNE_LLM_TIMEOUT_SECONDS
 ```
 
-- [ ] **Step 3: Add LLM doctor**
+- [x] **Step 3: Add LLM doctor**
 
 Add:
 
@@ -141,7 +141,7 @@ ari llm smoke --provider deepseek --confirm-external
 
 Doctor prints set/unset, never key values.
 
-- [ ] **Step 4: Wire planner and reviewer**
+- [x] **Step 4: Wire planner and reviewer**
 
 Add:
 

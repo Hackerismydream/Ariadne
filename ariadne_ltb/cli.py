@@ -25,6 +25,7 @@ from ariadne_ltb.full_demo import (
 )
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
+from ariadne_ltb.llm import DeepSeekClient, LLMClientError, llm_doctor_status, load_local_env
 from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory_record
 from ariadne_ltb.models import (
@@ -33,6 +34,7 @@ from ariadne_ltb.models import (
     CommentAuthorType,
     CommentKind,
     ExecutionContext,
+    ReviewReport,
     ResumeSafety,
     RuntimeCapability,
     TicketComment,
@@ -41,7 +43,7 @@ from ariadne_ltb.models import (
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.retry import create_retry_assignment
-from ariadne_ltb.review import review_execution
+from ariadne_ltb.review import review_execution, review_execution_with_llm
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
@@ -54,6 +56,8 @@ assignment_app = typer.Typer(help="Assignment queue commands.")
 ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
 memory_app = typer.Typer(help="Memory commands.")
+llm_app = typer.Typer(help="Upstream LLM runtime commands.")
+review_app = typer.Typer(help="Reviewer commands.")
 backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
 daemon_app = typer.Typer(help="Local daemon worker commands.")
 runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
@@ -67,6 +71,8 @@ app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
 app.add_typer(memory_app, name="memory")
+app.add_typer(llm_app, name="llm")
+app.add_typer(review_app, name="review")
 app.add_typer(backend_app, name="backend")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(runtime_app, name="runtime")
@@ -91,6 +97,7 @@ def configure(
     ] = Path("."),
 ) -> None:
     state.root = root.resolve()
+    load_local_env(state.root)
 
 
 @app.command()
@@ -323,6 +330,45 @@ def assignment_retry(
     typer.echo(f"retry assignment: {retry.id}")
     typer.echo(f"parent: {retry.parent_assignment_id}")
     typer.echo(f"attempt: {retry.attempt}")
+
+
+@llm_app.command("doctor")
+def llm_doctor() -> None:
+    """Report upstream LLM configuration without printing secrets."""
+    for line in llm_doctor_status(state.root):
+        typer.echo(line)
+
+
+@llm_app.command("smoke")
+def llm_smoke(
+    provider: Annotated[str, typer.Option("--provider", help="LLM provider. Currently supports deepseek.")] = "deepseek",
+    confirm_external: Annotated[
+        bool,
+        typer.Option("--confirm-external", help="Allow a real external LLM API request."),
+    ] = False,
+) -> None:
+    """Run a safety-gated upstream LLM smoke test."""
+    if provider != "deepseek":
+        raise typer.BadParameter("only `deepseek` is supported")
+    if not confirm_external:
+        typer.echo("Refusing LLM smoke test: --confirm-external is required.")
+        raise typer.Exit(2)
+    try:
+        response = DeepSeekClient().complete_json_response(
+            (
+                "Return json only with this shape: "
+                '{"ok": true, "provider": "deepseek", "summary": "short smoke test"}'
+            ),
+            "ariadne_llm_smoke",
+        )
+    except LLMClientError as exc:
+        typer.echo(f"LLM smoke failed: {exc.error.message}")
+        raise typer.Exit(2) from exc
+    typer.echo("LLM smoke: ok")
+    typer.echo(f"provider: {response.provider}")
+    typer.echo(f"model: {response.model}")
+    typer.echo(f"usage total tokens: {response.usage.total_tokens}")
+    typer.echo(f"json keys: {', '.join(sorted(response.content_json))}")
 
 
 @backend_app.command("doctor")
@@ -939,8 +985,28 @@ def ticket_execute(
 
 
 @ticket_app.command("review")
-def ticket_review(ticket_id: str) -> None:
+def ticket_review(
+    ticket_id: str,
+    reviewer: Annotated[str, typer.Option("--reviewer", help="deterministic|llm")] = "deterministic",
+) -> None:
     """Review a ticket execution result."""
+    review = _run_review(ticket_id, reviewer)
+    typer.echo(f"reviewer verdict: {review.verdict.value}")
+
+
+@review_app.command("run")
+def review_run(
+    ticket_id: str,
+    reviewer: Annotated[str, typer.Option("--reviewer", help="deterministic|llm")] = "deterministic",
+) -> None:
+    """Run a deterministic or LLM reviewer against a ticket execution result."""
+    review = _run_review(ticket_id, reviewer)
+    typer.echo(f"reviewer: {reviewer}")
+    typer.echo(f"reviewer verdict: {review.verdict.value}")
+    typer.echo(f"review report: {review.id}")
+
+
+def _run_review(ticket_id: str, reviewer: str) -> ReviewReport:
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
     if not ticket.build_packet_id:
@@ -949,9 +1015,14 @@ def ticket_review(ticket_id: str) -> None:
     execution = None
     if ticket.metadata.get("execution_result_id"):
         execution = store.load_execution_result(ticket.metadata["execution_result_id"])
-    review = review_execution(store, ticket, packet, execution)
+    if reviewer == "deterministic":
+        review = review_execution(store, ticket, packet, execution)
+    elif reviewer == "llm":
+        review = review_execution_with_llm(store, ticket, packet, execution)
+    else:
+        raise typer.BadParameter("reviewer must be `deterministic` or `llm`")
     store.save_review_report(review)
-    typer.echo(f"reviewer verdict: {review.verdict.value}")
+    return review
 
 
 @daemon_app.command("run-once")

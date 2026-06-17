@@ -161,14 +161,27 @@ When enabled, planner artifacts include memory evidence with source refs, and
 the handoff plus board show a `Memory Context` / `Planner Memory Evidence`
 section.
 
-Optional LLM planning uses DeepSeek when `DEEPSEEK_API_KEY` is present:
+## Upstream LLM Runtime
+
+Ariadne uses DeepSeek as the default upstream LLM runtime for non-coding agent
+roles such as planning and review. Credentials are read from environment or an
+ignored local `.env`; doctor commands report only set/unset state and never
+print key values.
 
 ```bash
-DEEPSEEK_API_KEY=... ari ticket plan ARI-003 --planner llm
+ari llm doctor
+ari ticket plan ARI-003 --planner llm
+ari review run ARI-003 --reviewer llm
 ```
 
-If the key is missing, Ariadne writes a blocked planner artifact and exits
-gracefully. Tests do not require network access or a DeepSeek key.
+Real LLM smoke tests are explicit external calls:
+
+```bash
+ari llm smoke --provider deepseek --confirm-external
+```
+
+If the key is missing, Ariadne writes blocked evidence and exits gracefully.
+Tests use fake transports and do not require network access or a DeepSeek key.
 
 ## Execution Backends
 

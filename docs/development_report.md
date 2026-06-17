@@ -2288,3 +2288,71 @@ Known limitations:
 - The local `.env` exists only on this machine and is intentionally untracked.
 - Real DeepSeek runtime is not implemented yet; the active plan now makes it the
   first production integration phase.
+
+## 2026-06-17 DeepSeek Upstream LLM Runtime Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Replaced the thin DeepSeek wrapper with a typed upstream LLM runtime:
+  `LLMRequest`, `LLMResponse`, `LLMError`, `LLMUsage`, injectable transport,
+  JSON-mode payloads, timeout configuration, and provider error redaction.
+- Added ignored local `.env` loading for a small LLM allowlist so the local
+  DeepSeek key can be used without committing credentials.
+- Added `ari llm doctor` and safety-gated
+  `ari llm smoke --provider deepseek --confirm-external`.
+- Added `ariadne_ltb/llm_agents.py` with a minimal JSON LLM agent adapter for
+  Build Lead, planner, reviewer, memory, Feishu planner, and GitHub planner
+  roles.
+- Wired `ari ticket plan --planner llm` through the stronger DeepSeek client.
+- Added `ari review run <ticket> --reviewer llm`; LLM review is conservative and
+  cannot turn deterministic local failures into a pass.
+- Updated README and the active production execution plan.
+
+Safety boundaries:
+
+- No API key values are printed by doctor or smoke commands.
+- Automated tests use fake transports and do not require network, DeepSeek,
+  Codex, Claude Code, Feishu, or GitHub credentials.
+- Real LLM smoke requires the explicit `--confirm-external` gate.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_llm_runtime.py tests/test_llm_agents.py tests/test_v1_planner_quality.py tests/test_true_mvp_product_loop.py::test_llm_planner_missing_key_fails_gracefully`: passed.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: 167 passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; secret values redacted.
+- `python3.11 -m ariadne_ltb.cli llm doctor`: passed; DeepSeek key reported set without printing the value.
+- `scripts/verify_v1.sh`: passed.
+- `uv run ari demo full`: passed.
+- `uv run ari ticket list`: passed.
+- `uv run ari export board`: passed.
+- `uv run ari backend doctor`: passed.
+- `uv run ari llm doctor`: passed.
+
+Real DeepSeek smoke:
+
+- `python3.11 -m ariadne_ltb.cli llm smoke --provider deepseek --confirm-external`: passed.
+- Real planner smoke initially exposed a product issue: the LLM prompt did not
+  include the required Build Packet JSON shape, so the provider omitted
+  `insight` and Ariadne correctly wrote a blocked planner artifact.
+- Fixed the LLM planner prompt to include the complete required JSON shape,
+  planning rules, and source evidence snippets.
+- `python3.11 -m ariadne_ltb.cli ticket plan ARI-003 --planner llm`: passed
+  after the prompt fix.
+- `python3.11 -m ariadne_ltb.cli review run ARI-003 --reviewer llm`: passed
+  with verdict `pass` after refreshing ARI-003 with a successful local
+  execution result.
+
+Known limitations:
+
+- Planner and reviewer now have real DeepSeek-capable paths, but other upstream
+  LLM roles still need to be migrated onto `JSONLLMAgent`.
+- The full product path still needs real Codex, Claude Code, Feishu, and GitHub
+  integration hardening from later phases.
+- Local `.ariadne` contains older run history with blocked fake-codex assignment
+  records caused by a stale isolated worktree. This is ignored local state; store
+  invariants and verification still pass.
