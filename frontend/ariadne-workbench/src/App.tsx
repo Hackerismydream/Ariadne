@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { loadWorkbenchData, workbenchData } from "./data";
 import type { AriadneTicket, RuntimeInfo, TicketStatus, TimelineEvent, WorkbenchData } from "./types";
 
-type PageKey = "goal" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
+type PageKey = "goal" | "knowledge" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
 
 const navGroups: Array<{
   label: string;
@@ -34,6 +34,7 @@ const navGroups: Array<{
   {
     label: "工作区",
     items: [
+      { key: "knowledge", label: "Knowledge", icon: BookOpenText },
       { key: "issues", label: "Issues", icon: ListTodo },
       { key: "projects", label: "目标库", icon: FolderKanban },
       { key: "automation", label: "自动化", icon: Zap },
@@ -63,7 +64,7 @@ const statusColumns: Array<{ status: TicketStatus; label: string; tone: string }
 ];
 
 export function App() {
-  const [page, setPage] = useState<PageKey>("goal");
+  const [page, setPage] = useState<PageKey>("knowledge");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
   const [dataSource, setDataSource] = useState<"local" | "fixture">("fixture");
   const [selectedTicketId, setSelectedTicketId] = useState(workbenchData.tickets[0]?.id ?? "");
@@ -99,13 +100,15 @@ export function App() {
           onTicketSelect={setSelectedTicketId}
         />
       </main>
-      <AgentDock
-        compactDefault={true}
-        runtimes={data.runtimes}
-        selectedRuntime={selectedRuntime}
-        selectedTicket={selectedTicket}
-        onRuntimeSelect={setSelectedRuntime}
-      />
+      {page === "knowledge" ? null : (
+        <AgentDock
+          compactDefault={true}
+          runtimes={data.runtimes}
+          selectedRuntime={selectedRuntime}
+          selectedTicket={selectedTicket}
+          onRuntimeSelect={setSelectedRuntime}
+        />
+      )}
     </div>
   );
 }
@@ -140,7 +143,7 @@ function Sidebar({
           <p>{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
-            const enabled = ["goal", "issues", "agents", "runtimes", "skills", "inbox"].includes(item.key);
+            const enabled = ["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(item.key);
             const active = item.key === page;
             return (
               <button
@@ -184,6 +187,7 @@ function PageFrame({
   onTicketSelect: (ticketId: string) => void;
 }) {
   if (page === "goal") return <GoalPage data={data} onTicketSelect={onTicketSelect} />;
+  if (page === "knowledge") return <KnowledgePage data={data} />;
   if (page === "issues") return <IssuesPage data={data} selectedTicket={selectedTicket} onTicketSelect={onTicketSelect} />;
   if (page === "agents") return <AgentsPage data={data} />;
   if (page === "runtimes") {
@@ -271,6 +275,245 @@ function GoalPage({ data, onTicketSelect }: { data: WorkbenchData; onTicketSelec
       </div>
     </section>
   );
+}
+
+function KnowledgePage({ data }: { data: WorkbenchData }) {
+  const [selectedSourceId, setSelectedSourceId] = useState(data.sources[0]?.id ?? "");
+  const sourceCards = data.knowledgeCards.filter((card) => card.sourceId === selectedSourceId);
+  const fallbackCard = sourceCards[0] ?? data.knowledgeCards[0];
+  const [selectedCardId, setSelectedCardId] = useState(fallbackCard?.id ?? "");
+  const selectedSource = data.sources.find((source) => source.id === selectedSourceId) ?? data.sources[0];
+  const selectedCard = data.knowledgeCards.find((card) => card.id === selectedCardId && card.sourceId === selectedSourceId)
+    ?? fallbackCard;
+  const cardChanges = selectedCard
+    ? data.backlogChanges.filter((change) => change.knowledgeCardId === selectedCard.id)
+    : [];
+  const [selectedChangeId, setSelectedChangeId] = useState(cardChanges[0]?.id ?? "");
+  const selectedChange = cardChanges.find((change) => change.id === selectedChangeId) ?? cardChanges[0];
+  const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
+
+  function selectSource(sourceId: string) {
+    const nextCard = data.knowledgeCards.find((card) => card.sourceId === sourceId) ?? data.knowledgeCards[0];
+    const nextChange = nextCard ? data.backlogChanges.find((change) => change.knowledgeCardId === nextCard.id) : undefined;
+    setSelectedSourceId(sourceId);
+    setSelectedCardId(nextCard?.id ?? "");
+    setSelectedChangeId(nextChange?.id ?? "");
+  }
+
+  function selectCard(cardId: string) {
+    const nextChange = data.backlogChanges.find((change) => change.knowledgeCardId === cardId);
+    setSelectedCardId(cardId);
+    setSelectedChangeId(nextChange?.id ?? "");
+  }
+
+  const groupedChanges = groupBacklogChanges(cardChanges);
+  const traceSteps = data.traceSteps.filter((step) => {
+    if (!selectedCard) return false;
+    if (step.knowledgeCardId !== selectedCard.id) return false;
+    return !step.backlogChangeId || !selectedChange || step.backlogChangeId === selectedChange.id;
+  });
+
+  return (
+    <section className="page full-bleed knowledge-page">
+      <PageHeader
+        icon={<BookOpenText size={17} />}
+        title="Knowledge"
+        count={data.sources.length}
+        action={
+          <div className="toolbar">
+            <button type="button">Add source</button>
+            <button type="button">Ingest folder</button>
+            <button type="button">Scan repo</button>
+            <button className="primary-action" type="button">Generate tickets</button>
+          </div>
+        }
+      />
+      <div className="knowledge-layout">
+        <section className="knowledge-column source-column">
+          <ColumnHeader title="Source Inbox" meta={`${data.sources.length} inputs`} />
+          <div className="source-list">
+            {data.sources.map((source) => (
+              <button
+                className={`source-row ${source.id === selectedSource?.id ? "selected" : ""}`}
+                data-source-id={source.id}
+                key={source.id}
+                type="button"
+                onClick={() => selectSource(source.id)}
+              >
+                <span className={`source-type ${source.sourceType}`}>{sourceTypeLabel(source.sourceType)}</span>
+                <strong>{source.title}</strong>
+                <em className={`source-status ${source.status}`}>{source.status}</em>
+                <small>{source.ingestedAt}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="knowledge-column cards-column">
+          <ColumnHeader title="Knowledge Cards" meta="Sort: Latest" />
+          <div className="knowledge-card-list">
+            {sourceCards.length ? sourceCards.map((card) => (
+              <button
+                className={`knowledge-card ${card.id === selectedCard?.id ? "selected" : ""}`}
+                data-card-id={card.id}
+                key={card.id}
+                type="button"
+                onClick={() => selectCard(card.id)}
+              >
+                <header>
+                  <div>
+                    <strong>{card.title}</strong>
+                    <small>Source: {selectedSource?.title ?? "unknown"}</small>
+                  </div>
+                  <span className={card.primary ? "primary-badge" : "secondary-badge"}>{card.primary ? "Primary" : "Secondary"}</span>
+                </header>
+                <section>
+                  <h3>Summary</h3>
+                  <p>{card.sourceSummary}</p>
+                </section>
+                <section>
+                  <h3>Evidence</h3>
+                  <div className="evidence-list">
+                    {card.evidence.map((item) => <code key={item}>{item}</code>)}
+                  </div>
+                </section>
+                <div className="card-meta-grid">
+                  <section>
+                    <h3>Project relevance</h3>
+                    <p>{card.projectRelevance}</p>
+                  </section>
+                  <section>
+                    <h3>Build Decision</h3>
+                    <span className={`decision-pill ${card.buildDecision}`}>{card.buildDecision}</span>
+                  </section>
+                </div>
+                <div className="module-row">
+                  {card.affectedModules.map((module) => <span key={module}>{module}</span>)}
+                  <em>{Math.round(card.confidence * 100)}%</em>
+                </div>
+                <ul className="risk-list">
+                  {card.risks.map((risk) => <li key={risk}>{risk}</li>)}
+                </ul>
+              </button>
+            )) : <p className="empty-column">No extracted cards for this source.</p>}
+          </div>
+        </section>
+
+        <section className="knowledge-column changes-column">
+          <ColumnHeader title="Backlog Changes" meta="Generated by ticket factory" />
+          <BacklogChangeGroup title="Added" kind="added" changes={groupedChanges.added} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="Updated" kind="updated" changes={groupedChanges.updated} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="Deferred" kind="deferred" changes={groupedChanges.deferred} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="Rejected" kind="rejected" changes={groupedChanges.rejected} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <div className="apply-row">
+            <button type="button" onClick={() => setPreviewStatus(previewStatus === "applied" ? "preview_only" : "applied")}>
+              {previewStatus === "applied" ? "Applied" : "Apply backlog changes"}
+            </button>
+            <span>{previewStatusLabel(previewStatus)} · Last preview: {data.backlogMutationPreview.lastPreviewAt}</span>
+          </div>
+        </section>
+
+        <aside className="knowledge-column trace-column">
+          <ColumnHeader title="Trace" meta={selectedChange?.ticketKey ?? selectedCard?.title ?? "No selection"} />
+          <ol className="trace-list">
+            {traceSteps.length ? traceSteps.map((step) => (
+              <li key={step.id}>
+                <span className="trace-dot" />
+                <div>
+                  <h3>{step.label}</h3>
+                  <p>{step.summary}</p>
+                  <code>{step.artifactPath}</code>
+                  <small>{step.timestamp}</small>
+                </div>
+              </li>
+            )) : <li className="trace-empty">No trace artifacts for this selection.</li>}
+          </ol>
+        </aside>
+      </div>
+      <footer className="mutation-preview">
+        <strong>Backlog mutation preview</strong>
+        <span className="added">{data.backlogMutationPreview.added} added</span>
+        <span className="updated">{data.backlogMutationPreview.updated} updated</span>
+        <span className="deferred">{data.backlogMutationPreview.deferred} deferred</span>
+        <span className="rejected">{data.backlogMutationPreview.rejected} rejected</span>
+        <span className="unsafe">{data.backlogMutationPreview.unsafe} unsafe</span>
+        <em>{previewStatusLabel(previewStatus)}</em>
+      </footer>
+    </section>
+  );
+}
+
+function ColumnHeader({ title, meta }: { title: string; meta?: string }) {
+  return (
+    <header className="column-header">
+      <h2>{title}</h2>
+      {meta ? <span>{meta}</span> : null}
+    </header>
+  );
+}
+
+function BacklogChangeGroup({
+  title,
+  kind,
+  changes,
+  selectedId,
+  onSelect,
+}: {
+  title: string;
+  kind: string;
+  changes: WorkbenchData["backlogChanges"];
+  selectedId?: string;
+  onSelect: (changeId: string) => void;
+}) {
+  return (
+    <section className="change-group">
+      <h3 className={kind}>{title} ({changes.length})</h3>
+      {changes.length ? changes.map((change) => (
+        <button
+          className={`change-row ${change.id === selectedId ? "selected" : ""}`}
+          data-change-id={change.id}
+          key={change.id}
+          type="button"
+          onClick={() => onSelect(change.id)}
+        >
+          <strong>{change.ticketKey}</strong>
+          <span>{change.title}</span>
+          <p>{change.reason}</p>
+          <em>{change.priority}</em>
+          <small>{change.suggestedOwnerAgent}</small>
+        </button>
+      )) : <p className="no-changes">No {title.toLowerCase()} tickets.</p>}
+    </section>
+  );
+}
+
+function groupBacklogChanges(changes: WorkbenchData["backlogChanges"]) {
+  return {
+    added: changes.filter((change) => change.kind === "added"),
+    updated: changes.filter((change) => change.kind === "updated"),
+    deferred: changes.filter((change) => change.kind === "deferred"),
+    rejected: changes.filter((change) => change.kind === "rejected"),
+  };
+}
+
+function sourceTypeLabel(sourceType: WorkbenchData["sources"][number]["sourceType"]) {
+  const labels: Record<WorkbenchData["sources"][number]["sourceType"], string> = {
+    blog: "Blog",
+    paper: "Paper",
+    github_readme: "GitHub README",
+    repo_note: "Repo note",
+    codebase_scan: "Codebase scan",
+    review_feedback: "Review feedback",
+    execution_result: "Execution result",
+    manual_note: "Manual note",
+  };
+  return labels[sourceType];
+}
+
+function previewStatusLabel(status: WorkbenchData["backlogMutationPreview"]["status"]) {
+  if (status === "applied") return "Applied";
+  if (status === "blocked") return "Blocked: unsafe changes";
+  return "Preview only";
 }
 
 function IssuesPage({

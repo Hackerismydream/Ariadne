@@ -75,6 +75,64 @@ export type ProjectResource = {
   localPath?: string;
 };
 
+export type SourceDocument = {
+  id: string;
+  sourceType: "blog" | "paper" | "github_readme" | "repo_note" | "codebase_scan" | "review_feedback" | "execution_result" | "manual_note";
+  title: string;
+  status: "new" | "extracted" | "linked" | "applied" | "archived" | "failed";
+  ingestedAt: string;
+  pathOrUrl: string;
+  linkedTicketCount: number;
+};
+
+export type KnowledgeCard = {
+  id: string;
+  sourceId: string;
+  title: string;
+  sourceSummary: string;
+  evidence: string[];
+  projectRelevance: string;
+  buildDecision: "archive" | "watchlist" | "doc_update" | "experiment" | "code_task" | "architecture_change" | "reject_for_now";
+  affectedModules: string[];
+  risks: string[];
+  confidence: number;
+  primary: boolean;
+};
+
+export type BacklogChangeKind = "added" | "updated" | "deferred" | "rejected" | "superseded";
+
+export type BacklogChange = {
+  id: string;
+  knowledgeCardId: string;
+  kind: BacklogChangeKind;
+  ticketKey: string;
+  title: string;
+  reason: string;
+  priority: "P1" | "P2" | "P3";
+  suggestedOwnerAgent: string;
+  buildDecision: KnowledgeCard["buildDecision"];
+};
+
+export type TraceStep = {
+  id: string;
+  knowledgeCardId: string;
+  backlogChangeId?: string;
+  label: "Source" | "Evidence" | "Build Decision" | "Ticket Delta" | "Build Packet" | "Handoff";
+  summary: string;
+  artifactPath: string;
+  timestamp: string;
+};
+
+export type BacklogMutationPreview = {
+  status: "preview_only" | "applied" | "blocked";
+  added: number;
+  updated: number;
+  deferred: number;
+  rejected: number;
+  unsafe: number;
+  lastPreviewAt: string;
+};
+
 export type SkillInfo = {
   name: string;
   description: string;
@@ -94,6 +152,11 @@ export type InboxItem = {
 export type WorkbenchData = {
   goal: AriadneGoal;
   tickets: AriadneTicket[];
+  sources: SourceDocument[];
+  knowledgeCards: KnowledgeCard[];
+  backlogChanges: BacklogChange[];
+  traceSteps: TraceStep[];
+  backlogMutationPreview: BacklogMutationPreview;
   agents: AgentRole[];
   runtimes: RuntimeInfo[];
   projectResources?: ProjectResource[];
