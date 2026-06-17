@@ -1,5 +1,18 @@
 # Ariadne Multica Maturity Execution Plan
 
+Status: superseded
+
+Superseded by:
+
+```text
+docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md
+```
+
+Reason: this plan was too conservative for the current product direction. The
+active plan prioritizes real DeepSeek upstream LLM runtime, real Codex, real
+Claude Code, gated real Feishu writes, and real GitHub integration. `fake-codex`
+is now only a deterministic test and offline fallback path.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bring Ariadne to Multica-level local agent work-management maturity while keeping it Python, local-first, single-user, deterministic, and safety-gated.

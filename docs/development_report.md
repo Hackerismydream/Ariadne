@@ -2194,3 +2194,62 @@ Known limitations:
   roadmap phases.
 - The timestamped goal records the current branch names. Future executions must
   re-check branch state before editing or merging.
+
+## Production Agent Workbench Roadmap
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Added:
+
+- `docs/ops/2026-06-17-2043-ARIADNE_PRODUCTION_AGENT_WORKBENCH_ROADMAP.md`
+- `docs/goals/2026-06-17-2043-ariadne-production-agent-workbench-goal.md`
+- `docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md`
+
+Updated as superseded:
+
+- `docs/ops/ARIADNE_MULTICA_MATURITY_ROADMAP.md`
+- `docs/goals/2026-06-17-2034-ariadne-multica-maturity-goal.md`
+- `docs/superpowers/plans/2026-06-17-2034-ariadne-multica-maturity-execution-plan.md`
+
+Purpose:
+
+- Shift the roadmap from conservative demo/dry-run maturity to production-first
+  agent workbench delivery.
+- Make real DeepSeek upstream LLM runtime a P0 product requirement for Build
+  Lead, planner, reviewer, knowledge, memory, and integration planning agents.
+- Make real Codex and real Claude Code production backends, not only smoke-test
+  paths.
+- Make gated real Feishu writes and real GitHub integration explicit roadmap
+  requirements.
+- Keep `fake-codex` only as deterministic test and offline fallback.
+
+Multica reference:
+
+- Multica agents are workspace members bound to a local AI coding tool runtime.
+- Multica stores agent instructions, model selection, custom environment
+  variables, custom CLI args, MCP config, skills, lifecycle, comments, and
+  usage metadata.
+- Ariadne should absorb that model for coding runtimes, while adding a
+  DeepSeek-backed upstream LLM layer for non-coding agents.
+
+Credential boundary:
+
+- DeepSeek API keys must be supplied through environment or ignored local
+  `.env`, never committed.
+- Doctor commands may report set/unset but must never print key values.
+- Tests must pass without DeepSeek, Codex, Claude, Feishu, GitHub credentials,
+  or network access.
+
+Verification:
+
+- `git diff --check`: passed.
+- DeepSeek documentation was checked for current OpenAI-compatible base URL and
+  model names.
+- Local Multica docs and SQL were checked for agent runtime, model,
+  `custom_env`, and `custom_args` behavior.
+
+Known limitations:
+
+- This update changes roadmap and execution handoff only. It does not implement
+  the real integrations yet.
+- The supplied DeepSeek key was intentionally not written to the repository.

@@ -1,6 +1,18 @@
 # Ariadne Multica Maturity Roadmap
 
-Status: active continuation guide
+Status: superseded
+
+Superseded by:
+
+```text
+docs/ops/2026-06-17-2043-ARIADNE_PRODUCTION_AGENT_WORKBENCH_ROADMAP.md
+```
+
+Reason: this roadmap was too conservative for the current product goal. The
+active direction is now production-first: real DeepSeek upstream LLM runtime,
+real Codex, real Claude Code, gated real Feishu writes, and real GitHub
+integration. `fake-codex` remains only for deterministic tests and offline
+fallback.
 
 Date: 2026-06-17
 

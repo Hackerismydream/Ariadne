@@ -1,5 +1,17 @@
 # Goal: 2026-06-17-2034 Ariadne Multica Maturity
 
+Status: superseded
+
+Superseded by:
+
+```text
+docs/goals/2026-06-17-2043-ariadne-production-agent-workbench-goal.md
+```
+
+Reason: this goal was too conservative for the current product direction. The
+active goal is production-first and requires real DeepSeek, Codex, Claude Code,
+Feishu, and GitHub integrations where configured.
+
 You are Codex working on Ariadne.
 
 Your objective is to drive Ariadne toward Multica-level local agent
