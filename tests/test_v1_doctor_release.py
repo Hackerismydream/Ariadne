@@ -10,6 +10,7 @@ from ariadne_ltb.cli import app
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import (
     ArtifactType,
+    BackendSmokeEvidence,
     BuildDecision,
     BuildPacket,
     Evidence,
@@ -480,6 +481,50 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
             test_exit_code=0,
         )
     )
+    store.save_backend_smoke_evidence(
+        BackendSmokeEvidence(
+            id="backend_smoke_codex_success",
+            backend_name="codex",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            assignment_id="assignment_codex_success",
+            assignment_status="done",
+            succeeded=True,
+            execution_result_id="exec_codex_success",
+            exit_code=0,
+            changed_files=["demo_todo/cli.py"],
+            test_command="pytest",
+            test_exit_code=0,
+            review_verdict="pass",
+            handoff_file=".ariadne/handoffs/ARI-003.md",
+            board_path=".ariadne/board/index.md",
+            memory_path=".ariadne/memory/tickets/ticket_ari_003.json",
+            feishu_plan_path=".ariadne/feishu_plans/feishu_plan.json",
+            next_tickets_path=".ariadne/artifacts/ticket_ari_003/next_tickets.json",
+            external_execution_enabled=True,
+            confirm_execution=True,
+        )
+    )
+    store.save_backend_smoke_evidence(
+        BackendSmokeEvidence(
+            id="backend_smoke_claude_success",
+            backend_name="claude-code",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            assignment_id="assignment_claude_success",
+            assignment_status="done",
+            succeeded=True,
+            execution_result_id="exec_claude_success",
+            exit_code=0,
+            changed_files=["tests/test_cli.py"],
+            test_command="pytest",
+            test_exit_code=0,
+            review_verdict="pass",
+            handoff_file=".ariadne/handoffs/ARI-003.md",
+            external_execution_enabled=True,
+            confirm_execution=True,
+        )
+    )
     store.save_feishu_write_result(
         FeishuWriteResult(
             id="feishu_success",
@@ -550,7 +595,9 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert statuses["real_github_pr_evidence"] == "ready"
     assert statuses["real_github_comment_evidence"] == "ready"
     assert statuses["real_github_status_evidence"] == "ready"
-    assert snapshot["real_success_evidence"]["codex"]["id"] == "exec_codex_success"
+    assert snapshot["real_success_evidence"]["codex"]["id"] == "backend_smoke_codex_success"
+    assert snapshot["real_success_evidence"]["codex"]["source"] == "backend_smoke"
+    assert snapshot["real_success_evidence"]["claude_code"]["id"] == "backend_smoke_claude_success"
     assert snapshot["real_success_evidence"]["llm_agents"]["operations"] == {
         "backlog": True,
         "build_lead": True,

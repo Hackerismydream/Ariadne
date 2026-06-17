@@ -4115,3 +4115,74 @@ Verification:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_db825ed5373f` and completed product doctor, release
   packet, workbench sync, and workbench build checks.
+
+## 2026-06-18 10:18 CST Backend Smoke Evidence Persistence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- Real Codex and Claude Code smoke tests already ran through assignment +
+  daemon, but their success evidence was mostly terminal output and narrative
+  report text.
+- Product doctor and release evidence need a first-class, structured artifact
+  proving that a real backend smoke run completed the full loop.
+
+Implemented:
+
+- Added `BackendSmokeEvidence` as a persistent model for real backend smoke
+  results.
+- Added `.ariadne/evidence/backend_smoke/<backend>/<evidence_id>.json` storage
+  plus store list/save APIs.
+- Updated `ari backend smoke-test codex|claude-code` so daemon smoke runs save
+  structured evidence on both success and daemon-result failure paths.
+- Updated product doctor so `real_codex_execution_evidence` and
+  `real_claude_execution_evidence` prefer backend smoke evidence, while keeping
+  legacy `ExecutionResult` inference as compatibility fallback.
+- Added `backend_smoke_evidence` to release evidence packet refs.
+- Updated README and `docs/real_codex_smoke_test.md` with the new evidence path.
+
+Deterministic verification so far:
+
+- `python3.11 -m pytest tests/test_backend_smoke_cli.py tests/test_release_evidence.py tests/test_v1_doctor_release.py`:
+  passed, `23 passed`.
+- `python3.11 -m ruff check ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/cli.py ariadne_ltb/doctor.py ariadne_ltb/evidence.py tests/test_backend_smoke_cli.py tests/test_release_evidence.py tests/test_v1_doctor_release.py`:
+  passed.
+
+Verification:
+
+- Full `python3.11 -m pytest`: passed, `226 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_45590e559449` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.
+
+Fresh real smoke evidence:
+
+- Real Codex smoke through daemon:
+  - result: passed;
+  - assignment: `assignment_5e959d764cb0`, status `done`;
+  - execution: `execution_5e959d764cb0`, exit code `0`;
+  - changed files: `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code: `0`;
+  - review verdict: `pass`;
+  - smoke evidence:
+    `/tmp/ariadne-smoke-codex-tQlfcr/.ariadne/evidence/backend_smoke/codex/backend_smoke_c7239143e89b.json`.
+- Real Claude Code smoke through daemon:
+  - result: passed;
+  - assignment: `assignment_199dc7a10fc3`, status `done`;
+  - execution: `execution_199dc7a10fc3`, exit code `0`;
+  - changed files: `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code: `0`;
+  - review verdict: `pass`;
+  - smoke evidence:
+    `/tmp/ariadne-smoke-claude-15BVqf/.ariadne/evidence/backend_smoke/claude-code/backend_smoke_e081d82f82c4.json`.
+- Product doctor confirmed the new artifacts are machine-readable:
+  - Codex temp root: `real_codex_execution_evidence: ready`, source
+    `backend_smoke`.
+  - Claude temp root: `real_claude_execution_evidence: ready`, source
+    `backend_smoke`.

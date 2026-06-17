@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+import json
 
 from typer.testing import CliRunner
 
@@ -167,6 +168,17 @@ if "test_export_json_command" not in test_text:
     assert "review verdict: pass" in result.output
     assert "agent runtime: deterministic" in result.output
     assert "changed files: demo_todo/cli.py, tests/test_cli.py" in result.output
+    assert "smoke evidence:" in result.output
+    evidence_files = list((tmp_path / ".ariadne" / "evidence" / "backend_smoke" / "codex").glob("*.json"))
+    assert len(evidence_files) == 1
+    evidence = json.loads(evidence_files[0].read_text(encoding="utf-8"))
+    assert evidence["backend_name"] == "codex"
+    assert evidence["assignment_status"] == "done"
+    assert evidence["succeeded"] is True
+    assert evidence["exit_code"] == 0
+    assert evidence["test_exit_code"] == 0
+    assert evidence["review_verdict"] == "pass"
+    assert evidence["changed_files"] == ["demo_todo/cli.py", "tests/test_cli.py"]
 
 
 def test_existing_fake_codex_ticket_run_still_passes(tmp_path: Path) -> None:

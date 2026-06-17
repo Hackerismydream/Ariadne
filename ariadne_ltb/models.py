@@ -1075,6 +1075,40 @@ class GitHubIntegrationResult(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
 
 
+class BackendSmokeEvidence(AriadneModel):
+    id: str
+    backend_name: str
+    ticket_id: str
+    ticket_key: str
+    assignment_id: str
+    assignment_status: str
+    succeeded: bool
+    blocked: bool = False
+    blocker: str | None = None
+    failure_reason: str | None = None
+    execution_result_id: str | None = None
+    exit_code: int | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    test_command: str = ""
+    test_exit_code: int | None = None
+    review_verdict: str | None = None
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
+    handoff_file: str | None = None
+    command_template_env_var: str | None = None
+    command_template_set: bool = False
+    provider_session_id: str | None = None
+    provider_failure_kind: str | None = None
+    board_path: str | None = None
+    memory_path: str | None = None
+    feishu_plan_path: str | None = None
+    next_tickets_path: str | None = None
+    llm_agent_artifact_paths: list[str] = Field(default_factory=list)
+    external_execution_enabled: bool = False
+    confirm_execution: bool = False
+    created_at: str = Field(default_factory=utc_now)
+
+
 class InboxItem(AriadneModel):
     id: str
     source_type: str

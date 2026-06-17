@@ -51,6 +51,7 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
             "integration_doctor": str(store.doctor_dir / "integrations.json"),
             "runtime_capabilities": str(store.runtimes_dir / "capability_snapshot.json"),
             "inbox": str(store.inbox_items_path),
+            "backend_smoke_evidence": str(store.backend_smoke_evidence_dir),
             "feishu_integrations": str(store.feishu_integrations_dir),
             "github_integrations": str(store.github_integrations_dir),
             "product_readiness": str(store.doctor_dir / "product_readiness.json"),

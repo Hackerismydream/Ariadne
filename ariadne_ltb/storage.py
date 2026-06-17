@@ -20,6 +20,7 @@ from ariadne_ltb.models import (
     ArtifactType,
     AssignmentStatus,
     BacklogUpdate,
+    BackendSmokeEvidence,
     BuildPacket,
     BuildTeam,
     BuildTicket,
@@ -86,6 +87,7 @@ class AriadneStore:
         self.inbox_dir = self.base / "inbox"
         self.inbox_items_path = self.inbox_dir / "items.json"
         self.evidence_dir = self.base / "evidence"
+        self.backend_smoke_evidence_dir = self.evidence_dir / "backend_smoke"
         self.release_evidence_packet_path = self.evidence_dir / "release_evidence_packet.json"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
@@ -126,6 +128,7 @@ class AriadneStore:
             self.backlog_dir,
             self.inbox_dir,
             self.evidence_dir,
+            self.backend_smoke_evidence_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
             self.integrations_dir,
@@ -774,6 +777,22 @@ class AriadneStore:
         return sorted(
             [self._read_model(path, GitHubIntegrationResult) for path in paths],
             key=lambda result: (result.created_at, _github_operation_order(result.operation)),
+        )
+
+    def save_backend_smoke_evidence(self, evidence: BackendSmokeEvidence) -> Path:
+        path = self.backend_smoke_evidence_dir / evidence.backend_name / f"{evidence.id}.json"
+        self._write_model(path, evidence)
+        return path
+
+    def list_backend_smoke_evidence(
+        self,
+        backend_name: str | None = None,
+    ) -> list[BackendSmokeEvidence]:
+        base = self.backend_smoke_evidence_dir / backend_name if backend_name else self.backend_smoke_evidence_dir
+        paths = sorted(base.glob("*.json")) if backend_name else sorted(base.glob("*/*.json"))
+        return sorted(
+            [self._read_model(path, BackendSmokeEvidence) for path in paths],
+            key=lambda evidence: evidence.created_at,
         )
 
     def save_inbox_items(self, items: list[InboxItem]) -> Path:

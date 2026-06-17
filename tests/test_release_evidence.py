@@ -33,6 +33,7 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert "board" in packet.evidence_refs
     assert "integration_doctor" in packet.evidence_refs
     assert "runtime_capabilities" in packet.evidence_refs
+    assert "backend_smoke_evidence" in packet.evidence_refs
     assert "feishu_integrations" in packet.evidence_refs
     assert "github_integrations" in packet.evidence_refs
     assert "product_readiness" in packet.evidence_refs
@@ -52,6 +53,7 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert persisted["id"] == packet.id
     assert persisted["evidence_refs"]["integration_doctor"].endswith("integrations.json")
     assert persisted["evidence_refs"]["product_readiness"].endswith("product_readiness.json")
+    assert persisted["evidence_refs"]["backend_smoke_evidence"].endswith("backend_smoke")
     assert persisted["production_acceptance_status"] in {"ready", "action_required", "blocked"}
     assert persisted["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_github_write_evidence" in persisted["product_readiness_checks"]

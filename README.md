@@ -318,6 +318,11 @@ ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
 ari backend smoke-test claude-code --confirm-execution --timeout-seconds 180
 ```
 
+Each smoke run now writes first-class backend evidence under
+`.ariadne/evidence/backend_smoke/<backend>/`. Product doctor and release
+evidence read that artifact before falling back to legacy execution-result
+inference.
+
 The full smoke-test runbook is in
 [`docs/real_codex_smoke_test.md`](docs/real_codex_smoke_test.md).
 

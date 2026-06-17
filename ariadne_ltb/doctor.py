@@ -528,12 +528,17 @@ def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
 
 def _real_evidence_snapshot(store: AriadneStore) -> dict[str, Any]:
     executions = store.list_execution_results()
+    backend_smoke = store.list_backend_smoke_evidence()
     feishu_results = store.list_feishu_write_results()
     github_results = store.list_github_integration_results()
     return {
         "llm_agents": _llm_agent_evidence(store),
-        "codex": _execution_evidence(executions, "codex"),
-        "claude_code": _execution_evidence(executions, "claude-code"),
+        "codex": _backend_smoke_or_execution_evidence(backend_smoke, executions, "codex"),
+        "claude_code": _backend_smoke_or_execution_evidence(
+            backend_smoke,
+            executions,
+            "claude-code",
+        ),
         "feishu": _feishu_evidence(feishu_results),
         "github": _github_evidence(github_results),
     }
@@ -784,6 +789,89 @@ def _execution_evidence(results: list[Any], backend_name: str) -> dict[str, Any]
     return {
         "success": _execution_summary(_latest_by_time(successes, "ended_at")),
         "latest_failure": _execution_failure_summary(_latest_by_time(failures, "ended_at")),
+    }
+
+
+def _backend_smoke_or_execution_evidence(
+    smoke_results: list[Any],
+    execution_results: list[Any],
+    backend_name: str,
+) -> dict[str, Any]:
+    smoke = _backend_smoke_evidence(smoke_results, backend_name)
+    execution = _execution_evidence(execution_results, backend_name)
+    return {
+        "success": smoke["success"] or execution["success"],
+        "latest_failure": smoke["latest_failure"] or execution["latest_failure"],
+    }
+
+
+def _backend_smoke_evidence(results: list[Any], backend_name: str) -> dict[str, Any]:
+    matching = [result for result in results if result.backend_name == backend_name]
+    successes = [
+        result
+        for result in matching
+        if result.succeeded
+        and result.assignment_status == "done"
+        and result.exit_code == 0
+        and result.test_exit_code == 0
+        and result.review_verdict == "pass"
+    ]
+    failures = [result for result in matching if not result.succeeded]
+    return {
+        "success": _backend_smoke_summary(_latest_by_time(successes, "created_at")),
+        "latest_failure": _backend_smoke_failure_summary(_latest_by_time(failures, "created_at")),
+    }
+
+
+def _backend_smoke_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "source": "backend_smoke",
+        "ticket_id": result.ticket_id,
+        "ticket_key": result.ticket_key,
+        "backend_name": result.backend_name,
+        "assignment_id": result.assignment_id,
+        "execution_result_id": result.execution_result_id,
+        "exit_code": result.exit_code,
+        "test_exit_code": result.test_exit_code,
+        "review_verdict": result.review_verdict,
+        "changed_files": result.changed_files,
+        "handoff_file": result.handoff_file,
+        "board_path": result.board_path,
+        "memory_path": result.memory_path,
+        "feishu_plan_path": result.feishu_plan_path,
+        "next_tickets_path": result.next_tickets_path,
+        "agent_runtime": result.agent_runtime,
+        "backlog_planner_name": result.backlog_planner_name,
+        "created_at": result.created_at,
+    }
+
+
+def _backend_smoke_failure_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "source": "backend_smoke",
+        "ticket_id": result.ticket_id,
+        "ticket_key": result.ticket_key,
+        "backend_name": result.backend_name,
+        "assignment_id": result.assignment_id,
+        "assignment_status": result.assignment_status,
+        "execution_result_id": result.execution_result_id,
+        "reason": _safe_reason(
+            result.blocker
+            or result.provider_failure_kind
+            or result.failure_reason
+            or "backend smoke test did not complete successfully"
+        ),
+        "exit_code": result.exit_code,
+        "test_exit_code": result.test_exit_code,
+        "review_verdict": result.review_verdict,
+        "failure_reason": result.failure_reason,
+        "created_at": result.created_at,
     }
 
 

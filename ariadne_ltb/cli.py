@@ -44,15 +44,18 @@ from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory
 from ariadne_ltb.models import (
     AssignmentStatus,
     BacklogUpdate,
+    BackendSmokeEvidence,
     CommentAuthorType,
     CommentKind,
     ExecutionContext,
+    ExecutionResult,
     FeishuWritePlan,
     ReviewReport,
     ResumeSafety,
     RuntimeCapability,
     TicketComment,
     TicketStatus,
+    stable_id,
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import planner_for_name
@@ -739,13 +742,35 @@ def backend_smoke_test(
     final_assignment = store.load_assignment(assignment.id)
     result = daemon_result.ticket_run_result
     if result is None:
+        smoke_evidence, smoke_path = _save_backend_smoke_evidence(
+            store,
+            backend,
+            selected.id,
+            selected.key,
+            final_assignment,
+            result=None,
+            execution=None,
+            confirm_execution=confirm_execution,
+        )
         typer.echo(f"ticket: {selected.key} ({selected.id})")
         typer.echo(f"backend: {backend}")
         typer.echo(f"assignment: {final_assignment.id}")
         typer.echo(f"assignment status: {final_assignment.status.value}")
         typer.echo(f"blocker: {final_assignment.blocker or daemon_result.message}")
+        typer.echo(f"smoke evidence: {smoke_path}")
+        typer.echo(f"smoke succeeded: {smoke_evidence.succeeded}")
         raise typer.Exit(2)
     execution = store.load_execution_result(result.execution_result_id)
+    smoke_evidence, smoke_path = _save_backend_smoke_evidence(
+        store,
+        backend,
+        result.ticket_id,
+        result.ticket_key,
+        final_assignment,
+        result=result,
+        execution=execution,
+        confirm_execution=confirm_execution,
+    )
 
     typer.echo(f"ticket: {result.ticket_key} ({result.ticket_id})")
     typer.echo(f"backend: {result.backend_name}")
@@ -765,9 +790,78 @@ def backend_smoke_test(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu dry-run plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"smoke evidence: {smoke_path}")
+    typer.echo(f"smoke succeeded: {smoke_evidence.succeeded}")
     if final_assignment.status is not AssignmentStatus.DONE:
         typer.echo(f"blocker: {final_assignment.blocker or 'smoke test did not finish cleanly'}")
         raise typer.Exit(2)
+
+
+def _save_backend_smoke_evidence(
+    store: AriadneStore,
+    backend: str,
+    ticket_id: str,
+    ticket_key: str,
+    assignment: object,
+    result: object | None,
+    execution: ExecutionResult | None,
+    confirm_execution: bool,
+) -> tuple[BackendSmokeEvidence, Path]:
+    review_verdict = getattr(result, "review_verdict", None)
+    test_exit_code = getattr(result, "test_exit_code", None)
+    succeeded = (
+        assignment.status is AssignmentStatus.DONE
+        and result is not None
+        and execution is not None
+        and not execution.dry_run
+        and not execution.blocked
+        and execution.exit_code == 0
+        and test_exit_code == 0
+        and review_verdict == "pass"
+    )
+    blocker = assignment.blocker or (execution.block_reason if execution else None)
+    failure_reason = assignment.failure_reason.value if assignment.failure_reason else None
+    if failure_reason is None and execution and execution.failure_reason:
+        failure_reason = execution.failure_reason.value
+    evidence = BackendSmokeEvidence(
+        id=stable_id(
+            "backend_smoke",
+            backend,
+            ticket_id,
+            assignment.id,
+            execution.id if execution else "no_execution",
+        ),
+        backend_name=backend,
+        ticket_id=ticket_id,
+        ticket_key=ticket_key,
+        assignment_id=assignment.id,
+        assignment_status=assignment.status.value,
+        succeeded=succeeded,
+        blocked=assignment.status is AssignmentStatus.BLOCKED or bool(execution and execution.blocked),
+        blocker=blocker,
+        failure_reason=failure_reason,
+        execution_result_id=execution.id if execution else None,
+        exit_code=execution.exit_code if execution else None,
+        changed_files=list(getattr(result, "changed_files", []) or (execution.changed_files if execution else [])),
+        test_command=execution.test_command if execution else "",
+        test_exit_code=test_exit_code,
+        review_verdict=review_verdict,
+        agent_runtime=getattr(result, "agent_runtime", assignment.agent_runtime),
+        backlog_planner_name=getattr(result, "backlog_planner_name", assignment.backlog_planner_name),
+        handoff_file=execution.handoff_file if execution else None,
+        command_template_env_var=execution.command_template_env_var if execution else None,
+        command_template_set=bool(execution and execution.command_template),
+        provider_session_id=execution.provider_session_id if execution else None,
+        provider_failure_kind=execution.provider_failure_kind if execution else None,
+        board_path=getattr(result, "board_path", None),
+        memory_path=getattr(result, "memory_path", None),
+        feishu_plan_path=getattr(result, "feishu_plan_path", None),
+        next_tickets_path=getattr(result, "next_tickets_path", None),
+        llm_agent_artifact_paths=list(getattr(result, "llm_agent_artifact_paths", []) or []),
+        external_execution_enabled=os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1",
+        confirm_execution=confirm_execution,
+    )
+    return evidence, store.save_backend_smoke_evidence(evidence)
 
 
 @ticket_app.command("create")

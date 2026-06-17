@@ -129,10 +129,16 @@ uv run ari export board
 Key outputs:
 
 - `.ariadne/board/index.md`
+- `.ariadne/evidence/backend_smoke/<backend>/<evidence_id>.json`
 - `.ariadne/memory/tickets/<ticket_id>.md`
 - `.ariadne/feishu_plans/<plan_id>.json`
 - `.ariadne/artifacts/<ticket_id>/next_tickets.json`
 - `.ariadne/handoffs/<ticket_key>.md`
+
+The backend smoke evidence is the product-level proof consumed by
+`ari doctor product` and `ari evidence packet`. It records the assignment,
+execution result, exit code, changed files, test result, review verdict, board,
+memory, Feishu dry-run plan, next tickets, and whether the smoke run succeeded.
 
 ## Interpreting Blocked Results
 
