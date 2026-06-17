@@ -5085,6 +5085,55 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 05:28 CST AgentRun Failure Inbox/Search Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `AriadneStore.list_runs()` so product diagnostics can inspect persisted
+  AgentRun records without walking private storage paths.
+- `ari inbox refresh` now materializes blocked or failed `AgentRun` records as
+  `agent_run` inbox items.
+- Blocked DeepSeek upstream roles, such as Build Lead, Knowledge, Planner,
+  Reviewer, and Memory agent failures, now produce actionable inbox records
+  instead of being visible only as artifacts.
+- Inbox evidence references the latest run artifact when available, falling
+  back to the run JSON record.
+- Local search now indexes AgentRun records directly, including role, lifecycle
+  state, failure reason, backend, metadata, output summary, and error text.
+
+Why this matters:
+
+- The production workbench path depends on real upstream LLM agents. Provider
+  failures, invalid JSON, schema validation failures, and role-level blockers
+  must become visible work-management items, not hidden logs.
+- This closes a diagnostic gap in the loop:
+  real LLM agent failure -> AgentRun blocked -> inbox item -> searchable
+  evidence -> board/release evidence can surface the issue.
+
+Focused verification:
+
+- `python3.11 -m pytest tests/test_inbox.py tests/test_local_search.py`:
+  passed, `6 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, `250 passed`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_e42b5f85a8c8`; workbench data sync reported 18 inbox items.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 04:57 CST Workbench Backlog Preview Data Contract Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

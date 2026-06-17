@@ -638,6 +638,12 @@ class AriadneStore:
     def load_run(self, run_id: str) -> AgentRun:
         return self._read_model(self.runs_dir / f"{run_id}.json", AgentRun)
 
+    def list_runs(self) -> list[AgentRun]:
+        return [
+            self._read_model(path, AgentRun)
+            for path in sorted(self.runs_dir.glob("*.json"))
+        ]
+
     def run_messages_path(self, run_id: str) -> Path:
         return self.runs_dir / run_id / "messages.jsonl"
 

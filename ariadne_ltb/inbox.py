@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from ariadne_ltb.models import (
+    AgentRun,
+    AgentRunStatus,
     AssignmentStatus,
     ExecutionResult,
     FailureReason,
@@ -26,6 +28,11 @@ def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
         if assignment.status in {AssignmentStatus.BLOCKED, AssignmentStatus.FAILED}:
             ticket = ticket_by_id.get(assignment.ticket_id)
             items.append(_from_assignment(store, assignment, ticket.key if ticket else assignment.ticket_key))
+
+    for run in store.list_runs():
+        if run.status in {AgentRunStatus.BLOCKED, AgentRunStatus.FAILED}:
+            ticket = ticket_by_id.get(run.ticket_id)
+            items.append(_from_agent_run(store, run, ticket.key if ticket else None))
 
     for execution in store.list_execution_results():
         if _execution_needs_inbox(execution):
@@ -59,6 +66,25 @@ def _from_assignment(store: AriadneStore, assignment: TicketAssignment, ticket_k
         severity=_severity(reason),
         failure_reason=reason,
         evidence_ref=str(store.assignments_dir / f"{assignment.id}.json"),
+        recommended_action=_recommended_action(reason),
+    )
+
+
+def _from_agent_run(store: AriadneStore, run: AgentRun, ticket_key: str | None) -> InboxItem:
+    reason = run.failure_reason or FailureReason.UNKNOWN
+    summary = run.error or run.output_summary or f"Agent run {run.id} is {run.status.value}."
+    summary = f"{run.agent_role}: {summary}"
+    return InboxItem(
+        id=stable_id("inbox", "agent_run", run.id, reason.value, summary),
+        source_type="agent_run",
+        source_id=run.id,
+        ticket_id=run.ticket_id,
+        ticket_key=ticket_key,
+        title=f"{ticket_key or run.ticket_id}: {run.agent_name} {run.status.value}",
+        summary=summary[:1000],
+        severity=_severity(reason),
+        failure_reason=reason,
+        evidence_ref=_agent_run_evidence_ref(store, run),
         recommended_action=_recommended_action(reason),
     )
 
@@ -135,6 +161,15 @@ def _execution_needs_inbox(execution: ExecutionResult) -> bool:
 
 def _integration_path(base: Path, ticket_key: str, result_id: str) -> Path:
     return base / ticket_key / f"{result_id}.json"
+
+
+def _agent_run_evidence_ref(store: AriadneStore, run: AgentRun) -> str:
+    if run.artifact_ids:
+        try:
+            return store.load_artifact(run.artifact_ids[-1]).path
+        except (OSError, ValueError, FileNotFoundError):
+            pass
+    return str(store.runs_dir / f"{run.id}.json")
 
 
 def _severity(reason: FailureReason) -> InboxSeverity:

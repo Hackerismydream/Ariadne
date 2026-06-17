@@ -8,6 +8,8 @@ from typer.testing import CliRunner
 from ariadne_ltb.cli import app
 from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.llm import DeepSeekClient
+from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
 from ariadne_ltb.models import (
     ArtifactType,
     BackendSmokeEvidence,
@@ -26,6 +28,21 @@ from ariadne_ltb.storage import AriadneStore
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
+
+
+class _InvalidLLMTransport:
+    def post_json(
+        self,
+        url: str,
+        payload: dict,
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> dict:
+        return {
+            "model": "deepseek-v4-pro",
+            "choices": [{"message": {"content": '{"decision":"missing required fields"}'}}],
+            "usage": {"total_tokens": 3},
+        }
 
 
 def test_local_search_indexes_tickets_comments_memory_artifacts_reviews_and_integrations(
@@ -178,3 +195,27 @@ def test_local_search_cli_table_reports_no_matches(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "No local search matches." in result.output
+
+
+def test_local_search_indexes_blocked_llm_agent_runs(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    run_ticket_llm_agent(
+        store,
+        ticket,
+        LLMAgentRole.KNOWLEDGE,
+        client=DeepSeekClient(api_key="test-secret-key", transport=_InvalidLLMTransport()),
+    )
+    refresh_inbox(store)
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "search", "llm:knowledge schema validation", "--output", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    kinds = {item["kind"] for item in payload}
+    assert "agent_run" in kinds
+    assert "inbox" in kinds

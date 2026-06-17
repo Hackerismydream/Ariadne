@@ -134,6 +134,30 @@ def _documents(store: AriadneStore) -> list[_SearchDocument]:
             )
         )
 
+    for run in store.list_runs():
+        docs.append(
+            _SearchDocument(
+                kind="agent_run",
+                title=f"{ticket_key_by_id.get(run.ticket_id, run.ticket_id)} {run.agent_role} {run.status.value}",
+                text=" ".join(
+                    [
+                        run.agent_name,
+                        run.agent_role,
+                        run.status.value,
+                        run.lifecycle_state.value,
+                        run.input_summary,
+                        run.output_summary or "",
+                        run.error or "",
+                        run.failure_reason.value if run.failure_reason else "",
+                        run.backend_name or "",
+                        " ".join(str(value) for value in run.metadata.values()),
+                    ]
+                ),
+                source_ref=str(store.runs_dir / f"{run.id}.json"),
+                ticket_key=ticket_key_by_id.get(run.ticket_id),
+            )
+        )
+
     for execution in store.list_execution_results():
         docs.append(
             _SearchDocument(

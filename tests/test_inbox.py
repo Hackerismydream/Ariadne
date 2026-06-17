@@ -12,6 +12,23 @@ from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import ExecutionResult, FailureReason, FeishuWritePlan
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.llm import DeepSeekClient
+from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
+
+
+class _InvalidLLMTransport:
+    def post_json(
+        self,
+        url: str,
+        payload: dict,
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> dict:
+        return {
+            "model": "deepseek-v4-pro",
+            "choices": [{"message": {"content": '{"decision":"missing required fields"}'}}],
+            "usage": {"total_tokens": 3},
+        }
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,3 +100,27 @@ def test_inbox_cli_lists_json_without_network(tmp_path: Path) -> None:
     assert payload[0]["ticket_key"] == ticket.key
     assert payload[0]["failure_reason"] == "provider_config_invalid"
     assert "provider config invalid" in payload[0]["summary"]
+
+
+def test_inbox_refresh_materializes_blocked_llm_agent_runs(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+
+    result = run_ticket_llm_agent(
+        store,
+        ticket,
+        LLMAgentRole.KNOWLEDGE,
+        client=DeepSeekClient(api_key="test-secret-key", transport=_InvalidLLMTransport()),
+    )
+    assert result.succeeded is False
+
+    items = refresh_inbox(store)
+
+    llm_items = [item for item in items if item.source_type == "agent_run"]
+    assert llm_items
+    assert llm_items[0].ticket_key == ticket.key
+    assert llm_items[0].failure_reason is FailureReason.AGENT_ERROR
+    assert "llm:knowledge" in llm_items[0].summary
+    assert result.artifact_path
+    assert llm_items[0].evidence_ref == result.artifact_path
