@@ -373,6 +373,81 @@ function backlogChangeFromNextTicket(nextTicket, index, ticket) {
   };
 }
 
+function backlogKindFromOperation(operationType) {
+  const mapping = {
+    add_ticket: "added",
+    update_ticket: "updated",
+    promote_ticket: "updated",
+    defer_ticket: "deferred",
+    supersede_ticket: "superseded",
+    no_op: "no_op",
+  };
+  return mapping[operationType] ?? "updated";
+}
+
+function backlogChangeFromPreviewOperation(preview, operation, index) {
+  const suggestion = operation.metadata?.suggestion ?? {};
+  const sourcePacket = operation.metadata?.source_packet ?? {};
+  const priority = operation.priority ?? suggestion.priority ?? "medium";
+  const priorityLabel = priority === "high" || priority === "P1" ? "P1" : priority === "low" || priority === "P3" ? "P3" : "P2";
+  return {
+    id: `${preview.id}-${operation.id ?? index}`,
+    knowledgeCardId: `knowledge-${sourcePacket.id ?? operation.ticket_id ?? preview.trigger_ref}`,
+    kind: backlogKindFromOperation(operation.operation_type),
+    ticketKey: operation.ticket_key ?? operation.ticket_id ?? preview.trigger_ref,
+    title: operation.title ?? suggestion.title ?? operation.reason,
+    reason: operation.reason ?? preview.rationale,
+    priority: priorityLabel,
+    suggestedOwnerAgent: operation.metadata?.suggested_owner_agent ?? "Build Lead",
+    buildDecision: suggestion.suggested_build_decision ?? sourcePacket.build_decision ?? "code_task",
+    previewId: preview.id,
+    previewStatus: preview.applied_update_id ? "applied" : preview.conflicts?.length ? "blocked" : "preview_only",
+    triggerType: preview.trigger_type,
+    operationType: operation.operation_type,
+    appliedUpdateId: preview.applied_update_id,
+    conflictCount: preview.conflicts?.length ?? 0,
+    evidenceRefs: preview.evidence_refs ?? [],
+  };
+}
+
+function backlogChangesFromPreviews(previews) {
+  return previews
+    .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+    .flatMap((preview) => (preview.operations ?? []).map((operation, index) => backlogChangeFromPreviewOperation(preview, operation, index)));
+}
+
+function backlogMutationPreviewFromPreviews(previews, fallbackChanges, releaseEvidence) {
+  if (!previews.length) {
+    return {
+      status: "applied",
+      added: fallbackChanges.filter((change) => change.kind === "added").length,
+      updated: fallbackChanges.filter((change) => change.kind === "updated").length,
+      deferred: fallbackChanges.filter((change) => change.kind === "deferred").length,
+      rejected: fallbackChanges.filter((change) => change.kind === "rejected").length,
+      noOp: fallbackChanges.filter((change) => change.kind === "no_op").length,
+      unsafe: releaseEvidence.store_invariants_ok === false ? 1 : 0,
+      lastPreviewAt: eventTime(releaseEvidence.generated_at),
+    };
+  }
+  const sorted = [...previews].sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+  const latest = sorted.at(-1);
+  const operations = sorted.flatMap((preview) => preview.operations ?? []);
+  const conflictCount = sorted.reduce((total, preview) => total + (preview.conflicts?.length ?? 0), 0);
+  return {
+    status: latest?.applied_update_id ? "applied" : conflictCount ? "blocked" : "preview_only",
+    added: operations.filter((operation) => backlogKindFromOperation(operation.operation_type) === "added").length,
+    updated: operations.filter((operation) => backlogKindFromOperation(operation.operation_type) === "updated").length,
+    deferred: operations.filter((operation) => backlogKindFromOperation(operation.operation_type) === "deferred").length,
+    rejected: operations.filter((operation) => backlogKindFromOperation(operation.operation_type) === "rejected").length,
+    noOp: operations.filter((operation) => backlogKindFromOperation(operation.operation_type) === "no_op").length,
+    unsafe: conflictCount,
+    lastPreviewAt: eventTime(latest?.created_at),
+    previewId: latest?.id,
+    triggerType: latest?.trigger_type,
+    appliedUpdateId: latest?.applied_update_id,
+  };
+}
+
 function inboxFromStore(item) {
   const kindBySource = {
     review: "review",
@@ -416,6 +491,7 @@ async function main() {
   const githubResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "github"));
   const feishuResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "feishu"));
   const backendSmokeResults = await readNestedJsonFiles(resolve(ariadneRoot, "evidence", "backend_smoke"));
+  const backlogPreviews = await readJsonFiles(resolve(ariadneRoot, "backlog", "previews"));
   const artifactIndex = await readJsonFiles(resolve(ariadneRoot, "artifact_index"));
   const llmAgentResults = await llmAgentResultsFromIndex(artifactIndex);
   const journalEvents = await readJsonl(resolve(ariadneRoot, "journal", "events.jsonl"));
@@ -467,6 +543,8 @@ async function main() {
     releaseEvidenceSummary: releaseEvidenceSummary(releaseEvidence),
     reviews,
   };
+  const previewBacklogChanges = backlogChangesFromPreviews(backlogPreviews);
+  const effectiveBacklogChanges = previewBacklogChanges.length ? previewBacklogChanges : backlogChanges;
   const runtimes = (runtimeSnapshot.capabilities ?? releaseEvidence.runtime_capabilities ?? []).map(runtimeFromCapability);
   const backendSmokeEvidence = backendSmokeResults.map(backendSmokeFromStore);
   const realIntegrationCards = [
@@ -518,7 +596,7 @@ async function main() {
     tickets: tickets.map((ticket) => ticketFromStore(ticket, context)),
     sources: tickets.map(sourceFromTicket),
     knowledgeCards,
-    backlogChanges,
+    backlogChanges: effectiveBacklogChanges,
     traceSteps: journalEvents.slice(-16).map((event, index) => ({
       id: `trace-${index}`,
       knowledgeCardId: `journal-${index}`,
@@ -528,15 +606,7 @@ async function main() {
       artifactPath: ".ariadne/journal/events.jsonl",
       timestamp: eventTime(event.created_at ?? event.timestamp),
     })),
-    backlogMutationPreview: {
-      status: "applied",
-      added: backlogChanges.length,
-      updated: 0,
-      deferred: 0,
-      rejected: 0,
-      unsafe: releaseEvidence.store_invariants_ok === false ? 1 : 0,
-      lastPreviewAt: eventTime(releaseEvidence.generated_at),
-    },
+    backlogMutationPreview: backlogMutationPreviewFromPreviews(backlogPreviews, effectiveBacklogChanges, releaseEvidence),
     agents: [
       agentFromRuns("Ariadne Codex", "Codex", githubResults.length + feishuResults.length + backendSmokeEvidence.filter((item) => item.backendName === "codex").length),
       agentFromRuns("Ariadne Reviewer", "Codex", reviews.length),

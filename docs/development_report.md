@@ -5084,3 +5084,71 @@ Release evidence path:
 Board path:
 
 - `.ariadne/board/index.md`
+
+## 2026-06-18 04:57 CST Workbench Backlog Preview Data Contract Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Updated the local workbench data sync contract so it reads real
+  `.ariadne/backlog/previews/*.json` records.
+- `frontend/ariadne-workbench/public/web_data/workbench.json` now derives
+  `backlogChanges` from `BacklogPreview.operations` when previews exist, instead
+  of only inferring changes from `next_tickets.json`.
+- Extended synced backlog change records with preview evidence:
+  - `previewId`
+  - `previewStatus`
+  - `triggerType`
+  - `operationType`
+  - `appliedUpdateId`
+  - `conflictCount`
+  - `evidenceRefs`
+- Extended `backlogMutationPreview` with latest preview id, trigger type, and
+  applied update id.
+- Preserved `no_op` preview operations as explicit `no_op` records instead of
+  mislabeling them as rejected ticket changes.
+- Kept the existing next-ticket-derived fallback when no backlog previews exist.
+
+Why this matters:
+
+- The frontend/workbench data contract now consumes Ariadne's real ticket
+  state-machine evidence instead of an approximation.
+- Operators can inspect whether backlog mutations are preview-only, applied, or
+  blocked without reading raw JSON files.
+- This supports the production target:
+  `feedback/codebase -> BacklogPreview -> BacklogUpdate -> visible workbench`.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_workbench_data_sync.py`: passed.
+- `npm run build` in `frontend/ariadne-workbench`: passed.
+- `npm run sync:data` in `frontend/ariadne-workbench`: passed and produced
+  local workbench data with `previewId`, `triggerType`, `operationType`, and
+  `appliedUpdateId` fields.
+- Local workbench JSON inspection confirmed `no_op` preview operations remain
+  `no_op` (`noOps=32`, `rejected=0`).
+- `python3.11 -m pytest`: passed, `248 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; DeepSeek key was
+  reported as set and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_c1f6d67c170e`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
+Frontend integration decision:
+
+- The separate `codex/ariadne-workbench-frontend-lane` branch remains clean and
+  unmerged into this core branch.
+- This slice changed only the backend-to-workbench data contract already present
+  on the core branch. Full frontend branch integration is still deferred until
+  the core production data contract settles or a merge is explicitly required.

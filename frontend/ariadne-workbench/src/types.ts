@@ -197,7 +197,7 @@ export type KnowledgeCard = {
   primary: boolean;
 };
 
-export type BacklogChangeKind = "added" | "updated" | "deferred" | "rejected" | "superseded";
+export type BacklogChangeKind = "added" | "updated" | "deferred" | "rejected" | "superseded" | "no_op";
 
 export type BacklogChange = {
   id: string;
@@ -209,6 +209,13 @@ export type BacklogChange = {
   priority: "P1" | "P2" | "P3";
   suggestedOwnerAgent: string;
   buildDecision: KnowledgeCard["buildDecision"];
+  previewId?: string;
+  previewStatus?: "preview_only" | "applied" | "blocked";
+  triggerType?: string;
+  operationType?: string;
+  appliedUpdateId?: string | null;
+  conflictCount?: number;
+  evidenceRefs?: string[];
 };
 
 export type TraceStep = {
@@ -227,8 +234,12 @@ export type BacklogMutationPreview = {
   updated: number;
   deferred: number;
   rejected: number;
+  noOp?: number;
   unsafe: number;
   lastPreviewAt: string;
+  previewId?: string;
+  triggerType?: string;
+  appliedUpdateId?: string | null;
 };
 
 export type SkillInfo = {

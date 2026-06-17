@@ -9,7 +9,15 @@ from pathlib import Path
 import pytest
 
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import ArtifactType, FeishuWriteResult, ReleaseEvidencePacket
+from ariadne_ltb.models import (
+    ArtifactType,
+    BacklogOperation,
+    BacklogOperationType,
+    BacklogPreview,
+    BacklogUpdateTrigger,
+    FeishuWriteResult,
+    ReleaseEvidencePacket,
+)
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -66,6 +74,31 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
             run_gate_status="action_required",
         )
     )
+    store.save_backlog_preview(
+        BacklogPreview(
+            id="backlog_preview_sync",
+            trigger_type=BacklogUpdateTrigger.MEMORY_GAP,
+            trigger_ref="memory_record_sync",
+            idempotency_key="backlog_preview_sync_key",
+            base_ticket_fingerprint="fingerprint_sync",
+            applied_update_id="backlog_update_sync",
+            applied_at="2026-06-18T00:00:00Z",
+            operations=[
+                BacklogOperation(
+                    id="operation_sync",
+                    operation_type=BacklogOperationType.ADD_TICKET,
+                    reason="Memory records are written but not searchable.",
+                    ticket_key="ARI-999",
+                    title="Index memory records",
+                    priority="high",
+                    metadata={"suggestion": {"suggested_build_decision": "code_task"}},
+                )
+            ],
+            rationale="Previewed memory-gap backlog changes for ARI-003.",
+            evidence_refs=[ticket.id, "memory_record_sync"],
+            created_at="2026-06-18T00:00:00Z",
+        )
+    )
 
     output_path = tmp_path / "workbench.json"
     subprocess.run(
@@ -86,4 +119,12 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
     assert synced_ticket["llmAgents"][0]["totalTokens"] == 123
     assert synced_ticket["feishu"]["documentUrl"] == "https://example.feishu.cn/docx/sync"
     assert synced_ticket["releaseEvidence"]["productionAcceptanceStatus"] == "ready"
+    assert data["backlogMutationPreview"]["status"] == "applied"
+    assert data["backlogMutationPreview"]["previewId"] == "backlog_preview_sync"
+    assert data["backlogMutationPreview"]["triggerType"] == "memory_gap"
+    assert data["backlogMutationPreview"]["added"] == 1
+    assert data["backlogChanges"][0]["previewId"] == "backlog_preview_sync"
+    assert data["backlogChanges"][0]["triggerType"] == "memory_gap"
+    assert data["backlogChanges"][0]["operationType"] == "add_ticket"
+    assert data["backlogChanges"][0]["ticketKey"] == "ARI-999"
     assert data["releaseEvidence"]["id"] == "release_evidence_sync"
