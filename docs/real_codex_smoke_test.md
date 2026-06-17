@@ -37,17 +37,43 @@ Run backend diagnostics first:
 
 ```bash
 uv run ari backend doctor
+uv run ari backend diagnose codex
 ```
 
 Fallback:
 
 ```bash
 python3.11 -m ariadne_ltb.cli backend doctor
+python3.11 -m ariadne_ltb.cli backend diagnose codex
 ```
 
 The doctor reports backend command availability and environment gate state. It
 only prints `set` or `unset` for secrets such as `DEEPSEEK_API_KEY`; it never
 prints secret values.
+
+The Codex diagnosis reports whether the local `codex exec --help` advertises
+`--prompt-file`, recommends a compatible command template, and checks
+`service_tier` without printing secrets.
+
+## Run The Main Codex Demo
+
+`ari demo codex` is the first-class real Codex demo path. Without both safety
+gates it records a blocked result through the normal loop. With both gates it
+runs through `TicketRunOrchestrator` and `CodexBackend`.
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
+uv run ari demo codex --confirm-execution --timeout-seconds 180
+```
+
+Fallback:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
+python3.11 -m ariadne_ltb.cli demo codex --confirm-execution --timeout-seconds 180
+```
 
 ## Run The Smoke Test
 
@@ -110,6 +136,8 @@ Key outputs:
   `ari backend doctor`.
 - Config error `unknown variant priority`: update `~/.codex/config.toml` so
   `service_tier` is `fast` or another value supported by your account.
+- Provider error `Unsupported service_tier: flex`: this account/provider path
+  rejected `flex`; use `fast` for the real Codex smoke path.
 - Non-zero Codex exit: inspect the execution result, review report, board, and
   target repo diff. Ariadne records the failed run instead of hiding it.
 

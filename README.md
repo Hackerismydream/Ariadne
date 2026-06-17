@@ -209,6 +209,20 @@ The matrix records prompt-file/stdin support, skill materialization, timeout,
 diff/test capture, command availability, safety gates, and command-template
 presence without printing secrets.
 
+Diagnose Codex CLI command/template compatibility:
+
+```bash
+ari backend diagnose codex
+```
+
+Run the first-class real Codex demo path only when explicitly gated:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
+ari demo codex --confirm-execution --timeout-seconds 180
+```
+
 The full smoke-test runbook is in
 [`docs/real_codex_smoke_test.md`](docs/real_codex_smoke_test.md).
 

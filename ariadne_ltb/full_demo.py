@@ -37,6 +37,7 @@ def run_full_demo(
     source_paths: list[Path] | None = None,
     backend_name: str = "fake-codex",
     confirm_execution: bool = False,
+    timeout_seconds: int = 60,
 ) -> FullDemoResult:
     root_path = Path(root).resolve()
     store = AriadneStore(root_path)
@@ -49,6 +50,7 @@ def run_full_demo(
         backend_name=backend_name,
         target_repo_path=str(root_path / ".ariadne" / "demo_target_project"),
         confirm_execution=confirm_execution,
+        timeout_seconds=timeout_seconds,
     )
     return FullDemoResult(
         sources_ingested=len(sources),

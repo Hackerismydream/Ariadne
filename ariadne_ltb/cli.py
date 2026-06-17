@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
+import tomllib
 from pathlib import Path
 from typing import Annotated
 
@@ -15,7 +17,12 @@ from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
 from ariadne_ltb.execution import CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
-from ariadne_ltb.full_demo import default_source_fixtures, run_full_demo, select_code_task_ticket
+from ariadne_ltb.full_demo import (
+    FullDemoResult,
+    default_source_fixtures,
+    run_full_demo,
+    select_code_task_ticket,
+)
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_safety import clear_stale_locks, list_locks
@@ -88,39 +95,49 @@ def configure(
 
 @app.command()
 def demo(
-    mode: Annotated[str, typer.Argument(help="Demo mode: `kernel` or `full`.")] = "kernel",
+    mode: Annotated[str, typer.Argument(help="Demo mode: `kernel`, `full`, or `codex`.")] = "kernel",
     backend: Annotated[str, typer.Option("--backend", help="Execution backend.")] = "fake-codex",
     confirm_execution: Annotated[
         bool,
         typer.Option("--confirm-execution", help="Allow non-dry-run external execution backends."),
     ] = False,
+    timeout_seconds: Annotated[
+        int,
+        typer.Option("--timeout-seconds", help="Maximum seconds for external backend commands."),
+    ] = 60,
 ) -> None:
     """Run the Ariadne demo pipeline."""
-    if mode == "full":
+    if mode in {"full", "codex"}:
+        selected_backend = "codex" if mode == "codex" else backend
         result = run_full_demo(
             root=state.root,
             source_paths=default_source_fixtures(),
-            backend_name=backend,
+            backend_name=selected_backend,
             confirm_execution=confirm_execution,
+            timeout_seconds=timeout_seconds,
         )
-        typer.echo(f"sources ingested: {result.sources_ingested}")
-        typer.echo(f"tickets created: {result.tickets_created}")
-        typer.echo(f"selected ticket: {result.selected_ticket_key} ({result.selected_ticket_id})")
-        typer.echo(f"backend used: {result.backend_name}")
-        typer.echo(f"changed files: {', '.join(result.changed_files)}")
-        typer.echo(f"test exit code: {result.test_exit_code}")
-        typer.echo(f"reviewer verdict: {result.review_verdict.value}")
-        typer.echo(f"board: {result.board_path}")
-        typer.echo(f"memory: {result.memory_path}")
-        typer.echo(f"feishu plan: {result.feishu_plan_path}")
-        typer.echo(f"next tickets: {result.next_tickets_path}")
+        _print_full_demo_result(result)
         return
     if mode != "kernel":
-        raise typer.BadParameter("mode must be `kernel` or `full`")
+        raise typer.BadParameter("mode must be `kernel`, `full`, or `codex`")
     result = run_demo(root=state.root)
     typer.echo(f"Created and ran {result.ticket_key} ({result.ticket_id})")
     typer.echo(f"Artifacts: {result.artifacts_dir}")
     typer.echo(f"Board: {result.board_path}")
+
+
+def _print_full_demo_result(result: FullDemoResult) -> None:
+    typer.echo(f"sources ingested: {result.sources_ingested}")
+    typer.echo(f"tickets created: {result.tickets_created}")
+    typer.echo(f"selected ticket: {result.selected_ticket_key} ({result.selected_ticket_id})")
+    typer.echo(f"backend used: {result.backend_name}")
+    typer.echo(f"changed files: {', '.join(result.changed_files)}")
+    typer.echo(f"test exit code: {result.test_exit_code}")
+    typer.echo(f"reviewer verdict: {result.review_verdict.value}")
+    typer.echo(f"board: {result.board_path}")
+    typer.echo(f"memory: {result.memory_path}")
+    typer.echo(f"feishu plan: {result.feishu_plan_path}")
+    typer.echo(f"next tickets: {result.next_tickets_path}")
 
 
 @app.command()
@@ -400,6 +417,84 @@ def _capability_matrix_line(capability: RuntimeCapability) -> str:
 
 def _yes_no(value: bool) -> str:
     return "yes" if value else "no"
+
+
+@backend_app.command("diagnose")
+def backend_diagnose(
+    backend: Annotated[str, typer.Argument(help="Backend to diagnose. Currently supports `codex`.")],
+) -> None:
+    """Diagnose provider command compatibility without running a ticket."""
+    if backend != "codex":
+        raise typer.BadParameter("only `codex` diagnosis is supported")
+
+    codex_path = shutil.which("codex")
+    help_result = _codex_exec_help(codex_path)
+    prompt_file_support = _codex_help_supports_prompt_file(help_result)
+    recommended_template = (
+        "codex exec --cd {target_repo} --prompt-file {handoff_file}"
+        if prompt_file_support is True
+        else 'codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}'
+    )
+
+    typer.echo(f"CodexBackend command: {'found ' + codex_path if codex_path else 'missing'}")
+    typer.echo(f"Codex exec help: {help_result['status']}")
+    typer.echo(f"Prompt-file support: {_support_label(prompt_file_support)}")
+    typer.echo("Recommended template:")
+    typer.echo(recommended_template)
+    typer.echo(
+        "ARIADNE_ENABLE_EXTERNAL_EXECUTION: "
+        f"{'set' if os.environ.get('ARIADNE_ENABLE_EXTERNAL_EXECUTION') else 'unset'}"
+    )
+    typer.echo(
+        "ARIADNE_CODEX_COMMAND_TEMPLATE: "
+        f"{'set' if os.environ.get('ARIADNE_CODEX_COMMAND_TEMPLATE') else 'unset'}"
+    )
+    typer.echo(f"Codex config: {_codex_config_summary()}")
+    typer.echo("Real execution gate: requires ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 and --confirm-execution")
+
+
+def _codex_exec_help(codex_path: str | None) -> dict[str, str]:
+    if not codex_path:
+        return {"status": "unavailable", "stdout": "", "stderr": ""}
+    try:
+        result = subprocess.run(
+            [codex_path, "exec", "--help"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"status": f"unavailable ({exc})", "stdout": "", "stderr": ""}
+    status = "available" if result.returncode == 0 else f"error exit {result.returncode}"
+    return {"status": status, "stdout": result.stdout, "stderr": result.stderr}
+
+
+def _codex_help_supports_prompt_file(help_result: dict[str, str]) -> bool | None:
+    if help_result["status"].startswith("unavailable"):
+        return None
+    help_text = f"{help_result['stdout']}\n{help_result['stderr']}"
+    return "--prompt-file" in help_text
+
+
+def _support_label(value: bool | None) -> str:
+    if value is None:
+        return "unknown"
+    return "yes" if value else "no"
+
+
+def _codex_config_summary() -> str:
+    config_path = Path(os.environ.get("ARIADNE_CODEX_CONFIG", Path.home() / ".codex" / "config.toml"))
+    if not config_path.exists():
+        return f"missing at {config_path}"
+    try:
+        data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        return f"unreadable TOML ({exc})"
+    service_tier = data.get("service_tier")
+    if service_tier in {None, "fast", "flex"}:
+        return f"service_tier={service_tier or 'unset'}"
+    return f"service_tier={service_tier} unsupported; expected fast or flex"
 
 
 @backend_app.command("smoke-test")

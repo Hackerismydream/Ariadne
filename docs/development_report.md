@@ -1949,3 +1949,112 @@ Known limitations:
   live introspection beyond command availability and env-gate state.
 - `dry-run` intentionally reports no diff/test capture because it does not run a
   target command or test suite.
+
+## Core Batch 16: Real Codex Teammate Main Demo
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-09 / LOC-14` by making the real Codex path a
+first-class local demo while preserving the default fake-codex path and all
+external-execution gates.
+
+Implemented files:
+
+- `ariadne_ltb/full_demo.py`
+- `ariadne_ltb/cli.py`
+- `tests/test_v1_codex_teammate.py`
+- `README.md`
+- `docs/real_codex_smoke_test.md`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `ari demo codex` / `python3.11 -m ariadne_ltb.cli demo codex` as the
+  explicit real Codex demo path. It uses the existing `run_full_demo()` and
+  `TicketRunOrchestrator`; no duplicate execution pipeline was added.
+- Added `--timeout-seconds` to `ari demo` and passed it through the full-demo
+  orchestrator path.
+- Added `ari backend diagnose codex` to check local Codex command availability,
+  `codex exec --help` compatibility, prompt-file support, recommended command
+  template, safety-gate env state, and `service_tier` config sanity without
+  running a ticket.
+- Kept real Codex execution gated by both
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and `--confirm-execution`.
+- Verified that missing gates produce a blocked `ExecutionResult`, blocked
+  review, memory, Feishu dry-run plan, next tickets, and board instead of
+  falling back to `fake-codex`.
+- Updated README and the real Codex smoke-test runbook with `demo codex` and
+  `backend diagnose codex`.
+
+Real local Codex run:
+
+- Initial diagnosis found `~/.codex/config.toml` used
+  `service_tier = "priority"`, which the local Codex CLI rejects.
+- The config was changed outside the repo to `service_tier = "flex"` to match
+  the user's cost preference, but the OpenAI provider returned
+  `Unsupported service_tier: flex`.
+- The config was changed outside the repo to `service_tier = "fast"` for the
+  real smoke run.
+- With:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
+python3.11 -m ariadne_ltb.cli --root /tmp/ariadne-loc14-real-fast demo codex --confirm-execution --timeout-seconds 180
+```
+
+the real Codex demo passed:
+
+- Backend: `codex`.
+- Changed files: `demo_todo/cli.py`, `tests/test_cli.py`.
+- Target tests: exit code `0`.
+- Reviewer verdict: `pass`.
+- Board: `/private/tmp/ariadne-loc14-real-fast/.ariadne/board/index.md`.
+- Memory:
+  `/private/tmp/ariadne-loc14-real-fast/.ariadne/memory/tickets/ticket_88fbff51677a.md`.
+- Feishu dry-run plan:
+  `/private/tmp/ariadne-loc14-real-fast/.ariadne/feishu_plans/feishu_1b5b7d988e92.json`.
+- Next tickets:
+  `/private/tmp/ariadne-loc14-real-fast/.ariadne/artifacts/ticket_88fbff51677a/next_tickets.json`.
+
+Verification:
+
+- `python3.11 -m ruff check ariadne_ltb/cli.py ariadne_ltb/full_demo.py tests/test_v1_codex_teammate.py`:
+  passed.
+- `python3.11 -m pytest tests/test_v1_codex_teammate.py tests/test_backend_smoke_cli.py tests/test_provider_capability_matrix.py -q`:
+  passed, 19 tests.
+- `python3.11 -m pytest`: passed, 155 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli --root /tmp/ariadne-loc14-demo demo codex`:
+  passed and produced a blocked result with no gate.
+- `python3.11 -m ariadne_ltb.cli backend diagnose codex`: passed and reported
+  the stdin-compatible template.
+- Real gated `demo codex` with `service_tier=fast`: passed with reviewer
+  verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket list`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex`:
+  passed with reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; no secrets were
+  printed and external execution remained disabled.
+- `python3.11 -m ariadne_ltb.cli backend matrix`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+- Optional `uv run ari backend diagnose codex`: passed.
+- Optional `uv run ari --root /tmp/ariadne-loc14-uv-demo demo codex`: passed
+  and produced a blocked result with no gate.
+- Optional `uv run ari demo full`: passed.
+- Optional `uv run ari ticket list`: passed.
+- Optional `uv run ari export board`: passed.
+- Optional `uv run ari backend doctor`: passed.
+
+Known limitations:
+
+- `codex exec --help` on this machine does not advertise `--prompt-file`, so
+  the recommended real demo template uses stdin redirection.
+- `service_tier=flex` was rejected by this provider path even though the local
+  CLI config parser accepts it; the documented successful run uses `fast`.
+- The real Codex demo is still optional and default-off. The default Ariadne
+  demo remains `fake-codex`.
