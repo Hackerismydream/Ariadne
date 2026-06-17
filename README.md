@@ -464,7 +464,9 @@ summarizes tickets, assignments, executions, reviews, memory, inbox items,
 runtime capabilities, store invariants, secret scan status, board path, and
 managed workdirs. `ari doctor product` writes
 `.ariadne/doctor/product_readiness.json` with production-path readiness checks
-and next actions.
+and next actions. The product doctor checks both local integration readiness and
+recorded real-success evidence for Codex, Claude Code, Feishu, and GitHub; unset
+write/execution gates are reported as `action_required` instead of being hidden.
 
 List and clean Ariadne-generated isolated workdirs:
 

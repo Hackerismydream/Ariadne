@@ -15,6 +15,7 @@ from ariadne_ltb.llm import (
     DEFAULT_DEEPSEEK_MODEL,
     DEFAULT_LLM_TIMEOUT_SECONDS,
     load_local_env,
+    redact_secrets,
 )
 from ariadne_ltb.models import utc_now
 from ariadne_ltb.runtime import collect_runtime_capabilities
@@ -131,6 +132,7 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     """Summarize the production acceptance path without performing remote writes."""
     integration = integration_doctor_snapshot(store, repo_root)
     release_packet = _release_packet_snapshot(store)
+    real_evidence = _real_evidence_snapshot(store)
     checks = [
         _product_check(
             "deepseek_llm",
@@ -194,6 +196,30 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             "Release evidence packet references integration doctor, Feishu, and GitHub evidence.",
             "Run `ari evidence packet` with the current release evidence implementation.",
         ),
+        _product_evidence_check(
+            "real_codex_execution_evidence",
+            real_evidence["codex"],
+            "A real CodexBackend execution succeeded with tests.",
+            "Run a confirmed Codex ticket execution and regenerate release evidence.",
+        ),
+        _product_evidence_check(
+            "real_claude_execution_evidence",
+            real_evidence["claude_code"],
+            "A real ClaudeCodeBackend execution succeeded with tests.",
+            "Run a confirmed Claude Code ticket execution and regenerate release evidence.",
+        ),
+        _product_evidence_check(
+            "real_feishu_write_evidence",
+            real_evidence["feishu"],
+            "A real Feishu write succeeded and produced a document reference.",
+            "Run `FEISHU_ENABLE_WRITE=1 ari feishu write <ticket> --confirm-write`.",
+        ),
+        _product_evidence_check(
+            "real_github_write_evidence",
+            real_evidence["github"],
+            "A real GitHub write succeeded and produced remote evidence.",
+            "Run `ari github create-issue` or `ari github sync` with `--confirm-write`.",
+        ),
     ]
     blocking = [check for check in checks if check["status"] == "blocked"]
     action_required = [check for check in checks if check["status"] == "action_required"]
@@ -203,6 +229,18 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
         "checks": checks,
         "integration_report": str(store.doctor_dir / "integrations.json"),
         "release_evidence_packet": release_packet,
+        "real_success_evidence": {
+            "codex": real_evidence["codex"]["success"],
+            "claude_code": real_evidence["claude_code"]["success"],
+            "feishu": real_evidence["feishu"]["success"],
+            "github": real_evidence["github"]["success"],
+        },
+        "real_failure_evidence": {
+            "codex": real_evidence["codex"]["latest_failure"],
+            "claude_code": real_evidence["claude_code"]["latest_failure"],
+            "feishu": real_evidence["feishu"]["latest_failure"],
+            "github": real_evidence["github"]["latest_failure"],
+        },
         "next_actions": [
             check["next_action"]
             for check in checks
@@ -335,6 +373,34 @@ def _product_check(
     }
 
 
+def _product_evidence_check(
+    name: str,
+    evidence: dict[str, Any],
+    ready_summary: str,
+    next_action: str,
+) -> dict[str, Any]:
+    if evidence["success"]:
+        return {
+            "name": name,
+            "status": "ready",
+            "summary": ready_summary,
+            "next_action": "",
+        }
+    if evidence["latest_failure"]:
+        return {
+            "name": name,
+            "status": "blocked",
+            "summary": evidence["latest_failure"].get("reason") or next_action,
+            "next_action": next_action,
+        }
+    return {
+        "name": name,
+        "status": "action_required",
+        "summary": next_action,
+        "next_action": next_action,
+    }
+
+
 def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
     path = store.release_evidence_packet_path
     if not path.exists():
@@ -363,3 +429,152 @@ def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
         "has_integration_refs": required_refs.issubset(set(refs)),
         "evidence_refs": {key: refs.get(key) for key in sorted(required_refs)},
     }
+
+
+def _real_evidence_snapshot(store: AriadneStore) -> dict[str, Any]:
+    executions = store.list_execution_results()
+    feishu_results = store.list_feishu_write_results()
+    github_results = store.list_github_integration_results()
+    return {
+        "codex": _execution_evidence(executions, "codex"),
+        "claude_code": _execution_evidence(executions, "claude-code"),
+        "feishu": _feishu_evidence(feishu_results),
+        "github": _github_evidence(github_results),
+    }
+
+
+def _execution_evidence(results: list[Any], backend_name: str) -> dict[str, Any]:
+    matching = [result for result in results if result.backend_name == backend_name and not result.dry_run]
+    successes = [
+        result
+        for result in matching
+        if not result.blocked and result.exit_code == 0 and result.test_exit_code == 0
+    ]
+    failures = [result for result in matching if result.blocked or result.exit_code != 0 or result.test_exit_code not in {0, None}]
+    return {
+        "success": _execution_summary(_latest_by_time(successes, "ended_at")),
+        "latest_failure": _execution_failure_summary(_latest_by_time(failures, "ended_at")),
+    }
+
+
+def _feishu_evidence(results: list[Any]) -> dict[str, Any]:
+    successes = [
+        result
+        for result in results
+        if result.ok and not result.blocked and not result.dry_run and (result.document_url or result.document_id)
+    ]
+    failures = [result for result in results if not result.ok or result.blocked]
+    return {
+        "success": _feishu_summary(_latest_by_time(successes, "created_at")),
+        "latest_failure": _integration_failure_summary(_latest_by_time(failures, "created_at")),
+    }
+
+
+def _github_evidence(results: list[Any]) -> dict[str, Any]:
+    write_operations = {"create_issue", "create_pr", "sync"}
+    matching = [result for result in results if result.operation in write_operations]
+    successes = [result for result in matching if result.ok and not result.blocked]
+    failures = [result for result in matching if not result.ok or result.blocked]
+    return {
+        "success": _github_summary(_latest_by_time(successes, "created_at")),
+        "latest_failure": _integration_failure_summary(_latest_by_time(failures, "created_at")),
+    }
+
+
+def _latest_by_time(items: list[Any], field_name: str) -> Any | None:
+    if not items:
+        return None
+    return sorted(items, key=lambda item: getattr(item, field_name) or "")[-1]
+
+
+def _execution_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "ticket_id": result.ticket_id,
+        "backend_name": result.backend_name,
+        "exit_code": result.exit_code,
+        "test_exit_code": result.test_exit_code,
+        "changed_files": result.changed_files,
+        "handoff_file": result.handoff_file,
+        "provider_session_id": result.provider_session_id,
+        "ended_at": result.ended_at,
+    }
+
+
+def _execution_failure_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "ticket_id": result.ticket_id,
+        "backend_name": result.backend_name,
+        "reason": _safe_reason(
+            result.block_reason or result.provider_failure_kind or "execution did not complete successfully"
+        ),
+        "exit_code": result.exit_code,
+        "test_exit_code": result.test_exit_code,
+        "failure_reason": result.failure_reason.value if result.failure_reason else None,
+        "ended_at": result.ended_at,
+    }
+
+
+def _feishu_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "ticket_id": result.ticket_id,
+        "ticket_key": result.ticket_key,
+        "document_id": result.document_id,
+        "document_url": result.document_url,
+        "created_at": result.created_at,
+    }
+
+
+def _github_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "ticket_id": result.ticket_id,
+        "ticket_key": result.ticket_key,
+        "operation": result.operation,
+        "repo": result.repo,
+        "issue_number": result.issue_number,
+        "pr_number": result.pr_number,
+        "branch": result.branch,
+        "commit_sha": result.commit_sha,
+        "issue_url": result.issue_url,
+        "pr_url": result.pr_url,
+        "comment_url": result.comment_url,
+        "created_at": result.created_at,
+    }
+
+
+def _integration_failure_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {
+        "id": result.id,
+        "ticket_id": result.ticket_id,
+        "ticket_key": result.ticket_key,
+        "operation": getattr(result, "operation", None),
+        "reason": _safe_reason(result.reason or "integration did not complete successfully"),
+        "failure_reason": result.failure_reason.value if result.failure_reason else None,
+        "created_at": result.created_at,
+    }
+
+
+def _safe_reason(value: str, max_chars: int = 260) -> str:
+    redacted = redact_secrets(value)
+    lines = [
+        line
+        for line in redacted.splitlines()
+        if "proxy detected" not in line and "requests (including credentials)" not in line
+    ]
+    compact = " ".join("\n".join(lines).split())
+    if len(compact) <= max_chars:
+        return compact
+    return compact[: max_chars - 3].rstrip() + "..."

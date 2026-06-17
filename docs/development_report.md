@@ -3239,3 +3239,56 @@ Current readiness interpretation:
 - The product readiness result is still `action_required` because the real
   external execution and Feishu write gates are intentionally unset outside a
   confirmed write/execution command.
+
+## 2026-06-18 00:05 CST Product Readiness Real Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The first product doctor slice checked integration availability and release
+  packet references, but it could still overstate readiness by only proving that
+  local commands and credentials were detectable.
+- The production roadmap needs a stronger distinction between "tools are
+  available" and "the real product path has already produced successful
+  evidence."
+
+Implemented:
+
+- `ari doctor product` now checks recorded real-success evidence for:
+  - CodexBackend execution with exit code 0 and test exit code 0;
+  - ClaudeCodeBackend execution with exit code 0 and test exit code 0;
+  - Feishu write result with a real document reference;
+  - GitHub write result from create issue, create PR, or sync.
+- Missing real-success evidence is reported as `action_required`.
+- Existing failed real evidence is summarized as `blocked` unless a later
+  success exists.
+- Failure summaries are redacted and truncated before being written into
+  `.ariadne/doctor/product_readiness.json`.
+
+Safety boundaries:
+
+- The command still performs no external writes.
+- The new evidence checks read only local Ariadne JSON artifacts under
+  `.ariadne/`.
+- Secret values and large provider stderr bodies are not copied into the
+  readiness summary.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py -q`: passed,
+  `8 passed`.
+- `python3.11 -m pytest`: passed, `209 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ruff check ariadne_ltb/doctor.py tests/test_v1_doctor_release.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `python3.11 -m ariadne_ltb.cli doctor integrations`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and reports real
+  Codex, Claude Code, Feishu, and GitHub evidence as `ready`; overall status is
+  still `action_required` because write/execution gates are intentionally unset.
+- `scripts/verify_v1.sh`: passed; release evidence packet generated as
+  `release_evidence_5d35cc75fdf7`.
