@@ -22,6 +22,7 @@ from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.models import (
     AssignmentStatus,
+    BacklogUpdate,
     CommentAuthorType,
     CommentKind,
     ExecutionContext,
@@ -166,6 +167,7 @@ def backlog_update(
     typer.echo(f"created tickets: {len(update.created_ticket_ids)}")
     typer.echo(f"updated tickets: {len(update.updated_ticket_ids)}")
     typer.echo(f"superseded tickets: {len(update.superseded_ticket_ids)}")
+    typer.echo(f"ticket changes: {len(update.ticket_changes)}")
     typer.echo(f"rationale: {update.rationale}")
     for ticket in tickets:
         typer.echo(f"{ticket.key}\t{ticket.status.value}\t{ticket.title}")
@@ -188,10 +190,23 @@ def backlog_history(limit: Annotated[int, typer.Option("--limit")] = 20) -> None
             "tickets: "
             f"created={len(update.created_ticket_ids)} "
             f"updated={len(update.updated_ticket_ids)} "
-            f"superseded={len(update.superseded_ticket_ids)}"
+            f"superseded={len(update.superseded_ticket_ids)} "
+            f"changes={_ticket_change_counts(update)}"
         )
+        for change in update.ticket_changes:
+            typer.echo(
+                f"- {change.ticket_key}\t{change.change_type.value}\t"
+                f"{change.before_status or ''}->{change.after_status or ''}\t{change.reason}"
+            )
         if update.evidence_refs:
             typer.echo(f"evidence: {', '.join(update.evidence_refs)}")
+
+
+def _ticket_change_counts(update: BacklogUpdate) -> str:
+    counts: dict[str, int] = {}
+    for change in update.ticket_changes:
+        counts[change.change_type.value] = counts.get(change.change_type.value, 0) + 1
+    return ",".join(f"{key}:{counts[key]}" for key in sorted(counts)) or "none"
 
 
 @agent_app.command("list")
@@ -666,6 +681,7 @@ def ticket_run(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"backlog updates: {', '.join(result.backlog_update_ids)}")
     if result.worktree_path:
         typer.echo(f"worktree: {result.worktree_path}")
     typer.echo(f"board: {result.board_path}")

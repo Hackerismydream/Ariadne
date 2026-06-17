@@ -1695,3 +1695,90 @@ Known limitations:
   handoff, not native Codex/Claude skill installation.
 - Store doctor does not yet validate orphaned `.ariadne/skills/<ticket-key>/`
   directories.
+
+## Core Batch 13: Feedback-to-Ticket Update Engine
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-06 / LOC-11` by making ticket runs write
+feedback-driven `BacklogUpdate` records and materialize selected follow-up
+tickets from review, memory, and codebase observations.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/backlog.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_backlog_update_loop.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `TicketChangeType.NO_OP` for feedback that is observed but should not
+  mutate the ticket set.
+- Added `record_feedback_backlog_updates()` to generate backlog updates from:
+  - execution result;
+  - review feedback;
+  - memory gaps;
+  - codebase changed-file observations.
+- `TicketRunOrchestrator.run_ticket()` now calls the feedback backlog engine
+  after next-ticket generation and before board export.
+- High and medium priority next-ticket suggestions are materialized as
+  idempotent follow-up Build Tickets with Build Packets.
+- Low priority suggestions remain artifact-only and are recorded as no-op
+  backlog decisions.
+- Source tickets receive update trace events when follow-up tickets are created
+  from their run feedback.
+- Added public helpers for explicit downgrade and no-op backlog decisions.
+- `ari backlog history` now prints change counts and per-ticket change lines.
+- `ari ticket run` prints generated backlog update ids.
+- Board top-level backlog section and per-ticket `Backlog Update Trace` now
+  show change-type counts, evidence refs, and no-op/downgrade records.
+
+Safety boundaries:
+
+- Generated follow-up tickets are local JSON artifacts only.
+- No auto-commit, auto-push, auto-merge, PR creation, real Feishu write, or
+  external execution behavior was added.
+- Real Codex and Claude execution remain gated by existing controls.
+- Generated follow-up Build Packets are conservative deterministic scaffolds and
+  can be replanned before execution.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_backlog_update_loop.py -q`: passed, 14
+  tests.
+- `python3.11 -m ruff check ariadne_ltb/backlog.py ariadne_ltb/orchestrator.py ariadne_ltb/cli.py ariadne_ltb/board.py ariadne_ltb/models.py tests/test_backlog_update_loop.py`:
+  passed.
+- `python3.11 -m pytest tests/test_true_mvp_product_loop.py tests/test_v1_board_ux.py tests/test_v1_daemon_supervision.py -q`:
+  passed, 22 tests.
+- `python3.11 -m pytest`: passed, 146 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket list`: passed and showed generated
+  review follow-up tickets.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex`:
+  passed and printed four backlog update ids.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; external execution
+  remained disabled and no secrets were printed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+- Optional `uv run ari ticket list`: passed.
+- Optional `uv run ari demo full`: passed.
+- Optional `uv run ari export board`: passed.
+- Optional `uv run ari backend doctor`: passed.
+- Optional `uv run ari ticket run ARI-003 --backend fake-codex`: passed and
+  printed four backlog update ids.
+
+Known limitations:
+
+- Follow-up ticket materialization is deterministic and conservative; it is not
+  yet ranked by a learned planner.
+- Backlog updates are append-only JSONL records. There is no compaction or
+  review UI beyond CLI and static board export.
+- Generated follow-up tickets use review-source documents derived from
+  `next_tickets.json`; richer source provenance can be added later.

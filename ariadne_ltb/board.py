@@ -9,6 +9,7 @@ from pathlib import Path
 from ariadne_ltb.local_safety import list_locks
 from ariadne_ltb.models import (
     ArtifactType,
+    BacklogUpdate,
     BuildTicket,
     StoreInvariantReport,
     TicketStatus,
@@ -171,7 +172,8 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
             lines.append(
                 f"- `{update.id}` `{update.trigger_type.value}` Created "
                 f"`{len(update.created_ticket_ids)}` Updated `{len(update.updated_ticket_ids)}` "
-                f"Superseded `{len(update.superseded_ticket_ids)}` - {update.rationale}"
+                f"Superseded `{len(update.superseded_ticket_ids)}` "
+                f"Changes `{_ticket_change_counts(update)}` - {update.rationale}"
             )
             if update.evidence_refs:
                 lines.append(f"  - Evidence: `{', '.join(update.evidence_refs)}`")
@@ -221,6 +223,13 @@ def _store_invariant_status(report: StoreInvariantReport | None) -> str:
     if report is None:
         return "not_run"
     return "ok" if report.ok else "blocked"
+
+
+def _ticket_change_counts(update: BacklogUpdate) -> str:
+    counts: dict[str, int] = {}
+    for change in update.ticket_changes:
+        counts[change.change_type.value] = counts.get(change.change_type.value, 0) + 1
+    return ",".join(f"{key}:{counts[key]}" for key in sorted(counts)) or "none"
 
 
 def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
@@ -330,6 +339,9 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             lines.append(
                 f"- `{update.created_at}` `{update.trigger_type.value}` `{update.id}` - {update.rationale}"
             )
+            lines.append(f"  - Change counts: `{_ticket_change_counts(update)}`")
+            if update.evidence_refs:
+                lines.append(f"  - Evidence: `{', '.join(update.evidence_refs)}`")
             for change in update.ticket_changes:
                 if change.ticket_id == ticket.id:
                     lines.append(

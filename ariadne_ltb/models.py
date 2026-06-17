@@ -66,6 +66,7 @@ class TicketChangeType(str, Enum):
     SPLIT = "split"
     CLOSED = "closed"
     SUPERSEDED = "superseded"
+    NO_OP = "no_op"
 
 
 class AssignmentStatus(str, Enum):

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ariadne_ltb.board import export_board
+from ariadne_ltb.backlog import record_feedback_backlog_updates
 from ariadne_ltb.execution import backend_for_name
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
 from ariadne_ltb.handoffs import record_handoff
@@ -64,6 +65,7 @@ class TicketRunResult:
     feishu_plan_id: str
     feishu_plan_path: str
     next_tickets_path: str
+    backlog_update_ids: list[str]
     board_path: str
     board_html_path: str
     orchestrator_result_path: str
@@ -566,13 +568,6 @@ class TicketRunOrchestrator:
             payload_ref=next_tickets_artifact.id,
         )
         self.store.save_ticket(ticket)
-        memory_run = _finish_run(
-            self.store,
-            memory_run,
-            AgentRunStatus.SUCCEEDED,
-            "Wrote local memory, Feishu dry-run plan, and next ticket suggestions.",
-            [memory_artifact.id, feishu_artifact.id, next_tickets_artifact.id],
-        )
         final_status = TicketStatus.DONE if review.verdict is ReviewVerdict.PASS else _status_for_review(review.verdict)
         ticket = (
             self.store.load_ticket(ticket.id)
@@ -607,6 +602,49 @@ class TicketRunOrchestrator:
             "Generated next Build Ticket suggestions.",
             payload_ref=next_tickets_artifact.id,
         )
+        backlog_updates = record_feedback_backlog_updates(
+            self.store,
+            ticket,
+            packet,
+            execution,
+            review,
+            memory.id,
+            next_tickets_artifact.path,
+        )
+        ticket = self.store.load_ticket(ticket.id)
+        self.store.append_run_message(
+            memory_run.id,
+            "backlog_update",
+            RunMessageType.RESULT,
+            "Recorded feedback-driven backlog updates.",
+            metadata={
+                "backlog_update_ids": [update.id for update in backlog_updates],
+                "created_ticket_ids": [
+                    ticket_id
+                    for update in backlog_updates
+                    for ticket_id in update.created_ticket_ids
+                ],
+                "updated_ticket_ids": [
+                    ticket_id
+                    for update in backlog_updates
+                    for ticket_id in update.updated_ticket_ids
+                ],
+            },
+        )
+        self._progress(
+            ticket,
+            "backlog_update",
+            "succeeded",
+            f"Recorded {len(backlog_updates)} feedback-driven backlog update(s).",
+            payload_ref=",".join(update.id for update in backlog_updates),
+        )
+        memory_run = _finish_run(
+            self.store,
+            memory_run,
+            AgentRunStatus.SUCCEEDED,
+            "Wrote local memory, Feishu dry-run plan, next ticket suggestions, and backlog updates.",
+            [memory_artifact.id, feishu_artifact.id, next_tickets_artifact.id],
+        )
         board_path = export_board(self.store)
         ticket = self.store.load_ticket(ticket.id).append_event(
             "board_exported",
@@ -636,6 +674,7 @@ class TicketRunOrchestrator:
                 "test_exit_code": execution.test_exit_code,
                 "memory_record_id": memory.id,
                 "feishu_plan_id": feishu_plan.id,
+                "backlog_update_ids": [update.id for update in backlog_updates],
                 "board_path": str(board_path),
                 "board_html_path": str(self.store.board_dir / "index.html"),
                 "worktree_path": worktree_path,
@@ -701,6 +740,7 @@ class TicketRunOrchestrator:
             feishu_plan_id=feishu_plan.id,
             feishu_plan_path=str(feishu_path),
             next_tickets_path=next_tickets_artifact.path,
+            backlog_update_ids=[update.id for update in backlog_updates],
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),
             orchestrator_result_path=manifest_artifact.path,
