@@ -157,6 +157,52 @@ def _documents(store: AriadneStore) -> list[_SearchDocument]:
             )
         )
 
+    for evidence in store.list_backend_smoke_evidence():
+        docs.append(
+            _SearchDocument(
+                kind="backend_smoke",
+                title=f"{evidence.ticket_key} {evidence.backend_name} backend smoke evidence",
+                text=" ".join(
+                    [
+                        evidence.assignment_id,
+                        evidence.assignment_status,
+                        "succeeded" if evidence.succeeded else "failed",
+                        "blocked" if evidence.blocked else "not_blocked",
+                        evidence.blocker or "",
+                        evidence.failure_reason or "",
+                        evidence.execution_result_id or "",
+                        str(evidence.exit_code),
+                        " ".join(evidence.changed_files),
+                        evidence.test_command,
+                        str(evidence.test_exit_code),
+                        evidence.review_verdict or "",
+                        evidence.agent_runtime,
+                        evidence.backlog_planner_name,
+                        evidence.handoff_file or "",
+                        evidence.provider_session_id or "",
+                        evidence.provider_failure_kind or "",
+                        evidence.board_path or "",
+                        evidence.memory_path or "",
+                        evidence.feishu_plan_path or "",
+                        evidence.next_tickets_path or "",
+                        " ".join(evidence.llm_agent_artifact_paths),
+                    ]
+                ),
+                source_ref=str(store.backend_smoke_evidence_dir / evidence.backend_name / f"{evidence.id}.json"),
+                ticket_key=evidence.ticket_key,
+            )
+        )
+
+    if store.release_evidence_packet_path.exists():
+        docs.append(
+            _SearchDocument(
+                kind="release_evidence",
+                title="Release evidence packet",
+                text=_safe_read_path(store.release_evidence_packet_path),
+                source_ref=str(store.release_evidence_packet_path),
+            )
+        )
+
     for item in store.list_inbox_items():
         docs.append(
             _SearchDocument(
@@ -224,6 +270,13 @@ def _safe_read_artifact(store: AriadneStore, artifact_id: str) -> str:
         artifact = store.load_artifact(artifact_id)
         return store.read_artifact_text(artifact)[:5000]
     except (OSError, ValueError):
+        return ""
+
+
+def _safe_read_path(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")[:10000]
+    except OSError:
         return ""
 
 

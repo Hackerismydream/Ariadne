@@ -10,12 +10,14 @@ from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import (
     ArtifactType,
+    BackendSmokeEvidence,
     CommentAuthorType,
     CommentKind,
     ExecutionResult,
     FailureReason,
     FeishuWriteResult,
     MemoryRecord,
+    ReleaseEvidencePacket,
     ReviewReport,
     ReviewVerdict,
 )
@@ -81,6 +83,40 @@ def test_local_search_indexes_tickets_comments_memory_artifacts_reviews_and_inte
             stderr="auth quota",
         )
     )
+    store.save_backend_smoke_evidence(
+        BackendSmokeEvidence(
+            id="backend_smoke_search",
+            backend_name="codex",
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            assignment_id="assignment_search",
+            assignment_status="done",
+            succeeded=True,
+            execution_result_id="execution_search",
+            exit_code=0,
+            changed_files=["demo_todo/cli.py"],
+            test_command="pytest",
+            test_exit_code=0,
+            review_verdict="pass",
+            provider_session_id="provider-session-search",
+        )
+    )
+    store.save_release_evidence_packet(
+        ReleaseEvidencePacket(
+            id="release_evidence_search",
+            root_path=str(tmp_path),
+            product_readiness_status="ready",
+            production_acceptance_status="ready",
+            product_readiness_checks={"real_codex_execution_evidence": "ready"},
+            real_success_evidence={
+                "codex": {
+                    "backend": "codex",
+                    "execution_result_id": "execution_search",
+                    "source": "backend_smoke",
+                }
+            },
+        )
+    )
     feishu_result = FeishuWriteResult(
         id="feishu_search",
         ticket_id=ticket.id,
@@ -115,6 +151,26 @@ def test_local_search_indexes_tickets_comments_memory_artifacts_reviews_and_inte
         "inbox",
     }.issubset(kinds)
     assert all("source_ref" in item for item in payload)
+
+    evidence_result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "search",
+            "real_codex_execution_evidence provider-session-search",
+            "--output",
+            "json",
+            "--limit",
+            "30",
+        ],
+    )
+
+    assert evidence_result.exit_code == 0, evidence_result.output
+    evidence_payload = json.loads(evidence_result.output)
+    evidence_kinds = {item["kind"] for item in evidence_payload}
+    assert "backend_smoke" in evidence_kinds
+    assert "release_evidence" in evidence_kinds
 
 
 def test_local_search_cli_table_reports_no_matches(tmp_path: Path) -> None:

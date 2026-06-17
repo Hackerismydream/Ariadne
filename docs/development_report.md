@@ -4288,3 +4288,53 @@ Result:
 
 - The previous UI limitation around selecting `ARI-003` from text that also
   mentioned related tickets is resolved for direct issue-key review paths.
+
+## 2026-06-18 03:25 CST Evidence Search Coverage Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Problem found during production-goal audit:
+
+- `ari evidence packet` already wrote production acceptance fields such as
+  `real_codex_execution_evidence`.
+- Backend smoke evidence for real Codex and Claude Code existed under
+  `.ariadne/evidence/backend_smoke/`.
+- `ari search "real_codex_execution_evidence"` returned no matches, so a user
+  could not discover production acceptance evidence through the local evidence
+  search surface.
+
+Implemented:
+
+- Added `backend_smoke` documents to local search indexing.
+- Added the release evidence packet as a `release_evidence` document when
+  `.ariadne/evidence/release_evidence_packet.json` exists.
+- Extended deterministic local search tests to prove backend smoke and release
+  evidence are searchable.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_local_search.py -q`: passed, `2 passed`.
+- `python3.11 -m ruff check ariadne_ltb/local_search.py tests/test_local_search.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli search "real_codex_execution_evidence" --output json`:
+  returned a `release_evidence` hit pointing at
+  `.ariadne/evidence/release_evidence_packet.json`.
+- `python3.11 -m ariadne_ltb.cli search "backend_smoke execution_5e959d764cb0" --output json`:
+  returned both `release_evidence` and `backend_smoke` hits, including the real
+  Codex backend smoke artifact for `ARI-003`.
+- Full `python3.11 -m pytest`: passed, `226 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict
+  `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored
+  `.env` remained redacted and no secret value was printed.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_897a0539e2f6` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.
+
+Result:
+
+- Production acceptance evidence is now discoverable through the same local
+  search surface as tickets, comments, memory, artifacts, reviews, inbox,
+  Feishu results, GitHub results, and execution results.
