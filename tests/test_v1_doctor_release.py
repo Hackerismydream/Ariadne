@@ -199,6 +199,39 @@ def _seed_llm_agent_product_evidence(store: AriadneStore) -> None:
         "LLM-generated backlog delta suggestions",
         metadata={"source": "llm_backlog_planner", "planner": "llm", "blocked": False},
     )
+    for role in ["build_lead", "knowledge", "memory"]:
+        store.write_artifact(
+            "ticket_ari_003",
+            f"run_llm_{role}",
+            ArtifactType.LLM_AGENT_RESULT,
+            f"llm_{role}.json",
+            json.dumps(
+                {
+                    "role": role,
+                    "schema_name": f"ariadne_{role}_agent_result",
+                    "succeeded": True,
+                    "output_json": {
+                        "summary": f"{role} completed.",
+                        "decision": "continue",
+                        "evidence": ["fixture evidence"],
+                        "risks": [],
+                        "recommended_actions": ["continue production path"],
+                    },
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
+                    "usage": {"total_tokens": 10},
+                }
+            )
+            + "\n",
+            f"DeepSeek LLM {role} agent result",
+            metadata={
+                "llm_role": role,
+                "provider": "deepseek",
+                "model": "deepseek-v4-pro",
+                "succeeded": True,
+                "schema_name": f"ariadne_{role}_agent_result",
+            },
+        )
 
 
 def test_doctor_secrets_does_not_print_secret_values(monkeypatch, tmp_path: Path) -> None:
@@ -520,6 +553,9 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert snapshot["real_success_evidence"]["codex"]["id"] == "exec_codex_success"
     assert snapshot["real_success_evidence"]["llm_agents"]["operations"] == {
         "backlog": True,
+        "build_lead": True,
+        "knowledge": True,
+        "memory": True,
         "planner": True,
         "reviewer": True,
     }

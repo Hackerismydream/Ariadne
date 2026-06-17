@@ -199,9 +199,12 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
         _product_evidence_check(
             "real_llm_agent_evidence",
             real_evidence["llm_agents"],
-            "DeepSeek-backed planner, reviewer, and backlog agents have successful evidence.",
+            "DeepSeek-backed Build Lead, Knowledge, Memory, planner, reviewer, and backlog agents have successful evidence.",
             (
-                "Run `ari ticket plan --planner llm`, `ari review run --reviewer llm`, "
+                "Run `ari llm run-agent build_lead --ticket <ticket> --confirm-external`, "
+                "`ari llm run-agent knowledge --ticket <ticket> --confirm-external`, "
+                "`ari llm run-agent memory --ticket <ticket> --confirm-external`, "
+                "`ari ticket plan --planner llm`, `ari review run --reviewer llm`, "
                 "and `ari ticket run --backlog-planner llm`, then regenerate release evidence."
             ),
         ),
@@ -540,7 +543,11 @@ def _llm_agent_evidence(store: AriadneStore) -> dict[str, Any]:
     planner = _llm_planner_evidence(store)
     reviewer = _llm_reviewer_evidence(store)
     backlog = _llm_backlog_evidence(store)
+    role_evidence = _llm_role_evidence(store)
     successes = {
+        "build_lead": role_evidence["successes"].get("build_lead"),
+        "knowledge": role_evidence["successes"].get("knowledge"),
+        "memory": role_evidence["successes"].get("memory"),
         "planner": planner["success"],
         "reviewer": reviewer["success"],
         "backlog": backlog["success"],
@@ -551,6 +558,7 @@ def _llm_agent_evidence(store: AriadneStore) -> dict[str, Any]:
             planner["latest_failure"],
             reviewer["latest_failure"],
             backlog["latest_failure"],
+            role_evidence["latest_failure"],
         ]
     )
     return {
@@ -558,6 +566,32 @@ def _llm_agent_evidence(store: AriadneStore) -> dict[str, Any]:
         "operation_successes": successes,
         "missing_operations": missing,
         "latest_failure": latest_failure,
+    }
+
+
+def _llm_role_evidence(store: AriadneStore) -> dict[str, Any]:
+    artifacts = [
+        artifact
+        for artifact in _list_artifacts(store)
+        if artifact.artifact_type.value == "llm_agent_result"
+    ]
+    successes: dict[str, Any] = {}
+    failures = []
+    for role in ["build_lead", "knowledge", "memory"]:
+        role_artifacts = [
+            artifact for artifact in artifacts if artifact.metadata.get("llm_role") == role
+        ]
+        successful = [
+            artifact for artifact in role_artifacts if artifact.metadata.get("succeeded") is True
+        ]
+        failed = [
+            artifact for artifact in role_artifacts if artifact.metadata.get("succeeded") is False
+        ]
+        successes[role] = _artifact_success_summary(_latest_by_time(successful, "created_at"))
+        failures.extend(failed)
+    return {
+        "successes": successes,
+        "latest_failure": _artifact_failure_summary(_latest_by_time(failures, "created_at")),
     }
 
 
@@ -631,7 +665,7 @@ def _llm_agent_summary(operation_successes: dict[str, Any]) -> dict[str, Any]:
     latest = next(
         (
             operation_successes[operation]
-            for operation in ("backlog", "reviewer", "planner")
+            for operation in ("backlog", "reviewer", "planner", "memory", "knowledge", "build_lead")
             if operation_successes.get(operation)
         ),
         {},

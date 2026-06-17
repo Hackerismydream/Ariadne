@@ -38,6 +38,7 @@ from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_search import search_local_evidence
 from ariadne_ltb.llm import DeepSeekClient, LLMClientError, llm_doctor_status, load_local_env
+from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
 from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory_record
 from ariadne_ltb.models import (
@@ -403,6 +404,42 @@ def llm_smoke(
     typer.echo(f"model: {response.model}")
     typer.echo(f"usage total tokens: {response.usage.total_tokens}")
     typer.echo(f"json keys: {', '.join(sorted(response.content_json))}")
+
+
+@llm_app.command("run-agent")
+def llm_run_agent(
+    role: Annotated[
+        LLMAgentRole,
+        typer.Argument(
+            help=(
+                "LLM role: build_lead|research|knowledge|project_context|planner|"
+                "reviewer|memory|feishu_planner|github_planner."
+            )
+        ),
+    ],
+    ticket_id: Annotated[str, typer.Option("--ticket", help="Ticket id or key.")],
+    confirm_external: Annotated[
+        bool,
+        typer.Option("--confirm-external", help="Allow a real external DeepSeek request."),
+    ] = False,
+) -> None:
+    """Run one real upstream LLM agent role against a ticket and persist evidence."""
+    if not confirm_external:
+        typer.echo("Refusing LLM agent run: --confirm-external is required.")
+        raise typer.Exit(2)
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    result = run_ticket_llm_agent(store, ticket, role)
+    typer.echo(f"ticket: {ticket.key} ({ticket.id})")
+    typer.echo(f"llm role: {result.role.value}")
+    typer.echo(f"succeeded: {str(result.succeeded).lower()}")
+    typer.echo(f"model: {result.model or ''}")
+    typer.echo(f"run: {result.run_id}")
+    typer.echo(f"artifact: {result.artifact_path}")
+    typer.echo(f"usage total tokens: {result.usage.total_tokens}")
+    if not result.succeeded:
+        typer.echo(f"error: {result.error}")
+        raise typer.Exit(2)
 
 
 @backend_app.command("doctor")

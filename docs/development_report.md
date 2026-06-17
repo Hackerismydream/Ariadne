@@ -3790,3 +3790,89 @@ Verification:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_8ce89f2745e9` and completed product doctor, release
   packet, workbench sync, and workbench build checks.
+
+## 2026-06-18 02:23 CST DeepSeek Role Agent Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The production roadmap requires real DeepSeek upstream LLM runtime for Build
+  Lead, planner, reviewer, memory, and knowledge agents.
+- Before this slice, planner, reviewer, and LLM backlog evidence existed, but
+  Build Lead / Knowledge / Memory roles only had a low-level helper and no
+  persisted product command path.
+
+Implemented:
+
+- Added `ArtifactType.LLM_AGENT_RESULT`.
+- Added `run_ticket_llm_agent(...)`, which:
+  - starts and persists an `AgentRun`;
+  - calls DeepSeek through the existing JSON LLM agent wrapper;
+  - validates role output against a structured role payload;
+  - writes `.ariadne/artifacts/<ticket_id>/llm_<role>.json`;
+  - appends run messages, ticket events, and artifact refs.
+- Added CLI command:
+  - `ari llm run-agent <role> --ticket <ticket> --confirm-external`
+  - fallback: `python3.11 -m ariadne_ltb.cli llm run-agent ...`
+- The command requires `--confirm-external` before any real DeepSeek request.
+- Extended product doctor / release evidence so `real_llm_agent_evidence` now
+  requires:
+  - `build_lead`;
+  - `knowledge`;
+  - `memory`;
+  - `planner`;
+  - `reviewer`;
+  - `backlog`.
+
+Bug found and fixed during real dogfood:
+
+- A real `build_lead` run initially failed before calling DeepSeek because
+  `_role_prompt` assumed `MemoryRecord.ticket_key` and `MemoryRecord.review_verdict`
+  existed.
+- Root cause: the actual `MemoryRecord` model uses `ticket_id`, `title`,
+  `review_summary`, and `build_summary`.
+- Added a regression fixture with an existing `MemoryRecord` and fixed prompt
+  construction to use the real model fields.
+- A concurrent real Knowledge / Memory dogfood run also exposed a lost-update
+  risk when two LLM role runs update the same ticket. `_finish_llm_run` now
+  reloads the ticket and reasserts `with_run(finished.id)` before writing
+  artifacts/events.
+- `run_ticket_llm_agent(...)` now catches prompt/call failures before
+  completion, writes a blocked `llm_agent_result` artifact, terminates the
+  `AgentRun`, and redacts the active client API key from error text.
+
+Real DeepSeek dogfood:
+
+- `python3.11 -m ariadne_ltb.cli llm run-agent build_lead --ticket ARI-003 --confirm-external`:
+  passed, model `deepseek-v4-pro`, total tokens `2405`, artifact
+  `.ariadne/artifacts/ticket_88fbff51677a/llm_build_lead.json`.
+- `python3.11 -m ariadne_ltb.cli llm run-agent knowledge --ticket ARI-003 --confirm-external`:
+  passed, model `deepseek-v4-pro`, total tokens `2428`, artifact
+  `.ariadne/artifacts/ticket_88fbff51677a/llm_knowledge.json`.
+- `python3.11 -m ariadne_ltb.cli llm run-agent memory --ticket ARI-003 --confirm-external`:
+  passed, model `deepseek-v4-pro`, total tokens `2292`, artifact
+  `.ariadne/artifacts/ticket_88fbff51677a/llm_memory.json`.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and reports
+  `real_llm_agent_evidence: ready` with operations
+  `backlog/build_lead/knowledge/memory/planner/reviewer`.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed after relinking one
+  valid Knowledge run produced during the lost-update bug investigation.
+- `python3.11 -m ariadne_ltb.cli evidence packet`: passed and reports store
+  invariants `ok`.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_llm_agents.py tests/test_v1_doctor_release.py tests/test_release_evidence.py -q`:
+  passed, `18 passed`.
+- `python3.11 -m ruff check ariadne_ltb/llm_agents.py ariadne_ltb/doctor.py ariadne_ltb/cli.py ariadne_ltb/models.py tests/test_llm_agents.py tests/test_v1_doctor_release.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `220 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_f1b60a42045b` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.

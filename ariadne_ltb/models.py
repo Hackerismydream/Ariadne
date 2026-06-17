@@ -217,6 +217,7 @@ class ArtifactType(str, Enum):
     ORCHESTRATOR_RESULT = "orchestrator_result"
     STORE_INVARIANT_REPORT = "store_invariant_report"
     PLANNER_ERROR = "planner_error"
+    LLM_AGENT_RESULT = "llm_agent_result"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
 
