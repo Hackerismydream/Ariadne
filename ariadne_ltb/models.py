@@ -71,6 +71,21 @@ class TicketChangeType(str, Enum):
     NO_OP = "no_op"
 
 
+class BacklogOperationType(str, Enum):
+    ADD_TICKET = "add_ticket"
+    UPDATE_TICKET = "update_ticket"
+    DEFER_TICKET = "defer_ticket"
+    SUPERSEDE_TICKET = "supersede_ticket"
+    PROMOTE_TICKET = "promote_ticket"
+
+
+class BacklogConflictType(str, Enum):
+    DUPLICATE_OPERATION = "duplicate_operation"
+    STALE_PREVIEW = "stale_preview"
+    SUPERSEDED_TARGET = "superseded_target"
+    CONTRADICTORY_UPDATE = "contradictory_update"
+
+
 class AssignmentStatus(str, Enum):
     QUEUED = "queued"
     CLAIMED = "claimed"
@@ -364,6 +379,44 @@ class BacklogUpdate(AriadneModel):
     evidence_refs: list[str] = Field(default_factory=list)
     ticket_changes: list[TicketChange] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
+
+
+class BacklogOperation(AriadneModel):
+    id: str
+    operation_type: BacklogOperationType
+    reason: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    title: str | None = None
+    description: str | None = None
+    source_type: str | None = None
+    source_ref: str | None = None
+    priority: str | None = None
+    status: TicketStatus | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class BacklogConflict(AriadneModel):
+    conflict_type: BacklogConflictType
+    message: str
+    operation_ids: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    resolution_options: list[str] = Field(default_factory=list)
+
+
+class BacklogPreview(AriadneModel):
+    id: str
+    trigger_type: BacklogUpdateTrigger
+    trigger_ref: str
+    idempotency_key: str
+    base_ticket_fingerprint: str
+    operations: list[BacklogOperation] = Field(default_factory=list)
+    conflicts: list[BacklogConflict] = Field(default_factory=list)
+    rationale: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
+    applied_at: str | None = None
+    applied_update_id: str | None = None
 
 
 class ProjectSpace(AriadneModel):

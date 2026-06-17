@@ -78,6 +78,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     heartbeats = store.list_worker_heartbeats()
     capabilities = store.load_runtime_capabilities() or collect_runtime_capabilities()
     backlog_updates = store.list_backlog_updates()
+    backlog_previews = store.list_backlog_previews()
     inbox_items = store.list_inbox_items()
     secret_scan = scan_for_secrets(store.root)
     store_invariants = load_latest_store_invariant_report(store)
@@ -204,6 +205,26 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
                 lines.append(f"  - Evidence: `{', '.join(update.evidence_refs)}`")
     else:
         lines.append("No ticket backlog updates yet.")
+    lines.extend(["", "## Backlog Previews", ""])
+    if backlog_previews:
+        for preview in backlog_previews[-10:]:
+            status = "applied" if preview.applied_update_id else "pending"
+            lines.append(
+                f"- `{preview.id}` `{preview.trigger_type.value}` Status `{status}` "
+                f"Operations `{len(preview.operations)}` Conflicts `{len(preview.conflicts)}` - "
+                f"{preview.rationale}"
+            )
+            if preview.applied_update_id:
+                lines.append(f"  - Applied update: `{preview.applied_update_id}`")
+            for conflict in preview.conflicts:
+                lines.append(
+                    f"  - Unresolved Backlog Conflict `{conflict.conflict_type.value}`: "
+                    f"{conflict.message}"
+                )
+                for option in conflict.resolution_options:
+                    lines.append(f"    - Option: {option}")
+    else:
+        lines.append("No backlog previews yet.")
     lines.extend(["", "## Backend Capability", "", "### Provider Capability Matrix", ""])
     for capability in capabilities:
         lines.append(_capability_board_line(capability))

@@ -12,7 +12,7 @@ import typer
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.board_server import board_serve_command
-from ariadne_ltb.backlog import supersede_ticket
+from ariadne_ltb.backlog import apply_backlog_preview, generate_source_backlog_preview, supersede_ticket
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND, PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
@@ -271,6 +271,66 @@ def backlog_history(limit: Annotated[int, typer.Option("--limit")] = 20) -> None
             )
         if update.evidence_refs:
             typer.echo(f"evidence: {', '.join(update.evidence_refs)}")
+
+
+@backlog_app.command("preview")
+def backlog_preview(
+    source_paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Additional source paths, useful for shell-expanded globs."),
+    ] = None,
+    from_sources: Annotated[
+        list[Path] | None,
+        typer.Option("--from-source", help="Source markdown path to preview into the ticket backlog."),
+    ] = None,
+) -> None:
+    """Preview source-driven backlog mutations without changing tickets."""
+    paths = [*(from_sources or []), *(source_paths or [])]
+    if not paths:
+        typer.echo("No --from-source paths provided.")
+        raise typer.Exit(2)
+    store = AriadneStore(state.root)
+    try:
+        preview = generate_source_backlog_preview(store, paths)
+    except OSError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
+    typer.echo(f"preview: {preview.id}")
+    typer.echo(f"trigger: {preview.trigger_type.value}")
+    typer.echo(f"operations: {len(preview.operations)}")
+    typer.echo(f"conflicts: {len(preview.conflicts)}")
+    typer.echo(f"rationale: {preview.rationale}")
+    for operation in preview.operations:
+        typer.echo(
+            f"- {operation.operation_type.value}\t"
+            f"{operation.ticket_key or operation.ticket_id or ''}\t{operation.title or operation.reason}"
+        )
+    if preview.conflicts:
+        for conflict in preview.conflicts:
+            typer.echo(f"conflict: {conflict.conflict_type.value} {conflict.message}")
+    typer.echo(f"apply: ari backlog apply {preview.id}")
+
+
+@backlog_app.command("apply")
+def backlog_apply(preview_id: str) -> None:
+    """Apply a previously generated backlog preview if it is still current."""
+    store = AriadneStore(state.root)
+    try:
+        result = apply_backlog_preview(store, preview_id)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
+    typer.echo(f"preview: {result.preview.id}")
+    if result.already_applied:
+        typer.echo("status: already applied")
+    else:
+        typer.echo("status: applied")
+    if result.update:
+        typer.echo(f"backlog update: {result.update.id}")
+        typer.echo(f"created tickets: {len(result.update.created_ticket_ids)}")
+        typer.echo(f"updated tickets: {len(result.update.updated_ticket_ids)}")
+        typer.echo(f"superseded tickets: {len(result.update.superseded_ticket_ids)}")
+        typer.echo(f"ticket changes: {len(result.update.ticket_changes)}")
 
 
 def _ticket_change_counts(update: BacklogUpdate) -> str:

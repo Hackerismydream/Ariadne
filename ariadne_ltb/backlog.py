@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,11 @@ from typing import Any
 from ariadne_ltb.failure import record_assignment_failure
 from ariadne_ltb.models import (
     AssignmentStatus,
+    BacklogConflict,
+    BacklogConflictType,
+    BacklogOperation,
+    BacklogOperationType,
+    BacklogPreview,
     BacklogUpdate,
     BacklogUpdateTrigger,
     BuildDecision,
@@ -29,6 +35,423 @@ from ariadne_ltb.models import (
     utc_now,
 )
 from ariadne_ltb.storage import AriadneStore
+
+
+@dataclass(frozen=True)
+class BacklogApplyResult:
+    preview: BacklogPreview
+    update: BacklogUpdate | None
+    already_applied: bool = False
+
+
+def generate_source_backlog_preview(store: AriadneStore, source_paths: list[Path]) -> BacklogPreview:
+    from ariadne_ltb.ingest import (
+        _dedupe_paths,
+        _ticket_source_path_key,
+        source_document_from_path,
+        ticket_from_source,
+    )
+
+    paths = _dedupe_paths(source_paths)
+    fingerprint = ticket_backlog_fingerprint(store)
+    source_documents = [source_document_from_path(path) for path in sorted(paths)]
+    idempotency_key = stable_id(
+        "backlog_preview_key",
+        BacklogUpdateTrigger.SOURCE_INGEST.value,
+        fingerprint,
+        ",".join(f"{document.path_or_url}:{document.content_hash}" for document in source_documents),
+    )
+    preview_id = stable_id("backlog_preview", idempotency_key)
+    existing = _load_existing_preview(store, preview_id)
+    if existing:
+        return existing
+
+    existing_by_source = {
+        ticket.metadata.get("source_document_id"): ticket for ticket in store.list_tickets()
+    }
+    existing_by_path = {
+        source_path: ticket
+        for ticket in store.list_tickets()
+        if (source_path := _ticket_source_path_key(ticket)) is not None
+    }
+    operations: list[BacklogOperation] = []
+    next_index = 1
+    for document in source_documents:
+        existing_ticket = existing_by_source.get(document.id) or existing_by_path.get(document.path_or_url)
+        if existing_ticket:
+            operations.append(
+                BacklogOperation(
+                    id=stable_id("backlog_op", preview_id, document.id, "update"),
+                    operation_type=BacklogOperationType.UPDATE_TICKET,
+                    ticket_id=existing_ticket.id,
+                    ticket_key=existing_ticket.key,
+                    title=existing_ticket.title,
+                    description=document.summary,
+                    source_type=document.source_type.value,
+                    source_ref=document.path_or_url,
+                    priority=existing_ticket.priority,
+                    status=existing_ticket.status,
+                    reason=f"Update {existing_ticket.key} from source: {document.title}.",
+                    metadata={"source_document": document.model_dump(mode="json")},
+                )
+            )
+            continue
+        ticket_key, next_index = _next_preview_ticket_key(store, operations, start_index=next_index)
+        ticket = ticket_from_source(document, ticket_key)
+        operations.append(
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, document.id, "add"),
+                operation_type=BacklogOperationType.ADD_TICKET,
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                title=ticket.title,
+                description=ticket.description,
+                source_type=ticket.source_type,
+                source_ref=ticket.source_ref,
+                priority=ticket.priority,
+                status=TicketStatus.PLANNING,
+                reason=f"Create {ticket.key} from source: {document.title}.",
+                metadata={
+                    "source_document": document.model_dump(mode="json"),
+                    "owner_agent": ticket.owner_agent,
+                },
+            )
+        )
+    preview = BacklogPreview(
+        id=preview_id,
+        trigger_type=BacklogUpdateTrigger.SOURCE_INGEST,
+        trigger_ref=", ".join(document.path_or_url for document in source_documents),
+        idempotency_key=idempotency_key,
+        base_ticket_fingerprint=fingerprint,
+        operations=operations,
+        conflicts=_detect_preview_conflicts(store, operations),
+        rationale=(
+            f"Previewed {len(operations)} backlog operation(s) from "
+            f"{len(source_documents)} source(s)."
+        ),
+        evidence_refs=[document.id for document in source_documents],
+    )
+    store.save_backlog_preview(preview)
+    return preview
+
+
+def apply_backlog_preview(store: AriadneStore, preview_id: str) -> BacklogApplyResult:
+    from ariadne_ltb.ingest import build_packet_from_source
+
+    preview = store.load_backlog_preview(preview_id)
+    if preview.applied_update_id:
+        return BacklogApplyResult(
+            preview=preview,
+            update=_find_backlog_update(store, preview.applied_update_id),
+            already_applied=True,
+        )
+    if preview.conflicts:
+        msg = f"unresolved_conflicts: {', '.join(conflict.conflict_type.value for conflict in preview.conflicts)}"
+        raise ValueError(msg)
+    current_fingerprint = ticket_backlog_fingerprint(store)
+    if current_fingerprint != preview.base_ticket_fingerprint:
+        msg = "stale_preview: ticket backlog changed after this preview was created"
+        raise ValueError(msg)
+    _validate_preview_operations_for_apply(store, preview)
+
+    created_ticket_ids: list[str] = []
+    updated_ticket_ids: list[str] = []
+    superseded_ticket_ids: list[str] = []
+    ticket_changes: list[TicketChange] = []
+    touched_ticket_ids: list[str] = []
+    for operation in preview.operations:
+        before_status: str | None = None
+        before_priority: str | None = None
+        if operation.operation_type is BacklogOperationType.ADD_TICKET:
+            document_payload = operation.metadata.get("source_document")
+            document = SourceDocument.model_validate(document_payload) if document_payload else None
+            if document:
+                store.save_source_document(document)
+            ticket = BuildTicket(
+                id=operation.ticket_id or stable_id("ticket", document.id if document else operation.id),
+                key=operation.ticket_key or "ARI-000",
+                title=operation.title or (document.title if document else "Backlog follow-up"),
+                description=operation.description or (document.summary if document else operation.reason),
+                source_type=operation.source_type or (document.source_type.value if document else "review"),
+                source_ref=operation.source_ref or (document.path_or_url if document else operation.id),
+                status=operation.status or TicketStatus.PLANNING,
+                priority=operation.priority or "medium",
+                owner_agent=str(operation.metadata.get("owner_agent") or "Build Lead"),
+                metadata=_ticket_metadata_for_operation(operation, document),
+            ).append_event(
+                "backlog_preview_applied",
+                "Backlog",
+                f"Applied preview operation: {operation.reason}",
+                payload_ref=preview.id,
+            )
+            if document:
+                packet = build_packet_from_source(ticket, document)
+                store.save_build_packet(packet)
+                ticket = ticket.model_copy(update={"build_packet_id": packet.id})
+            store.save_ticket(ticket)
+            created_ticket_ids.append(ticket.id)
+            touched_ticket_ids.append(ticket.id)
+            change_type = TicketChangeType.CREATED
+        elif operation.operation_type is BacklogOperationType.UPDATE_TICKET:
+            if operation.ticket_id is None:
+                msg = f"operation {operation.id} missing ticket_id"
+                raise ValueError(msg)
+            ticket = store.load_ticket(operation.ticket_id)
+            before_status = ticket.status.value
+            before_priority = ticket.priority
+            document = SourceDocument.model_validate(operation.metadata["source_document"])
+            store.save_source_document(document)
+            ticket = ticket.model_copy(
+                deep=True,
+                update={
+                    "title": operation.title or ticket.title,
+                    "description": operation.description or ticket.description,
+                    "source_type": operation.source_type or ticket.source_type,
+                    "source_ref": operation.source_ref or ticket.source_ref,
+                    "priority": operation.priority or ticket.priority,
+                    "metadata": ticket.metadata
+                    | {
+                        "source_document_id": document.id,
+                        "source_content_hash": document.content_hash,
+                    },
+                },
+            ).append_event(
+                "backlog_preview_applied",
+                "Backlog",
+                f"Applied preview operation: {operation.reason}",
+                payload_ref=preview.id,
+            )
+            packet = build_packet_from_source(ticket, document)
+            store.save_build_packet(packet)
+            ticket = ticket.model_copy(update={"build_packet_id": packet.id})
+            store.save_ticket(ticket)
+            updated_ticket_ids.append(ticket.id)
+            touched_ticket_ids.append(ticket.id)
+            change_type = TicketChangeType.UPDATED
+        elif operation.operation_type is BacklogOperationType.SUPERSEDE_TICKET:
+            if operation.ticket_id is None:
+                msg = f"operation {operation.id} missing ticket_id"
+                raise ValueError(msg)
+            ticket = store.load_ticket(operation.ticket_id)
+            before_status = ticket.status.value
+            before_priority = ticket.priority
+            ticket = ticket.with_status(TicketStatus.SUPERSEDED, "Backlog", operation.reason)
+            store.save_ticket(ticket)
+            superseded_ticket_ids.append(ticket.id)
+            touched_ticket_ids.append(ticket.id)
+            change_type = TicketChangeType.SUPERSEDED
+        else:
+            if operation.ticket_id is None:
+                msg = f"operation {operation.id} missing ticket_id"
+                raise ValueError(msg)
+            ticket = store.load_ticket(operation.ticket_id)
+            before_status = ticket.status.value
+            before_priority = ticket.priority
+            if operation.operation_type is BacklogOperationType.DEFER_TICKET:
+                ticket = ticket.with_status(TicketStatus.BLOCKED, "Backlog", operation.reason)
+                change_type = TicketChangeType.DOWNGRADED
+            else:
+                ticket = ticket.with_status(
+                    operation.status or TicketStatus.READY_FOR_EXECUTION,
+                    "Backlog",
+                    operation.reason,
+                )
+                change_type = TicketChangeType.REPRIORITIZED
+            store.save_ticket(ticket)
+            updated_ticket_ids.append(ticket.id)
+            touched_ticket_ids.append(ticket.id)
+        ticket_changes.append(
+            TicketChange(
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                change_type=change_type,
+                reason=operation.reason,
+                before_status=before_status,
+                after_status=ticket.status.value,
+                before_priority=before_priority,
+                after_priority=ticket.priority,
+            )
+        )
+
+    now = utc_now()
+    update = BacklogUpdate(
+        id=stable_id("backlog", preview.id, "applied"),
+        trigger_type=preview.trigger_type,
+        trigger_ref=preview.id,
+        created_ticket_ids=created_ticket_ids,
+        updated_ticket_ids=updated_ticket_ids,
+        superseded_ticket_ids=superseded_ticket_ids,
+        rationale=f"Applied backlog preview {preview.id}.",
+        evidence_refs=[preview.id, *preview.evidence_refs],
+        ticket_changes=ticket_changes,
+        created_at=now,
+    )
+    store.save_backlog_update(update)
+    for ticket_id in touched_ticket_ids:
+        store.save_ticket(
+            store.load_ticket(ticket_id).append_event(
+                "backlog_updated",
+                "Backlog",
+                f"Backlog update recorded: {update.rationale}",
+                payload_ref=update.id,
+            )
+        )
+    preview = preview.model_copy(update={"applied_at": now, "applied_update_id": update.id})
+    store.save_backlog_preview(preview)
+    return BacklogApplyResult(preview=preview, update=update)
+
+
+def ticket_backlog_fingerprint(store: AriadneStore) -> str:
+    payload = [
+        {
+            "id": ticket.id,
+            "key": ticket.key,
+            "title": ticket.title,
+            "description": ticket.description,
+            "status": ticket.status.value,
+            "priority": ticket.priority,
+            "source_ref": ticket.source_ref,
+            "source_type": ticket.source_type,
+            "build_packet_id": ticket.build_packet_id,
+            "metadata": ticket.metadata,
+            "updated_at": ticket.updated_at,
+            "event_log_size": len(ticket.event_log),
+        }
+        for ticket in store.list_tickets()
+    ]
+    return sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _load_existing_preview(store: AriadneStore, preview_id: str) -> BacklogPreview | None:
+    path = store.backlog_previews_dir / f"{preview_id}.json"
+    if not path.exists():
+        return None
+    return store.load_backlog_preview(preview_id)
+
+
+def _find_backlog_update(store: AriadneStore, update_id: str) -> BacklogUpdate | None:
+    for update in store.list_backlog_updates():
+        if update.id == update_id:
+            return update
+    return None
+
+
+def _ticket_metadata_for_operation(operation: BacklogOperation, document: SourceDocument | None) -> dict[str, Any]:
+    metadata = dict(operation.metadata)
+    metadata.pop("source_document", None)
+    if document:
+        metadata |= {
+            "source_document_id": document.id,
+            "source_content_hash": document.content_hash,
+        }
+    return metadata
+
+
+def _validate_preview_operations_for_apply(store: AriadneStore, preview: BacklogPreview) -> None:
+    existing_tickets = store.list_tickets()
+    existing_ids = {ticket.id for ticket in existing_tickets}
+    existing_keys = {ticket.key for ticket in existing_tickets}
+    add_ids: set[str] = set()
+    add_keys: set[str] = set()
+    for operation in preview.operations:
+        if operation.operation_type is BacklogOperationType.ADD_TICKET:
+            if operation.ticket_id and operation.ticket_id in existing_ids:
+                msg = f"preview_operation_conflict: ticket id already exists: {operation.ticket_id}"
+                raise ValueError(msg)
+            if operation.ticket_key and operation.ticket_key in existing_keys:
+                msg = f"preview_operation_conflict: ticket key already exists: {operation.ticket_key}"
+                raise ValueError(msg)
+            if operation.ticket_id and operation.ticket_id in add_ids:
+                msg = f"preview_operation_conflict: duplicate added ticket id: {operation.ticket_id}"
+                raise ValueError(msg)
+            if operation.ticket_key and operation.ticket_key in add_keys:
+                msg = f"preview_operation_conflict: duplicate added ticket key: {operation.ticket_key}"
+                raise ValueError(msg)
+            if operation.ticket_id:
+                add_ids.add(operation.ticket_id)
+            if operation.ticket_key:
+                add_keys.add(operation.ticket_key)
+            continue
+        if operation.ticket_id is None:
+            msg = f"operation {operation.id} missing ticket_id"
+            raise ValueError(msg)
+        if operation.ticket_id not in existing_ids:
+            msg = f"preview_operation_conflict: ticket id not found: {operation.ticket_id}"
+            raise ValueError(msg)
+
+
+def _detect_preview_conflicts(
+    store: AriadneStore,
+    operations: list[BacklogOperation],
+) -> list[BacklogConflict]:
+    conflicts: list[BacklogConflict] = []
+    by_target: dict[str, list[BacklogOperation]] = {}
+    for operation in operations:
+        target = operation.ticket_id or operation.source_ref or operation.id
+        by_target.setdefault(target, []).append(operation)
+        if (
+            operation.ticket_id
+            and operation.operation_type is not BacklogOperationType.SUPERSEDE_TICKET
+            and _target_is_superseded(store, operation.ticket_id)
+        ):
+            conflicts.append(
+                BacklogConflict(
+                    conflict_type=BacklogConflictType.SUPERSEDED_TARGET,
+                    message=(
+                        f"Operation {operation.id} targets superseded ticket "
+                        f"{operation.ticket_key or operation.ticket_id}."
+                    ),
+                    operation_ids=[operation.id],
+                    evidence_refs=[operation.ticket_id],
+                    resolution_options=[
+                        "Create a new follow-up ticket instead of mutating the superseded ticket.",
+                        "Regenerate the preview from the ticket that superseded this work.",
+                        "Keep the ticket superseded and archive this feedback.",
+                    ],
+                )
+            )
+    for target, target_operations in by_target.items():
+        if len(target_operations) > 1:
+            conflicts.append(
+                BacklogConflict(
+                    conflict_type=BacklogConflictType.DUPLICATE_OPERATION,
+                    message=f"Multiple backlog operations target {target}.",
+                    operation_ids=[operation.id for operation in target_operations],
+                    evidence_refs=[target],
+                    resolution_options=[
+                        "Split the operations into separate previews and apply one at a time.",
+                        "Keep the most specific operation and regenerate the preview.",
+                        "Resolve manually before applying because apply refuses conflicted previews.",
+                    ],
+                )
+            )
+    return conflicts
+
+
+def _next_preview_ticket_key(
+    store: AriadneStore,
+    operations: list[BacklogOperation],
+    start_index: int,
+) -> tuple[str, int]:
+    used_keys = {ticket.key for ticket in store.list_tickets()}
+    used_keys.update(
+        operation.ticket_key
+        for operation in operations
+        if operation.operation_type is BacklogOperationType.ADD_TICKET and operation.ticket_key
+    )
+    index = start_index
+    while True:
+        key = f"ARI-{index:03d}"
+        if key not in used_keys:
+            return key, index + 1
+        index += 1
+
+
+def _target_is_superseded(store: AriadneStore, ticket_id: str) -> bool:
+    try:
+        return store.load_ticket(ticket_id).status is TicketStatus.SUPERSEDED
+    except FileNotFoundError:
+        return False
 
 
 def record_source_ingest_backlog_update(

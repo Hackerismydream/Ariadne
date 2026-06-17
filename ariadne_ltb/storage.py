@@ -19,6 +19,7 @@ from ariadne_ltb.models import (
     Artifact,
     ArtifactType,
     AssignmentStatus,
+    BacklogPreview,
     BacklogUpdate,
     BackendSmokeEvidence,
     BuildPacket,
@@ -83,6 +84,7 @@ class AriadneStore:
         self.worktrees_dir = self.base / "worktrees"
         self.worktree_records_dir = self.worktrees_dir / "records"
         self.backlog_dir = self.base / "backlog"
+        self.backlog_previews_dir = self.backlog_dir / "previews"
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
         self.inbox_dir = self.base / "inbox"
         self.inbox_items_path = self.inbox_dir / "items.json"
@@ -126,6 +128,7 @@ class AriadneStore:
             self.worktrees_dir,
             self.worktree_records_dir,
             self.backlog_dir,
+            self.backlog_previews_dir,
             self.inbox_dir,
             self.evidence_dir,
             self.backend_smoke_evidence_dir,
@@ -586,6 +589,25 @@ class AriadneStore:
     def save_backlog_update(self, update: BacklogUpdate) -> None:
         with self.backlog_updates_path.open("a", encoding="utf-8") as handle:
             handle.write(update.model_dump_json(exclude_none=False) + "\n")
+
+    def save_backlog_preview(self, preview: BacklogPreview) -> Path:
+        path = self.backlog_previews_dir / f"{preview.id}.json"
+        self._write_model(path, preview)
+        return path
+
+    def load_backlog_preview(self, preview_id: str) -> BacklogPreview:
+        return self._read_model(self.backlog_previews_dir / f"{preview_id}.json", BacklogPreview)
+
+    def list_backlog_previews(self) -> list[BacklogPreview]:
+        if not self.backlog_previews_dir.exists():
+            return []
+        previews: list[BacklogPreview] = []
+        for path in sorted(self.backlog_previews_dir.glob("*.json")):
+            try:
+                previews.append(self._read_model(path, BacklogPreview))
+            except (json.JSONDecodeError, ValidationError):
+                continue
+        return sorted(previews, key=lambda preview: preview.created_at)
 
     def list_backlog_updates(self) -> list[BacklogUpdate]:
         if not self.backlog_updates_path.exists():

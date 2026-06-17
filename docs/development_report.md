@@ -4773,3 +4773,67 @@ Result:
 - When GitHub HTTPS transport flakes because of a configured proxy, Ariadne can
   now show whether direct GitHub transport would work and give the operator a
   concrete proxy repair action.
+
+## 2026-06-18 04:22 CST Backlog Preview Apply Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Decision:
+
+- Deferred direct merge of `codex/ariadne-workbench-frontend-lane` because its
+  merge base is old `main`; a direct merge would remove current production
+  runtime modules and tests, including LLM agents, GitHub integration, evidence,
+  inbox/search, and store doctor code.
+- Continued the core production path instead.
+
+Implemented:
+
+- Added typed `BacklogOperation`, `BacklogConflict`, and `BacklogPreview`
+  models.
+- Added `.ariadne/backlog/previews/*.json` persistence.
+- Added source-driven backlog preview generation through
+  `generate_source_backlog_preview`.
+- Added `apply_backlog_preview`, which:
+  - refuses conflicted previews;
+  - refuses stale previews when the ticket backlog changed after preview
+    creation;
+  - is idempotent when a preview was already applied;
+  - creates source documents, Build Tickets, Build Packets, BacklogUpdate
+    records, and ticket event logs when applied.
+- Added CLI:
+  - `ari backlog preview --from-source <path>`
+  - `ari backlog apply <preview_id>`
+- Added board visibility for pending/applied backlog previews and conflicts.
+
+Why this matters:
+
+- Ariadne's differentiator is not only assigning existing tickets to agents.
+  It is letting knowledge, feedback, and codebase state update the ticket set.
+- Preview/apply turns that update into an auditable local state transition
+  instead of an implicit mutation.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_backlog_preview_apply.py -q`: passed,
+  `6 passed`.
+- `python3.11 -m ruff check ariadne_ltb/backlog.py ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/cli.py ariadne_ltb/board.py tests/test_backlog_preview_apply.py`:
+  passed.
+- `python3.11 -m pytest tests/test_backlog_update_loop.py tests/test_true_mvp_product_loop.py tests/test_v1_board_ux.py -q`:
+  passed, `36 passed`.
+- Temporary-store CLI smoke:
+  `ari backlog preview --from-source examples/sources/github_tiny_cli_readme.md`
+  followed by `ari backlog apply <preview_id>` and `ari export board`: passed.
+- `python3.11 -m pytest`: passed, `241 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_0177bd37f242`.
+
+Known limitation:
+
+- This slice wires preview/apply for source-driven backlog updates first.
+  Review and execution feedback still record direct `BacklogUpdate` entries;
+  they should be routed through the same preview/apply mechanism next.
