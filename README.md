@@ -467,6 +467,8 @@ managed workdirs. `ari doctor product` writes
 and next actions. The product doctor checks both local integration readiness and
 recorded real-success evidence for Codex, Claude Code, Feishu, and GitHub; unset
 write/execution gates are reported as `action_required` instead of being hidden.
+`ari evidence packet` also embeds the product readiness status, readiness check
+statuses, real-success evidence summary, and latest redacted failure summary.
 
 List and clean Ariadne-generated isolated workdirs:
 

@@ -1153,4 +1153,8 @@ class ReleaseEvidencePacket(AriadneModel):
     secret_finding_count: int = 0
     runtime_capabilities: list[RuntimeCapability] = Field(default_factory=list)
     latest_review_verdicts: dict[str, str] = Field(default_factory=dict)
+    product_readiness_status: str | None = None
+    product_readiness_checks: dict[str, str] = Field(default_factory=dict)
+    real_success_evidence: dict[str, Any] = Field(default_factory=dict)
+    real_failure_evidence: dict[str, Any] = Field(default_factory=dict)
     evidence_refs: dict[str, str] = Field(default_factory=dict)

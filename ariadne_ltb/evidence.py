@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ariadne_ltb.board import export_board
-from ariadne_ltb.doctor import integration_doctor_snapshot
+from ariadne_ltb.doctor import integration_doctor_snapshot, product_readiness_snapshot
 from ariadne_ltb.git_utils import git_head, is_git_repo, run_git
 from ariadne_ltb.models import ReleaseEvidencePacket, ReviewReport, stable_id
 from ariadne_ltb.runtime import collect_runtime_capabilities
@@ -53,7 +53,21 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
             "inbox": str(store.inbox_items_path),
             "feishu_integrations": str(store.feishu_integrations_dir),
             "github_integrations": str(store.github_integrations_dir),
+            "product_readiness": str(store.doctor_dir / "product_readiness.json"),
             "release_packet": str(store.release_evidence_packet_path),
+        },
+    )
+    path = store.save_release_evidence_packet(packet)
+    product_readiness = product_readiness_snapshot(store, store.root)
+    packet = packet.model_copy(
+        deep=True,
+        update={
+            "product_readiness_status": product_readiness["overall_status"],
+            "product_readiness_checks": {
+                check["name"]: check["status"] for check in product_readiness["checks"]
+            },
+            "real_success_evidence": product_readiness["real_success_evidence"],
+            "real_failure_evidence": product_readiness["real_failure_evidence"],
         },
     )
     path = store.save_release_evidence_packet(packet)

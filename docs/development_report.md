@@ -3292,3 +3292,63 @@ Verification so far:
   still `action_required` because write/execution gates are intentionally unset.
 - `scripts/verify_v1.sh`: passed; release evidence packet generated as
   `release_evidence_5d35cc75fdf7`.
+
+## 2026-06-18 00:20 CST Release Evidence Product Readiness Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Branch integration decision:
+
+- Rechecked the core worktree and frontend lane. Both were clean.
+- Directly merging `codex/ariadne-workbench-frontend-lane` is deferred because
+  that branch diverged from `main` before the current production backend work
+  and would delete or roll back many current backend modules and tests.
+- The latest frontend-only commit can be cherry-picked later, but the safer
+  production move for this slice was to harden the backend evidence contract
+  first.
+
+Why this slice exists:
+
+- `ari doctor product` had the strongest readiness view, but
+  `ari evidence packet` still only referenced integration directories and did
+  not embed the product readiness result itself.
+- Release evidence should be sufficient for an AI builder or reviewer to tell
+  whether Ariadne has real Codex, Claude Code, Feishu, and GitHub success
+  evidence without manually opening multiple doctor files.
+
+Implemented:
+
+- `ReleaseEvidencePacket` now includes:
+  - `product_readiness_status`;
+  - `product_readiness_checks`;
+  - `real_success_evidence`;
+  - `real_failure_evidence`.
+- `ari evidence packet` now writes `.ariadne/doctor/product_readiness.json` as
+  part of packet generation and embeds the readiness summary into
+  `.ariadne/evidence/release_evidence_packet.json`.
+- Release evidence refs now include `product_readiness`.
+
+Safety boundaries:
+
+- Packet generation performs no external writes.
+- Real success/failure evidence is read from local `.ariadne/` JSON artifacts.
+- Failure evidence remains redacted and summarized by product doctor before it
+  is embedded in release evidence.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_release_evidence.py tests/test_v1_doctor_release.py -q`:
+  passed, `10 passed`.
+- `python3.11 -m pytest`: passed, `209 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ruff check ariadne_ltb/evidence.py ariadne_ltb/models.py tests/test_release_evidence.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json`: passed and
+  includes product readiness status plus real Codex, Claude Code, Feishu, and
+  GitHub evidence summaries.
+- `scripts/verify_v1.sh`: passed; release evidence packet generated as
+  `release_evidence_2b62f61367c9`.
