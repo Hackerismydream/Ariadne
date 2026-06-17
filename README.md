@@ -367,6 +367,33 @@ No Feishu credentials are required for tests or the default demo. Missing
 confirmation, disabled writes, missing `lark-cli`, login failures, and provider
 errors are recorded as blocked/failed write results with secrets redacted.
 
+## Workbench Frontend
+
+The local workbench frontend lives under `frontend/ariadne-workbench/`. It is a
+read-only React/Vite frontend that adapts Multica's issue-agent-runtime UI shape
+to Ariadne's ticket-centered product loop. It does not call Multica APIs and it
+does not mutate Ariadne state.
+
+Generate a local data snapshot from `.ariadne/` and run the frontend:
+
+```bash
+cd frontend/ariadne-workbench
+npm install
+npm run sync:data
+npm run dev
+```
+
+Build static assets:
+
+```bash
+npm run build
+```
+
+`npm run sync:data` writes `public/web_data/workbench.json` from local tickets,
+runtime capability, project resources, inbox items, Feishu/GitHub integration
+results, release evidence, and progress events. That generated file is ignored
+because it contains machine-local paths.
+
 ## GitHub
 
 GitHub integration uses the local `gh` CLI and environment-only credentials.

@@ -2837,3 +2837,69 @@ Known limitations:
 - GitHub PR/status write paths are still narrower than the full roadmap: this
   slice proves issue creation and comment sync, while PR creation/check-status
   automation remains a follow-up.
+
+## 2026-06-17 Workbench Frontend Safe Integration Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented / integrated:
+
+- Started from the verified core branch
+  `codex/ariadne-core-orchestration-backends-3` at commit `1956e5e`.
+- Safely restored only the frontend lane assets instead of merging the whole
+  older frontend branch, because a direct branch merge would delete many newer
+  backend modules and tests.
+- Added the standalone React/Vite workbench under
+  `frontend/ariadne-workbench/`.
+- Preserved the Multica-inspired app shell, issue board, goal page, agent page,
+  runtime page, skill page, inbox page, and floating agent dock.
+- Reworked `frontend/ariadne-workbench/scripts/sync-local-data.mjs` into a
+  read-only Ariadne adapter that consumes:
+  - `.ariadne/tickets/*.json`;
+  - `.ariadne/artifacts/<ticket>/build_packet.json`;
+  - `.ariadne/artifacts/<ticket>/review_report.json`;
+  - `.ariadne/artifacts/<ticket>/changed_files.json`;
+  - `.ariadne/artifacts/<ticket>/next_tickets.json`;
+  - `.ariadne/inbox/items.json`;
+  - `.ariadne/journal/events.jsonl`;
+  - `.ariadne/comments/*.jsonl`;
+  - `.ariadne/evidence/release_evidence_packet.json`;
+  - `.ariadne/runtimes/capability_snapshot.json`;
+  - `.ariadne/project/resources.json`;
+  - `.ariadne/integrations/feishu/*/*.json`;
+  - `.ariadne/integrations/github/*/*.json`.
+- Added frontend-local ignore rules for `node_modules/`, `dist/`,
+  `public/web_data/`, and TypeScript build info so machine-local snapshots are
+  not committed.
+- Updated README with frontend run/build/sync instructions.
+
+Verification:
+
+- `npm run sync:data`: passed and generated a local workbench snapshot with
+  `8` tickets, `5` runtimes, and `16` inbox items.
+- `npm install`: passed with `0` vulnerabilities reported by npm.
+- `npm run typecheck`: passed.
+- `npm run build`: passed; Vite produced static assets under
+  `frontend/ariadne-workbench/dist/`.
+- `npm run dev -- --port 5177`: started locally; `curl
+  http://127.0.0.1:5177/` returned the Vite HTML shell and
+  `curl http://127.0.0.1:5177/web_data/workbench.json` returned
+  `Ariadne Production Agent Workbench`, `8` tickets, `5` runtimes, and `16`
+  inbox items. The dev server was stopped after verification.
+
+Safety boundaries:
+
+- The frontend is read-only and does not mutate `.ariadne` state.
+- The generated `public/web_data/workbench.json` is ignored because it contains
+  local filesystem paths.
+- This integration did not merge the old frontend branch wholesale and did not
+  remove any newer backend production integration files.
+
+Known limitations:
+
+- The frontend still uses a static generated JSON snapshot, not a live Ariadne
+  API or WebSocket stream.
+- Mutating actions such as assigning tickets, launching real Codex/Claude runs,
+  Feishu writes, and GitHub writes remain CLI-only and gated.
+- Browser-level interaction QA has not yet been run on this integration branch;
+  this slice verified static build plus HTTP availability.
