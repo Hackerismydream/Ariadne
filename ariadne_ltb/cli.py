@@ -27,6 +27,7 @@ from ariadne_ltb.models import (
     CommentKind,
     ExecutionContext,
     ResumeSafety,
+    RuntimeCapability,
     TicketComment,
     TicketStatus,
 )
@@ -339,6 +340,66 @@ def backend_doctor() -> None:
 
     for line in secret_status_lines(state.root):
         typer.echo(line)
+
+
+@backend_app.command("matrix")
+def backend_matrix(
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print the persisted capability matrix JSON."),
+    ] = False,
+) -> None:
+    """Persist and print the provider capability matrix without secrets."""
+    store = AriadneStore(state.root)
+    capabilities = collect_runtime_capabilities()
+    snapshot_path = store.save_runtime_capabilities(capabilities)
+    if json_output:
+        typer.echo(snapshot_path.read_text(encoding="utf-8").rstrip())
+        return
+
+    typer.echo(f"Provider capability matrix: {snapshot_path}")
+    typer.echo(
+        "backend | available | command | prompt-file | stdin | session | mcp | "
+        "skills | model | reasoning | timeout | diff | tests | external | gate | template"
+    )
+    for capability in capabilities:
+        typer.echo(_capability_matrix_line(capability))
+
+
+def _capability_matrix_line(capability: RuntimeCapability) -> str:
+    gate = capability.safety_gate_env_var or "none"
+    template = (
+        f"{capability.template_env_var}:{'set' if capability.command_template_set else 'unset'}"
+        if capability.template_env_var
+        else "none"
+    )
+    if capability.disabled_reasons:
+        gate = f"{gate}; blocked={'; '.join(capability.disabled_reasons)}"
+    command = capability.command_path or capability.command
+    return " | ".join(
+        [
+            capability.backend_name,
+            _yes_no(capability.available),
+            command,
+            _yes_no(capability.supports_prompt_file),
+            _yes_no(capability.supports_stdin_prompt),
+            _yes_no(capability.supports_session_resume),
+            _yes_no(capability.supports_mcp),
+            _yes_no(capability.supports_skill_materialization),
+            _yes_no(capability.supports_model_selection),
+            _yes_no(capability.supports_reasoning_effort),
+            _yes_no(capability.supports_timeout),
+            _yes_no(capability.supports_diff_capture),
+            _yes_no(capability.supports_test_capture),
+            _yes_no(capability.external_execution_enabled),
+            gate,
+            template,
+        ]
+    )
+
+
+def _yes_no(value: bool) -> str:
+    return "yes" if value else "no"
 
 
 @backend_app.command("smoke-test")

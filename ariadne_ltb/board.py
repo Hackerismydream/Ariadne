@@ -11,6 +11,7 @@ from ariadne_ltb.models import (
     ArtifactType,
     BacklogUpdate,
     BuildTicket,
+    RuntimeCapability,
     StoreInvariantReport,
     TicketStatus,
     WorkerHeartbeat,
@@ -189,12 +190,9 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
                 lines.append(f"  - Evidence: `{', '.join(update.evidence_refs)}`")
     else:
         lines.append("No ticket backlog updates yet.")
-    lines.extend(["", "## Backend Capability", ""])
+    lines.extend(["", "## Backend Capability", "", "### Provider Capability Matrix", ""])
     for capability in capabilities:
-        lines.append(
-            f"- `{capability.backend_name}` available=`{str(capability.available).lower()}` "
-            f"external=`{str(capability.external_execution_enabled).lower()}`"
-        )
+        lines.append(_capability_board_line(capability))
     lines.extend(["", "## Safety Gates", ""])
     lines.append(
         "- External execution: "
@@ -210,6 +208,9 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         lines.append(f"- Command path: `{codex.command_path or 'missing'}`")
         lines.append(f"- Template set: `{str(codex.command_template_set).lower()}`")
         lines.append(f"- Confirm required: `{str(codex.confirm_execution_required).lower()}`")
+        lines.append(f"- Prompt file: `{str(codex.supports_prompt_file).lower()}`")
+        lines.append(f"- Diff capture: `{str(codex.supports_diff_capture).lower()}`")
+        lines.append(f"- Test capture: `{str(codex.supports_test_capture).lower()}`")
     else:
         lines.append("Codex capability snapshot missing.")
     lines.extend(["", "## Store Invariants", ""])
@@ -240,6 +241,32 @@ def _ticket_change_counts(update: BacklogUpdate) -> str:
     for change in update.ticket_changes:
         counts[change.change_type.value] = counts.get(change.change_type.value, 0) + 1
     return ",".join(f"{key}:{counts[key]}" for key in sorted(counts)) or "none"
+
+
+def _capability_board_line(capability: RuntimeCapability) -> str:
+    template = (
+        f"{capability.template_env_var}:{'set' if capability.command_template_set else 'unset'}"
+        if capability.template_env_var
+        else "none"
+    )
+    blocked = "; ".join(capability.disabled_reasons) if capability.disabled_reasons else "none"
+    return (
+        f"- `{capability.backend_name}` available=`{str(capability.available).lower()}` "
+        f"command=`{capability.command_path or capability.command}` "
+        f"prompt_file=`{str(capability.supports_prompt_file).lower()}` "
+        f"stdin=`{str(capability.supports_stdin_prompt).lower()}` "
+        f"session_resume=`{str(capability.supports_session_resume).lower()}` "
+        f"mcp=`{str(capability.supports_mcp).lower()}` "
+        f"skills=`{str(capability.supports_skill_materialization).lower()}` "
+        f"model=`{str(capability.supports_model_selection).lower()}` "
+        f"reasoning=`{str(capability.supports_reasoning_effort).lower()}` "
+        f"timeout=`{str(capability.supports_timeout).lower()}` "
+        f"diff=`{str(capability.supports_diff_capture).lower()}` "
+        f"tests=`{str(capability.supports_test_capture).lower()}` "
+        f"external=`{str(capability.external_execution_enabled).lower()}` "
+        f"gate=`{capability.safety_gate_env_var or 'none'}` "
+        f"template=`{template}` blocked=`{blocked}`"
+    )
 
 
 def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
@@ -413,10 +440,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     if runtime_capability:
         lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.RUNTIME_CAPABILITY)}`")
         for capability in runtime_capability.get("capabilities", []):
-            lines.append(
-                f"- `{capability.get('backend_name')}` available=`{str(capability.get('available')).lower()}` "
-                f"external=`{str(capability.get('external_execution_enabled')).lower()}`"
-            )
+            lines.append(_capability_board_line(RuntimeCapability.model_validate(capability)))
     else:
         lines.append("No runtime capability snapshot found.")
     lines.append("")

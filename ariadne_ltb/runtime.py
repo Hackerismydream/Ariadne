@@ -175,6 +175,8 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
     codex_path = shutil.which("codex")
     claude_path = shutil.which("claude")
     external_enabled = os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1"
+    codex_template_set = bool(os.environ.get("ARIADNE_CODEX_COMMAND_TEMPLATE"))
+    claude_template_set = bool(os.environ.get("ARIADNE_CLAUDE_COMMAND_TEMPLATE"))
     return [
         RuntimeCapability(
             backend_name="fake-codex",
@@ -186,39 +188,14 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             confirm_execution_required=False,
             supports_external_execution=False,
             supports_dry_run=False,
-        ),
-        RuntimeCapability(
-            backend_name="shell",
-            command="shell",
-            command_path=None,
-            available=True,
-            external_execution_enabled=external_enabled,
-            command_template_set=False,
-            confirm_execution_required=True,
-            supports_external_execution=True,
-            supports_dry_run=False,
-        ),
-        RuntimeCapability(
-            backend_name="codex",
-            command="codex",
-            command_path=codex_path,
-            available=codex_path is not None,
-            external_execution_enabled=external_enabled,
-            command_template_set=bool(os.environ.get("ARIADNE_CODEX_COMMAND_TEMPLATE")),
-            confirm_execution_required=True,
-            supports_external_execution=True,
-            supports_dry_run=False,
-        ),
-        RuntimeCapability(
-            backend_name="claude-code",
-            command="claude",
-            command_path=claude_path,
-            available=claude_path is not None,
-            external_execution_enabled=external_enabled,
-            command_template_set=bool(os.environ.get("ARIADNE_CLAUDE_COMMAND_TEMPLATE")),
-            confirm_execution_required=True,
-            supports_external_execution=True,
-            supports_dry_run=False,
+            supports_skill_materialization=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            notes=[
+                "Deterministic local simulator for the demo target project.",
+                "Validates handoff content and allowed paths before patching.",
+            ],
         ),
         RuntimeCapability(
             backend_name="dry-run",
@@ -230,5 +207,87 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             confirm_execution_required=False,
             supports_external_execution=False,
             supports_dry_run=True,
+            supports_git_status_capture=True,
+            notes=["No target files are changed."],
+        ),
+        RuntimeCapability(
+            backend_name="shell",
+            command="shell",
+            command_path=None,
+            available=True,
+            external_execution_enabled=external_enabled,
+            command_template_set=False,
+            safety_gate_env_var="ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+            supports_timeout=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            disabled_reasons=[] if external_enabled else ["ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset"],
+            notes=["Runs explicit shell commands only after confirmation."],
+        ),
+        RuntimeCapability(
+            backend_name="codex",
+            command="codex",
+            command_path=codex_path,
+            available=codex_path is not None,
+            external_execution_enabled=external_enabled,
+            command_template_set=codex_template_set,
+            template_env_var="ARIADNE_CODEX_COMMAND_TEMPLATE",
+            safety_gate_env_var="ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+            supports_prompt_file=True,
+            supports_skill_materialization=True,
+            supports_timeout=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            disabled_reasons=[
+                reason
+                for reason in [
+                    None if codex_path else "codex command is missing",
+                    None if external_enabled else "ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset",
+                ]
+                if reason
+            ],
+            notes=[
+                "Writes a handoff file under the target repo .ariadne/handoffs directory.",
+                "Default template: codex exec --cd {target_repo} --prompt-file {handoff_file}.",
+            ],
+        ),
+        RuntimeCapability(
+            backend_name="claude-code",
+            command="claude",
+            command_path=claude_path,
+            available=claude_path is not None,
+            external_execution_enabled=external_enabled,
+            command_template_set=claude_template_set,
+            template_env_var="ARIADNE_CLAUDE_COMMAND_TEMPLATE",
+            safety_gate_env_var="ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+            supports_stdin_prompt=True,
+            supports_skill_materialization=True,
+            supports_timeout=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            disabled_reasons=[
+                reason
+                for reason in [
+                    None if claude_path else "claude command is missing",
+                    None if external_enabled else "ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset",
+                ]
+                if reason
+            ],
+            notes=[
+                "Writes a handoff file and passes it through the configured Claude command template.",
+                "Default template: claude --print < {handoff_file}.",
+            ],
         ),
     ]

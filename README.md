@@ -199,6 +199,16 @@ Run diagnostics:
 ari backend doctor
 ```
 
+Inspect the provider capability matrix used by routing and the board:
+
+```bash
+ari backend matrix
+```
+
+The matrix records prompt-file/stdin support, skill materialization, timeout,
+diff/test capture, command availability, safety gates, and command-template
+presence without printing secrets.
+
 The full smoke-test runbook is in
 [`docs/real_codex_smoke_test.md`](docs/real_codex_smoke_test.md).
 

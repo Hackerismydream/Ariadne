@@ -1862,3 +1862,90 @@ Known limitations:
   roles still run inside the existing `TicketRunOrchestrator` loop.
 - Team configuration has no CLI mutation command yet; defaults are bootstrapped
   and custom teams can be edited through the local JSON file.
+
+## Core Batch 15: Provider Capability Matrix
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-08 / LOC-13` by turning backend diagnostics from
+a coarse availability check into a persisted provider capability matrix.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/runtime.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_provider_capability_matrix.py`
+- `README.md`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Extended `RuntimeCapability` with explicit provider capabilities for
+  prompt-file input, stdin prompt input, session resume, MCP, skill
+  materialization, model selection, reasoning effort, timeout behavior, diff
+  capture, test capture, git status capture, safety-gate env vars, template env
+  vars, disabled reasons, and notes.
+- Updated `collect_runtime_capabilities()` to produce an honest local matrix for
+  `fake-codex`, `dry-run`, `shell`, `codex`, and `claude-code`.
+- Added `ari backend matrix` with optional `--json`; it persists
+  `.ariadne/runtimes/capability_snapshot.json` and prints only env names plus
+  set/unset status, not secret values or template contents.
+- Kept `ari backend doctor` as the health/safety diagnostic while sharing the
+  same enhanced snapshot persistence.
+- Updated the static board `Backend Capability` section with a
+  `Provider Capability Matrix` showing command availability, prompt mode,
+  skills, timeout, diff/test capture, external gate, template env state, and
+  blocked reasons.
+- Updated per-ticket runtime capability rendering so orchestrator artifacts show
+  the same matrix details.
+- Documented `ari backend matrix` in the README.
+
+Safety boundaries:
+
+- Real `codex`, `claude-code`, and `shell` execution remain gated by
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and `--confirm-execution`.
+- `backend matrix` does not execute providers.
+- Command templates are not printed, only whether their env vars are set.
+- No Feishu writes, commits, pushes, merges, PR creation, server runtime,
+  Postgres, WebSocket, multi-workspace auth, or hosted UI was added.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_provider_capability_matrix.py tests/test_backend_smoke_cli.py::test_backend_doctor_reports_gates_without_secrets tests/test_multica_alignment.py::test_runtime_capability_snapshot_and_backend_doctor_secret_safety -q`:
+  passed, 5 tests.
+- `python3.11 -m ruff check ariadne_ltb/models.py ariadne_ltb/runtime.py ariadne_ltb/cli.py ariadne_ltb/board.py tests/test_provider_capability_matrix.py`:
+  passed.
+- `python3.11 -m pytest tests/test_provider_capability_matrix.py tests/test_backend_smoke_cli.py tests/test_multica_alignment.py -q`:
+  passed, 19 tests.
+- `python3.11 -m pytest`: passed, 152 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli backend matrix`: passed and wrote
+  `.ariadne/runtimes/capability_snapshot.json`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket list`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex`:
+  passed with reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; no secrets were
+  printed and external execution remained disabled.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+- Optional `uv run ari backend matrix`: passed.
+- Optional `uv run ari demo full`: passed.
+- Optional `uv run ari ticket list`: passed.
+- Optional `uv run ari ticket run ARI-003 --backend fake-codex`: passed.
+- Optional `uv run ari export board`: passed.
+- Optional `uv run ari backend doctor`: passed.
+
+Known limitations:
+
+- Session resume, MCP, model selection, and reasoning-effort controls are
+  represented as explicit unsupported capabilities until real adapters wire
+  those controls.
+- Capability rows are deterministic local declarations, not provider-discovered
+  live introspection beyond command availability and env-gate state.
+- `dry-run` intentionally reports no diff/test capture because it does not run a
+  target command or test suite.

@@ -858,9 +858,24 @@ class RuntimeCapability(AriadneModel):
     command_path: str | None = None
     external_execution_enabled: bool = False
     command_template_set: bool = False
+    template_env_var: str | None = None
+    safety_gate_env_var: str | None = None
     confirm_execution_required: bool = True
     supports_external_execution: bool = False
     supports_dry_run: bool = False
+    supports_prompt_file: bool = False
+    supports_stdin_prompt: bool = False
+    supports_session_resume: bool = False
+    supports_mcp: bool = False
+    supports_skill_materialization: bool = False
+    supports_model_selection: bool = False
+    supports_reasoning_effort: bool = False
+    supports_timeout: bool = False
+    supports_diff_capture: bool = False
+    supports_test_capture: bool = False
+    supports_git_status_capture: bool = False
+    disabled_reasons: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
     checked_at: str = Field(default_factory=utc_now)
 
 
