@@ -824,6 +824,10 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
       </section>
     );
   }
+  const checks = Object.entries(evidence.productReadinessChecks ?? {});
+  const readyChecks = checks.filter(([, status]) => status === "ready").length;
+  const successEvidenceCount = Object.values(evidence.realSuccessEvidence ?? {}).filter(Boolean).length;
+  const failureEvidenceCount = Object.values(evidence.realFailureEvidence ?? {}).filter(Boolean).length;
   return (
     <section className="panel nested release-panel">
       <h3>Release packet</h3>
@@ -832,10 +836,22 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
           ["Production", evidence.productionAcceptanceStatus ?? "unknown"],
           ["Product readiness", evidence.productReadinessStatus ?? "unknown"],
           ["Run gates", evidence.runGateStatus ?? "unknown"],
+          ["Checks", checks.length ? `${readyChecks}/${checks.length} ready` : "missing"],
+          ["Real evidence", `${successEvidenceCount} success / ${failureEvidenceCount} failure`],
+          ["Executions", `${evidence.executionResultCount ?? 0}`],
           ["Generated", evidence.generatedAt ?? "missing"],
           ["Packet", evidence.packetPath ?? "missing"],
         ]}
       />
+      {checks.length ? (
+        <div className="check-summary release-checks" aria-label="Product readiness checks">
+          {checks.slice(0, 8).map(([name, status]) => (
+            <span key={name}>
+              {name}: {status}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

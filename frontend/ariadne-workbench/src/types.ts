@@ -119,6 +119,14 @@ export type ReleaseEvidenceSummary = {
   productionAcceptanceStatus?: string;
   productReadinessStatus?: string;
   runGateStatus?: string;
+  productReadinessChecks?: Record<string, string>;
+  realSuccessEvidence?: Record<string, unknown>;
+  realFailureEvidence?: Record<string, unknown>;
+  evidenceRefs?: Record<string, string>;
+  ticketCount?: number;
+  executionResultCount?: number;
+  reviewReportCount?: number;
+  inboxItemCount?: number;
   packetPath?: string;
   generatedAt?: string;
 };

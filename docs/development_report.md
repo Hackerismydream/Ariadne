@@ -5152,3 +5152,66 @@ Frontend integration decision:
 - This slice changed only the backend-to-workbench data contract already present
   on the core branch. Full frontend branch integration is still deferred until
   the core production data contract settles or a merge is explicitly required.
+
+## 2026-06-18 05:05 CST Workbench Product Readiness Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Frontend integration decision:
+
+- Rechecked `codex/ariadne-workbench-frontend-lane` against this core branch.
+- Direct merge remains unsafe because that lane is behind the current production
+  backend and would remove many core modules, docs, and tests added by the real
+  DeepSeek, Codex, Claude Code, Feishu, GitHub, inbox, evidence, and backlog
+  preview slices.
+- Continued on the core production branch and changed only the workbench data
+  contract plus its current release evidence panel.
+
+Implemented:
+
+- Extended `releaseEvidence` in the local workbench data contract with:
+  - `productReadinessChecks`
+  - `realSuccessEvidence`
+  - `realFailureEvidence`
+  - `evidenceRefs`
+  - ticket, execution, review, and inbox counts
+- Updated the current workbench Release packet panel to show:
+  - ready check count;
+  - real success/failure evidence count;
+  - execution count;
+  - the first readiness checks.
+- Added deterministic sync coverage proving release evidence checks and
+  real-success/failure evidence are exported to workbench JSON.
+
+Why this matters:
+
+- The workbench can now inspect production acceptance evidence directly instead
+  of seeing only a coarse `ready/action_required` summary.
+- This makes Ariadne's product path more reviewable:
+  real integrations -> release evidence packet -> product readiness checks ->
+  visible workbench state.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_workbench_data_sync.py`: passed.
+- `npm run build` in `frontend/ariadne-workbench`: passed.
+- `npm run sync:data` in `frontend/ariadne-workbench`: passed and produced
+  workbench data containing product readiness checks, real success/failure
+  evidence, evidence refs, and counts.
+- `python3.11 -m pytest`: passed, `248 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_96063902d1d7`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`

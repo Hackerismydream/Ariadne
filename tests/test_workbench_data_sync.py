@@ -69,9 +69,28 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
         ReleaseEvidencePacket(
             id="release_evidence_sync",
             root_path=str(tmp_path),
+            ticket_count=4,
+            execution_result_count=12,
+            review_report_count=7,
+            inbox_item_count=2,
             product_readiness_status="action_required",
             production_acceptance_status="ready",
             run_gate_status="action_required",
+            product_readiness_checks={
+                "real_llm_agent_evidence": "ready",
+                "real_codex_execution_evidence": "ready",
+                "external_execution_gate": "action_required",
+            },
+            real_success_evidence={
+                "llm_agents": {"id": "llm_sync"},
+                "codex": {"id": "codex_sync"},
+            },
+            real_failure_evidence={
+                "github": {"id": "github_blocked"},
+            },
+            evidence_refs={
+                "product_readiness": ".ariadne/doctor/product_readiness.json",
+            },
         )
     )
     store.save_backlog_preview(
@@ -128,3 +147,10 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
     assert data["backlogChanges"][0]["operationType"] == "add_ticket"
     assert data["backlogChanges"][0]["ticketKey"] == "ARI-999"
     assert data["releaseEvidence"]["id"] == "release_evidence_sync"
+    assert data["releaseEvidence"]["ticketCount"] == 4
+    assert data["releaseEvidence"]["executionResultCount"] == 12
+    assert data["releaseEvidence"]["productReadinessChecks"]["real_llm_agent_evidence"] == "ready"
+    assert data["releaseEvidence"]["productReadinessChecks"]["external_execution_gate"] == "action_required"
+    assert data["releaseEvidence"]["realSuccessEvidence"]["codex"]["id"] == "codex_sync"
+    assert data["releaseEvidence"]["realFailureEvidence"]["github"]["id"] == "github_blocked"
+    assert data["releaseEvidence"]["evidenceRefs"]["product_readiness"].endswith("product_readiness.json")
