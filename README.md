@@ -210,8 +210,17 @@ print key values.
 
 ```bash
 ari llm doctor
+ari llm run-agent build_lead --ticket ARI-003 --confirm-external
+ari llm run-agent knowledge --ticket ARI-003 --confirm-external
+ari llm run-agent memory --ticket ARI-003 --confirm-external
 ari ticket plan ARI-003 --planner llm
 ari review run ARI-003 --reviewer llm
+```
+
+The full ticket loop can also run upstream DeepSeek role agents directly:
+
+```bash
+ari ticket run ARI-003 --backend codex --agent-runtime llm --confirm-execution
 ```
 
 Real LLM smoke tests are explicit external calls:

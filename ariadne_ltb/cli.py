@@ -1044,6 +1044,13 @@ def ticket_run(
     ] = None,
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    agent_runtime: Annotated[
+        str,
+        typer.Option(
+            "--agent-runtime",
+            help="deterministic|llm for Build Lead/Knowledge/Memory upstream agents.",
+        ),
+    ] = "deterministic",
     backlog_planner: Annotated[
         str,
         typer.Option("--backlog-planner", help="deterministic|llm for feedback-to-ticket updates."),
@@ -1065,6 +1072,7 @@ def ticket_run(
         target_repo_path=str(target_repo_path) if target_repo_path else None,
         command=command,
         planner=planner,
+        agent_runtime=agent_runtime,
         backlog_planner=backlog_planner,
         use_memory=use_memory,
         confirm_execution=confirm_execution,
@@ -1078,6 +1086,9 @@ def ticket_run(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"agent runtime: {result.agent_runtime}")
+    if result.llm_agent_artifact_paths:
+        typer.echo(f"llm agent artifacts: {', '.join(result.llm_agent_artifact_paths)}")
     typer.echo(f"backlog planner: {result.backlog_planner_name}")
     if result.backlog_planner_artifact_path:
         typer.echo(f"backlog planner artifact: {result.backlog_planner_artifact_path}")

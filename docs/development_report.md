@@ -3876,3 +3876,60 @@ Verification:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_f1b60a42045b` and completed product doctor, release
   packet, workbench sync, and workbench build checks.
+
+## 2026-06-18 02:31 CST Ticket Run LLM Agent Runtime Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- DeepSeek role agents were available through `ari llm run-agent`, but the
+  normal product loop `ari ticket run ...` still did not invoke Build Lead,
+  Knowledge, or Memory upstream LLM roles.
+- The production target says the common ticket loop should flow through real
+  LLM agents when configured, not require a user to manually stitch separate
+  role commands around `ticket run`.
+
+Implemented:
+
+- Added `agent_runtime` to `TicketRunOrchestrator.run_ticket(...)`:
+  - `deterministic` remains the default;
+  - `llm` invokes DeepSeek Build Lead before planning, Knowledge after Build
+    Packet/handoff creation, and Memory after review/memory/backlog update.
+- Added `--agent-runtime deterministic|llm` to `ari ticket run`.
+- Added `agent_runtime` and `llm_agent_artifact_paths` to `TicketRunResult` and
+  orchestrator result manifests.
+- `ari ticket run ... --agent-runtime llm` now prints the LLM role artifact
+  paths in CLI output.
+- README now documents both `ari llm run-agent ...` and the integrated
+  `ari ticket run ... --agent-runtime llm` product path.
+
+Real DeepSeek dogfood:
+
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex --agent-runtime llm`:
+  passed.
+- The run invoked real DeepSeek role agents and wrote:
+  - `.ariadne/artifacts/ticket_88fbff51677a/llm_build_lead.json`
+  - `.ariadne/artifacts/ticket_88fbff51677a/llm_knowledge.json`
+  - `.ariadne/artifacts/ticket_88fbff51677a/llm_memory.json`
+- The full loop continued through fake-codex offline execution, review,
+  memory, Feishu dry-run plan, next tickets, backlog updates, and board export.
+- Reviewer verdict: `pass`.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_true_mvp_product_loop.py -q`: passed,
+  `16 passed`.
+- `python3.11 -m ruff check ariadne_ltb/orchestrator.py ariadne_ltb/cli.py tests/test_true_mvp_product_loop.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `221 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and kept
+  `real_llm_agent_evidence: ready`.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_db080fc377cc` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.

@@ -15,6 +15,7 @@ from ariadne_ltb.execution import (
 )
 from ariadne_ltb.full_demo import run_full_demo
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.models import AgentRun, ArtifactType, BuildDecision, ReviewVerdict, TicketStatus, stable_id
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import DeterministicPlanner, LLMPlanner
@@ -24,6 +25,25 @@ from ariadne_ltb.target_project import ensure_demo_target_project
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
+
+
+class FakeLLMTransport:
+    def post_json(self, url, payload, headers, timeout_seconds):  # type: ignore[no-untyped-def]
+        return {
+            "model": "deepseek-v4-pro",
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"summary":"role completed","decision":"continue",'
+                            '"evidence":["ticket evidence"],"risks":[],'
+                            '"recommended_actions":["continue product loop"]}'
+                        )
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+        }
 
 
 def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
@@ -63,6 +83,35 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     handoff = Path(handoff_path).read_text(encoding="utf-8")
     assert "## Execution Permission Profile" in handoff
     assert "Git operations policy" in handoff
+
+
+def test_orchestrator_runs_llm_role_agents_inside_ticket_loop(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    client = DeepSeekClient(api_key="test-secret-key", transport=FakeLLMTransport())
+
+    result = TicketRunOrchestrator(store).run_ticket(
+        "ARI-003",
+        backend_name="fake-codex",
+        agent_runtime="llm",
+        llm_agent_client=client,
+    )
+
+    assert result.review_verdict == "pass"
+    assert result.agent_runtime == "llm"
+    assert len(result.llm_agent_artifact_paths) == 3
+    assert all(Path(path).exists() for path in result.llm_agent_artifact_paths)
+    ticket = store.load_ticket(result.ticket_id)
+    llm_runs = [store.load_run(run_id) for run_id in ticket.agent_run_ids if store.load_run(run_id).agent_role.startswith("llm:")]
+    assert {run.agent_role for run in llm_runs} >= {"llm:build_lead", "llm:knowledge", "llm:memory"}
+    assert all(run.is_terminal for run in llm_runs)
+    manifest = json.loads(Path(result.orchestrator_result_path).read_text(encoding="utf-8"))
+    assert manifest["agent_runtime"] == "llm"
+    assert manifest["artifacts"]["llm_agent_artifact_paths"] == result.llm_agent_artifact_paths
 
 
 def test_demo_full_uses_ticket_run_orchestrator(monkeypatch, tmp_path: Path) -> None:

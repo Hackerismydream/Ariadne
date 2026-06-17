@@ -14,6 +14,7 @@ from ariadne_ltb.handoffs import record_handoff
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
 from ariadne_ltb.llm import DeepSeekClient
+from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
 from ariadne_ltb.llm_backlog import generate_llm_backlog_artifact
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.models import (
@@ -56,6 +57,7 @@ class TicketRunResult:
     ticket_key: str
     backend_name: str
     planner_name: str
+    agent_runtime: str
     build_packet_id: str
     handoff_artifact_id: str
     execution_result_id: str
@@ -70,6 +72,7 @@ class TicketRunResult:
     next_tickets_path: str
     backlog_planner_name: str
     backlog_planner_artifact_path: str | None
+    llm_agent_artifact_paths: list[str]
     backlog_update_ids: list[str]
     board_path: str
     board_html_path: str
@@ -97,7 +100,9 @@ class TicketRunOrchestrator:
         target_repo_path: str | None = None,
         command: str | None = None,
         planner: str = "deterministic",
+        agent_runtime: str = "deterministic",
         backlog_planner: str = "deterministic",
+        llm_agent_client: DeepSeekClient | None = None,
         backlog_planner_client: DeepSeekClient | None = None,
         use_memory: bool = False,
         confirm_execution: bool = False,
@@ -108,6 +113,10 @@ class TicketRunOrchestrator:
         if ticket.status is TicketStatus.SUPERSEDED:
             msg = f"ticket {ticket.key} is superseded and cannot be run"
             raise RuntimeError(msg)
+        if agent_runtime not in {"deterministic", "llm"}:
+            msg = f"unknown agent runtime: {agent_runtime}"
+            raise ValueError(msg)
+        llm_agent_artifact_paths: list[str] = []
         ticket = ticket.with_status(TicketStatus.PLANNING, "Build Lead")
         self.store.save_ticket(ticket)
         record_handoff(
@@ -119,6 +128,27 @@ class TicketRunOrchestrator:
             "Need Build Packet and coding handoff.",
             self.assignment_id,
         )
+        if agent_runtime == "llm":
+            build_lead_result = run_ticket_llm_agent(
+                self.store,
+                ticket,
+                LLMAgentRole.BUILD_LEAD,
+                client=llm_agent_client,
+            )
+            if build_lead_result.artifact_path:
+                llm_agent_artifact_paths.append(build_lead_result.artifact_path)
+            ticket = self.store.load_ticket(ticket.id)
+            self._progress(
+                ticket,
+                "llm_build_lead",
+                "succeeded" if build_lead_result.succeeded else "blocked",
+                (
+                    "DeepSeek Build Lead role completed."
+                    if build_lead_result.succeeded
+                    else f"DeepSeek Build Lead role blocked: {build_lead_result.error}"
+                ),
+                payload_ref=build_lead_result.artifact_id,
+            )
 
         planner_result = planner_for_name(planner, use_memory=use_memory).plan_ticket(self.store, ticket)
         if not planner_result.succeeded:
@@ -131,6 +161,27 @@ class TicketRunOrchestrator:
         packet = self.store.load_build_packet(planner_result.build_packet_id or ticket.build_packet_id)
         handoff_artifact = self.store.load_artifact(planner_result.handoff_artifact_id)
         handoff_prompt = self.store.read_artifact_text(handoff_artifact)
+        if agent_runtime == "llm":
+            knowledge_result = run_ticket_llm_agent(
+                self.store,
+                self.store.load_ticket(ticket.id),
+                LLMAgentRole.KNOWLEDGE,
+                client=llm_agent_client,
+            )
+            if knowledge_result.artifact_path:
+                llm_agent_artifact_paths.append(knowledge_result.artifact_path)
+            ticket = self.store.load_ticket(ticket.id)
+            self._progress(
+                ticket,
+                "llm_knowledge",
+                "succeeded" if knowledge_result.succeeded else "blocked",
+                (
+                    "DeepSeek Knowledge role completed."
+                    if knowledge_result.succeeded
+                    else f"DeepSeek Knowledge role blocked: {knowledge_result.error}"
+                ),
+                payload_ref=knowledge_result.artifact_id,
+            )
         record_handoff(
             self.store,
             ticket,
@@ -701,6 +752,27 @@ class TicketRunOrchestrator:
             f"Recorded {len(backlog_updates)} feedback-driven backlog update(s).",
             payload_ref=",".join(update.id for update in backlog_updates),
         )
+        if agent_runtime == "llm":
+            memory_role_result = run_ticket_llm_agent(
+                self.store,
+                self.store.load_ticket(ticket.id),
+                LLMAgentRole.MEMORY,
+                client=llm_agent_client,
+            )
+            if memory_role_result.artifact_path:
+                llm_agent_artifact_paths.append(memory_role_result.artifact_path)
+            ticket = self.store.load_ticket(ticket.id)
+            self._progress(
+                ticket,
+                "llm_memory",
+                "succeeded" if memory_role_result.succeeded else "blocked",
+                (
+                    "DeepSeek Memory role completed."
+                    if memory_role_result.succeeded
+                    else f"DeepSeek Memory role blocked: {memory_role_result.error}"
+                ),
+                payload_ref=memory_role_result.artifact_id,
+            )
         memory_run = _finish_run(
             self.store,
             memory_run,
@@ -730,6 +802,7 @@ class TicketRunOrchestrator:
                 "ticket_key": ticket.key,
                 "backend_name": backend_name,
                 "planner_name": planner,
+                "agent_runtime": agent_runtime,
                 "build_packet_id": packet.id,
                 "handoff_artifact_id": handoff_artifact.id,
                 "execution_result_id": execution.id,
@@ -747,6 +820,7 @@ class TicketRunOrchestrator:
                 if backlog_planner_artifact
                 else None,
                 "backlog_next_tickets_path": backlog_next_tickets_path,
+                "llm_agent_artifact_paths": llm_agent_artifact_paths,
                 "backlog_update_ids": [update.id for update in backlog_updates],
                 "board_path": str(board_path),
                 "board_html_path": str(self.store.board_dir / "index.html"),
@@ -761,6 +835,7 @@ class TicketRunOrchestrator:
                     if backlog_planner_artifact
                     else None,
                     "backlog_next_tickets_path": backlog_next_tickets_path,
+                    "llm_agent_artifact_paths": llm_agent_artifact_paths,
                     "board_path": str(board_path),
                     "permission_profile_path": permission_artifact.path,
                     "skill_bundle_path": skill_bundle_artifact.path,
@@ -805,6 +880,7 @@ class TicketRunOrchestrator:
             ticket_key=ticket.key,
             backend_name=backend_name,
             planner_name=planner,
+            agent_runtime=agent_runtime,
             build_packet_id=packet.id,
             handoff_artifact_id=handoff_artifact.id,
             execution_result_id=execution.id,
@@ -821,6 +897,7 @@ class TicketRunOrchestrator:
             backlog_planner_artifact_path=backlog_planner_artifact.path
             if backlog_planner_artifact
             else None,
+            llm_agent_artifact_paths=llm_agent_artifact_paths,
             backlog_update_ids=[update.id for update in backlog_updates],
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),
