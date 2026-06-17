@@ -2161,3 +2161,36 @@ Known limitations:
   runtime, resource, review, frontend, or release features.
 - The document records the current branch reality as of 2026-06-17. Future
   agents must re-check branch state before merging or continuing work.
+
+## Goal Handoff: Ariadne Multica Maturity
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Added:
+
+- `docs/goals/2026-06-17-2034-ariadne-multica-maturity-goal.md`
+- `docs/superpowers/plans/2026-06-17-2034-ariadne-multica-maturity-execution-plan.md`
+
+Purpose:
+
+- Convert `docs/ops/ARIADNE_MULTICA_MATURITY_ROADMAP.md` into a short Codex
+  goal that can be used for a long-running goal session.
+- Keep the goal under 4000 characters while moving detailed execution steps
+  into a separate plan file.
+- Preserve the current boundary: do not develop new frontend features in this
+  goal, but let Codex decide when the existing frontend/workbench branch should
+  be integrated based on branch state, conflicts, and verification.
+
+Verification:
+
+- `git diff --check`: passed.
+- Goal file length check: `3220` characters.
+- Placeholder scan found only legal Git range syntax in `main...branch`
+  commands.
+
+Known limitations:
+
+- This handoff only creates the goal and execution plan. It does not implement
+  roadmap phases.
+- The timestamped goal records the current branch names. Future executions must
+  re-check branch state before editing or merging.
