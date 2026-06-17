@@ -34,6 +34,7 @@ from ariadne_ltb.models import (
     CommentAuthorType,
     CommentKind,
     ExecutionContext,
+    FeishuWritePlan,
     ReviewReport,
     ResumeSafety,
     RuntimeCapability,
@@ -56,6 +57,7 @@ assignment_app = typer.Typer(help="Assignment queue commands.")
 ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
 memory_app = typer.Typer(help="Memory commands.")
+feishu_app = typer.Typer(help="Feishu write-back commands.")
 llm_app = typer.Typer(help="Upstream LLM runtime commands.")
 review_app = typer.Typer(help="Reviewer commands.")
 backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
@@ -71,6 +73,7 @@ app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
 app.add_typer(memory_app, name="memory")
+app.add_typer(feishu_app, name="feishu")
 app.add_typer(llm_app, name="llm")
 app.add_typer(review_app, name="review")
 app.add_typer(backend_app, name="backend")
@@ -1310,6 +1313,73 @@ def memory_search(
         typer.echo(f"  snippet: {hit.snippet}")
 
 
+@feishu_app.command("plan")
+def feishu_plan(ticket_id: str) -> None:
+    """Show the Feishu dry-run write plan for a ticket."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    plan = _load_feishu_plan_for_ticket(store, ticket.id, ticket.key)
+    typer.echo(f"Feishu dry-run plan for {ticket.key}: {plan.id}")
+    typer.echo("dry_run: true")
+    typer.echo(f"run_summary: {plan.run_summary}")
+    if plan.proposed_docs:
+        typer.echo("docs:")
+        for doc in plan.proposed_docs:
+            typer.echo(f"- {doc.get('title', 'Untitled')}")
+    if plan.proposed_tasks:
+        typer.echo("tasks:")
+        for task in plan.proposed_tasks:
+            typer.echo(f"- {task.get('title', 'Untitled')}")
+
+
+@feishu_app.command("write")
+def feishu_write(
+    ticket_id: str,
+    confirm_write: Annotated[
+        bool,
+        typer.Option("--confirm-write", help="Allow real Feishu write through lark-cli."),
+    ] = False,
+) -> None:
+    """Write a ticket's Feishu plan through lark-cli when explicitly enabled."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    plan = _load_feishu_plan_for_ticket(store, ticket.id, ticket.key)
+    workspace = store.feishu_integrations_dir / ticket.key
+    result = create_lark_doc_from_plan(
+        plan,
+        workspace,
+        confirm_write,
+        ticket_key=ticket.key,
+    )
+    result_path = store.save_feishu_write_result(result)
+    typer.echo(f"Feishu write result: {result.id}")
+    typer.echo(f"ok: {str(result.ok).lower()}")
+    typer.echo(f"blocked: {str(result.blocked).lower()}")
+    typer.echo(f"result: {result_path}")
+    if result.document_url:
+        typer.echo(f"document url: {result.document_url}")
+    if result.reason:
+        typer.echo(f"reason: {result.reason}")
+    if not result.ok:
+        raise typer.Exit(2)
+
+
+def _load_feishu_plan_for_ticket(
+    store: AriadneStore,
+    ticket_id: str,
+    ticket_key: str,
+) -> FeishuWritePlan:
+    ticket = store.load_ticket(ticket_id)
+    plan_id = ticket.metadata.get("feishu_write_plan_id")
+    if not plan_id:
+        typer.echo(
+            f"No Feishu plan found for {ticket_key}; run `ari ticket run {ticket_key}` "
+            "or `ari memory export` first."
+        )
+        raise typer.Exit(2)
+    return store.load_feishu_write_plan(plan_id)
+
+
 @memory_app.command("sync")
 def memory_sync(
     ticket_id: str,
@@ -1333,8 +1403,13 @@ def memory_sync(
         typer.echo(f"Feishu dry-run plan for {ticket.key}: {plan.id}")
         typer.echo(plan.run_summary)
         return
-    result = create_lark_doc_from_plan(plan, store.memory_dir / "feishu_sync", confirm_write)
-    typer.echo(__import__("json").dumps(result, indent=2, ensure_ascii=False))
+    result = create_lark_doc_from_plan(
+        plan,
+        store.memory_dir / "feishu_sync",
+        confirm_write,
+        ticket_key=ticket.key,
+    )
+    typer.echo(result.model_dump_json(indent=2))
 
 
 def main() -> None:

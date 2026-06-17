@@ -340,15 +340,18 @@ gaps, and the ARI-015 through ARI-025 roadmap.
 
 ## Feishu
 
-The default loop writes a Feishu dry-run plan only. Real writes use `lark-cli`
+The default loop writes a Feishu dry-run plan. Real writes use `lark-cli`,
+persist an integration result under `.ariadne/integrations/feishu/<ticket>/`,
 and require both:
 
 ```bash
-FEISHU_ENABLE_WRITE=1
---confirm-write
+python3.11 -m ariadne_ltb.cli feishu plan ARI-003
+FEISHU_ENABLE_WRITE=1 python3.11 -m ariadne_ltb.cli feishu write ARI-003 --confirm-write
 ```
 
-No Feishu credentials are required for tests or the default demo.
+No Feishu credentials are required for tests or the default demo. Missing
+confirmation, disabled writes, missing `lark-cli`, login failures, and provider
+errors are recorded as blocked/failed write results with secrets redacted.
 
 ## Safety
 

@@ -2423,3 +2423,73 @@ Known limitations:
   combination tested here; Ariadne records that as provider configuration
   evidence instead of assuming it works.
 - Real Feishu and GitHub integration phases are still pending.
+
+## 2026-06-17 Real Feishu Write Gate Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Added first-class Feishu write-back commands:
+  - `ari feishu plan <ticket>`;
+  - `FEISHU_ENABLE_WRITE=1 ari feishu write <ticket> --confirm-write`.
+- Kept the existing dry-run Feishu plan as the preview path.
+- Added a real gated `lark-cli docs +create` write path.
+- Added `FeishuWriteResult` with:
+  - ticket and plan ids;
+  - blocked/ok state;
+  - typed failure reason;
+  - redacted command, stdout, and stderr;
+  - content path;
+  - document id and document URL when returned by `lark-cli`;
+  - operation summary.
+- Persisted Feishu integration evidence under:
+  `.ariadne/integrations/feishu/<ticket_key>/<result_id>.json`.
+- Updated the board to show the latest real Feishu write result under the
+  Feishu section.
+- Added deterministic tests for missing confirmation, disabled write gate,
+  missing `lark-cli`, mocked successful write, result persistence, and secret
+  redaction.
+- Updated README and the active production execution plan.
+
+Real integration smoke:
+
+- Local `lark-cli` was found at `/opt/homebrew/bin/lark-cli`.
+- Real Feishu write was not attempted because `FEISHU_ENABLE_WRITE` was not
+  enabled in the current environment.
+- Gated write refusal was exercised with:
+  `python3.11 -m ariadne_ltb.cli feishu write ARI-003 --confirm-write`.
+- The command returned Ariadne exit code `2` and wrote a blocked result:
+  `.ariadne/integrations/feishu/ARI-003/feishu_write_05bcaf270128.json`.
+
+Safety boundaries:
+
+- Real writes require both `FEISHU_ENABLE_WRITE=1` and `--confirm-write`.
+- Tests do not require Feishu credentials or network access.
+- Feishu token, secret, key, and bearer-like values are redacted before being
+  stored in result JSON or printed.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_feishu_real_write_gate.py`: passed.
+- `python3.11 -m pytest tests/test_feishu_real_write_gate.py tests/test_true_mvp_product_loop.py tests/test_v1_doctor_release.py`: passed.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: 178 passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; secret values redacted.
+- `scripts/verify_v1.sh`: passed.
+- `uv run ari demo full`: passed.
+- `uv run ari ticket list`: passed.
+- `uv run ari export board`: passed.
+- `uv run ari backend doctor`: passed.
+- `uv run ari feishu plan ARI-003`: passed.
+
+Known limitations:
+
+- The write adapter currently creates one Markdown Docx document from the
+  existing Feishu write plan; richer routing to Feishu docs/tasks/base records
+  remains future work.
+- A full successful real Feishu write still requires the user environment to
+  enable `FEISHU_ENABLE_WRITE=1` and have `lark-cli` authenticated.
+- Real GitHub integration remains pending.

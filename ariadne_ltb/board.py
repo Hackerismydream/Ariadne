@@ -635,6 +635,18 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             lines.append(f"  - {task.get('title', 'Untitled')}")
     else:
         lines.append("No Feishu write plan found.")
+    feishu_results = store.list_feishu_write_results(ticket.key)
+    if feishu_results:
+        latest_result = feishu_results[-1]
+        lines.append("")
+        lines.append("Latest real write result:")
+        lines.append(f"- OK: `{str(latest_result.ok).lower()}`")
+        lines.append(f"- Blocked: `{str(latest_result.blocked).lower()}`")
+        lines.append(f"- Failure reason: `{latest_result.failure_reason.value if latest_result.failure_reason else ''}`")
+        if latest_result.document_url:
+            lines.append(f"- Document: {latest_result.document_url}")
+        if latest_result.reason:
+            lines.append(f"- Reason: {latest_result.reason}")
 
     memory = _latest_json_artifact(store, artifacts, ArtifactType.MEMORY_RECORD)
     lines.extend(["", "### Memory", ""])

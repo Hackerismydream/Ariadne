@@ -25,6 +25,7 @@ from ariadne_ltb.models import (
     CommentAuthorType,
     CommentKind,
     ExecutionResult,
+    FeishuWriteResult,
     FeishuWritePlan,
     MemoryRecord,
     ProjectResource,
@@ -80,6 +81,8 @@ class AriadneStore:
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
+        self.integrations_dir = self.base / "integrations"
+        self.feishu_integrations_dir = self.integrations_dir / "feishu"
         self.artifacts_dir = self.base / "artifacts"
         self.artifact_index_dir = self.base / "artifact_index"
         self.board_dir = self.base / "board"
@@ -114,6 +117,8 @@ class AriadneStore:
             self.backlog_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
+            self.integrations_dir,
+            self.feishu_integrations_dir,
             self.artifacts_dir,
             self.artifact_index_dir,
             self.board_dir,
@@ -712,6 +717,16 @@ class AriadneStore:
 
     def load_feishu_write_plan(self, write_plan_id: str) -> FeishuWritePlan:
         return self._read_model(self.feishu_plans_dir / f"{write_plan_id}.json", FeishuWritePlan)
+
+    def save_feishu_write_result(self, result: FeishuWriteResult) -> Path:
+        path = self.feishu_integrations_dir / result.ticket_key / f"{result.id}.json"
+        self._write_model(path, result)
+        return path
+
+    def list_feishu_write_results(self, ticket_key: str | None = None) -> list[FeishuWriteResult]:
+        base = self.feishu_integrations_dir / ticket_key if ticket_key else self.feishu_integrations_dir
+        paths = sorted(base.glob("*.json")) if ticket_key else sorted(base.glob("*/*.json"))
+        return [self._read_model(path, FeishuWriteResult) for path in paths]
 
     def save_project_resources(self, resources: list[ProjectResource]) -> Path:
         path = self.project_dir / "resources.json"

@@ -976,6 +976,28 @@ class FeishuWritePlan(AriadneModel):
         return self
 
 
+class FeishuWriteResult(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    plan_id: str
+    ok: bool
+    blocked: bool = False
+    dry_run: bool = False
+    failure_reason: FailureReason | None = None
+    reason: str | None = None
+    lark_cli_path: str | None = None
+    command: str = ""
+    returncode: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    content_path: str | None = None
+    document_id: str | None = None
+    document_url: str | None = None
+    operation_summary: str = ""
+    created_at: str = Field(default_factory=utc_now)
+
+
 class BuildSkill(AriadneModel):
     id: str
     name: str

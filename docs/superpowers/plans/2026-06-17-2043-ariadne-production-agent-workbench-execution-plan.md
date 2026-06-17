@@ -210,11 +210,11 @@ Capture:
 - Modify: `ariadne_ltb/board.py`
 - Test: `tests/test_feishu_real_write_gate.py`
 
-- [ ] **Step 1: Keep dry-run preview**
+- [x] **Step 1: Keep dry-run preview**
 
 `ari feishu plan ARI-003` remains available.
 
-- [ ] **Step 2: Add gated write**
+- [x] **Step 2: Add gated write**
 
 Add:
 
@@ -225,7 +225,7 @@ FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
 Use `lark-cli` first. If not logged in, return blocked evidence with the exact
 missing login or credential state.
 
-- [ ] **Step 3: Record result**
+- [x] **Step 3: Record result**
 
 Persist:
 
