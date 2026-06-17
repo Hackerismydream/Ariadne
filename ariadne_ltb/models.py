@@ -77,6 +77,7 @@ class BacklogOperationType(str, Enum):
     DEFER_TICKET = "defer_ticket"
     SUPERSEDE_TICKET = "supersede_ticket"
     PROMOTE_TICKET = "promote_ticket"
+    NO_OP = "no_op"
 
 
 class BacklogConflictType(str, Enum):

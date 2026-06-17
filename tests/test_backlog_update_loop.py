@@ -253,7 +253,13 @@ def test_ticket_run_generates_feedback_backlog_updates_and_followups(tmp_path: P
     assert BacklogUpdateTrigger.MEMORY_GAP in triggers
     assert BacklogUpdateTrigger.CODEBASE_OBSERVATION in triggers
     assert TicketChangeType.CLOSED in {change.change_type for change in changes}
-    assert {BacklogUpdateTrigger.EXECUTION_RESULT, BacklogUpdateTrigger.REVIEW_FEEDBACK} <= {
+    feedback_triggers = {
+        BacklogUpdateTrigger.EXECUTION_RESULT,
+        BacklogUpdateTrigger.REVIEW_FEEDBACK,
+        BacklogUpdateTrigger.MEMORY_GAP,
+        BacklogUpdateTrigger.CODEBASE_OBSERVATION,
+    }
+    assert feedback_triggers <= {
         preview.trigger_type for preview in previews
     }
     assert all(preview.applied_update_id for preview in previews)
@@ -262,8 +268,7 @@ def test_ticket_run_generates_feedback_backlog_updates_and_followups(tmp_path: P
     preview_applied_updates = [
         update
         for update in updates
-        if update.trigger_type
-        in {BacklogUpdateTrigger.EXECUTION_RESULT, BacklogUpdateTrigger.REVIEW_FEEDBACK}
+        if update.trigger_type in feedback_triggers
     ]
     assert {update.id for update in preview_applied_updates} <= applied_preview_update_ids
     assert all(update.trigger_ref == applied_preview_refs[update.id] for update in preview_applied_updates)

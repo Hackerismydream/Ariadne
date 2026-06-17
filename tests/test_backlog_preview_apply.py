@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from ariadne_ltb.backlog import (
+    generate_codebase_observation_preview,
     generate_execution_feedback_preview,
+    generate_memory_gap_preview,
     generate_review_feedback_preview,
     generate_source_backlog_preview,
     ticket_backlog_fingerprint,
@@ -15,7 +18,10 @@ from ariadne_ltb.cli import app
 from ariadne_ltb.models import (
     BacklogOperationType,
     BacklogUpdateTrigger,
+    BuildDecision,
+    BuildPacket,
     BuildTicket,
+    Evidence,
     ExecutionResult,
     FailureReason,
     ReviewReport,
@@ -188,6 +194,91 @@ def test_execution_feedback_preview_apply_creates_repair_ticket(tmp_path: Path) 
     assert repair_tickets[0].title == "Repair execution failure for ARI-999"
 
 
+def test_memory_gap_preview_apply_creates_followup_with_packet(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    packet = _packet_for_ticket(ticket)
+    execution = _passing_execution(ticket)
+    review = ReviewReport(id="review_pass", ticket_id=ticket.id, verdict=ReviewVerdict.PASS)
+    next_tickets_path = _next_tickets(
+        tmp_path,
+        [
+            {
+                "title": "Index memory records",
+                "reason": "Memory is written but not searchable.",
+                "source": "memory",
+                "priority": "high",
+                "suggested_build_decision": "code_task",
+                "acceptance_criteria": ["Planner can search memory records."],
+                "affected_modules": ["ariadne_ltb/memory.py"],
+            }
+        ],
+    )
+    store.save_ticket(ticket)
+    store.save_build_packet(packet)
+    store.save_execution_result(execution)
+    store.save_review_report(review)
+
+    preview = generate_memory_gap_preview(
+        store,
+        ticket,
+        packet,
+        execution,
+        review,
+        "memory_record_1",
+        str(next_tickets_path),
+    )
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "backlog", "apply", preview.id])
+    followup = next(
+        item
+        for item in store.list_tickets()
+        if item.metadata.get("generated_by_backlog_trigger") == BacklogUpdateTrigger.MEMORY_GAP.value
+    )
+    followup_packet = store.load_build_packet(followup.build_packet_id or "")
+    update = store.list_backlog_updates()[0]
+
+    assert result.exit_code == 0, result.output
+    assert preview.trigger_type is BacklogUpdateTrigger.MEMORY_GAP
+    assert [operation.operation_type for operation in preview.operations] == [
+        BacklogOperationType.ADD_TICKET,
+        BacklogOperationType.NO_OP,
+    ]
+    assert update.trigger_ref == preview.id
+    assert followup.build_packet_id
+    assert followup_packet.affected_modules == ["ariadne_ltb/memory.py"]
+
+
+def test_codebase_observation_preview_apply_records_noop_without_suggestions(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    packet = _packet_for_ticket(ticket)
+    execution = _passing_execution(ticket)
+    review = ReviewReport(id="review_pass", ticket_id=ticket.id, verdict=ReviewVerdict.PASS)
+    next_tickets_path = _next_tickets(tmp_path, [])
+    store.save_ticket(ticket)
+    store.save_build_packet(packet)
+    store.save_execution_result(execution)
+    store.save_review_report(review)
+
+    preview = generate_codebase_observation_preview(
+        store,
+        ticket,
+        packet,
+        execution,
+        review,
+        str(next_tickets_path),
+    )
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "backlog", "apply", preview.id])
+    update = store.list_backlog_updates()[0]
+
+    assert result.exit_code == 0, result.output
+    assert preview.trigger_type is BacklogUpdateTrigger.CODEBASE_OBSERVATION
+    assert [operation.operation_type for operation in preview.operations] == [BacklogOperationType.NO_OP]
+    assert update.trigger_ref == preview.id
+    assert update.ticket_changes[0].change_type is TicketChangeType.NO_OP
+    assert len(store.list_tickets()) == 1
+
+
 def test_backlog_preview_cli_supports_review_and_execution_inputs(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = _ticket_for_stale_state()
@@ -257,6 +348,49 @@ def _ticket_for_stale_state() -> BuildTicket:
         source_ref="manual",
         status=TicketStatus.PLANNING,
     )
+
+
+def _packet_for_ticket(ticket: BuildTicket) -> BuildPacket:
+    return BuildPacket(
+        id=f"packet_{ticket.id}",
+        ticket_id=ticket.id,
+        source_summary="A source summary",
+        insight="A ticket-like carrier makes agent work visible.",
+        evidence=[
+            Evidence(
+                id=f"evidence_{ticket.id}",
+                source_ref="test",
+                quote_or_summary="Evidence for a code task.",
+                location="test",
+                confidence=0.9,
+            )
+        ],
+        project_relevance="Relevant to Ariadne.",
+        build_decision=BuildDecision.CODE_TASK,
+        tasks=["Implement the follow-up"],
+        acceptance_criteria=["Follow-up is testable."],
+        affected_modules=["ariadne_ltb/backlog.py"],
+    )
+
+
+def _passing_execution(ticket: BuildTicket) -> ExecutionResult:
+    return ExecutionResult(
+        id=f"execution_{ticket.id}",
+        ticket_id=ticket.id,
+        backend_name="codex",
+        dry_run=False,
+        command="codex exec",
+        exit_code=0,
+        changed_files=["ariadne_ltb/backlog.py"],
+        test_command="pytest",
+        test_exit_code=0,
+    )
+
+
+def _next_tickets(tmp_path: Path, suggestions: list[dict[str, object]]) -> Path:
+    path = tmp_path / "next_tickets.json"
+    path.write_text(json.dumps({"next_tickets": suggestions}), encoding="utf-8")
+    return path
 
 
 def _line_value(output: str, prefix: str) -> str:

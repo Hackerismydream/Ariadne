@@ -4964,3 +4964,70 @@ Known limitation:
   The next production slice should add `generate_memory_gap_preview` and
   `generate_codebase_observation_preview`, then let ticket run apply all four
   feedback classes through the same preview/apply mechanism.
+
+## 2026-06-18 04:44 CST Complete Feedback Preview Apply Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `BacklogOperationType.NO_OP` so preview/apply can record auditable
+  no-change feedback decisions without mutating ticket status.
+- Added feedback preview generators for the remaining ticket-run feedback
+  classes:
+  - `generate_memory_gap_preview`
+  - `generate_codebase_observation_preview`
+- Extended `apply_backlog_preview()` so suggestion-backed preview operations can
+  carry `source_document`, `source_packet`, and `suggestion` metadata and still
+  materialize Build Packets for generated follow-up tickets.
+- Updated `TicketRunOrchestrator` so all four feedback classes now run through
+  preview/apply:
+  - execution result;
+  - memory gap;
+  - codebase observation;
+  - review feedback.
+- Kept `record_feedback_backlog_updates()` for compatibility, but removed it
+  from the orchestrator product path.
+
+Why this matters:
+
+- The reusable ticket-run loop now has one auditable mechanism for feedback
+  changing the ticket set.
+- The product path is now closer to Ariadne's intended state machine:
+  `execution/review/memory/codebase feedback -> BacklogPreview -> apply ->
+  BacklogUpdate -> next assignment`.
+
+Engineering notes:
+
+- Memory and codebase previews use next-ticket suggestions as their input
+  source, preserving existing deterministic follow-up behavior.
+- Preview-generated follow-up tickets keep Build Packets, so downstream planner,
+  board, and review flows do not lose structured context.
+- `NO_OP` operations are excluded from contradictory-operation conflict grouping
+  because they are audit records, not competing ticket mutations.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_backlog_preview_apply.py tests/test_backlog_update_loop.py tests/test_true_mvp_product_loop.py -q`:
+  passed, `41 passed`.
+- `python3.11 -m ruff check ariadne_ltb/backlog.py ariadne_ltb/models.py ariadne_ltb/orchestrator.py tests/test_backlog_preview_apply.py tests/test_backlog_update_loop.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `246 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_83f5b272dde6`.
+- Release evidence path:
+  `.ariadne/evidence/release_evidence_packet.json`.
+- Board path:
+  `.ariadne/board/index.md`.
+
+Known limitation:
+
+- `ari backlog preview` currently exposes source/review/execution preview
+  commands. Memory-gap and codebase-observation previews are generated through
+  ticket runs; a future CLI slice can add explicit artifact-driven preview
+  commands if operators need manual preview generation outside `ticket run`.

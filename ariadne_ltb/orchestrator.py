@@ -8,9 +8,10 @@ from pathlib import Path
 from ariadne_ltb.board import export_board
 from ariadne_ltb.backlog import (
     apply_backlog_preview,
+    generate_codebase_observation_preview,
     generate_execution_feedback_preview,
+    generate_memory_gap_preview,
     generate_review_feedback_preview,
-    record_feedback_backlog_updates,
 )
 from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.execution import backend_for_name
@@ -739,7 +740,7 @@ class TicketRunOrchestrator:
             "Generated next Build Ticket suggestions.",
             payload_ref=next_tickets_artifact.id,
         )
-        direct_backlog_updates = record_feedback_backlog_updates(
+        memory_preview = generate_memory_gap_preview(
             self.store,
             ticket,
             packet,
@@ -747,15 +748,29 @@ class TicketRunOrchestrator:
             review,
             memory.id,
             backlog_next_tickets_path,
-            include_execution_result=False,
-            include_review_feedback=False,
         )
+        memory_preview_result = apply_backlog_preview(self.store, memory_preview.id)
+        backlog_preview_ids.append(memory_preview.id)
+        if memory_preview_result.update:
+            applied_preview_update_ids.append(memory_preview_result.update.id)
+        codebase_preview = generate_codebase_observation_preview(
+            self.store,
+            self.store.load_ticket(ticket.id),
+            packet,
+            execution,
+            review,
+            backlog_next_tickets_path,
+        )
+        codebase_preview_result = apply_backlog_preview(self.store, codebase_preview.id)
+        backlog_preview_ids.append(codebase_preview.id)
+        if codebase_preview_result.update:
+            applied_preview_update_ids.append(codebase_preview_result.update.id)
         review_preview = generate_review_feedback_preview(self.store, self.store.load_ticket(ticket.id), review)
         review_preview_result = apply_backlog_preview(self.store, review_preview.id)
         backlog_preview_ids.append(review_preview.id)
         if review_preview_result.update:
             applied_preview_update_ids.append(review_preview_result.update.id)
-        backlog_update_ids = [*applied_preview_update_ids, *[update.id for update in direct_backlog_updates]]
+        backlog_update_ids = list(applied_preview_update_ids)
         current_backlog_updates = [
             update for update in self.store.list_backlog_updates() if update.id in backlog_update_ids
         ]
@@ -784,7 +799,7 @@ class TicketRunOrchestrator:
             ticket,
             "backlog_update",
             "succeeded",
-            f"Recorded {len(backlog_update_ids)} feedback-driven backlog update(s) from direct updates and applied previews.",
+            f"Recorded {len(backlog_update_ids)} feedback-driven backlog update(s) from applied previews.",
             payload_ref=",".join(backlog_update_ids),
         )
         if agent_runtime == "llm":
