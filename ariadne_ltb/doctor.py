@@ -223,9 +223,23 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     ]
     blocking = [check for check in checks if check["status"] == "blocked"]
     action_required = [check for check in checks if check["status"] == "action_required"]
+    gate_check_names = {"external_execution_gate", "feishu_write_gate"}
+    acceptance_checks = [check for check in checks if check["name"] not in gate_check_names]
+    acceptance_blocking = [check for check in acceptance_checks if check["status"] == "blocked"]
+    acceptance_action_required = [
+        check for check in acceptance_checks if check["status"] == "action_required"
+    ]
     snapshot = {
         "generated_at": utc_now(),
         "overall_status": "blocked" if blocking else "action_required" if action_required else "ready",
+        "production_acceptance_status": (
+            "blocked"
+            if acceptance_blocking
+            else "action_required"
+            if acceptance_action_required
+            else "ready"
+        ),
+        "run_gate_status": _run_gate_status(checks),
         "checks": checks,
         "integration_report": str(store.doctor_dir / "integrations.json"),
         "release_evidence_packet": release_packet,
@@ -256,6 +270,8 @@ def product_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     snapshot = product_readiness_snapshot(store, repo_root)
     lines = [
         f"Product readiness: {snapshot['overall_status']}",
+        f"Production acceptance: {snapshot['production_acceptance_status']}",
+        f"Run gates: {snapshot['run_gate_status']}",
         f"report: {store.doctor_dir / 'product_readiness.json'}",
         f"integration report: {snapshot['integration_report']}",
     ]
@@ -371,6 +387,17 @@ def _product_check(
         "summary": ready_summary if passed else next_action,
         "next_action": "" if passed else next_action,
     }
+
+
+def _run_gate_status(checks: list[dict[str, Any]]) -> str:
+    gate_checks = [
+        check for check in checks if check["name"] in {"external_execution_gate", "feishu_write_gate"}
+    ]
+    if any(check["status"] == "blocked" for check in gate_checks):
+        return "blocked"
+    if any(check["status"] == "action_required" for check in gate_checks):
+        return "action_required"
+    return "ready"
 
 
 def _product_evidence_check(

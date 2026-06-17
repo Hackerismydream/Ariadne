@@ -63,6 +63,8 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
         deep=True,
         update={
             "product_readiness_status": product_readiness["overall_status"],
+            "production_acceptance_status": product_readiness["production_acceptance_status"],
+            "run_gate_status": product_readiness["run_gate_status"],
             "product_readiness_checks": {
                 check["name"]: check["status"] for check in product_readiness["checks"]
             },

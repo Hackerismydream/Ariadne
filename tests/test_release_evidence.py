@@ -40,6 +40,8 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert Path(packet.evidence_refs["runtime_capabilities"]).exists()
     assert Path(packet.evidence_refs["product_readiness"]).exists()
     assert packet.product_readiness_status in {"ready", "action_required", "blocked"}
+    assert packet.production_acceptance_status in {"ready", "action_required", "blocked"}
+    assert packet.run_gate_status in {"ready", "action_required", "blocked"}
     assert "real_codex_execution_evidence" in packet.product_readiness_checks
     assert "real_feishu_write_evidence" in packet.product_readiness_checks
     assert "codex" in packet.real_success_evidence
@@ -48,6 +50,8 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert persisted["id"] == packet.id
     assert persisted["evidence_refs"]["integration_doctor"].endswith("integrations.json")
     assert persisted["evidence_refs"]["product_readiness"].endswith("product_readiness.json")
+    assert persisted["production_acceptance_status"] in {"ready", "action_required", "blocked"}
+    assert persisted["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_github_write_evidence" in persisted["product_readiness_checks"]
 
 
@@ -68,6 +72,8 @@ def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> Non
     assert payload["review_report_count"] >= 1
     assert "integration_doctor" in payload["evidence_refs"]
     assert "product_readiness" in payload["evidence_refs"]
+    assert payload["production_acceptance_status"] in {"ready", "action_required", "blocked"}
+    assert payload["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_codex_execution_evidence" in payload["product_readiness_checks"]
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
     assert (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").exists()

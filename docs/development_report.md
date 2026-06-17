@@ -3403,3 +3403,54 @@ Verification so far:
 - `scripts/verify_v1.sh`: passed; it now includes workbench data sync and
   production build. Release evidence packet generated as
   `release_evidence_232f98638ae9`.
+
+## 2026-06-18 00:50 CST Product Acceptance Status Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- `ari doctor product` correctly reported unset write/execution gates as
+  `action_required`, but that made the top-level readiness status ambiguous.
+- For the production roadmap, there are two different questions:
+  - whether Ariadne has enough real evidence to satisfy product acceptance;
+  - whether the current shell environment is explicitly armed for a real write
+    or execution right now.
+
+Implemented:
+
+- Added `production_acceptance_status` to `ari doctor product`.
+- Added `run_gate_status` to `ari doctor product`.
+- Kept `overall_status` / `Product readiness` as the immediate run-readiness
+  status, so unset safety gates still surface as `action_required`.
+- Added the same fields to `ReleaseEvidencePacket` and embedded them in
+  `.ariadne/evidence/release_evidence_packet.json`.
+- Updated README to explain the distinction between acceptance readiness and
+  run gates.
+
+Current local interpretation:
+
+- `Production acceptance: ready`
+- `Run gates: action_required`
+- This means real DeepSeek, Codex, Claude Code, Feishu, GitHub, board,
+  evidence, and workbench verification are present, while real writes/external
+  execution still require explicit env gates at command time.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py tests/test_release_evidence.py -q`:
+  passed, `11 passed`.
+- `python3.11 -m ruff check ariadne_ltb/doctor.py ariadne_ltb/evidence.py ariadne_ltb/models.py tests/test_v1_doctor_release.py tests/test_release_evidence.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and reports
+  `Production acceptance: ready`, `Run gates: action_required`.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json`: passed and
+  includes `production_acceptance_status` and `run_gate_status`.
+- `python3.11 -m pytest`: passed, `210 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; it still reports the
+  local ignored `.env` finding with redacted secret values.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_bdec3fe87c03` and verified the workbench data sync/build.

@@ -66,7 +66,10 @@ loop, writes comments and journal events, and updates the board.
 
 Real writes and external coding execution remain gated. `ari doctor product`
 summarizes which parts of the production path are ready, blocked, or waiting
-for an explicit execution/write gate.
+for an explicit execution/write gate. It reports production acceptance
+separately from current run gates: the product can be acceptance-ready while
+`ARIADNE_ENABLE_EXTERNAL_EXECUTION` and `FEISHU_ENABLE_WRITE` remain unset until
+a confirmed real run.
 
 The deterministic offline fallback remains available for tests and local
 regression checks:
@@ -474,7 +477,8 @@ and next actions. The product doctor checks both local integration readiness and
 recorded real-success evidence for Codex, Claude Code, Feishu, and GitHub; unset
 write/execution gates are reported as `action_required` instead of being hidden.
 `ari evidence packet` also embeds the product readiness status, readiness check
-statuses, real-success evidence summary, and latest redacted failure summary.
+statuses, production acceptance status, run-gate status, real-success evidence
+summary, and latest redacted failure summary.
 
 List and clean Ariadne-generated isolated workdirs:
 

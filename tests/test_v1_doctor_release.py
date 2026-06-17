@@ -212,6 +212,8 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
 
     assert result.exit_code == 0, result.output
     assert "Product readiness: action_required" in result.output
+    assert "Production acceptance: action_required" in result.output
+    assert "Run gates: action_required" in result.output
     assert "deepseek_llm: ready" in result.output
     assert "codex_backend: ready" in result.output
     assert "github_git_transport: ready" in result.output
@@ -226,6 +228,8 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     snapshot_path = tmp_path / ".ariadne" / "doctor" / "product_readiness.json"
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     assert snapshot["overall_status"] == "action_required"
+    assert snapshot["production_acceptance_status"] == "action_required"
+    assert snapshot["run_gate_status"] == "action_required"
     assert snapshot["release_evidence_packet"]["has_integration_refs"] is True
     statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
     assert statuses["release_evidence_packet"] == "ready"
@@ -340,9 +344,13 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
 
     assert result.exit_code == 0, result.output
     assert "Product readiness: ready" in result.output
+    assert "Production acceptance: ready" in result.output
+    assert "Run gates: ready" in result.output
     snapshot = json.loads(
         (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").read_text(encoding="utf-8")
     )
+    assert snapshot["production_acceptance_status"] == "ready"
+    assert snapshot["run_gate_status"] == "ready"
     statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
     assert statuses["real_codex_execution_evidence"] == "ready"
     assert statuses["real_claude_execution_evidence"] == "ready"
@@ -351,6 +359,118 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert snapshot["real_success_evidence"]["codex"]["id"] == "exec_codex_success"
     assert snapshot["real_success_evidence"]["feishu"]["id"] == "feishu_success"
     assert "do-not-leak" not in json.dumps(snapshot)
+
+
+def test_doctor_product_separates_acceptance_from_unset_run_gates(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+    monkeypatch.delenv("FEISHU_ENABLE_WRITE", raising=False)
+
+    store = AriadneStore(tmp_path)
+    _seed_release_packet(tmp_path)
+    store.save_execution_result(
+        ExecutionResult(
+            id="exec_codex_success",
+            ticket_id="ticket_ari_003",
+            backend_name="codex",
+            dry_run=False,
+            blocked=False,
+            command="codex exec --cd /repo --prompt-file handoff.md",
+            exit_code=0,
+            test_command="pytest",
+            test_exit_code=0,
+        )
+    )
+    store.save_execution_result(
+        ExecutionResult(
+            id="exec_claude_success",
+            ticket_id="ticket_ari_003",
+            backend_name="claude-code",
+            dry_run=False,
+            blocked=False,
+            command="claude --print < handoff.md",
+            exit_code=0,
+            test_command="pytest",
+            test_exit_code=0,
+        )
+    )
+    store.save_feishu_write_result(
+        FeishuWriteResult(
+            id="feishu_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            plan_id="feishu_plan",
+            ok=True,
+            blocked=False,
+            dry_run=False,
+            command="lark-cli docs create @content.md",
+            returncode=0,
+            document_id="doc_123",
+            document_url="https://example.feishu.cn/docx/doc_123",
+            operation_summary="Created Feishu doc.",
+        )
+    )
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            operation="sync",
+            ok=True,
+            blocked=False,
+            repo="owner/repo",
+            issue_number=42,
+            comment_url="https://github.com/owner/repo/issues/42#issuecomment-1",
+            branch="codex/product",
+            commit_sha="abc123",
+        )
+    )
+
+    def fake_which(command: str) -> str | None:
+        return {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command)
+
+    def fake_github_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        if command[:3] == ["gh", "auth", "status"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "remote.origin.url":
+            return subprocess.CompletedProcess(command, 0, "https://github.com/owner/repo.git\n", "")
+        if command[:3] == ["git", "config", "--get"]:
+            return subprocess.CompletedProcess(command, 1, "", "")
+        if command[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(command, 0, "codex/product\n", "")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            return subprocess.CompletedProcess(command, 0, "abc123\trefs/heads/codex/product\n", "")
+        return subprocess.CompletedProcess(command, 1, "", f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_github_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "product"])
+
+    assert result.exit_code == 0, result.output
+    assert "Product readiness: action_required" in result.output
+    assert "Production acceptance: ready" in result.output
+    assert "Run gates: action_required" in result.output
+    snapshot = json.loads(
+        (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").read_text(encoding="utf-8")
+    )
+    assert snapshot["overall_status"] == "action_required"
+    assert snapshot["production_acceptance_status"] == "ready"
+    assert snapshot["run_gate_status"] == "action_required"
 
 
 def test_gitignore_contains_v1_secret_patterns() -> None:
