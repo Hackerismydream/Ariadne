@@ -13,6 +13,8 @@ from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
 from ariadne_ltb.handoffs import record_handoff
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
+from ariadne_ltb.llm import DeepSeekClient
+from ariadne_ltb.llm_backlog import generate_llm_backlog_artifact
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.models import (
     AgentRun,
@@ -66,6 +68,8 @@ class TicketRunResult:
     feishu_plan_id: str
     feishu_plan_path: str
     next_tickets_path: str
+    backlog_planner_name: str
+    backlog_planner_artifact_path: str | None
     backlog_update_ids: list[str]
     board_path: str
     board_html_path: str
@@ -93,6 +97,8 @@ class TicketRunOrchestrator:
         target_repo_path: str | None = None,
         command: str | None = None,
         planner: str = "deterministic",
+        backlog_planner: str = "deterministic",
+        backlog_planner_client: DeepSeekClient | None = None,
         use_memory: bool = False,
         confirm_execution: bool = False,
         timeout_seconds: int = 60,
@@ -545,6 +551,56 @@ class TicketRunOrchestrator:
             review,
             memory_run.id,
         )
+        backlog_next_tickets_path = next_tickets_artifact.path
+        backlog_planner_artifact = None
+        if backlog_planner == "llm":
+            llm_backlog = generate_llm_backlog_artifact(
+                self.store,
+                ticket,
+                packet,
+                execution,
+                review,
+                memory_run.id,
+                next_tickets_artifact.path,
+                client=backlog_planner_client,
+            )
+            backlog_planner_artifact = llm_backlog.artifact
+            backlog_next_tickets_path = llm_backlog.effective_next_tickets_path
+            self.store.append_run_message(
+                memory_run.id,
+                "llm_backlog_planner",
+                RunMessageType.ARTIFACT if llm_backlog.succeeded else RunMessageType.ERROR,
+                (
+                    "LLM backlog planner generated ticket delta suggestions."
+                    if llm_backlog.succeeded
+                    else f"LLM backlog planner blocked: {llm_backlog.error}"
+                ),
+                artifact_ref=llm_backlog.artifact.id,
+                metadata={
+                    "path": llm_backlog.artifact.path,
+                    "fallback_next_tickets_path": next_tickets_artifact.path,
+                    "effective_next_tickets_path": backlog_next_tickets_path,
+                    "succeeded": llm_backlog.succeeded,
+                },
+            )
+            ticket = (
+                self.store.load_ticket(ticket.id)
+                .with_artifacts([llm_backlog.artifact])
+                .append_event(
+                    "llm_backlog_planner_finished",
+                    "Memory / Feishu",
+                    (
+                        "LLM backlog planner generated ticket delta suggestions."
+                        if llm_backlog.succeeded
+                        else "LLM backlog planner blocked; deterministic backlog suggestions remain in use."
+                    ),
+                    payload_ref=llm_backlog.artifact.id,
+                )
+            )
+            self.store.save_ticket(ticket)
+        elif backlog_planner != "deterministic":
+            msg = f"unknown backlog planner: {backlog_planner}"
+            raise ValueError(msg)
         self.store.append_run_message(
             memory_run.id,
             "next_tickets",
@@ -587,6 +643,11 @@ class TicketRunOrchestrator:
                     "feishu_write_plan_id": feishu_plan.id,
                     "feishu_plan_path": str(feishu_path),
                     "next_tickets_path": next_tickets_artifact.path,
+                    "backlog_planner_name": backlog_planner,
+                    "backlog_planner_artifact_path": backlog_planner_artifact.path
+                    if backlog_planner_artifact
+                    else None,
+                    "backlog_next_tickets_path": backlog_next_tickets_path,
                     "selected_for_execution": True,
                     "backend_name": backend_name,
                     "external_execution_enabled": __import__("os").environ.get(
@@ -611,7 +672,7 @@ class TicketRunOrchestrator:
             execution,
             review,
             memory.id,
-            next_tickets_artifact.path,
+            backlog_next_tickets_path,
         )
         ticket = self.store.load_ticket(ticket.id)
         self.store.append_run_message(
@@ -645,7 +706,12 @@ class TicketRunOrchestrator:
             memory_run,
             AgentRunStatus.SUCCEEDED,
             "Wrote local memory, Feishu dry-run plan, next ticket suggestions, and backlog updates.",
-            [memory_artifact.id, feishu_artifact.id, next_tickets_artifact.id],
+            [
+                memory_artifact.id,
+                feishu_artifact.id,
+                next_tickets_artifact.id,
+                *([backlog_planner_artifact.id] if backlog_planner_artifact else []),
+            ],
         )
         board_path = export_board(self.store)
         ticket = self.store.load_ticket(ticket.id).append_event(
@@ -676,6 +742,11 @@ class TicketRunOrchestrator:
                 "test_exit_code": execution.test_exit_code,
                 "memory_record_id": memory.id,
                 "feishu_plan_id": feishu_plan.id,
+                "backlog_planner_name": backlog_planner,
+                "backlog_planner_artifact_id": backlog_planner_artifact.id
+                if backlog_planner_artifact
+                else None,
+                "backlog_next_tickets_path": backlog_next_tickets_path,
                 "backlog_update_ids": [update.id for update in backlog_updates],
                 "board_path": str(board_path),
                 "board_html_path": str(self.store.board_dir / "index.html"),
@@ -686,6 +757,10 @@ class TicketRunOrchestrator:
                     "memory_path": str(memory_path),
                     "feishu_plan_path": str(feishu_path),
                     "next_tickets_path": next_tickets_artifact.path,
+                    "backlog_planner_artifact_path": backlog_planner_artifact.path
+                    if backlog_planner_artifact
+                    else None,
+                    "backlog_next_tickets_path": backlog_next_tickets_path,
                     "board_path": str(board_path),
                     "permission_profile_path": permission_artifact.path,
                     "skill_bundle_path": skill_bundle_artifact.path,
@@ -742,6 +817,10 @@ class TicketRunOrchestrator:
             feishu_plan_id=feishu_plan.id,
             feishu_plan_path=str(feishu_path),
             next_tickets_path=next_tickets_artifact.path,
+            backlog_planner_name=backlog_planner,
+            backlog_planner_artifact_path=backlog_planner_artifact.path
+            if backlog_planner_artifact
+            else None,
             backlog_update_ids=[update.id for update in backlog_updates],
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),

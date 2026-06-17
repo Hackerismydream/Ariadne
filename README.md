@@ -175,6 +175,18 @@ When enabled, planner artifacts include memory evidence with source refs, and
 the handoff plus board show a `Memory Context` / `Planner Memory Evidence`
 section.
 
+Feedback-to-backlog updates can also use the DeepSeek-backed LLM backlog
+planner. Ariadne still writes deterministic next-ticket suggestions first; when
+`--backlog-planner llm` succeeds, those LLM suggestions become the input to the
+backlog update engine. If the key or provider is unavailable, Ariadne records a
+blocked `llm_next_tickets_blocked.json` artifact and keeps the deterministic
+fallback evidence visible.
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ari ticket run ARI-003 --backend codex --confirm-execution --backlog-planner llm
+```
+
 ## Review Evidence
 
 Review reports include the conservative verdict plus structured acceptance

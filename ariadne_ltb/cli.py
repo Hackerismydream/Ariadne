@@ -997,6 +997,10 @@ def ticket_run(
     ] = None,
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    backlog_planner: Annotated[
+        str,
+        typer.Option("--backlog-planner", help="deterministic|llm for feedback-to-ticket updates."),
+    ] = "deterministic",
     use_memory: Annotated[
         bool,
         typer.Option("--use-memory", help="Cite local memory records during planning."),
@@ -1014,6 +1018,7 @@ def ticket_run(
         target_repo_path=str(target_repo_path) if target_repo_path else None,
         command=command,
         planner=planner,
+        backlog_planner=backlog_planner,
         use_memory=use_memory,
         confirm_execution=confirm_execution,
         isolate_worktree=isolate_worktree,
@@ -1026,6 +1031,9 @@ def ticket_run(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"backlog planner: {result.backlog_planner_name}")
+    if result.backlog_planner_artifact_path:
+        typer.echo(f"backlog planner artifact: {result.backlog_planner_artifact_path}")
     typer.echo(f"backlog updates: {', '.join(result.backlog_update_ids)}")
     if result.worktree_path:
         typer.echo(f"worktree: {result.worktree_path}")

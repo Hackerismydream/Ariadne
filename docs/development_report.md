@@ -3568,3 +3568,63 @@ Verification so far:
   is still reported with redacted secret values.
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_95ae65cdd2bf` and verified workbench data sync/build.
+
+## 2026-06-18 02:18 CST LLM Backlog Planner Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- Ariadne's product difference is not only assigning tickets to agents; it is
+  using knowledge, feedback, memory, and codebase state to change the ticket
+  backlog before the next agent run.
+- Before this slice, the feedback-to-backlog loop was deterministic only. The
+  generic `JSONLLMAgent` existed, and LLM planner/reviewer paths existed, but no
+  DeepSeek-backed agent participated in the feedback-to-ticket update loop.
+
+Implemented:
+
+- Added `ariadne_ltb/llm_backlog.py`.
+- Added `LLMBacklogPayload` / `LLMBacklogSuggestion` validation for structured
+  DeepSeek output.
+- Added `generate_llm_backlog_artifact()` to produce `llm_next_tickets.json`
+  with the same `next_tickets` schema consumed by the existing backlog update
+  engine.
+- Missing `DEEPSEEK_API_KEY` or provider/schema failures write
+  `llm_next_tickets_blocked.json` with a redacted reason and retain the
+  deterministic next-ticket artifact as fallback evidence.
+- Added `ari ticket run --backlog-planner deterministic|llm`.
+- `TicketRunOrchestrator.run_ticket(..., backlog_planner="llm")` now calls the
+  LLM backlog planner after memory/review and before `record_feedback_backlog_updates()`.
+- Orchestrator result manifests now include:
+  - `backlog_planner_name`
+  - `backlog_planner_artifact_id`
+  - `backlog_next_tickets_path`
+  - `artifacts.backlog_planner_artifact_path`
+- README now documents the LLM backlog planner path.
+
+Behavioral impact:
+
+- Default tests and offline loops remain deterministic.
+- Production runs can now put a real DeepSeek-backed Memory/Build Lead style
+  agent into the feedback-to-ticket update loop through `--backlog-planner llm`.
+- When LLM backlog planning is blocked, Ariadne records the blocked LLM artifact
+  instead of silently pretending the LLM path succeeded.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_llm_backlog.py tests/test_backlog_update_loop.py tests/test_true_mvp_product_loop.py tests/test_llm_agents.py tests/test_llm_runtime.py -q`:
+  passed, `40 passed`.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex --backlog-planner llm`
+  against a temporary workspace with `DEEPSEEK_API_KEY` unset: passed and wrote
+  `llm_next_tickets_blocked.json` while continuing with deterministic backlog
+  update evidence.
+- `python3.11 -m pytest`: passed, `214 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; this remains explicit
+  offline regression with `fake-codex`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  is still reported with redacted secret values.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_616123fc8eda` and verified workbench data sync/build.
