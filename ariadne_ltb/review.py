@@ -40,6 +40,15 @@ def review_execution(
         passed.append("Project relevance exists")
     else:
         failed.append("Project relevance exists")
+    injection_findings = packet.metadata.get("prompt_injection_findings", [])
+    if packet.metadata.get("trust_boundary") == "untrusted_external_context":
+        passed.append("Source trust boundary recorded")
+    else:
+        warnings.append("Source trust boundary metadata is missing.")
+    if injection_findings:
+        warnings.append(
+            f"Prompt-injection patterns detected in untrusted source: {len(injection_findings)} finding(s)."
+        )
 
     if execution is None:
         failed.append("Execution result exists")

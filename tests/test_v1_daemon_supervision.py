@@ -54,6 +54,16 @@ def test_daemon_status_shows_heartbeat_and_counts(tmp_path: Path) -> None:
     assert "open assignments:" in result.output
 
 
+def test_list_worker_heartbeats_ignores_partial_or_invalid_files(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    store.save_worker_heartbeat(WorkerHeartbeat.new(runtime_id="valid-worker", status=DaemonStatus.IDLE))
+    (tmp_path / ".ariadne" / "daemon" / "heartbeats" / "partial.json").write_text("", encoding="utf-8")
+
+    heartbeats = store.list_worker_heartbeats()
+
+    assert [heartbeat.runtime_id for heartbeat in heartbeats] == ["valid-worker"]
+
+
 def test_stale_heartbeat_by_old_timestamp_and_dead_pid() -> None:
     heartbeat = WorkerHeartbeat(
         runtime_id="stale-worker",

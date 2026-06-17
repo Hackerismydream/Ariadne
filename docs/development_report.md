@@ -1162,3 +1162,74 @@ Known limitations:
 - Provider adapters cannot physically prevent an external Codex/Claude process
   from attempting side effects beyond the handoff policy; Ariadne still blocks
   external execution by default and records/reviews changed files.
+
+## Core Batch 5: Prompt Injection Guard for Sources and Skills
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch completes `ARI-MUL-38 / LOC-43` by treating external sources and
+local BuildSkill bodies as untrusted context unless explicitly trusted.
+
+Implemented files:
+
+- `ariadne_ltb/prompt_guard.py`
+- `ariadne_ltb/ingest.py`
+- `ariadne_ltb/planner.py`
+- `ariadne_ltb/review.py`
+- `ariadne_ltb/skills.py`
+- `ariadne_ltb/board.py`
+- `ariadne_ltb/storage.py`
+- `tests/test_prompt_guard.py`
+- `tests/test_v1_daemon_supervision.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added prompt-injection pattern detection for source documents and BuildSkill
+  bodies.
+- Source document metadata now records `trust_boundary`,
+  `prompt_injection_findings`, and `prompt_injection_warning_count`.
+- Build Packet evidence snippets are quoted as untrusted source context.
+- Deterministic and LLM planner outputs carry prompt-guard metadata.
+- LLM planner prompt explicitly says source content is untrusted data and must
+  not be followed as instruction.
+- Handoff prompts now include a `Trust Boundary` section.
+- BuildSkill references are marked as untrusted metadata. If a skill body
+  contains prompt-injection patterns, Ariadne withholds body-derived
+  descriptions and reports a warning count.
+- Reviewer reports prompt-injection warnings without treating the source text as
+  executable instruction.
+- Board shows `Prompt Injection Guard` and trust-boundary status per ticket.
+- `list_worker_heartbeats()` now ignores partial or invalid heartbeat files,
+  fixing a board-export race observed during CLI verification.
+
+Safety boundaries:
+
+- The guard is a deterministic local scanner, not a complete content-security
+  model.
+- Warnings do not execute or mutate code. They are audit evidence for planner,
+  reviewer, and board.
+- External execution remains blocked by default and still requires explicit
+  confirmation.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_prompt_guard.py
+  tests/test_v1_daemon_supervision.py tests/test_true_mvp_product_loop.py
+  tests/test_v1_board_ux.py -q`: passed, 24 tests.
+- Targeted `ruff check`: passed.
+- `python3.11 -m pytest`: passed, 110 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed, with external
+  execution disabled and secrets redacted.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Pattern matching is intentionally conservative and deterministic. It will not
+  catch every possible adversarial prompt.
+- The guard prevents source/skill text from being treated as higher-priority
+  instructions in Ariadne handoff and review artifacts; it is not a provider
+  model jailbreak detector.

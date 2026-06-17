@@ -400,11 +400,24 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 f"- Task clarity: `{quality.get('task_clarity_score', '')}`",
                 f"- Scope risk: `{quality.get('scope_risk_score', '')}`",
                 f"- Planner mode: `{packet.metadata.get('planner_mode', '')}`",
+                f"- Trust boundary: `{packet.metadata.get('trust_boundary', 'missing')}`",
+                f"- Prompt-injection warnings: `{packet.metadata.get('prompt_injection_warning_count', 0)}`",
                 f"- Project relevance: {packet.project_relevance}",
                 f"- Handoff artifact: `{handoff.path if handoff else 'missing'}`",
                 "",
             ]
         )
+        findings = packet.metadata.get("prompt_injection_findings", [])
+        lines.extend(["### Prompt Injection Guard", ""])
+        if findings:
+            for finding in findings:
+                lines.append(
+                    f"- `{finding.get('pattern')}` at `{finding.get('location')}`: "
+                    f"{finding.get('excerpt')}"
+                )
+        else:
+            lines.append("No prompt-injection patterns detected in source metadata.")
+        lines.append("")
     if ticket.metadata.get("execution_result_id"):
         execution = store.load_execution_result(ticket.metadata["execution_result_id"])
         diff_artifact = _latest_artifact(artifacts, ArtifactType.GIT_DIFF)

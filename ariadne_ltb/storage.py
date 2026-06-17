@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ariadne_ltb.models import (
     AgentRun,
@@ -338,10 +338,13 @@ class AriadneStore:
         )
 
     def list_worker_heartbeats(self) -> list[WorkerHeartbeat]:
-        return [
-            self._read_model(path, WorkerHeartbeat)
-            for path in sorted(self.daemon_heartbeats_dir.glob("*.json"))
-        ]
+        heartbeats: list[WorkerHeartbeat] = []
+        for path in sorted(self.daemon_heartbeats_dir.glob("*.json")):
+            try:
+                heartbeats.append(self._read_model(path, WorkerHeartbeat))
+            except (ValidationError, OSError):
+                continue
+        return heartbeats
 
     def save_handoff(self, handoff: AgentHandoff) -> None:
         self._write_model(self.handoffs_dir / f"{handoff.id}.json", handoff)
