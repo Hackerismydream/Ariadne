@@ -31,8 +31,15 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert Path(packet.board_path).exists()
     assert packet.store_invariants_ok is True
     assert "board" in packet.evidence_refs
+    assert "integration_doctor" in packet.evidence_refs
+    assert "runtime_capabilities" in packet.evidence_refs
+    assert "feishu_integrations" in packet.evidence_refs
+    assert "github_integrations" in packet.evidence_refs
+    assert Path(packet.evidence_refs["integration_doctor"]).exists()
+    assert Path(packet.evidence_refs["runtime_capabilities"]).exists()
     persisted = json.loads(path.read_text(encoding="utf-8"))
     assert persisted["id"] == packet.id
+    assert persisted["evidence_refs"]["integration_doctor"].endswith("integrations.json")
 
 
 def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> None:
@@ -50,4 +57,6 @@ def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> Non
     assert payload["ticket_count"] >= 4
     assert payload["execution_result_count"] >= 1
     assert payload["review_report_count"] >= 1
+    assert "integration_doctor" in payload["evidence_refs"]
+    assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
     assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()

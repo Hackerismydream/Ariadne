@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ariadne_ltb.board import export_board
+from ariadne_ltb.doctor import integration_doctor_snapshot
 from ariadne_ltb.git_utils import git_head, is_git_repo, run_git
 from ariadne_ltb.models import ReleaseEvidencePacket, ReviewReport, stable_id
 from ariadne_ltb.runtime import collect_runtime_capabilities
@@ -15,6 +16,7 @@ from ariadne_ltb.workdir_policy import list_workdirs
 def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEvidencePacket, Path]:
     board_path = export_board(store)
     invariant_report = check_store_invariants(store)
+    integration_doctor_snapshot(store, store.root)
     secret_scan = scan_for_secrets(store.root)
     workdirs = list_workdirs(store)
     reviews = store.list_review_reports()
@@ -46,7 +48,11 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
         evidence_refs={
             "board": str(board_path),
             "store_invariants": str(store.doctor_dir / "store_invariants.json"),
+            "integration_doctor": str(store.doctor_dir / "integrations.json"),
+            "runtime_capabilities": str(store.runtimes_dir / "capability_snapshot.json"),
             "inbox": str(store.inbox_items_path),
+            "feishu_integrations": str(store.feishu_integrations_dir),
+            "github_integrations": str(store.github_integrations_dir),
             "release_packet": str(store.release_evidence_packet_path),
         },
     )

@@ -3127,3 +3127,49 @@ Verification:
   GitHub git transport status.
 - `scripts/verify_v1.sh`: passed; release evidence packet generated as
   `release_evidence_b17915af9789`.
+
+## 2026-06-17 23:40 CST Release Evidence Integration References Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The production roadmap requires board and evidence packets to show real
+  integration evidence.
+- Before this slice, `ari evidence packet` summarized core store/board state but
+  did not directly reference the integration doctor snapshot or Feishu/GitHub
+  integration evidence directories.
+
+Implemented:
+
+- `ari evidence packet` now generates the integration doctor snapshot as part of
+  packet generation.
+- Release evidence refs now include:
+  - `.ariadne/doctor/integrations.json`;
+  - `.ariadne/runtimes/capability_snapshot.json`;
+  - `.ariadne/integrations/feishu/`;
+  - `.ariadne/integrations/github/`.
+
+Safety boundaries:
+
+- The integration doctor snapshot is read-only with respect to external
+  services. It records readiness and local transport evidence but does not write
+  to Feishu or GitHub.
+- Secret values remain redacted; the release packet only stores local paths and
+  set/unset readiness evidence.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_release_evidence.py -q`: passed, `2 passed`.
+- `python3.11 -m pytest`: passed, `207 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `python3.11 -m ariadne_ltb.cli doctor integrations`: passed.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json`: passed and
+  includes integration doctor, runtime capabilities, Feishu integration, and
+  GitHub integration refs.
+- `scripts/verify_v1.sh`: passed; release evidence packet generated as
+  `release_evidence_0491ee3622e7`.
