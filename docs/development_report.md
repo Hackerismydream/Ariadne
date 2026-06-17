@@ -3626,5 +3626,8 @@ Verification so far:
 - `python3.11 -m ariadne_ltb.cli export board`: passed.
 - `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
   is still reported with redacted secret values.
+- `python3.11 -m ariadne_ltb.cli llm smoke --provider deepseek --confirm-external`:
+  passed against the real DeepSeek API with `deepseek-v4-pro`; output reported
+  structured JSON keys and `usage total tokens: 142`.
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_616123fc8eda` and verified workbench data sync/build.
