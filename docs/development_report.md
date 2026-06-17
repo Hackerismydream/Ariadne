@@ -1028,6 +1028,33 @@ Known limitations:
   the existing safety gates.
 - `uv run ari ticket list && uv run ari ticket run ARI-003 --backend
   fake-codex`: passed.
+
+Follow-up: board provider audit visibility:
+
+- `ariadne_ltb/board.py` now renders a per-ticket `Provider Audit Artifacts`
+  section for executed tickets.
+- The board links the orchestrator result manifest, execution log, git diff,
+  changed files artifact, test output artifact, memory record, Feishu dry-run
+  plan, next tickets artifact, and board path.
+- The board also shows manifest-derived backend, execution result, review
+  report, review verdict, external execution enabled state, and confirmation
+  state.
+- This completes the visible board evidence part of `ARI-MUL-36: Provider
+  execution audit artifacts`.
+
+Follow-up verification:
+
+- `python3.11 -m pytest tests/test_true_mvp_product_loop.py
+  tests/test_v1_board_ux.py -q`: passed, 17 tests.
+- `python3.11 -m ruff check ariadne_ltb/board.py
+  tests/test_true_mvp_product_loop.py`: passed.
+- `python3.11 -m pytest`: passed, 105 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed, with external
+  execution disabled and secrets redacted.
+- `scripts/verify_v1.sh`: exited 0.
 - Manual backlog smoke with `python3.11 -m ariadne_ltb.cli --root
   /tmp/ariadne-backlog-smoke backlog update --from-source
   examples/sources/*.md`, `backlog history`, `ticket supersede`, and

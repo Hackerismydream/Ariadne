@@ -409,6 +409,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 "",
             ]
         )
+        lines.extend(_provider_audit_artifact_lines(store, artifacts))
     lines.extend(
         [
             "### Agent Run Timeline",
@@ -493,6 +494,44 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             lines.append(
                 f"- `{event.timestamp}` `{event.event_type}` {event.summary}"
             )
+    lines.append("")
+    return lines
+
+
+def _provider_audit_artifact_lines(store: AriadneStore, artifacts: list) -> list[str]:
+    manifest_artifact = _latest_artifact(artifacts, ArtifactType.ORCHESTRATOR_RESULT)
+    manifest = _latest_json_artifact(store, artifacts, ArtifactType.ORCHESTRATOR_RESULT)
+    execution_log = _latest_artifact(artifacts, ArtifactType.EXECUTION_LOG)
+    git_diff = _latest_artifact(artifacts, ArtifactType.GIT_DIFF)
+    changed_files = _latest_artifact(artifacts, ArtifactType.CHANGED_FILES)
+    test_output = _latest_artifact(artifacts, ArtifactType.TEST_OUTPUT)
+    lines = ["### Provider Audit Artifacts", ""]
+    if manifest_artifact:
+        lines.append(f"- Orchestrator result: `{manifest_artifact.path}`")
+    else:
+        lines.append("- Orchestrator result: `missing`")
+    lines.append(f"- Execution log: `{execution_log.path if execution_log else 'missing'}`")
+    lines.append(f"- Git diff: `{git_diff.path if git_diff else 'missing'}`")
+    lines.append(f"- Changed files: `{changed_files.path if changed_files else 'missing'}`")
+    lines.append(f"- Test output: `{test_output.path if test_output else 'missing'}`")
+    if manifest:
+        lines.append(f"- Backend: `{manifest.get('backend_name', 'missing')}`")
+        lines.append(f"- Execution result: `{manifest.get('execution_result_id', 'missing')}`")
+        lines.append(f"- Review report: `{manifest.get('review_report_id', 'missing')}`")
+        lines.append(f"- Review verdict: `{manifest.get('review_verdict', 'missing')}`")
+        lines.append(
+            "- External execution enabled: "
+            f"`{str(manifest.get('external_execution_enabled', False)).lower()}`"
+        )
+        lines.append(f"- Confirm execution: `{str(manifest.get('confirm_execution', False)).lower()}`")
+        artifacts_payload = manifest.get("artifacts", {})
+        for label, key in [
+            ("Memory", "memory_path"),
+            ("Feishu dry-run", "feishu_plan_path"),
+            ("Next tickets", "next_tickets_path"),
+            ("Board", "board_path"),
+        ]:
+            lines.append(f"- {label}: `{artifacts_payload.get(key, 'missing')}`")
     lines.append("")
     return lines
 

@@ -248,6 +248,24 @@ def test_board_includes_loop_trace_after_export(tmp_path: Path) -> None:
     assert "feishu_write_plan.json" in board
 
 
+def test_board_links_provider_audit_artifacts(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    TicketRunOrchestrator(store).run_ticket("ARI-003", backend_name="fake-codex")
+
+    board_path = export_board(store)
+    board = board_path.read_text(encoding="utf-8")
+
+    assert "### Provider Audit Artifacts" in board
+    assert "orchestrator_result.json" in board
+    assert "execution_log.json" in board
+    assert "git_diff.patch" in board
+    assert "test_output.json" in board
+    assert "- Backend: `fake-codex`" in board
+    assert "- Review verdict: `pass`" in board
+    assert "- External execution enabled: `false`" in board
+
+
 def test_env_and_workspace_outputs_are_gitignored() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
 
