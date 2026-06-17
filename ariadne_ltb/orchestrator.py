@@ -28,6 +28,7 @@ from ariadne_ltb.models import (
     MemoryRecord,
     ProjectResource,
     RouteDecision,
+    RunMessageType,
     ReviewVerdict,
     TicketStatus,
     WorkerHeartbeat,
@@ -410,6 +411,15 @@ class TicketRunOrchestrator:
             f"Reviewer verdict: {review.verdict.value}",
             metadata={"review_report_id": review.id},
         )
+        self.store.append_run_message(
+            review_run.id,
+            "review_report",
+            RunMessageType.ARTIFACT,
+            f"Wrote review report with verdict {review.verdict.value}.",
+            artifact_ref=review_artifact.id,
+            result_ref=review.id,
+            metadata={"path": review_artifact.path},
+        )
         review_run = _finish_run(
             self.store,
             review_run,
@@ -467,6 +477,24 @@ class TicketRunOrchestrator:
         feishu_plan, feishu_path = generate_feishu_plan(self.store, ticket, packet, execution, review)
         memory_artifact = _write_memory_artifact(self.store, ticket.id, memory_run.id, memory, memory_path)
         feishu_artifact = _write_feishu_artifact(self.store, ticket.id, memory_run.id, feishu_plan, feishu_path)
+        self.store.append_run_message(
+            memory_run.id,
+            "memory",
+            RunMessageType.ARTIFACT,
+            "Wrote local memory record.",
+            artifact_ref=memory_artifact.id,
+            result_ref=memory.id,
+            metadata={"path": memory_artifact.path, "memory_path": str(memory_path)},
+        )
+        self.store.append_run_message(
+            memory_run.id,
+            "feishu_plan",
+            RunMessageType.ARTIFACT,
+            "Wrote Feishu dry-run plan.",
+            artifact_ref=feishu_artifact.id,
+            result_ref=feishu_plan.id,
+            metadata={"path": feishu_artifact.path, "feishu_plan_path": str(feishu_path)},
+        )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "memory_written",
             "Memory / Feishu",
@@ -489,6 +517,14 @@ class TicketRunOrchestrator:
             execution,
             review,
             memory_run.id,
+        )
+        self.store.append_run_message(
+            memory_run.id,
+            "next_tickets",
+            RunMessageType.ARTIFACT,
+            "Generated next Build Ticket suggestions.",
+            artifact_ref=next_tickets_artifact.id,
+            metadata={"path": next_tickets_artifact.path},
         )
         record_handoff(
             self.store,
@@ -731,6 +767,14 @@ def _start_run(
         backend_name=backend_name,
     ).mark_running()
     store.save_run(run)
+    store.reset_run_messages(run.id)
+    store.append_run_message(
+        run.id,
+        "start",
+        RunMessageType.STATUS,
+        f"{agent_name} started for {ticket.key}.",
+        metadata={"agent_role": agent_role, "attempt": attempt, "backend_name": backend_name},
+    )
     updated = ticket.with_run(run.id).append_event(
         "agent_run_started",
         agent_name,
@@ -755,6 +799,17 @@ def _finish_run(
         failure_reason=failure_reason,
     )
     store.save_run(finished)
+    store.append_run_message(
+        finished.id,
+        "finish",
+        RunMessageType.RESULT,
+        summary,
+        metadata={
+            "status": status.value,
+            "failure_reason": failure_reason.value if failure_reason else None,
+            "artifact_ids": artifact_ids,
+        },
+    )
     return finished
 
 
@@ -840,6 +895,34 @@ def _write_execution_artifacts(
         + "\n",
         "Target project test output",
         metadata={"execution_result_id": execution.id},
+    )
+    for stage, artifact in {
+        "execution_log": log,
+        "git_diff": diff,
+        "changed_files": changed,
+        "test_output": tests,
+    }.items():
+        store.append_run_message(
+            run_id,
+            stage,
+            RunMessageType.ARTIFACT,
+            f"Wrote {artifact.artifact_type.value}: {artifact.summary}.",
+            artifact_ref=artifact.id,
+            result_ref=execution.id,
+            metadata={"path": artifact.path},
+        )
+    store.append_run_message(
+        run_id,
+        "execution_result",
+        RunMessageType.RESULT,
+        _execution_summary(execution),
+        result_ref=execution.id,
+        metadata={
+            "exit_code": execution.exit_code,
+            "test_exit_code": execution.test_exit_code,
+            "blocked": execution.blocked,
+            "changed_files": execution.changed_files,
+        },
     )
     return {
         "execution_log": log,

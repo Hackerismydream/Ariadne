@@ -20,6 +20,7 @@ from ariadne_ltb.models import (
     BuildPacket,
     BuildTicket,
     Evidence,
+    RunMessageType,
     SourceDocument,
     TicketStatus,
     stable_id,
@@ -170,6 +171,14 @@ class LLMPlanner:
             json.dumps({"planner": self.name, "blocked": True, "reason": reason}, indent=2) + "\n",
             "LLM planner blocked or failed.",
             metadata={"planner_name": self.name, "blocked": True},
+        )
+        store.append_run_message(
+            run.id,
+            "planner_error",
+            RunMessageType.ERROR,
+            reason,
+            artifact_ref=artifact.id,
+            metadata={"path": artifact.path, "planner_name": self.name},
         )
         run = _finish_planner_run(store, run, AgentRunStatus.BLOCKED, reason, [artifact.id])
         updated = (
@@ -330,6 +339,14 @@ def _start_planner_run(store: AriadneStore, ticket: BuildTicket, planner_name: s
         backend_name=planner_name,
     ).mark_running()
     store.save_run(run)
+    store.reset_run_messages(run.id)
+    store.append_run_message(
+        run.id,
+        "start",
+        RunMessageType.STATUS,
+        f"{planner_name} planner started for {ticket.key}.",
+        metadata={"planner_name": planner_name, "attempt": attempt},
+    )
     updated = ticket.with_run(run.id).append_event(
         "agent_run_started",
         "Planner",
@@ -349,11 +366,18 @@ def _finish_planner_run(
 ) -> AgentRun:
     finished = run.model_copy(update={"artifact_ids": artifact_ids}).mark_finished(status, summary)
     store.save_run(finished)
+    store.append_run_message(
+        finished.id,
+        "finish",
+        RunMessageType.RESULT,
+        summary,
+        metadata={"status": status.value, "artifact_ids": artifact_ids},
+    )
     return finished
 
 
 def _write_packet_artifact(store: AriadneStore, run_id: str, packet: BuildPacket):
-    return store.write_artifact(
+    artifact = store.write_artifact(
         packet.ticket_id,
         run_id,
         ArtifactType.BUILD_PACKET,
@@ -362,6 +386,15 @@ def _write_packet_artifact(store: AriadneStore, run_id: str, packet: BuildPacket
         "Planner Build Packet",
         metadata={"build_packet_id": packet.id},
     )
+    store.append_run_message(
+        run_id,
+        "build_packet",
+        RunMessageType.ARTIFACT,
+        "Wrote planner Build Packet.",
+        artifact_ref=artifact.id,
+        metadata={"path": artifact.path, "build_packet_id": packet.id},
+    )
+    return artifact
 
 
 def _write_handoff_artifact(
@@ -371,7 +404,7 @@ def _write_handoff_artifact(
     packet: BuildPacket,
 ):
     handoff = render_handoff(ticket, packet)
-    return store.write_artifact(
+    artifact = store.write_artifact(
         ticket.id,
         run_id,
         ArtifactType.CODEX_HANDOFF,
@@ -380,3 +413,12 @@ def _write_handoff_artifact(
         "Coding backend handoff prompt",
         metadata={"build_packet_id": packet.id},
     )
+    store.append_run_message(
+        run_id,
+        "handoff",
+        RunMessageType.ARTIFACT,
+        "Wrote coding backend handoff.",
+        artifact_ref=artifact.id,
+        metadata={"path": artifact.path, "build_packet_id": packet.id},
+    )
+    return artifact

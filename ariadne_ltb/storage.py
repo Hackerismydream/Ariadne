@@ -5,6 +5,7 @@ import json
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from typing import Iterator
 from typing import TypeVar
 
@@ -29,6 +30,8 @@ from ariadne_ltb.models import (
     ProjectSpace,
     ReviewReport,
     RuntimeEvent,
+    RunMessage,
+    RunMessageType,
     RuntimeCapability,
     SourceDocument,
     TicketAssignment,
@@ -487,6 +490,73 @@ class AriadneStore:
 
     def load_run(self, run_id: str) -> AgentRun:
         return self._read_model(self.runs_dir / f"{run_id}.json", AgentRun)
+
+    def run_messages_path(self, run_id: str) -> Path:
+        return self.runs_dir / run_id / "messages.jsonl"
+
+    def _run_messages_lock_path(self, run_id: str) -> Path:
+        return self.runs_dir / run_id / ".messages.lock"
+
+    @contextmanager
+    def _run_messages_lock(self, run_id: str) -> Iterator[None]:
+        lock_path = self._run_messages_lock_path(run_id)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def reset_run_messages(self, run_id: str) -> None:
+        with self._run_messages_lock(run_id):
+            path = self.run_messages_path(run_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("", encoding="utf-8")
+
+    def append_run_message(
+        self,
+        run_id: str,
+        stage: str,
+        message_type: RunMessageType,
+        content: str,
+        artifact_ref: str | None = None,
+        tool_name: str | None = None,
+        result_ref: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> RunMessage:
+        with self._run_messages_lock(run_id):
+            messages = self.list_run_messages(run_id)
+            next_seq = (messages[-1].seq + 1) if messages else 1
+            message = RunMessage(
+                run_id=run_id,
+                seq=next_seq,
+                stage=stage,
+                message_type=message_type,
+                content=content,
+                artifact_ref=artifact_ref,
+                tool_name=tool_name,
+                result_ref=result_ref,
+                metadata=metadata or {},
+            )
+            path = self.run_messages_path(run_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(message.model_dump_json(exclude_none=False) + "\n")
+            return message
+
+    def list_run_messages(self, run_id: str, since: int | None = None) -> list[RunMessage]:
+        path = self.run_messages_path(run_id)
+        if not path.exists():
+            return []
+        messages = [
+            RunMessage.model_validate_json(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if since is None:
+            return messages
+        return [message for message in messages if message.seq > since]
 
     def save_build_packet(self, packet: BuildPacket) -> None:
         self._write_model(self.build_packets_dir / f"{packet.id}.json", packet)

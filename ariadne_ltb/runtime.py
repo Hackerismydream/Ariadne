@@ -11,6 +11,7 @@ from ariadne_ltb.models import (
     AgentRunStatus,
     Artifact,
     BuildTicket,
+    RunMessageType,
     RuntimeCapability,
     TicketStatus,
     stable_id,
@@ -69,6 +70,14 @@ class PipelineEngine:
         ).mark_running()
         context.current_run_id = run.id
         context.store.save_run(run)
+        context.store.reset_run_messages(run.id)
+        context.store.append_run_message(
+            run.id,
+            "start",
+            RunMessageType.STATUS,
+            f"{node.name} started for {context.ticket.key}.",
+            metadata={"agent_role": node.role},
+        )
 
         ticket = context.ticket.with_run(run.id).append_event(
             "agent_run_started",
@@ -88,6 +97,20 @@ class PipelineEngine:
                 error=str(exc),
             )
             context.store.save_run(failed_run)
+            context.store.append_run_message(
+                failed_run.id,
+                "error",
+                RunMessageType.ERROR,
+                f"{node.name} failed: {exc}",
+                metadata={"status": failed_run.status.value},
+            )
+            context.store.append_run_message(
+                failed_run.id,
+                "finish",
+                RunMessageType.RESULT,
+                f"{node.name} failed.",
+                metadata={"status": failed_run.status.value},
+            )
             failed_ticket = context.ticket.with_status(
                 TicketStatus.FAILED,
                 node.name,
@@ -106,6 +129,25 @@ class PipelineEngine:
             update={"artifact_ids": [artifact.id for artifact in result.artifacts]},
         ).mark_finished(AgentRunStatus.SUCCEEDED, result.output_summary)
         context.store.save_run(finished_run)
+        for artifact in result.artifacts:
+            context.store.append_run_message(
+                finished_run.id,
+                "artifact",
+                RunMessageType.ARTIFACT,
+                f"Created {artifact.artifact_type.value}: {artifact.summary}",
+                artifact_ref=artifact.id,
+                metadata={"path": artifact.path},
+            )
+        context.store.append_run_message(
+            finished_run.id,
+            "finish",
+            RunMessageType.RESULT,
+            result.output_summary,
+            metadata={
+                "status": finished_run.status.value,
+                "artifact_ids": [artifact.id for artifact in result.artifacts],
+            },
+        )
 
         ticket = context.ticket.with_artifacts(result.artifacts).append_event(
             "agent_run_finished",

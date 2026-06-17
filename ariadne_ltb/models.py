@@ -113,6 +113,14 @@ class AgentRunLifecycleState(str, Enum):
     TERMINAL = "terminal"
 
 
+class RunMessageType(str, Enum):
+    STATUS = "status"
+    ARTIFACT = "artifact"
+    RESULT = "result"
+    ERROR = "error"
+    TOOL = "tool"
+
+
 class FailureReason(str, Enum):
     AGENT_ERROR = "agent_error"
     RUNTIME_OFFLINE = "runtime_offline"
@@ -688,6 +696,27 @@ class AgentRun(AriadneModel):
         run.failure_reason = failure_reason
         run.ended_at = utc_now()
         return run
+
+
+class RunMessage(AriadneModel):
+    run_id: str
+    seq: int
+    timestamp: str = Field(default_factory=utc_now)
+    stage: str
+    message_type: RunMessageType = RunMessageType.STATUS
+    content: str
+    artifact_ref: str | None = None
+    tool_name: str | None = None
+    result_ref: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("seq")
+    @classmethod
+    def validate_seq(cls, value: int) -> int:
+        if value < 1:
+            msg = "run message seq must be greater than 0"
+            raise ValueError(msg)
+        return value
 
 
 class Artifact(AriadneModel):

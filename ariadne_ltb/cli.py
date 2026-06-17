@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -44,6 +45,7 @@ memory_app = typer.Typer(help="Memory commands.")
 backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
 daemon_app = typer.Typer(help="Local daemon worker commands.")
 runtime_app = typer.Typer(help="Runtime journal and recovery commands.")
+run_app = typer.Typer(help="Agent Run message stream commands.")
 board_app = typer.Typer(help="Local board commands.")
 doctor_app = typer.Typer(help="Release and safety doctors.")
 backlog_app = typer.Typer(help="Ticket backlog update commands.")
@@ -55,6 +57,7 @@ app.add_typer(memory_app, name="memory")
 app.add_typer(backend_app, name="backend")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(run_app, name="run")
 app.add_typer(board_app, name="board")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(backlog_app, name="backlog")
@@ -519,6 +522,31 @@ def ticket_supersede(
     typer.echo(f"status: {updated.status.value}")
     typer.echo(f"backlog update: {update.id}")
     typer.echo(f"reason: {reason}")
+
+
+@run_app.command("messages")
+def run_messages(
+    run_id: str,
+    since: Annotated[int, typer.Option("--since", help="Exclusive run message sequence cursor.")] = 0,
+) -> None:
+    """Print one Agent Run message stream as deterministic JSONL."""
+    if since < 0:
+        typer.echo("--since must be greater than or equal to 0.")
+        raise typer.Exit(2)
+    store = AriadneStore(state.root)
+    try:
+        store.load_run(run_id)
+    except FileNotFoundError as exc:
+        typer.echo(f"unknown run: {run_id}")
+        raise typer.Exit(2) from exc
+    for message in store.list_run_messages(run_id, since=since):
+        typer.echo(
+            json.dumps(
+                message.model_dump(mode="json", exclude_none=False),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
 
 
 @ticket_app.command("plan")

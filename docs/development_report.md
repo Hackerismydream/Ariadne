@@ -1481,3 +1481,72 @@ Known limitations:
   assignment failure recording. It returns execution evidence, while the daemon
   records assignment failure state.
 - Retry policy is still a small typed allowlist, not a learned policy.
+
+## Core Batch 10: Run Message Stream
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-03 / LOC-8` by adding a per-AgentRun message
+stream that can be consumed incrementally by CLI users, automation, and the
+future frontend without scraping long ticket comments.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/planner.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/runtime.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_run_messages.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `RunMessageType` and `RunMessage`.
+- Added `.ariadne/runs/<run_id>/messages.jsonl` per-run streams while keeping
+  the existing `.ariadne/runs/<run_id>.json` AgentRun snapshots.
+- Added per-run `.messages.lock` locking for appends.
+- Added `AriadneStore.reset_run_messages()`, `append_run_message()`, and
+  `list_run_messages(run_id, since=...)`.
+- `since` is an exclusive cursor: `--since 3` returns messages with `seq > 3`.
+- Planner, orchestrator execution/review/memory runs, and the original kernel
+  `PipelineEngine` now write start, artifact/result/error, and finish messages.
+- Reused deterministic run IDs reset their stream at run start so repeated demo
+  runs do not mix old and new message logs.
+- Added `ari run messages <run_id> --since N` and the fallback
+  `python3.11 -m ariadne_ltb.cli run messages <run_id> --since N`.
+- CLI message output is deterministic JSONL with sorted keys and compact
+  separators.
+- Board Agent Run Timeline now links each run's `messages.jsonl` without
+  inlining message bodies.
+
+Safety boundaries:
+
+- Message streams are local review artifacts only; they do not execute actions.
+- Board links message files but does not inline stdout/stderr/message bodies.
+- Message append locking is local filesystem locking, not a distributed stream
+  service.
+- The real Codex and Claude execution paths remain safety-gated and unchanged.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_run_messages.py -q`: passed, 6 tests.
+- `python3.11 -m ruff check ariadne_ltb tests/test_run_messages.py`: passed.
+- `python3.11 -m pytest`: passed, 134 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Store doctor checks JSONL syntax generically, but it does not yet validate
+  run-message schema, missing run links, duplicate `seq`, or orphan run message
+  directories as first-class invariant reasons.
+- The message stream is pull-based through local files and CLI. It is not a
+  WebSocket or hosted event stream.

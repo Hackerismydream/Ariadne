@@ -484,15 +484,17 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         [
             "### Agent Run Timeline",
             "",
-            "| Started | Agent | Role | Attempt | Backend | Status | Summary |",
-            "|---|---|---|---|---|---|---|",
+            "| Started | Agent | Role | Attempt | Backend | Status | Messages | Summary |",
+            "|---|---|---|---|---|---|---|---|",
         ]
     )
     for run_id in ticket.agent_run_ids:
         run = store.load_run(run_id)
+        messages_path = store.run_messages_path(run.id)
         lines.append(
             f"| {run.started_at or ''} | {run.agent_name} | {run.agent_role} | "
             f"{run.attempt} | {run.backend_name or ''} | {run.status.value} | "
+            f"`{messages_path}` | "
             f"{run.output_summary or ''} |"
         )
 
