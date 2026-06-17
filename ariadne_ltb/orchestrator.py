@@ -64,6 +64,7 @@ class TicketRunResult:
     next_tickets_path: str
     board_path: str
     board_html_path: str
+    orchestrator_result_path: str
     worktree_path: str | None = None
 
 
@@ -523,6 +524,59 @@ class TicketRunOrchestrator:
             payload_ref=str(board_path),
         )
         self.store.save_ticket(ticket)
+        manifest_artifact = _write_orchestrator_result_artifact(
+            self.store,
+            ticket.id,
+            memory_run.id,
+            {
+                "ticket_id": ticket.id,
+                "ticket_key": ticket.key,
+                "backend_name": backend_name,
+                "planner_name": planner,
+                "build_packet_id": packet.id,
+                "handoff_artifact_id": handoff_artifact.id,
+                "execution_result_id": execution.id,
+                "review_report_id": review.id,
+                "review_verdict": review.verdict.value,
+                "changed_files": execution.changed_files,
+                "test_command": execution.test_command,
+                "test_exit_code": execution.test_exit_code,
+                "memory_record_id": memory.id,
+                "feishu_plan_id": feishu_plan.id,
+                "board_path": str(board_path),
+                "board_html_path": str(self.store.board_dir / "index.html"),
+                "worktree_path": worktree_path,
+                "external_execution_enabled": os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1",
+                "confirm_execution": confirm_execution,
+                "artifacts": {
+                    "memory_path": str(memory_path),
+                    "feishu_plan_path": str(feishu_path),
+                    "next_tickets_path": next_tickets_artifact.path,
+                    "board_path": str(board_path),
+                },
+            },
+        )
+        ticket = (
+            self.store.load_ticket(ticket.id)
+            .with_artifacts([manifest_artifact])
+            .append_event(
+                "orchestrator_result_written",
+                "Build Lead",
+                "Wrote structured ticket run result manifest.",
+                payload_ref=manifest_artifact.id,
+            )
+            .model_copy(
+                deep=True,
+                update={
+                    "metadata": self.store.load_ticket(ticket.id).metadata
+                    | {
+                        "orchestrator_result_artifact_id": manifest_artifact.id,
+                        "orchestrator_result_path": manifest_artifact.path,
+                    }
+                },
+            )
+        )
+        self.store.save_ticket(ticket)
         board_path = export_board(self.store)
         self._progress(
             ticket,
@@ -551,6 +605,7 @@ class TicketRunOrchestrator:
             next_tickets_path=next_tickets_artifact.path,
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),
+            orchestrator_result_path=manifest_artifact.path,
             worktree_path=worktree_path,
         )
 
@@ -758,6 +813,26 @@ def _write_execution_artifacts(
         "changed_files": changed,
         "test_output": tests,
     }
+
+
+def _write_orchestrator_result_artifact(
+    store: AriadneStore,
+    ticket_id: str,
+    agent_run_id: str,
+    payload: dict,
+) -> Artifact:
+    return store.write_artifact(
+        ticket_id,
+        agent_run_id,
+        ArtifactType.ORCHESTRATOR_RESULT,
+        "orchestrator_result.json",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        "Structured ticket run result manifest",
+        metadata={
+            "execution_result_id": str(payload.get("execution_result_id", "")),
+            "review_report_id": str(payload.get("review_report_id", "")),
+        },
+    )
 
 
 def _write_memory_artifact(

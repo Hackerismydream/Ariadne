@@ -217,21 +217,13 @@ class ShellBackend:
         repo = Path(context.target_repo_path)
         started = utc_now()
         if not context.confirm_execution:
-            return ExecutionResult(
-                id=stable_id("execution", context.ticket_id, self.name, started),
-                ticket_id=context.ticket_id,
-                backend_name=self.name,
-                dry_run=False,
-                command=context.command,
-                exit_code=2,
-                stdout="",
-                stderr="ShellBackend requires --confirm-execution.",
-                started_at=started,
-                ended_at=utc_now(),
-                git_head_before=git_head(repo),
-                git_head_after=git_head(repo),
-                git_status_before=git_status(repo),
-                git_status_after=git_status(repo),
+            return _blocked_result(
+                context,
+                self.name,
+                "ShellBackend requires --confirm-execution.",
+                started,
+                repo,
+                failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
         result = subprocess.run(
             context.command,

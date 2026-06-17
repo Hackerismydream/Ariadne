@@ -162,6 +162,7 @@ class ArtifactType(str, Enum):
     RUNTIME_CAPABILITY = "runtime_capability"
     PROJECT_RESOURCES = "project_resources"
     WORKTREE_ISOLATION = "worktree_isolation"
+    ORCHESTRATOR_RESULT = "orchestrator_result"
     PLANNER_ERROR = "planner_error"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"

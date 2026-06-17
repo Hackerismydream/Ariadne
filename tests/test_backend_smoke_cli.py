@@ -6,7 +6,8 @@ import subprocess
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
-from ariadne_ltb.execution import CodexBackend, ExecutionContext
+from ariadne_ltb.execution import CodexBackend, ExecutionContext, ShellBackend
+from ariadne_ltb.models import FailureReason
 
 
 def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Path) -> None:
@@ -125,3 +126,27 @@ def test_codex_backend_timeout_returns_execution_result(
     assert result.exit_code == 124
     assert result.blocked is False
     assert "timed out after 1 seconds" in result.stderr
+
+
+def test_shell_backend_requires_confirmation_as_blocked_result(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+
+    result = ShellBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_shell",
+            ticket_key="ARI-SHELL",
+            build_packet_id="packet_shell",
+            target_repo_path=str(target),
+            handoff_prompt="Run shell command.",
+            backend_name="shell",
+            allowed_paths=[],
+            command="echo unsafe",
+            test_command="",
+            confirm_execution=False,
+        )
+    )
+
+    assert result.blocked is True
+    assert result.failure_reason is FailureReason.EXTERNAL_EXECUTION_BLOCKED
+    assert "--confirm-execution" in (result.block_reason or "")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -45,6 +46,15 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert result.board_path and Path(result.board_path).exists()
     assert ArtifactType.CODEX_HANDOFF in artifact_types
     assert ArtifactType.NEXT_TICKETS in artifact_types
+    assert ArtifactType.ORCHESTRATOR_RESULT in artifact_types
+    assert result.orchestrator_result_path
+    manifest = json.loads(Path(result.orchestrator_result_path).read_text(encoding="utf-8"))
+    assert manifest["ticket_key"] == "ARI-003"
+    assert manifest["backend_name"] == "fake-codex"
+    assert manifest["execution_result_id"] == result.execution_result_id
+    assert manifest["review_verdict"] == "pass"
+    assert manifest["board_path"] == result.board_path
+    assert manifest["artifacts"]["next_tickets_path"] == result.next_tickets_path
 
 
 def test_demo_full_uses_ticket_run_orchestrator(monkeypatch, tmp_path: Path) -> None:

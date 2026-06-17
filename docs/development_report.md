@@ -962,6 +962,70 @@ Verification status:
   environment/key state without secret values.
 - `uv run ari demo full && uv run ari doctor v1 && uv run ari export board`:
   passed.
+
+## Core Batch 3: Orchestration / Backend Evidence Hardening
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch improves the ticket-run product path by writing a single structured
+manifest for each completed orchestrator run and tightening backend blocked
+result semantics.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/execution.py`
+- `tests/test_true_mvp_product_loop.py`
+- `tests/test_backend_smoke_cli.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `ArtifactType.ORCHESTRATOR_RESULT`.
+- `TicketRunOrchestrator.run_ticket(...)` now writes
+  `orchestrator_result.json` under the ticket artifact directory.
+- The result manifest records ticket id/key, backend, planner, build packet,
+  handoff, execution result, review report, verdict, changed files, test
+  command/result, memory id/path, Feishu dry-run plan id/path, next tickets,
+  board path, worktree path, external execution state, and confirmation state.
+- The manifest artifact is attached to the ticket and referenced in ticket
+  metadata as `orchestrator_result_artifact_id` and
+  `orchestrator_result_path`.
+- `TicketRunResult` now exposes `orchestrator_result_path`.
+- `ShellBackend` now returns a blocked `ExecutionResult` with typed
+  `external_execution_blocked` failure when `--confirm-execution` is missing,
+  instead of returning an untyped command failure.
+
+Safety boundaries:
+
+- The manifest is read-only evidence; it does not trigger external writes.
+- Shell execution remains blocked unless explicitly confirmed.
+- Real Codex/Claude execution remains gated by environment flag and
+  confirmation.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_true_mvp_product_loop.py
+  tests/test_backend_smoke_cli.py -q`: passed, 20 tests.
+- `python3.11 -m ruff check ariadne_ltb/orchestrator.py
+  ariadne_ltb/execution.py ariadne_ltb/models.py
+  tests/test_true_mvp_product_loop.py tests/test_backend_smoke_cli.py`:
+  passed.
+- `python3.11 -m pytest`: passed, 104 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed, with external
+  execution disabled and secrets redacted.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- The manifest is an evidence artifact; it does not replace individual
+  execution, review, memory, Feishu, or next-ticket artifacts.
+- This batch does not change real Codex/Claude gating behavior beyond preserving
+  the existing safety gates.
 - `uv run ari ticket list && uv run ari ticket run ARI-003 --backend
   fake-codex`: passed.
 - Manual backlog smoke with `python3.11 -m ariadne_ltb.cli --root
