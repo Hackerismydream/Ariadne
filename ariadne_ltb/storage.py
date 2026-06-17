@@ -27,6 +27,7 @@ from ariadne_ltb.models import (
     ExecutionResult,
     FeishuWriteResult,
     FeishuWritePlan,
+    GitHubIntegrationResult,
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
@@ -83,6 +84,7 @@ class AriadneStore:
         self.feishu_plans_dir = self.base / "feishu_plans"
         self.integrations_dir = self.base / "integrations"
         self.feishu_integrations_dir = self.integrations_dir / "feishu"
+        self.github_integrations_dir = self.integrations_dir / "github"
         self.artifacts_dir = self.base / "artifacts"
         self.artifact_index_dir = self.base / "artifact_index"
         self.board_dir = self.base / "board"
@@ -119,6 +121,7 @@ class AriadneStore:
             self.feishu_plans_dir,
             self.integrations_dir,
             self.feishu_integrations_dir,
+            self.github_integrations_dir,
             self.artifacts_dir,
             self.artifact_index_dir,
             self.board_dir,
@@ -726,7 +729,26 @@ class AriadneStore:
     def list_feishu_write_results(self, ticket_key: str | None = None) -> list[FeishuWriteResult]:
         base = self.feishu_integrations_dir / ticket_key if ticket_key else self.feishu_integrations_dir
         paths = sorted(base.glob("*.json")) if ticket_key else sorted(base.glob("*/*.json"))
-        return [self._read_model(path, FeishuWriteResult) for path in paths]
+        return sorted(
+            [self._read_model(path, FeishuWriteResult) for path in paths],
+            key=lambda result: result.created_at,
+        )
+
+    def save_github_integration_result(self, result: GitHubIntegrationResult) -> Path:
+        path = self.github_integrations_dir / result.ticket_key / f"{result.id}.json"
+        self._write_model(path, result)
+        return path
+
+    def list_github_integration_results(
+        self,
+        ticket_key: str | None = None,
+    ) -> list[GitHubIntegrationResult]:
+        base = self.github_integrations_dir / ticket_key if ticket_key else self.github_integrations_dir
+        paths = sorted(base.glob("*.json")) if ticket_key else sorted(base.glob("*/*.json"))
+        return sorted(
+            [self._read_model(path, GitHubIntegrationResult) for path in paths],
+            key=lambda result: (result.created_at, _github_operation_order(result.operation)),
+        )
 
     def save_project_resources(self, resources: list[ProjectResource]) -> Path:
         path = self.project_dir / "resources.json"
@@ -913,3 +935,7 @@ def is_assignment_lease_expired(assignment: TicketAssignment, now: datetime | No
     except ValueError:
         return True
     return (now or datetime.now(UTC)) >= expires_at
+
+
+def _github_operation_order(operation: str) -> int:
+    return {"link": 0, "sync": 1}.get(operation, 2)

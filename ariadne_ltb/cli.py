@@ -23,6 +23,11 @@ from ariadne_ltb.full_demo import (
     run_full_demo,
     select_code_task_ticket,
 )
+from ariadne_ltb.github_integration import (
+    github_doctor_lines,
+    link_ticket_to_github,
+    sync_ticket_with_github,
+)
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.llm import DeepSeekClient, LLMClientError, llm_doctor_status, load_local_env
@@ -58,6 +63,7 @@ ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
 memory_app = typer.Typer(help="Memory commands.")
 feishu_app = typer.Typer(help="Feishu write-back commands.")
+github_app = typer.Typer(help="GitHub issue, PR, branch, and status integration commands.")
 llm_app = typer.Typer(help="Upstream LLM runtime commands.")
 review_app = typer.Typer(help="Reviewer commands.")
 backend_app = typer.Typer(help="Execution backend diagnostics and smoke tests.")
@@ -74,6 +80,7 @@ app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
 app.add_typer(memory_app, name="memory")
 app.add_typer(feishu_app, name="feishu")
+app.add_typer(github_app, name="github")
 app.add_typer(llm_app, name="llm")
 app.add_typer(review_app, name="review")
 app.add_typer(backend_app, name="backend")
@@ -1358,6 +1365,73 @@ def feishu_write(
     typer.echo(f"result: {result_path}")
     if result.document_url:
         typer.echo(f"document url: {result.document_url}")
+    if result.reason:
+        typer.echo(f"reason: {result.reason}")
+    if not result.ok:
+        raise typer.Exit(2)
+
+
+@github_app.command("doctor")
+def github_doctor() -> None:
+    """Report local GitHub CLI/auth readiness without printing tokens."""
+    for line in github_doctor_lines(state.root):
+        typer.echo(line)
+
+
+@github_app.command("link")
+def github_link(
+    ticket_id: str,
+    repo: Annotated[str | None, typer.Option("--repo", help="GitHub repo as owner/name.")] = None,
+    issue: Annotated[int | None, typer.Option("--issue", help="GitHub issue number.")] = None,
+    pr: Annotated[int | None, typer.Option("--pr", help="GitHub PR number.")] = None,
+    branch: Annotated[str | None, typer.Option("--branch", help="Git branch name.")] = None,
+) -> None:
+    """Link a local Ariadne ticket to GitHub issue/PR metadata."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    result = link_ticket_to_github(
+        store,
+        ticket,
+        repo=repo,
+        issue=issue,
+        pr=pr,
+        branch=branch,
+    )
+    result_path = store.save_github_integration_result(result)
+    typer.echo(f"GitHub link result: {result.id}")
+    typer.echo(f"repo: {result.repo or ''}")
+    if result.issue_number:
+        typer.echo(f"issue: {result.issue_number}")
+    if result.pr_number:
+        typer.echo(f"pr: {result.pr_number}")
+    if result.branch:
+        typer.echo(f"branch: {result.branch}")
+    typer.echo(f"result: {result_path}")
+
+
+@github_app.command("sync")
+def github_sync(
+    ticket_id: str,
+    confirm_write: Annotated[
+        bool,
+        typer.Option("--confirm-write", help="Allow GitHub remote writes through gh CLI."),
+    ] = False,
+) -> None:
+    """Sync a ticket to GitHub through gh CLI and record evidence."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    result = sync_ticket_with_github(store, ticket, confirm_write=confirm_write)
+    result_path = store.save_github_integration_result(result)
+    typer.echo(f"GitHub sync result: {result.id}")
+    typer.echo(f"ok: {str(result.ok).lower()}")
+    typer.echo(f"blocked: {str(result.blocked).lower()}")
+    typer.echo(f"result: {result_path}")
+    if result.issue_url:
+        typer.echo(f"issue url: {result.issue_url}")
+    if result.pr_url:
+        typer.echo(f"pr url: {result.pr_url}")
+    if result.comment_url:
+        typer.echo(f"comment url: {result.comment_url}")
     if result.reason:
         typer.echo(f"reason: {result.reason}")
     if not result.ok:

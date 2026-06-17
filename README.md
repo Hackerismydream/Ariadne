@@ -353,6 +353,22 @@ No Feishu credentials are required for tests or the default demo. Missing
 confirmation, disabled writes, missing `lark-cli`, login failures, and provider
 errors are recorded as blocked/failed write results with secrets redacted.
 
+## GitHub
+
+GitHub integration uses the local `gh` CLI and environment-only credentials.
+Tickets can be linked to remote issues/PRs, then synced with explicit write
+confirmation:
+
+```bash
+python3.11 -m ariadne_ltb.cli github doctor
+python3.11 -m ariadne_ltb.cli github link ARI-003 --repo Hackerismydream/Ariadne --issue 123
+python3.11 -m ariadne_ltb.cli github sync ARI-003 --confirm-write
+```
+
+Sync writes a GitHub issue comment only through `gh` and only with
+`--confirm-write`. Results are persisted under
+`.ariadne/integrations/github/<ticket>/` with tokens redacted.
+
 ## Safety
 
 - No auto-commit, auto-push, auto-merge, or PR creation from Ariadne runtime.

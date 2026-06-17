@@ -2351,8 +2351,8 @@ Known limitations:
 
 - Planner and reviewer now have real DeepSeek-capable paths, but other upstream
   LLM roles still need to be migrated onto `JSONLLMAgent`.
-- The full product path still needs real Codex, Claude Code, Feishu, and GitHub
-  integration hardening from later phases.
+- At this point in the timeline, the full product path still needed real Codex,
+  Claude Code, Feishu, and GitHub integration hardening from later phases.
 - Local `.ariadne` contains older run history with blocked fake-codex assignment
   records caused by a stale isolated worktree. This is ignored local state; store
   invariants and verification still pass.
@@ -2422,7 +2422,8 @@ Known limitations:
 - Codex `flex` service tier is not currently usable with the local/provider
   combination tested here; Ariadne records that as provider configuration
   evidence instead of assuming it works.
-- Real Feishu and GitHub integration phases are still pending.
+- At this point in the timeline, real Feishu and GitHub integration phases were
+  still pending; later sections document their implementation slices.
 
 ## 2026-06-17 Real Feishu Write Gate Slice
 
@@ -2492,4 +2493,75 @@ Known limitations:
   remains future work.
 - A full successful real Feishu write still requires the user environment to
   enable `FEISHU_ENABLE_WRITE=1` and have `lark-cli` authenticated.
-- Real GitHub integration remains pending.
+- Real GitHub integration was completed in the following implementation slice.
+
+## 2026-06-17 Real GitHub Integration Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Added first-class GitHub commands:
+  - `ari github doctor`;
+  - `ari github link <ticket> --repo <owner/name> --issue <number> [--pr <number>] [--branch <branch>]`;
+  - `ari github sync <ticket> --confirm-write`.
+- Added `GitHubIntegrationResult` to record:
+  - operation;
+  - ok/blocked state;
+  - typed failure reason;
+  - repo, issue, PR, branch, commit SHA, remote URL, and comment URL;
+  - redacted command summaries, stdout, stderr, and provider evidence.
+- Persisted GitHub evidence under:
+  `.ariadne/integrations/github/<ticket_key>/<result_id>.json`.
+- Implemented `gh`-based doctor, issue read, PR read, and issue comment sync.
+- GitHub remote writes are blocked unless `--confirm-write` is provided.
+- Updated board output to show the latest GitHub integration result.
+- Added deterministic tests for doctor token safety, local link metadata,
+  missing confirmation, missing `gh`, mocked successful sync, and token
+  redaction.
+- Updated README and the active production execution plan.
+
+Real integration smoke:
+
+- Local `gh` was found at `/opt/homebrew/bin/gh`.
+- `gh auth status` reported an authenticated `Hackerismydream` account with the
+  token value masked by `gh`.
+- A real GitHub remote write was not attempted in this slice because no safe
+  target issue for a real Ariadne sync comment was specified. Ariadne now has
+  the gated path; writing to a real issue should be done only against an
+  explicitly selected ticket/issue link.
+
+Safety boundaries:
+
+- `GITHUB_TOKEN` is read only from environment and is never printed.
+- `ghp_`, `gho_`, token, secret, key, authorization, and bearer-like values are
+  redacted from persisted results.
+- `github link` is local metadata only.
+- `github sync` is the only remote-write path and requires `--confirm-write`.
+- Ariadne still does not merge, auto-merge, delete branches, or create PRs in
+  this slice.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_github_integration.py`: passed.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: 183 passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; secret values redacted.
+- `python3.11 -m ariadne_ltb.cli github doctor`: passed; `gh auth status` ok.
+- `python3.11 -m ariadne_ltb.cli github link ARI-003 --repo Hackerismydream/Ariadne --issue 123 --branch codex/ariadne-core-orchestration-backends-3`: passed locally and wrote a link result.
+- `python3.11 -m ariadne_ltb.cli github sync ARI-003`: returned exit code `2` as expected and wrote a blocked result because `--confirm-write` was not provided.
+- `scripts/verify_v1.sh`: passed.
+- `uv run ari demo full`: passed.
+- `uv run ari ticket list`: passed.
+- `uv run ari export board`: passed.
+- `uv run ari backend doctor`: passed.
+- `uv run ari github doctor`: passed.
+
+Known limitations:
+
+- GitHub sync currently posts an issue comment for a linked ticket; richer PR
+  status/check synchronization and issue creation are still future work.
+- Successful real remote write still requires an explicitly selected safe issue
+  target.

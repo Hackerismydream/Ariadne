@@ -648,6 +648,33 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         if latest_result.reason:
             lines.append(f"- Reason: {latest_result.reason}")
 
+    github_results = store.list_github_integration_results(ticket.key)
+    lines.extend(["", "### GitHub Integration", ""])
+    if github_results:
+        latest_github = github_results[-1]
+        lines.append(f"- Operation: `{latest_github.operation}`")
+        lines.append(f"- OK: `{str(latest_github.ok).lower()}`")
+        lines.append(f"- Blocked: `{str(latest_github.blocked).lower()}`")
+        lines.append(f"- Repo: `{latest_github.repo or ''}`")
+        if latest_github.issue_number:
+            lines.append(f"- Issue: `#{latest_github.issue_number}`")
+        if latest_github.issue_url:
+            lines.append(f"- Issue URL: {latest_github.issue_url}")
+        if latest_github.pr_number:
+            lines.append(f"- PR: `#{latest_github.pr_number}`")
+        if latest_github.pr_url:
+            lines.append(f"- PR URL: {latest_github.pr_url}")
+        if latest_github.branch:
+            lines.append(f"- Branch: `{latest_github.branch}`")
+        if latest_github.commit_sha:
+            lines.append(f"- Commit: `{latest_github.commit_sha}`")
+        if latest_github.comment_url:
+            lines.append(f"- Comment: {latest_github.comment_url}")
+        if latest_github.reason:
+            lines.append(f"- Reason: {latest_github.reason}")
+    else:
+        lines.append("No GitHub integration result found.")
+
     memory = _latest_json_artifact(store, artifacts, ArtifactType.MEMORY_RECORD)
     lines.extend(["", "### Memory", ""])
     if memory:

@@ -244,7 +244,7 @@ Include document URL, document id, operation summary, and failure evidence.
 - Modify: `ariadne_ltb/board.py`
 - Test: `tests/test_github_integration.py`
 
-- [ ] **Step 1: Add doctor**
+- [x] **Step 1: Add doctor**
 
 Add:
 
@@ -254,7 +254,7 @@ ari github doctor
 
 Prefer `gh auth status`. Support `GITHUB_TOKEN` only from environment.
 
-- [ ] **Step 2: Add link and sync**
+- [x] **Step 2: Add link and sync**
 
 Add:
 
@@ -266,7 +266,7 @@ ari github sync ARI-003 --confirm-write
 Read operations can run when authenticated. Remote writes need explicit write
 commands and confirmation.
 
-- [ ] **Step 3: Record evidence**
+- [x] **Step 3: Record evidence**
 
 Persist:
 

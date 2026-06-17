@@ -998,6 +998,31 @@ class FeishuWriteResult(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
 
 
+class GitHubIntegrationResult(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    operation: str
+    ok: bool
+    blocked: bool = False
+    failure_reason: FailureReason | None = None
+    reason: str | None = None
+    repo: str | None = None
+    issue_number: int | None = None
+    issue_url: str | None = None
+    pr_number: int | None = None
+    pr_url: str | None = None
+    branch: str | None = None
+    commit_sha: str | None = None
+    remote_url: str | None = None
+    comment_url: str | None = None
+    command_summaries: list[str] = Field(default_factory=list)
+    stdout: str = ""
+    stderr: str = ""
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utc_now)
+
+
 class BuildSkill(AriadneModel):
     id: str
     name: str
