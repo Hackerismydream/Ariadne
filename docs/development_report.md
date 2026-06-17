@@ -5025,9 +5025,62 @@ Verification so far:
 - Board path:
   `.ariadne/board/index.md`.
 
-Known limitation:
+Resolved in the following slice:
 
 - `ari backlog preview` currently exposes source/review/execution preview
   commands. Memory-gap and codebase-observation previews are generated through
-  ticket runs; a future CLI slice can add explicit artifact-driven preview
-  commands if operators need manual preview generation outside `ticket run`.
+  ticket runs; the next slice adds explicit artifact-driven preview commands
+  for manual preview generation outside `ticket run`.
+
+## 2026-06-18 04:52 CST Artifact-Driven Feedback Preview CLI Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Extended `ari backlog preview` with explicit artifact-driven feedback inputs:
+  - `--from-memory-gap <ticket_id_or_key>`
+  - `--from-codebase-observation <ticket_id_or_key>`
+- The CLI now resolves the selected ticket's stored Build Packet, execution
+  result, review report, memory record id, and effective next-ticket artifact
+  path from ticket metadata, then generates the same backlog previews used by
+  `ticket run`.
+- Added validation that reports missing feedback artifact metadata instead of
+  creating partial or misleading previews.
+- Added deterministic CLI tests for memory-gap preview, codebase-observation
+  preview, mutually exclusive input validation, and missing metadata reporting.
+
+Why this matters:
+
+- Operators and the frontend can now inspect memory/codebase feedback backlog
+  mutations without rerunning the ticket execution loop.
+- The ticket-centered state machine is more visible: feedback artifacts can be
+  replayed into `BacklogPreview` records before any ticket set mutation is
+  applied.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_backlog_preview_apply.py`: passed,
+  `13 passed`.
+- `python3.11 -m ruff check ariadne_ltb/cli.py tests/test_backlog_preview_apply.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `248 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; DeepSeek key was
+  reported as set and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_e740a0dc8f79`.
+- `python3.11 -m ariadne_ltb.cli backlog preview --from-memory-gap ARI-003`:
+  passed and generated `backlog_preview_95d23db10319`.
+- `python3.11 -m ariadne_ltb.cli backlog preview --from-codebase-observation ARI-003`:
+  passed and generated `backlog_preview_f1a3eb2a9b26`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`

@@ -332,6 +332,104 @@ def test_backlog_preview_cli_supports_review_and_execution_inputs(tmp_path: Path
     assert "Provide exactly one" in invalid.output
 
 
+def test_backlog_preview_cli_supports_memory_gap_and_codebase_observation_inputs(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    packet = _packet_for_ticket(ticket)
+    execution = _passing_execution(ticket)
+    review = ReviewReport(id="review_pass", ticket_id=ticket.id, verdict=ReviewVerdict.PASS)
+    next_tickets_path = _next_tickets(
+        tmp_path,
+        [
+            {
+                "title": "Index memory records",
+                "reason": "Memory is written but not searchable.",
+                "source": "memory",
+                "priority": "high",
+                "suggested_build_decision": "code_task",
+                "acceptance_criteria": ["Planner can search memory records."],
+                "affected_modules": ["ariadne_ltb/memory.py"],
+            },
+            {
+                "title": "Add changed-file observation filter",
+                "reason": "Changed files should become explicit codebase observations.",
+                "source": "changed_file",
+                "priority": "medium",
+                "suggested_build_decision": "code_task",
+                "acceptance_criteria": ["Codebase observations can be previewed."],
+                "affected_modules": ["ariadne_ltb/backlog.py"],
+            },
+        ],
+    )
+    ticket = ticket.model_copy(
+        update={
+            "build_packet_id": packet.id,
+            "metadata": {
+                "execution_result_id": execution.id,
+                "review_report_id": review.id,
+                "memory_record_id": "memory_record_1",
+                "backlog_next_tickets_path": str(next_tickets_path),
+            },
+        }
+    )
+    store.save_ticket(ticket)
+    store.save_build_packet(packet)
+    store.save_execution_result(execution)
+    store.save_review_report(review)
+    runner = CliRunner()
+
+    memory_preview = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "backlog", "preview", "--from-memory-gap", ticket.key],
+    )
+    codebase_preview = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "backlog", "preview", "--from-codebase-observation", ticket.key],
+    )
+    invalid = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "backlog",
+            "preview",
+            "--from-memory-gap",
+            ticket.key,
+            "--from-codebase-observation",
+            ticket.key,
+        ],
+    )
+
+    assert memory_preview.exit_code == 0, memory_preview.output
+    assert "trigger: memory_gap" in memory_preview.output
+    assert "Index memory records" in memory_preview.output
+    assert codebase_preview.exit_code == 0, codebase_preview.output
+    assert "trigger: codebase_observation" in codebase_preview.output
+    assert "Add changed-file observation filter" in codebase_preview.output
+    assert invalid.exit_code == 2
+    assert "--from-memory-gap" in invalid.output
+
+
+def test_backlog_preview_cli_reports_missing_feedback_artifact_metadata(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    packet = _packet_for_ticket(ticket)
+    ticket = ticket.model_copy(update={"build_packet_id": packet.id, "metadata": {"execution_result_id": "missing"}})
+    store.save_ticket(ticket)
+    store.save_build_packet(packet)
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "backlog", "preview", "--from-memory-gap", ticket.key],
+    )
+
+    assert result.exit_code == 2
+    assert "missing required feedback artifact metadata" in result.output
+    assert "review_report_id" in result.output
+    assert "memory_record_id" in result.output
+    assert "backlog_next_tickets_path|next_tickets_path" in result.output
+
+
 def _source(tmp_path: Path, name: str, content: str) -> Path:
     path = tmp_path / name
     path.write_text(content, encoding="utf-8")

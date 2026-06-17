@@ -14,7 +14,9 @@ from ariadne_ltb.board import export_board
 from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.backlog import (
     apply_backlog_preview,
+    generate_codebase_observation_preview,
     generate_execution_feedback_preview,
+    generate_memory_gap_preview,
     generate_review_feedback_preview,
     generate_source_backlog_preview,
     supersede_ticket,
@@ -297,12 +299,23 @@ def backlog_preview(
         str | None,
         typer.Option("--from-execution", help="Execution result id to preview as backlog feedback."),
     ] = None,
+    from_memory_gap: Annotated[
+        str | None,
+        typer.Option("--from-memory-gap", help="Ticket id/key with stored memory, review, execution, and next-ticket artifacts."),
+    ] = None,
+    from_codebase_observation: Annotated[
+        str | None,
+        typer.Option("--from-codebase-observation", help="Ticket id/key with stored execution, review, and next-ticket artifacts."),
+    ] = None,
 ) -> None:
-    """Preview source, review, or execution-driven backlog mutations without changing tickets."""
+    """Preview source or feedback-driven backlog mutations without changing tickets."""
     paths = [*(from_sources or []), *(source_paths or [])]
-    selected_inputs = sum(bool(item) for item in [paths, from_review, from_execution])
+    selected_inputs = sum(bool(item) for item in [paths, from_review, from_execution, from_memory_gap, from_codebase_observation])
     if selected_inputs != 1:
-        typer.echo("Provide exactly one of --from-source/source paths, --from-review, or --from-execution.")
+        typer.echo(
+            "Provide exactly one of --from-source/source paths, --from-review, "
+            "--from-execution, --from-memory-gap, or --from-codebase-observation."
+        )
         raise typer.Exit(2)
     store = AriadneStore(state.root)
     try:
@@ -316,6 +329,35 @@ def backlog_preview(
             execution = store.load_execution_result(from_execution)
             ticket = store.load_ticket(execution.ticket_id)
             preview = generate_execution_feedback_preview(store, ticket, execution)
+        elif from_memory_gap:
+            ticket, packet, execution, review, memory_record_id, next_tickets_path = _feedback_preview_inputs_from_ticket(
+                store,
+                from_memory_gap,
+                require_memory=True,
+            )
+            preview = generate_memory_gap_preview(
+                store,
+                ticket,
+                packet,
+                execution,
+                review,
+                memory_record_id,
+                next_tickets_path,
+            )
+        elif from_codebase_observation:
+            ticket, packet, execution, review, _, next_tickets_path = _feedback_preview_inputs_from_ticket(
+                store,
+                from_codebase_observation,
+                require_memory=False,
+            )
+            preview = generate_codebase_observation_preview(
+                store,
+                ticket,
+                packet,
+                execution,
+                review,
+                next_tickets_path,
+            )
         else:  # pragma: no cover - selected_inputs guard is exhaustive.
             raise ValueError("no backlog preview input selected")
     except (FileNotFoundError, OSError, ValueError) as exc:
@@ -335,6 +377,37 @@ def backlog_preview(
         for conflict in preview.conflicts:
             typer.echo(f"conflict: {conflict.conflict_type.value} {conflict.message}")
     typer.echo(f"apply: ari backlog apply {preview.id}")
+
+
+def _feedback_preview_inputs_from_ticket(
+    store: AriadneStore,
+    ticket_id_or_key: str,
+    *,
+    require_memory: bool,
+):
+    ticket = store.resolve_ticket(ticket_id_or_key)
+    if not ticket.build_packet_id:
+        raise ValueError(f"{ticket.key} has no build_packet_id; run `ari ticket plan {ticket.key}` first.")
+    metadata = ticket.metadata
+    execution_result_id = str(metadata.get("execution_result_id") or "")
+    review_report_id = str(metadata.get("review_report_id") or "")
+    memory_record_id = str(metadata.get("memory_record_id") or "")
+    next_tickets_path = str(metadata.get("backlog_next_tickets_path") or metadata.get("next_tickets_path") or "")
+    missing: list[str] = []
+    if not execution_result_id:
+        missing.append("execution_result_id")
+    if not review_report_id:
+        missing.append("review_report_id")
+    if require_memory and not memory_record_id:
+        missing.append("memory_record_id")
+    if not next_tickets_path:
+        missing.append("backlog_next_tickets_path|next_tickets_path")
+    if missing:
+        raise ValueError(f"{ticket.key} is missing required feedback artifact metadata: {', '.join(missing)}")
+    packet = store.load_build_packet(ticket.build_packet_id)
+    execution = store.load_execution_result(execution_result_id)
+    review = store.load_review_report(review_report_id)
+    return ticket, packet, execution, review, memory_record_id, next_tickets_path
 
 
 @backlog_app.command("apply")
