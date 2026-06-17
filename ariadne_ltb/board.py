@@ -128,12 +128,20 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     else:
         lines.append("No daemon heartbeat yet.")
     lines.extend(["", "## Agent Comments", ""])
-    recent_comments = []
+    recent_threads = []
     for ticket in tickets:
-        recent_comments.extend(store.list_comments(ticket.id)[-3:])
-    if recent_comments:
-        for comment in recent_comments[-10:]:
-            lines.append(f"- `{comment.ticket_key}` `{comment.kind.value}` {comment.author}: {comment.body}")
+        for thread in store.list_recent_comment_threads(ticket.id, limit=3):
+            if thread:
+                recent_threads.append((ticket.key, thread))
+    recent_threads = sorted(recent_threads, key=lambda item: item[1][-1].created_at)[-10:]
+    if recent_threads:
+        for ticket_key, thread in recent_threads:
+            root = thread[0]
+            latest = thread[-1]
+            lines.append(
+                f"- `{ticket_key}` thread=`{root.thread_id}` comments={len(thread)} "
+                f"latest=`{latest.created_at}` root={root.body} latest={latest.body}"
+            )
     else:
         lines.append("No comments yet.")
     lines.extend(["", "## Recent Journal Events", ""])
@@ -285,11 +293,33 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.extend(["## Comments", ""])
     if comments:
         for comment in comments:
+            parent = comment.parent_comment_id or ""
             lines.append(
-                f"- `{comment.created_at}` `{comment.kind.value}` {comment.author}: {comment.body}"
+                f"- `{comment.created_at}` `{comment.kind.value}` "
+                f"thread=`{comment.thread_id}` parent=`{parent}` {comment.author}: {comment.body}"
             )
     else:
         lines.append("No comments yet.")
+    lines.append("")
+
+    threads = store.list_recent_comment_threads(ticket.id, limit=5)
+    lines.extend(["### Comment Threads", ""])
+    if threads:
+        lines.extend(
+            [
+                "| Thread | Comments | Root | Latest | Latest kind |",
+                "|---|---:|---|---|---|",
+            ]
+        )
+        for thread_comments in threads:
+            root = thread_comments[0]
+            latest = thread_comments[-1]
+            lines.append(
+                f"| `{root.thread_id}` | {len(thread_comments)} | {root.body} | "
+                f"`{latest.created_at}` | `{latest.kind.value}` |"
+            )
+    else:
+        lines.append("No comment threads yet.")
     lines.append("")
 
     runtime_events = store.list_runtime_events_for_ticket(ticket.id)

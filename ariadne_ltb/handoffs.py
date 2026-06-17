@@ -43,6 +43,7 @@ def record_handoff(
         CommentKind.HANDOFF,
         f"{from_agent} -> {to_agent}: {reason}",
         payload_ref=handoff.id,
+        thread_id=assignment_id,
     )
     store.append_runtime_event(
         runtime_event(

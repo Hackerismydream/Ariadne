@@ -71,6 +71,7 @@ def record_assignment_failure(
             f"(failure_reason={failure_reason.value}; retry={retry_recommendation})."
         ),
         payload_ref=updated_assignment.id,
+        thread_id=updated_assignment.id,
     )
     event = runtime_event(
         ticket,
@@ -118,4 +119,3 @@ def _retry_recommendation(ticket: BuildTicket, failure_reason: FailureReason) ->
     if failure_reason in SAFE_RETRY_FAILURE_REASONS:
         return f"ari ticket retry {ticket.key}"
     return "human_review_required"
-

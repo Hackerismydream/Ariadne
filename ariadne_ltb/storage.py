@@ -225,6 +225,7 @@ class AriadneStore:
             author="Ariadne",
             kind=CommentKind.ASSIGNMENT,
             body=f"Assignment created: {ticket.key} -> {agent.name}.",
+            thread_id=assignment.id,
             payload_ref=assignment.id,
         )
         self.append_comment(comment)
@@ -369,29 +370,83 @@ class AriadneStore:
         kind: CommentKind,
         body: str,
         payload_ref: str | None = None,
+        parent_comment_id: str | None = None,
+        thread_id: str | None = None,
     ) -> TicketComment:
+        parent = self.find_comment(ticket.id, parent_comment_id) if parent_comment_id else None
+        if parent_comment_id and parent is None:
+            msg = f"parent comment not found: {parent_comment_id}"
+            raise ValueError(msg)
+        if parent is not None and thread_id is not None and thread_id != parent.thread_id:
+            msg = f"thread_id does not match parent thread: {thread_id}"
+            raise ValueError(msg)
+        created_at = utc_now()
         comment = TicketComment(
-            id=stable_id("comment", ticket.id, author, kind.value, body, utc_now()),
+            id=stable_id("comment", ticket.id, author, kind.value, body, created_at),
             ticket_id=ticket.id,
             ticket_key=ticket.key,
             author_type=author_type,
             author=author,
             kind=kind,
             body=body,
+            parent_comment_id=parent_comment_id,
+            thread_id=parent.thread_id if parent else thread_id,
             payload_ref=payload_ref,
+            created_at=created_at,
         )
         self.append_comment(comment)
         return comment
 
-    def list_comments(self, ticket_id: str) -> list[TicketComment]:
+    def list_comments(
+        self,
+        ticket_id: str,
+        since: str | None = None,
+        tail: int | None = None,
+    ) -> list[TicketComment]:
         path = self.comments_dir / f"{ticket_id}.jsonl"
         if not path.exists():
             return []
-        return [
+        comments = [
             TicketComment.model_validate_json(line)
             for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
+        if since is not None:
+            comments = [comment for comment in comments if comment.created_at > since]
+        if tail is not None:
+            comments = comments[-tail:]
+        return comments
+
+    def find_comment(self, ticket_id: str, comment_id: str | None) -> TicketComment | None:
+        if comment_id is None:
+            return None
+        for comment in self.list_comments(ticket_id):
+            if comment.id == comment_id:
+                return comment
+        return None
+
+    def list_comment_roots(self, ticket_id: str) -> list[TicketComment]:
+        return [comment for comment in self.list_comments(ticket_id) if comment.parent_comment_id is None]
+
+    def list_comment_thread(self, ticket_id: str, thread_id_or_comment_id: str) -> list[TicketComment]:
+        comments = self.list_comments(ticket_id)
+        thread_id = thread_id_or_comment_id
+        for comment in comments:
+            if comment.id == thread_id_or_comment_id:
+                thread_id = comment.thread_id or comment.id
+                break
+        return [comment for comment in comments if comment.thread_id == thread_id]
+
+    def list_recent_comment_threads(self, ticket_id: str, limit: int = 5) -> list[list[TicketComment]]:
+        grouped: dict[str, list[TicketComment]] = {}
+        for comment in self.list_comments(ticket_id):
+            grouped.setdefault(comment.thread_id or comment.id, []).append(comment)
+        threads = sorted(
+            grouped.values(),
+            key=lambda thread: thread[-1].created_at if thread else "",
+            reverse=True,
+        )
+        return threads[:limit]
 
     def append_runtime_event(self, event: RuntimeEvent) -> None:
         with self.journal_path.open("a", encoding="utf-8") as handle:

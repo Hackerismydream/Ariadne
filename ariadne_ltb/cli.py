@@ -26,6 +26,7 @@ from ariadne_ltb.models import (
     CommentKind,
     ExecutionContext,
     ResumeSafety,
+    TicketComment,
     TicketStatus,
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
@@ -413,33 +414,95 @@ def ticket_assign(
 
 
 @ticket_app.command("comment")
-def ticket_comment(ticket_id: str, message: str) -> None:
+def ticket_comment(
+    ticket_id: str,
+    message: str,
+    reply_to: Annotated[str | None, typer.Option("--reply-to", help="Reply to an existing comment id.")] = None,
+) -> None:
     """Add a human comment to a Build Ticket."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
-    comment = store.add_comment(
-        ticket,
-        CommentAuthorType.HUMAN,
-        "human",
-        CommentKind.COMMENT,
-        message,
-    )
+    try:
+        comment = store.add_comment(
+            ticket,
+            CommentAuthorType.HUMAN,
+            "human",
+            CommentKind.COMMENT,
+            message,
+            parent_comment_id=reply_to,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
     typer.echo(f"comment: {comment.id}")
+    typer.echo(f"thread: {comment.thread_id}")
 
 
 @ticket_app.command("comments")
-def ticket_comments(ticket_id: str) -> None:
+def ticket_comments(
+    ticket_id: str,
+    roots: Annotated[bool, typer.Option("--roots", help="Show only root comments.")] = False,
+    thread: Annotated[str | None, typer.Option("--thread", help="Show one thread by thread id or comment id.")] = None,
+    recent_threads: Annotated[
+        int,
+        typer.Option("--recent-threads", "--recent", help="Show recent active threads."),
+    ] = 0,
+    tail: Annotated[int | None, typer.Option("--tail", help="Show the last N comments.")] = None,
+    since: Annotated[str | None, typer.Option("--since", help="Show comments created after this timestamp.")] = None,
+) -> None:
     """Show Build Ticket comments."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
-    comments = store.list_comments(ticket.id)
+    if sum([bool(roots), bool(thread), recent_threads > 0]) > 1:
+        typer.echo("Use only one of --roots, --thread, or --recent-threads.")
+        raise typer.Exit(2)
+    if tail is not None and tail < 1:
+        typer.echo("--tail must be greater than 0.")
+        raise typer.Exit(2)
+    if recent_threads < 0:
+        typer.echo("--recent-threads must be greater than or equal to 0.")
+        raise typer.Exit(2)
+    if recent_threads and (tail is not None or since is not None):
+        typer.echo("--recent-threads cannot be combined with --tail or --since.")
+        raise typer.Exit(2)
+    if thread:
+        comments = store.list_comment_thread(ticket.id, thread)
+    elif roots:
+        comments = store.list_comment_roots(ticket.id)
+    elif recent_threads:
+        threads = store.list_recent_comment_threads(ticket.id, limit=recent_threads)
+        if not threads:
+            typer.echo("No comments.")
+            return
+        for index, thread_comments in enumerate(threads, start=1):
+            root = thread_comments[0]
+            latest = thread_comments[-1]
+            typer.echo(
+                f"thread {index}: {root.thread_id}\tcomments={len(thread_comments)}\t"
+                f"latest={latest.created_at}\troot={root.body}"
+            )
+        return
+    else:
+        comments = store.list_comments(ticket.id, since=since, tail=tail)
+    if since is not None and (thread or roots):
+        comments = [comment for comment in comments if comment.created_at > since]
+    if tail is not None and (thread or roots):
+        comments = comments[-tail:]
     if not comments:
         typer.echo("No comments.")
         return
     for comment in comments:
-        typer.echo(
-            f"{comment.created_at}\t{comment.kind.value}\t{comment.author_type.value}:{comment.author}\t{comment.body}"
-        )
+        typer.echo(_format_comment(comment))
+
+
+def _format_comment(comment: TicketComment) -> str:
+    parent = comment.parent_comment_id or ""
+    return (
+        f"{comment.created_at}\t{comment.kind.value}\t"
+        f"{comment.author_type.value}:{comment.author}\t"
+        f"id={comment.id}\tthread={comment.thread_id}\tparent={parent}\t"
+        f"{comment.body}"
+    )
 
 
 @ticket_app.command("handoffs")
@@ -465,6 +528,7 @@ def ticket_resume(ticket_id: str) -> None:
     ticket = store.resolve_ticket(ticket_id)
     plan = build_resume_plan(store, ticket)
     if plan.safety is not ResumeSafety.SAFE_TO_RESUME:
+        assignment = store.find_latest_assignment_for_ticket(ticket.id)
         store.add_comment(
             ticket,
             CommentAuthorType.SYSTEM,
@@ -472,6 +536,7 @@ def ticket_resume(ticket_id: str) -> None:
             CommentKind.RECOVERY,
             f"Resume blocked: {'; '.join(plan.reasons)}",
             payload_ref=plan.id,
+            thread_id=assignment.id if assignment else None,
         )
         typer.echo(f"blocked: {plan.safety.value}")
         for reason in plan.reasons:

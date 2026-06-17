@@ -1550,3 +1550,73 @@ Known limitations:
   directories as first-class invariant reasons.
 - The message stream is pull-based through local files and CLI. It is not a
   WebSocket or hosted event stream.
+
+## Core Batch 11: Thread-Aware Comments
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-04 / LOC-9` by turning flat ticket comments into
+thread-aware local conversations while keeping old `.ariadne/comments/*.jsonl`
+records readable.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `ariadne_ltb/daemon.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/failure.py`
+- `ariadne_ltb/handoffs.py`
+- `ariadne_ltb/retry.py`
+- `tests/test_thread_comments.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- `TicketComment` now has `parent_comment_id` and `thread_id`.
+- Legacy comment JSONL without those fields still loads; legacy comments become
+  their own thread roots.
+- `AriadneStore.add_comment()` supports `parent_comment_id` replies and
+  explicit `thread_id` for system lifecycle threads.
+- Added comment query helpers for roots, one thread, recent active threads,
+  `since`, and `tail`.
+- `ari ticket comment <ticket> <message> --reply-to <comment-id>` creates a
+  threaded human reply.
+- `ari ticket comments` now supports `--roots`, `--thread`, `--recent` /
+  `--recent-threads`, `--tail`, and `--since`.
+- Assignment root comments use the assignment id as thread id.
+- Daemon claim/done comments, orchestrator progress/review/memory comments,
+  handoff comments, retry comments, and failure/blocker comments now attach to
+  the assignment thread when an assignment exists.
+- Board top-level Agent Comments shows recent active thread summaries.
+- Per-ticket board sections show comment ids, thread ids, parent ids, and a
+  `### Comment Threads` summary table.
+
+Safety boundaries:
+
+- This is a local JSONL schema evolution only; no server, auth, WebSocket, or
+  hosted comment service was introduced.
+- Existing comments are not rewritten or migrated.
+- Thread-aware comments do not perform retries or execution by themselves.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_thread_comments.py -q`: passed, 5 tests.
+- `python3.11 -m ruff check ariadne_ltb tests/test_thread_comments.py`: passed.
+- `python3.11 -m pytest`: passed, 139 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- There is no dedicated `ari ticket comments --json` output yet.
+- Recent-thread summaries are local CLI/board views, not a hosted inbox.
+- Store doctor validates comment JSONL syntax and model shape generically, but
+  does not yet report broken parent/thread links as a first-class invariant.

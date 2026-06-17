@@ -696,6 +696,7 @@ class TicketRunOrchestrator:
             kind,
             body,
             payload_ref=payload_ref,
+            thread_id=self.assignment_id,
         )
         self.store.append_runtime_event(
             event := runtime_event(

@@ -481,8 +481,16 @@ class TicketComment(AriadneModel):
     author: str
     kind: CommentKind = CommentKind.COMMENT
     body: str
+    parent_comment_id: str | None = None
+    thread_id: str | None = None
     payload_ref: str | None = None
     created_at: str = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def default_thread_id(self) -> TicketComment:
+        if self.thread_id is None:
+            self.thread_id = self.parent_comment_id or self.id
+        return self
 
 
 class RuntimeEvent(AriadneModel):

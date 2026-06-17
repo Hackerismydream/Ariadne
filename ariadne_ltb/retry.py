@@ -95,6 +95,7 @@ def create_retry_assignment(
         CommentKind.RECOVERY,
         f"Retry created: {retry.id} from {assignment.id} attempt {retry.attempt}.",
         payload_ref=retry.id,
+        thread_id=assignment.id,
     )
     store.append_runtime_event(
         runtime_event(

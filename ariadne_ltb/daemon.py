@@ -55,6 +55,7 @@ class LocalDaemonWorker:
             CommentKind.PROGRESS,
             f"{claimed.agent_name}: claimed {ticket.key}.",
             payload_ref=claimed.id,
+            thread_id=claimed.id,
         )
         claim_event = runtime_event(
             ticket,
@@ -176,6 +177,7 @@ class LocalDaemonWorker:
                 CommentKind.PROGRESS,
                 f"{done.agent_name}: assignment done for {ticket.key}.",
                 payload_ref=done.id,
+                thread_id=done.id,
             )
             done_event = runtime_event(
                 ticket,
