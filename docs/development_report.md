@@ -4338,3 +4338,63 @@ Result:
 - Production acceptance evidence is now discoverable through the same local
   search surface as tickets, comments, memory, artifacts, reviews, inbox,
   Feishu results, GitHub results, and execution results.
+
+## 2026-06-18 03:29 CST Board Production Acceptance Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Problem found during production-goal audit:
+
+- `ari doctor product` already reported `Production acceptance: ready`.
+- `ari evidence packet` already recorded real DeepSeek, Codex, Claude Code,
+  Feishu, and GitHub evidence.
+- The static board showed the release evidence packet path, but it did not
+  surface the production acceptance status, readiness checks, or real success
+  evidence near the top-level board summary.
+
+Implemented:
+
+- Added a `Production Acceptance Evidence` section to the exported markdown
+  board.
+- The section reads local `product_readiness.json` and
+  `release_evidence_packet.json` only; it does not perform external checks or
+  writes.
+- The board now shows:
+  - product readiness status;
+  - production acceptance status;
+  - run gate status;
+  - product readiness checks with next actions;
+  - real success evidence for LLM agents, Codex, Claude Code, Feishu, and
+    GitHub;
+  - latest failure evidence when present.
+- Added deterministic board test coverage for production acceptance evidence.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_board_ux.py -q`: passed, `6 passed`.
+- `python3.11 -m ruff check ariadne_ltb/board.py tests/test_v1_board_ux.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- Manual board inspection confirmed the generated board includes:
+  - `Production acceptance: ready`;
+  - `real_codex_execution_evidence: ready`;
+  - real Codex backend smoke evidence;
+  - real Claude Code backend smoke evidence;
+  - real Feishu document URL;
+  - real GitHub issue, PR, comment, and operation evidence.
+- Full `python3.11 -m pytest`: passed, `227 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict
+  `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored
+  `.env` remained redacted and no secret value was printed.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_c2e9b6a7219d` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.
+
+Result:
+
+- The static board is now a top-level review surface for production acceptance
+  evidence, instead of requiring reviewers to inspect doctor JSON or release
+  evidence JSON directly.

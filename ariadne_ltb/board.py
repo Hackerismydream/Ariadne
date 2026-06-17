@@ -105,9 +105,9 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         f"- Release evidence packet: `{'present' if evidence_packet_exists else 'missing'}`",
         f"- Release evidence path: `{store.release_evidence_packet_path}`",
         "",
-        "## Agent Queue",
-        "",
     ]
+    lines.extend(_production_acceptance_lines(store))
+    lines.extend(["## Agent Queue", ""])
     if assignments:
         for assignment in assignments[-10:]:
             lines.append(
@@ -242,6 +242,116 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         lines.append("Store invariant doctor has not been run yet.")
     lines.append("")
     return lines
+
+
+def _production_acceptance_lines(store: AriadneStore) -> list[str]:
+    product_readiness_path = store.doctor_dir / "product_readiness.json"
+    product_readiness = _safe_read_json(product_readiness_path)
+    release_packet = _safe_read_json(store.release_evidence_packet_path)
+    evidence = product_readiness or release_packet
+    lines = ["## Production Acceptance Evidence", ""]
+    if not evidence:
+        lines.extend(
+            [
+                "No production acceptance evidence found. Run `ari doctor product` or `ari evidence packet`.",
+                "",
+            ]
+        )
+        return lines
+
+    product_status = evidence.get("overall_status") or evidence.get("product_readiness_status") or "unknown"
+    acceptance_status = (
+        evidence.get("production_acceptance_status")
+        or evidence.get("production_acceptance")
+        or "unknown"
+    )
+    run_gate_status = evidence.get("run_gate_status") or "unknown"
+    lines.extend(
+        [
+            f"- Product readiness: `{product_status}`",
+            f"- Production acceptance: `{acceptance_status}`",
+            f"- Run gates: `{run_gate_status}`",
+            f"- Product readiness report: `{product_readiness_path}`",
+            f"- Release evidence packet: `{store.release_evidence_packet_path}`",
+            "",
+            "### Product Readiness Checks",
+            "",
+            "| Check | Status | Next action |",
+            "|---|---|---|",
+        ]
+    )
+
+    checks = evidence.get("checks")
+    if isinstance(checks, list):
+        for check in checks:
+            lines.append(
+                f"| `{check.get('name', '')}` | `{check.get('status', '')}` | "
+                f"{check.get('next_action') or ''} |"
+            )
+    else:
+        for name, status in sorted((evidence.get("product_readiness_checks") or {}).items()):
+            lines.append(f"| `{name}` | `{status}` |  |")
+    if not checks and not evidence.get("product_readiness_checks"):
+        lines.append("| `missing` | `unknown` | Run `ari doctor product`. |")
+
+    success = evidence.get("real_success_evidence") or {}
+    failure = evidence.get("real_failure_evidence") or {}
+    lines.extend(["", "### Real Success Evidence", ""])
+    if success:
+        for name in sorted(success):
+            lines.append(f"- `{name}`: {_summarize_evidence_value(success.get(name))}")
+    else:
+        lines.append("No real success evidence recorded yet.")
+
+    lines.extend(["", "### Latest Failure Evidence", ""])
+    if failure and any(value for value in failure.values()):
+        for name in sorted(failure):
+            value = failure.get(name)
+            if value:
+                lines.append(f"- `{name}`: {_summarize_evidence_value(value)}")
+    else:
+        lines.append("No latest failure evidence recorded.")
+    lines.append("")
+    return lines
+
+
+def _summarize_evidence_value(value: object) -> str:
+    if not value:
+        return "`missing`"
+    if not isinstance(value, dict):
+        return f"`{value}`"
+    parts: list[str] = []
+    for key in [
+        "id",
+        "source",
+        "backend",
+        "backend_name",
+        "ticket_key",
+        "execution_result_id",
+        "document_url",
+        "issue_url",
+        "pr_url",
+        "comment_url",
+    ]:
+        item = value.get(key)
+        if item:
+            parts.append(f"{key}=`{item}`")
+    operations = value.get("operations")
+    if isinstance(operations, dict):
+        ready = ", ".join(sorted(key for key, ok in operations.items() if ok))
+        if ready:
+            parts.append(f"operations=`{ready}`")
+    return "; ".join(parts) if parts else "`recorded`"
+
+
+def _safe_read_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _store_invariant_status(report: StoreInvariantReport | None) -> str:

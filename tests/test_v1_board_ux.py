@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.cli import app
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import GitHubIntegrationResult
+from ariadne_ltb.models import GitHubIntegrationResult, ReleaseEvidencePacket
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 
@@ -104,6 +104,53 @@ def test_board_shows_github_status_evidence(tmp_path: Path) -> None:
     assert "- Checks status: `no_checks_reported`" in board
     assert "- Checks summary: pass=`0` pending=`0` fail=`0` total=`0`" in board
     assert "- Recent GitHub operations:" in board
+
+
+def test_board_shows_production_acceptance_evidence(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, [SOURCE_FIXTURES[2]])
+    store.save_release_evidence_packet(
+        ReleaseEvidencePacket(
+            id="release_evidence_board",
+            root_path=str(tmp_path),
+            product_readiness_status="action_required",
+            production_acceptance_status="ready",
+            run_gate_status="action_required",
+            product_readiness_checks={
+                "real_codex_execution_evidence": "ready",
+                "real_claude_execution_evidence": "ready",
+                "real_feishu_write_evidence": "ready",
+            },
+            real_success_evidence={
+                "codex": {
+                    "id": "backend_smoke_codex",
+                    "source": "backend_smoke",
+                    "ticket_key": "ARI-003",
+                    "execution_result_id": "execution_codex",
+                },
+                "github": {
+                    "operations": {
+                        "create_issue": True,
+                        "create_pr": True,
+                        "sync": True,
+                        "status": True,
+                    },
+                    "issue_url": "https://github.com/Hackerismydream/Ariadne/issues/8",
+                    "pr_url": "https://github.com/Hackerismydream/Ariadne/pull/9",
+                },
+            },
+        )
+    )
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "export", "board"])
+    board = (tmp_path / ".ariadne" / "board" / "index.md").read_text(encoding="utf-8")
+
+    assert result.exit_code == 0, result.output
+    assert "## Production Acceptance Evidence" in board
+    assert "- Production acceptance: `ready`" in board
+    assert "| `real_codex_execution_evidence` | `ready` |  |" in board
+    assert "`codex`: id=`backend_smoke_codex`; source=`backend_smoke`; ticket_key=`ARI-003`" in board
+    assert "`github`: issue_url=`https://github.com/Hackerismydream/Ariadne/issues/8`" in board
 
 
 def test_board_counts_completed_failed_github_checks_as_failures(tmp_path: Path) -> None:
