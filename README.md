@@ -474,7 +474,9 @@ runtime capabilities, store invariants, secret scan status, board path, and
 managed workdirs. `ari doctor product` writes
 `.ariadne/doctor/product_readiness.json` with production-path readiness checks
 and next actions. The product doctor checks both local integration readiness and
-recorded real-success evidence for Codex, Claude Code, Feishu, and GitHub; unset
+recorded real-success evidence for Codex, Claude Code, Feishu, and GitHub; GitHub
+acceptance is checked at the operation level and requires issue creation, PR
+creation, issue comment sync, and status snapshot evidence. Unset
 write/execution gates are reported as `action_required` instead of being hidden.
 `ari evidence packet` also embeds the product readiness status, readiness check
 statuses, production acceptance status, run-gate status, real-success evidence

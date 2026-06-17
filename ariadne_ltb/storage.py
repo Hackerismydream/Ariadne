@@ -980,4 +980,7 @@ def is_assignment_lease_expired(assignment: TicketAssignment, now: datetime | No
 
 
 def _github_operation_order(operation: str) -> int:
-    return {"link": 0, "sync": 1}.get(operation, 2)
+    return {"link": 0, "create_issue": 1, "create_pr": 2, "sync": 3, "status": 4}.get(
+        operation,
+        5,
+    )

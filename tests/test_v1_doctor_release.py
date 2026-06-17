@@ -36,6 +36,77 @@ def _seed_release_packet(root: Path) -> None:
     )
 
 
+def _seed_full_github_product_evidence(store: AriadneStore) -> None:
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_issue_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            operation="create_issue",
+            ok=True,
+            blocked=False,
+            repo="owner/repo",
+            issue_number=42,
+            issue_url="https://github.com/owner/repo/issues/42",
+            branch="codex/product",
+            commit_sha="abc123",
+        )
+    )
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_pr_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            operation="create_pr",
+            ok=True,
+            blocked=False,
+            repo="owner/repo",
+            issue_number=42,
+            issue_url="https://github.com/owner/repo/issues/42",
+            pr_number=11,
+            pr_url="https://github.com/owner/repo/pull/11",
+            branch="codex/product",
+            commit_sha="abc123",
+        )
+    )
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_sync_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            operation="sync",
+            ok=True,
+            blocked=False,
+            repo="owner/repo",
+            issue_number=42,
+            issue_url="https://github.com/owner/repo/issues/42",
+            pr_number=11,
+            pr_url="https://github.com/owner/repo/pull/11",
+            comment_url="https://github.com/owner/repo/issues/42#issuecomment-1",
+            branch="codex/product",
+            commit_sha="abc123",
+        )
+    )
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_status_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            operation="status",
+            ok=True,
+            blocked=False,
+            repo="owner/repo",
+            issue_number=42,
+            issue_url="https://github.com/owner/repo/issues/42",
+            pr_number=11,
+            pr_url="https://github.com/owner/repo/pull/11",
+            branch="codex/product",
+            commit_sha="abc123",
+            evidence={"checks_status": "captured"},
+        )
+    )
+
+
 def test_doctor_secrets_does_not_print_secret_values(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
     monkeypatch.setenv("FEISHU_APP_SECRET", "do-not-leak-feishu")
@@ -239,6 +310,10 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     assert statuses["real_claude_execution_evidence"] == "action_required"
     assert statuses["real_feishu_write_evidence"] == "action_required"
     assert statuses["real_github_write_evidence"] == "action_required"
+    assert statuses["real_github_issue_evidence"] == "action_required"
+    assert statuses["real_github_pr_evidence"] == "action_required"
+    assert statuses["real_github_comment_evidence"] == "action_required"
+    assert statuses["real_github_status_evidence"] == "action_required"
     assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
 
 
@@ -293,22 +368,7 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
             operation_summary="Created Feishu doc.",
         )
     )
-    store.save_github_integration_result(
-        GitHubIntegrationResult(
-            id="github_success",
-            ticket_id="ticket_ari_003",
-            ticket_key="ARI-003",
-            operation="sync",
-            ok=True,
-            blocked=False,
-            repo="owner/repo",
-            issue_number=42,
-            issue_url="https://github.com/owner/repo/issues/42",
-            comment_url="https://github.com/owner/repo/issues/42#issuecomment-1",
-            branch="codex/product",
-            commit_sha="abc123",
-        )
-    )
+    _seed_full_github_product_evidence(store)
 
     def fake_which(command: str) -> str | None:
         return {
@@ -356,9 +416,130 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert statuses["real_claude_execution_evidence"] == "ready"
     assert statuses["real_feishu_write_evidence"] == "ready"
     assert statuses["real_github_write_evidence"] == "ready"
+    assert statuses["real_github_issue_evidence"] == "ready"
+    assert statuses["real_github_pr_evidence"] == "ready"
+    assert statuses["real_github_comment_evidence"] == "ready"
+    assert statuses["real_github_status_evidence"] == "ready"
     assert snapshot["real_success_evidence"]["codex"]["id"] == "exec_codex_success"
     assert snapshot["real_success_evidence"]["feishu"]["id"] == "feishu_success"
+    assert snapshot["real_success_evidence"]["github"]["operations"] == {
+        "create_issue": True,
+        "create_pr": True,
+        "status": True,
+        "sync": True,
+    }
     assert "do-not-leak" not in json.dumps(snapshot)
+
+
+def test_doctor_product_does_not_accept_partial_github_evidence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("FEISHU_ENABLE_WRITE", "1")
+
+    store = AriadneStore(tmp_path)
+    _seed_release_packet(tmp_path)
+    store.save_execution_result(
+        ExecutionResult(
+            id="exec_codex_success",
+            ticket_id="ticket_ari_003",
+            backend_name="codex",
+            dry_run=False,
+            blocked=False,
+            command="codex exec --cd /repo --prompt-file handoff.md",
+            exit_code=0,
+            changed_files=["demo_todo/cli.py"],
+            test_command="pytest",
+            test_exit_code=0,
+        )
+    )
+    store.save_execution_result(
+        ExecutionResult(
+            id="exec_claude_success",
+            ticket_id="ticket_ari_003",
+            backend_name="claude-code",
+            dry_run=False,
+            blocked=False,
+            command="claude --print < handoff.md",
+            exit_code=0,
+            changed_files=["tests/test_cli.py"],
+            test_command="pytest",
+            test_exit_code=0,
+        )
+    )
+    store.save_feishu_write_result(
+        FeishuWriteResult(
+            id="feishu_success",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            plan_id="feishu_plan",
+            ok=True,
+            blocked=False,
+            dry_run=False,
+            command="lark-cli docs create @content.md",
+            returncode=0,
+            document_id="doc_123",
+            document_url="https://example.feishu.cn/docx/doc_123",
+            operation_summary="Created Feishu doc.",
+        )
+    )
+    store.save_github_integration_result(
+        GitHubIntegrationResult(
+            id="github_sync_only",
+            ticket_id="ticket_ari_003",
+            ticket_key="ARI-003",
+            operation="sync",
+            ok=True,
+            blocked=False,
+            repo="owner/repo",
+            issue_number=42,
+            issue_url="https://github.com/owner/repo/issues/42",
+            comment_url="https://github.com/owner/repo/issues/42#issuecomment-1",
+            branch="codex/product",
+            commit_sha="abc123",
+        )
+    )
+
+    monkeypatch.setattr(
+        "ariadne_ltb.runtime.shutil.which",
+        lambda command: {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command),
+    )
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", lambda command: "/usr/local/bin/gh")
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr(
+        "ariadne_ltb.github_integration.shutil.which",
+        lambda command: "/usr/local/bin/gh",
+    )
+    monkeypatch.setattr(
+        "ariadne_ltb.github_integration.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "ok\n", ""),
+    )
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "product"])
+
+    assert result.exit_code == 0, result.output
+    snapshot = json.loads(
+        (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").read_text(encoding="utf-8")
+    )
+    statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
+    assert snapshot["production_acceptance_status"] == "action_required"
+    assert statuses["real_github_write_evidence"] == "action_required"
+    assert statuses["real_github_comment_evidence"] == "ready"
+    assert statuses["real_github_issue_evidence"] == "action_required"
+    assert statuses["real_github_pr_evidence"] == "action_required"
+    assert statuses["real_github_status_evidence"] == "action_required"
+    assert snapshot["real_success_evidence"]["github"] is None
+    assert snapshot["real_failure_evidence"]["github"] is None
 
 
 def test_doctor_product_separates_acceptance_from_unset_run_gates(
@@ -413,21 +594,7 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
             operation_summary="Created Feishu doc.",
         )
     )
-    store.save_github_integration_result(
-        GitHubIntegrationResult(
-            id="github_success",
-            ticket_id="ticket_ari_003",
-            ticket_key="ARI-003",
-            operation="sync",
-            ok=True,
-            blocked=False,
-            repo="owner/repo",
-            issue_number=42,
-            comment_url="https://github.com/owner/repo/issues/42#issuecomment-1",
-            branch="codex/product",
-            commit_sha="abc123",
-        )
-    )
+    _seed_full_github_product_evidence(store)
 
     def fake_which(command: str) -> str | None:
         return {

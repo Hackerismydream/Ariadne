@@ -217,8 +217,39 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
         _product_evidence_check(
             "real_github_write_evidence",
             real_evidence["github"],
-            "A real GitHub write succeeded and produced remote evidence.",
-            "Run `ari github create-issue` or `ari github sync` with `--confirm-write`.",
+            "Real GitHub issue, PR, comment, and status evidence succeeded.",
+            (
+                "Run `ari github create-issue`, `ari github create-pr`, "
+                "`ari github sync`, and `ari github status` for a linked ticket."
+            ),
+        ),
+        _product_github_operation_check(
+            "real_github_issue_evidence",
+            real_evidence["github"],
+            "create_issue",
+            "A real GitHub issue was created from an Ariadne ticket.",
+            "Run `ari github create-issue <ticket> --confirm-write`.",
+        ),
+        _product_github_operation_check(
+            "real_github_pr_evidence",
+            real_evidence["github"],
+            "create_pr",
+            "A real GitHub PR was created from an Ariadne ticket.",
+            "Run `ari github create-pr <ticket> --confirm-write`.",
+        ),
+        _product_github_operation_check(
+            "real_github_comment_evidence",
+            real_evidence["github"],
+            "sync",
+            "A real GitHub issue comment sync was posted.",
+            "Run `ari github sync <ticket> --confirm-write`.",
+        ),
+        _product_github_operation_check(
+            "real_github_status_evidence",
+            real_evidence["github"],
+            "status",
+            "A real GitHub issue/PR/status snapshot was captured.",
+            "Run `ari github status <ticket>`.",
         ),
     ]
     blocking = [check for check in checks if check["status"] == "blocked"]
@@ -428,6 +459,29 @@ def _product_evidence_check(
     }
 
 
+def _product_github_operation_check(
+    name: str,
+    evidence: dict[str, Any],
+    operation: str,
+    ready_summary: str,
+    next_action: str,
+) -> dict[str, Any]:
+    operation_successes = evidence.get("operation_successes") or {}
+    if operation_successes.get(operation):
+        return {
+            "name": name,
+            "status": "ready",
+            "summary": ready_summary,
+            "next_action": "",
+        }
+    return {
+        "name": name,
+        "status": "action_required",
+        "summary": next_action,
+        "next_action": next_action,
+    }
+
+
 def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
     path = store.release_evidence_packet_path
     if not path.exists():
@@ -498,14 +552,47 @@ def _feishu_evidence(results: list[Any]) -> dict[str, Any]:
 
 
 def _github_evidence(results: list[Any]) -> dict[str, Any]:
-    write_operations = {"create_issue", "create_pr", "sync"}
-    matching = [result for result in results if result.operation in write_operations]
-    successes = [result for result in matching if result.ok and not result.blocked]
+    required_operations = ("create_issue", "create_pr", "sync", "status")
+    matching = [result for result in results if result.operation in set(required_operations)]
+    successes = [
+        result
+        for result in matching
+        if result.ok and not result.blocked and _github_result_satisfies_operation(result)
+    ]
     failures = [result for result in matching if not result.ok or result.blocked]
+    operation_successes: dict[str, Any] = {}
+    for operation in required_operations:
+        latest = _latest_by_time(
+            [result for result in successes if result.operation == operation],
+            "created_at",
+        )
+        operation_successes[operation] = _github_summary(latest)
+    missing_operations = [
+        operation for operation, evidence in operation_successes.items() if not evidence
+    ]
+    aggregate_success = (
+        _github_aggregate_summary(operation_successes)
+        if not missing_operations
+        else None
+    )
     return {
-        "success": _github_summary(_latest_by_time(successes, "created_at")),
+        "success": aggregate_success,
+        "operation_successes": operation_successes,
+        "missing_operations": missing_operations,
         "latest_failure": _integration_failure_summary(_latest_by_time(failures, "created_at")),
     }
+
+
+def _github_result_satisfies_operation(result: Any) -> bool:
+    if result.operation == "create_issue":
+        return bool(result.issue_number and result.issue_url and result.repo)
+    if result.operation == "create_pr":
+        return bool(result.pr_number and result.pr_url and result.branch and result.repo)
+    if result.operation == "sync":
+        return bool(result.issue_number and result.comment_url and result.repo)
+    if result.operation == "status":
+        return bool(result.repo and result.branch and (result.issue_url or result.pr_url or result.commit_sha))
+    return False
 
 
 def _latest_by_time(items: list[Any], field_name: str) -> Any | None:
@@ -577,6 +664,35 @@ def _github_summary(result: Any | None) -> dict[str, Any] | None:
         "pr_url": result.pr_url,
         "comment_url": result.comment_url,
         "created_at": result.created_at,
+    }
+
+
+def _github_aggregate_summary(operation_successes: dict[str, Any]) -> dict[str, Any]:
+    latest = next(
+        (
+            operation_successes[operation]
+            for operation in ("status", "sync", "create_pr", "create_issue")
+            if operation_successes.get(operation)
+        ),
+        {},
+    )
+    return {
+        "operations": {
+            operation: bool(summary)
+            for operation, summary in sorted(operation_successes.items())
+        },
+        "latest_id": latest.get("id"),
+        "ticket_id": latest.get("ticket_id"),
+        "ticket_key": latest.get("ticket_key"),
+        "repo": latest.get("repo"),
+        "issue_number": latest.get("issue_number"),
+        "pr_number": latest.get("pr_number"),
+        "branch": latest.get("branch"),
+        "commit_sha": latest.get("commit_sha"),
+        "issue_url": latest.get("issue_url"),
+        "pr_url": latest.get("pr_url"),
+        "comment_url": operation_successes.get("sync", {}).get("comment_url"),
+        "created_at": latest.get("created_at"),
     }
 
 

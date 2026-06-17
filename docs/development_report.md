@@ -3507,3 +3507,64 @@ Verification so far:
   is still reported with redacted secret values.
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_6497590a3c9a` and verified workbench data sync/build.
+
+## 2026-06-18 01:46 CST GitHub Product Evidence Coverage Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The production roadmap requires real GitHub issue, PR, branch, status, and
+  comment integration.
+- Before this slice, `ari doctor product` treated any successful GitHub write
+  result as enough GitHub product evidence. A successful issue comment sync could
+  make GitHub look production-ready even if PR creation or status capture had
+  never produced evidence.
+
+Implemented:
+
+- Upgraded product doctor GitHub evidence from a single latest-success check to
+  operation-level coverage.
+- `real_github_write_evidence` is now an aggregate check that is ready only when
+  all required GitHub operations have successful evidence:
+  - `create_issue`
+  - `create_pr`
+  - `sync`
+  - `status`
+- Added visible product checks:
+  - `real_github_issue_evidence`
+  - `real_github_pr_evidence`
+  - `real_github_comment_evidence`
+  - `real_github_status_evidence`
+- Release evidence now embeds the aggregate GitHub operation coverage through
+  `real_success_evidence.github.operations`.
+- Updated README to explain that GitHub product acceptance requires issue, PR,
+  comment sync, and status snapshot evidence.
+
+Behavioral impact:
+
+- A single successful `ari github sync` no longer satisfies production
+  acceptance for GitHub.
+- Full GitHub product acceptance requires persisted successful results from
+  issue creation, PR creation, comment sync, and status read.
+- No new remote writes are performed by the doctor; it only evaluates persisted
+  local evidence.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py tests/test_release_evidence.py tests/test_github_integration.py -q`:
+  passed, `24 passed`.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and now reports
+  `real_github_issue_evidence`, `real_github_pr_evidence`,
+  `real_github_comment_evidence`, and `real_github_status_evidence` separately.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json`: passed and
+  includes `real_success_evidence.github.operations`.
+- `python3.11 -m pytest`: passed, `212 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; this remains explicit
+  offline regression with `fake-codex`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  is still reported with redacted secret values.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_95ae65cdd2bf` and verified workbench data sync/build.
