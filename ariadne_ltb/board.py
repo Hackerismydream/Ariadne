@@ -110,6 +110,16 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
             )
     else:
         lines.append("No assignments yet.")
+    lines.extend(["", "## Build Teams", ""])
+    teams = store.ensure_default_build_teams()
+    if teams:
+        for team in teams:
+            lines.append(
+                f"- `{team.id}` {team.name} lead=`{team.lead_agent_id}` "
+                f"implementer=`{team.implementer_agent_id}` backend=`{team.default_backend_name}`"
+            )
+    else:
+        lines.append("No Build Teams configured.")
     lines.extend(["", "## Active Assignments", ""])
     if open_assignments:
         for assignment in open_assignments:
@@ -427,6 +437,8 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.extend(["### Route Decision", ""])
     if route_decision:
         lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.ROUTE_DECISION)}`")
+        lines.append(f"- Build Team: `{route_decision.get('build_team_id') or ''}`")
+        lines.append(f"- Selected agent: `{route_decision.get('selected_agent_id') or ''}`")
         lines.append(f"- Backend: `{route_decision.get('backend_name')}`")
         lines.append(f"- Planner: `{route_decision.get('planner_name')}`")
         lines.append(f"- Target repo: `{route_decision.get('target_repo_path')}`")

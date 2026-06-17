@@ -12,6 +12,7 @@ from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_safety import DirectoryLock, list_locks
 from ariadne_ltb.models import (
     AssignmentStatus,
+    ArtifactType,
     CommentKind,
     RuntimeEvent,
 )
@@ -39,6 +40,23 @@ def test_default_agent_profiles_and_cli_list(tmp_path: Path) -> None:
     assert "claude-code" in result.output
 
 
+def test_default_build_team_and_cli_show(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    teams = store.ensure_default_build_teams()
+    runner = CliRunner()
+
+    listing = runner.invoke(app, ["--root", str(tmp_path), "team", "list"])
+    show = runner.invoke(app, ["--root", str(tmp_path), "team", "show", "build-team"])
+
+    assert {team.id for team in teams} == {"build-team"}
+    assert listing.exit_code == 0, listing.output
+    assert "Ariadne Build Team" in listing.output
+    assert "implementer=fake-codex" in listing.output
+    assert show.exit_code == 0, show.output
+    assert "lead: build-lead" in show.output
+    assert "backend: fake-codex" in show.output
+
+
 def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
@@ -63,6 +81,73 @@ def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) ->
     assert any(comment.kind is CommentKind.ASSIGNMENT for comment in comments)
     assert any(event.stage == "assignment" and event.event_type == "queued" for event in events)
     assert all(event.idempotency_key for event in events)
+
+
+def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "build-team"],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    route_artifacts = [
+        artifact for artifact in artifacts if artifact.artifact_type is ArtifactType.ROUTE_DECISION
+    ]
+    route_json = json.loads(Path(route_artifacts[-1].path).read_text(encoding="utf-8"))
+    comments = store.list_comments(ticket.id)
+    events = store.list_runtime_events_for_ticket(ticket.id)
+    board = (store.board_dir / "index.md")
+
+    assert result.exit_code == 0, result.output
+    assert "Build Team routed: build-team" in result.output
+    assert assignment is not None
+    assert assignment.agent_id == "fake-codex"
+    assert assignment.backend_name == "fake-codex"
+    assert assignment.assigned_by == "Build Lead"
+    assert assignment.metadata["build_team_id"] == "build-team"
+    assert ticket.metadata["assigned_team_id"] == "build-team"
+    assert ticket.metadata["latest_route_decision_artifact_id"] == route_artifacts[-1].id
+    assert route_json["build_team_id"] == "build-team"
+    assert route_json["selected_agent_id"] == "fake-codex"
+    assert route_json["backend_name"] == "fake-codex"
+    assert route_json["team_role_agent_ids"]["reviewer"] == "reviewer"
+    assert route_json["team_role_agent_ids"]["memory"] == "memory"
+    assert any(comment.kind is CommentKind.ROUTE for comment in comments)
+    assert any(event.stage == "route" and event.event_type == "succeeded" for event in events)
+
+    from ariadne_ltb.board import export_board
+
+    export_board(store)
+    board_text = board.read_text(encoding="utf-8")
+    assert "## Build Teams" in board_text
+    assert "Build Team: `build-team`" in board_text
+    assert "Selected agent: `fake-codex`" in board_text
+
+
+def test_daemon_runs_build_team_assignment(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    assign = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "build-team"],
+    )
+    assert assign.exit_code == 0, assign.output
+
+    result = LocalDaemonWorker(store).run_once()
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+
+    assert result.did_work is True
+    assert result.ticket_run_result is not None
+    assert assignment is not None
+    assert assignment.status is AssignmentStatus.DONE
+    assert result.ticket_run_result.review_verdict == "pass"
 
 
 def test_human_comment_cli_and_ticket_comments(tmp_path: Path) -> None:

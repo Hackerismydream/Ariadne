@@ -20,6 +20,7 @@ from ariadne_ltb.models import (
     AssignmentStatus,
     BacklogUpdate,
     BuildPacket,
+    BuildTeam,
     BuildTicket,
     CommentAuthorType,
     CommentKind,
@@ -53,6 +54,7 @@ class AriadneStore:
         self.project_space_path = self.base / "project_space.json"
         self.agents_dir = self.base / "agents"
         self.agent_profiles_path = self.agents_dir / "profiles.json"
+        self.build_teams_path = self.agents_dir / "teams.json"
         self.assignments_dir = self.base / "assignments"
         self.assignment_claim_lock_path = self.assignments_dir / ".claim.lock"
         self.comments_dir = self.base / "comments"
@@ -174,6 +176,47 @@ class AriadneStore:
                     raise ValueError(msg)
                 return profile
         msg = f"unknown agent profile: {agent_id_or_name}"
+        raise FileNotFoundError(msg)
+
+    def save_build_teams(self, teams: list[BuildTeam]) -> None:
+        self.build_teams_path.write_text(
+            json.dumps(
+                {"teams": [team.model_dump(mode="json") for team in teams]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def load_build_teams(self) -> list[BuildTeam]:
+        if not self.build_teams_path.exists():
+            return []
+        data = json.loads(self.build_teams_path.read_text(encoding="utf-8"))
+        return [BuildTeam.model_validate(item) for item in data.get("teams", [])]
+
+    def ensure_default_build_teams(self) -> list[BuildTeam]:
+        teams = self.load_build_teams()
+        existing = {team.id: team for team in teams}
+        defaults = _default_build_teams()
+        changed = False
+        for team in defaults:
+            if team.id not in existing:
+                existing[team.id] = team
+                changed = True
+        merged = sorted(existing.values(), key=lambda team: team.id)
+        if changed or not teams:
+            self.save_build_teams(merged)
+        return merged
+
+    def resolve_build_team(self, team_id_or_name: str) -> BuildTeam:
+        normalized = team_id_or_name.lower()
+        for team in self.ensure_default_build_teams():
+            if team.id.lower() == normalized or team.name.lower() == normalized:
+                if not team.enabled:
+                    msg = f"build team is disabled: {team_id_or_name}"
+                    raise ValueError(msg)
+                return team
+        msg = f"unknown build team: {team_id_or_name}"
         raise FileNotFoundError(msg)
 
     def save_ticket(self, ticket: BuildTicket) -> None:
@@ -810,6 +853,27 @@ def _default_agent_profiles() -> list[AgentProfile]:
             description="Writes local memory and Feishu dry-run plans.",
             capabilities=["memory", "feishu_dry_run", "next_tickets"],
         ),
+    ]
+
+
+def _default_build_teams() -> list[BuildTeam]:
+    return [
+        BuildTeam(
+            id="build-team",
+            name="Ariadne Build Team",
+            description=(
+                "Local Build Lead routing team: route ticket to implementer, "
+                "then review, memory, and backlog update through the standard runtime loop."
+            ),
+            lead_agent_id="build-lead",
+            implementer_agent_id="fake-codex",
+            reviewer_agent_id="reviewer",
+            memory_agent_id="memory",
+            default_backend_name="fake-codex",
+            planner_name="deterministic",
+            skill_refs=["codex-handoff", "review-diff", "feishu-write-plan"],
+            resource_policy="local_project_resources",
+        )
     ]
 
 

@@ -1782,3 +1782,83 @@ Known limitations:
   review UI beyond CLI and static board export.
 - Generated follow-up tickets use review-source documents derived from
   `next_tickets.json`; richer source provenance can be added later.
+
+## Core Batch 14: Build Team / Squad Routing
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-07 / LOC-12` by adding a local Multica-style
+Build Team routing layer without introducing a hosted squad service.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/team.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `tests/test_agent_teammate_mode.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `BuildTeam` as a local-first team configuration model.
+- Added default `build-team` / `Ariadne Build Team` with Build Lead,
+  implementer, reviewer, and memory role mappings.
+- Added `.ariadne/agents/teams.json` persistence with default-team bootstrapping.
+- Added `ari team list` and `ari team show <team>`.
+- `ari ticket assign <ticket> --to build-team` now routes through Build Lead,
+  writes `route_decision.json`, comments on the assignment thread, writes a
+  runtime route event, and creates the selected implementer assignment.
+- Route decisions now include `build_team_id`, `build_team_name`,
+  `team_role_agent_ids`, `selected_agent_id`, and `selected_agent_name`.
+- The static board shows configured Build Teams and per-ticket route team /
+  selected agent details.
+- Existing direct agent assignment remains unchanged.
+
+Safety boundaries:
+
+- Build Team routing is local JSON state, not a Multica server clone.
+- No Postgres, WebSocket, multi-workspace auth, hosted queue, default external
+  execution, real Feishu write, commit, push, merge, or PR creation was added.
+- Team routing delegates to the existing assignment and daemon runtime path.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_agent_teammate_mode.py -q`: passed, 12
+  tests.
+- `python3.11 -m pytest tests/test_multica_alignment.py tests/test_v1_daemon_supervision.py tests/test_true_mvp_product_loop.py -q`:
+  passed, 26 tests.
+- `python3.11 -m pytest tests/test_agent_teammate_mode.py tests/test_multica_alignment.py -q`:
+  passed, 19 tests.
+- `python3.11 -m ruff check ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/team.py ariadne_ltb/cli.py ariadne_ltb/board.py tests/test_agent_teammate_mode.py`:
+  passed.
+- `python3.11 -m pytest`: passed, 149 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli team list`: passed.
+- `python3.11 -m ariadne_ltb.cli team show build-team`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket list`: passed.
+- `python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to build-team`:
+  passed and wrote a route decision artifact.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; no secrets were
+  printed and external execution remained disabled.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+- Optional `uv run ari team list`: passed.
+- Optional `uv run ari team show build-team`: passed.
+- Optional `uv run ari demo full`: passed.
+- Optional `uv run ari export board`: passed.
+- Optional `uv run ari backend doctor`: passed.
+
+Known limitations:
+
+- Build Team selection is deterministic configuration, not learned routing.
+- Only the implementer assignment is queued explicitly; reviewer and memory
+  roles still run inside the existing `TicketRunOrchestrator` loop.
+- Team configuration has no CLI mutation command yet; defaults are bootstrapped
+  and custom teams can be edited through the local JSON file.

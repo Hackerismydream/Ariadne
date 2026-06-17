@@ -37,9 +37,11 @@ from ariadne_ltb.review import review_execution
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
+from ariadne_ltb.team import route_ticket_to_build_team
 
 app = typer.Typer(help="Ariadne local deterministic Learning-to-Build workbench.")
 agent_app = typer.Typer(help="Agent teammate commands.")
+team_app = typer.Typer(help="Build Team routing commands.")
 assignment_app = typer.Typer(help="Assignment queue commands.")
 ticket_app = typer.Typer(help="Build Ticket commands.")
 export_app = typer.Typer(help="Export commands.")
@@ -52,6 +54,7 @@ board_app = typer.Typer(help="Local board commands.")
 doctor_app = typer.Typer(help="Release and safety doctors.")
 backlog_app = typer.Typer(help="Ticket backlog update commands.")
 app.add_typer(agent_app, name="agent")
+app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
 app.add_typer(ticket_app, name="ticket")
 app.add_typer(export_app, name="export")
@@ -219,6 +222,37 @@ def agent_list() -> None:
             f"{profile.id}\t{profile.name}\t{profile.role}\t"
             f"{profile.backend_name or ''}\t{profile.enabled}\t{capabilities}"
         )
+
+
+@team_app.command("list")
+def team_list() -> None:
+    """List local Build Teams."""
+    store = AriadneStore(state.root)
+    for team in store.ensure_default_build_teams():
+        typer.echo(
+            f"{team.id}\t{team.name}\tlead={team.lead_agent_id}\t"
+            f"implementer={team.implementer_agent_id}\tbackend={team.default_backend_name}\t"
+            f"enabled={team.enabled}"
+        )
+
+
+@team_app.command("show")
+def team_show(team_id: str) -> None:
+    """Show one local Build Team."""
+    store = AriadneStore(state.root)
+    team = store.resolve_build_team(team_id)
+    typer.echo(f"id: {team.id}")
+    typer.echo(f"name: {team.name}")
+    typer.echo(f"description: {team.description}")
+    typer.echo(f"lead: {team.lead_agent_id}")
+    typer.echo(f"implementer: {team.implementer_agent_id}")
+    typer.echo(f"reviewer: {team.reviewer_agent_id}")
+    typer.echo(f"memory: {team.memory_agent_id}")
+    typer.echo(f"backend: {team.default_backend_name}")
+    typer.echo(f"planner: {team.planner_name}")
+    typer.echo(f"skills: {', '.join(team.skill_refs)}")
+    typer.echo(f"resource policy: {team.resource_policy}")
+    typer.echo(f"enabled: {team.enabled}")
 
 
 @assignment_app.command("list")
@@ -409,6 +443,19 @@ def ticket_assign(
     """Assign a Build Ticket to a local Agent teammate."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
+    try:
+        team = store.resolve_build_team(agent_id)
+    except FileNotFoundError:
+        team = None
+    if team is not None:
+        routed = route_ticket_to_build_team(store, ticket, team, backend_name=backend)
+        typer.echo(f"Build Team routed: {routed.team.id}")
+        typer.echo(f"ticket: {ticket.key}")
+        typer.echo(f"selected agent: {routed.assignment.agent_id}")
+        typer.echo(f"backend: {routed.assignment.backend_name or ''}")
+        typer.echo(f"assignment: {routed.assignment.id}")
+        typer.echo(f"route decision: {routed.route_artifact.path}")
+        return
     agent = store.resolve_agent_profile(agent_id)
     assignment = store.create_assignment(ticket, agent, backend_name=backend)
     status = (

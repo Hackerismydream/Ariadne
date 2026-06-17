@@ -383,6 +383,22 @@ class AgentProfile(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
 
 
+class BuildTeam(AriadneModel):
+    id: str
+    name: str
+    description: str = ""
+    lead_agent_id: str = "build-lead"
+    implementer_agent_id: str = "fake-codex"
+    reviewer_agent_id: str = "reviewer"
+    memory_agent_id: str = "memory"
+    default_backend_name: str = "fake-codex"
+    planner_name: str = "deterministic"
+    skill_refs: list[str] = Field(default_factory=list)
+    resource_policy: str = "local_project_resources"
+    enabled: bool = True
+    created_at: str = Field(default_factory=utc_now)
+
+
 class TicketAssignment(AriadneModel):
     id: str
     ticket_id: str
@@ -887,6 +903,11 @@ class RouteDecision(AriadneModel):
     ticket_key: str
     planner_name: str
     backend_name: str
+    build_team_id: str | None = None
+    build_team_name: str | None = None
+    team_role_agent_ids: dict[str, str] = Field(default_factory=dict)
+    selected_agent_id: str | None = None
+    selected_agent_name: str | None = None
     selected_agent_role: str = "Execution"
     target_repo_path: str
     build_decision: BuildDecision
