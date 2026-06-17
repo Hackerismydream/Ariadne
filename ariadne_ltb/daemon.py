@@ -104,6 +104,7 @@ class LocalDaemonWorker:
                 backend_name=running.backend_name or "fake-codex",
                 planner=running.planner_name,
                 confirm_execution=confirm_execution,
+                isolate_worktree=True,
             )
         except Exception as exc:  # pragma: no cover - defensive, tested through blocked result path
             blocked = running.mark_failed(str(exc), FailureReason.AGENT_ERROR)

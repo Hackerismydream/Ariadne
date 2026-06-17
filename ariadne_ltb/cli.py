@@ -546,6 +546,10 @@ def ticket_run(
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    isolate_worktree: Annotated[
+        bool,
+        typer.Option("--isolate-worktree", help="Create a per-ticket git branch/worktree before execution."),
+    ] = False,
 ) -> None:
     """Run a Build Ticket through the full Ariadne product loop."""
     result = TicketRunOrchestrator(AriadneStore(state.root)).run_ticket(
@@ -555,6 +559,7 @@ def ticket_run(
         command=command,
         planner=planner,
         confirm_execution=confirm_execution,
+        isolate_worktree=isolate_worktree,
     )
     typer.echo(f"ran {result.ticket_key} ({result.ticket_id})")
     typer.echo(f"backend used: {result.backend_name}")
@@ -564,6 +569,8 @@ def ticket_run(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    if result.worktree_path:
+        typer.echo(f"worktree: {result.worktree_path}")
     typer.echo(f"board: {result.board_path}")
 
 

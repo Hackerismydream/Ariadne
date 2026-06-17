@@ -30,6 +30,7 @@ from ariadne_ltb.models import (
     TicketAssignment,
     TicketComment,
     WorkerHeartbeat,
+    WorktreeIsolation,
     stable_id,
     utc_now,
 )
@@ -61,6 +62,8 @@ class AriadneStore:
         self.project_dir = self.base / "project"
         self.runtimes_dir = self.base / "runtimes"
         self.locks_dir = self.base / "locks"
+        self.worktrees_dir = self.base / "worktrees"
+        self.worktree_records_dir = self.worktrees_dir / "records"
         self.backlog_dir = self.base / "backlog"
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
         self.reviews_dir = self.base / "reviews"
@@ -92,6 +95,8 @@ class AriadneStore:
             self.project_dir,
             self.runtimes_dir,
             self.locks_dir,
+            self.worktrees_dir,
+            self.worktree_records_dir,
             self.backlog_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
@@ -543,6 +548,20 @@ class AriadneStore:
 
     def read_artifact_json(self, artifact: Artifact) -> dict:
         return json.loads(self.read_artifact_text(artifact))
+
+    def worktree_record_path(self, ticket_key: str) -> Path:
+        return self.worktree_records_dir / f"{ticket_key.lower()}.json"
+
+    def worktree_path(self, ticket_key: str) -> Path:
+        return self.worktrees_dir / ticket_key.lower()
+
+    def save_worktree_isolation(self, record: WorktreeIsolation) -> Path:
+        path = Path(record.record_path)
+        self._write_model(path, record)
+        return path
+
+    def load_worktree_isolation(self, ticket_key: str) -> WorktreeIsolation:
+        return self._read_model(self.worktree_record_path(ticket_key), WorktreeIsolation)
 
 
 def _default_agent_profiles() -> list[AgentProfile]:

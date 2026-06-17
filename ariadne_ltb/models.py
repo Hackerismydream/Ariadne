@@ -119,6 +119,7 @@ class FailureReason(str, Enum):
     PLANNER_FAILED = "planner_failed"
     INVALID_RESOURCE = "invalid_resource"
     RESOURCE_LOCKED = "resource_locked"
+    DIRTY_BASE_CHECKOUT = "dirty_base_checkout"
     UNKNOWN = "unknown"
 
 
@@ -160,6 +161,7 @@ class ArtifactType(str, Enum):
     ROUTE_DECISION = "route_decision"
     RUNTIME_CAPABILITY = "runtime_capability"
     PROJECT_RESOURCES = "project_resources"
+    WORKTREE_ISOLATION = "worktree_isolation"
     PLANNER_ERROR = "planner_error"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
@@ -710,6 +712,21 @@ class ExecutionResult(AriadneModel):
     test_stdout: str = ""
     test_stderr: str = ""
     warnings: list[str] = Field(default_factory=list)
+
+
+class WorktreeIsolation(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    base_repo_path: str
+    base_branch: str
+    base_sha: str
+    branch_name: str
+    worktree_path: str
+    record_path: str
+    created_at: str = Field(default_factory=utc_now)
+    active: bool = True
+    owner_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuntimeCapability(AriadneModel):

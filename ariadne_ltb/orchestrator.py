@@ -41,6 +41,7 @@ from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.skills import discover_build_skills
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
+from ariadne_ltb.worktrees import WorktreeBlock, prepare_isolated_worktree
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class TicketRunResult:
     next_tickets_path: str
     board_path: str
     board_html_path: str
+    worktree_path: str | None = None
 
 
 class TicketRunOrchestrator:
@@ -87,6 +89,7 @@ class TicketRunOrchestrator:
         planner: str = "deterministic",
         confirm_execution: bool = False,
         timeout_seconds: int = 60,
+        isolate_worktree: bool = False,
     ) -> TicketRunResult:
         ticket = self.store.resolve_ticket(ticket_id_or_key)
         if ticket.status is TicketStatus.SUPERSEDED:
@@ -127,6 +130,54 @@ class TicketRunOrchestrator:
         )
 
         target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        worktree_block: WorktreeBlock | None = None
+        worktree_path: str | None = None
+        if isolate_worktree:
+            isolation = prepare_isolated_worktree(self.store, ticket, target_repo, self.assignment_id)
+            if isolation.block:
+                worktree_block = isolation.block
+            elif isolation.record:
+                worktree_metadata = isolation.record.model_dump(mode="json", exclude_none=False)
+                worktree_artifact = self.store.write_artifact(
+                    ticket.id,
+                    "build_lead",
+                    ArtifactType.WORKTREE_ISOLATION,
+                    "worktree_isolation.json",
+                    isolation.record.model_dump_json(indent=2) + "\n",
+                    "Local git worktree isolation record",
+                    metadata={
+                        "worktree_path": isolation.record.worktree_path,
+                        "branch_name": isolation.record.branch_name,
+                        "base_sha": isolation.record.base_sha,
+                    },
+                )
+                ticket = (
+                    self.store.load_ticket(ticket.id)
+                    .with_artifacts([worktree_artifact])
+                    .append_event(
+                        "worktree_isolated",
+                        "Build Lead",
+                        f"Created isolated worktree `{isolation.record.worktree_path}`.",
+                        payload_ref=worktree_artifact.id,
+                    )
+                    .model_copy(
+                        deep=True,
+                        update={
+                            "metadata": self.store.load_ticket(ticket.id).metadata
+                            | {"worktree_isolation": worktree_metadata}
+                        },
+                    )
+                )
+                self.store.save_ticket(ticket)
+                self._progress(
+                    ticket,
+                    "worktree",
+                    "succeeded",
+                    f"Created isolated worktree `{isolation.record.worktree_path}`.",
+                    payload_ref=worktree_artifact.id,
+                )
+                target_repo = Path(isolation.record.worktree_path)
+                worktree_path = isolation.record.worktree_path
         runtime_capability_path = self.store.save_runtime_capabilities(collect_runtime_capabilities())
         project_resources = [
             ProjectResource.local_directory(
@@ -221,7 +272,14 @@ class TicketRunOrchestrator:
         )
         self.store.save_ticket(ticket)
         validation = validate_target_repo_path(target_repo)
-        if not validation.valid:
+        if worktree_block:
+            execution = _blocked_execution(
+                context,
+                backend_name,
+                worktree_block.reason,
+                worktree_block.failure_reason,
+            )
+        elif not validation.valid:
             execution = _blocked_execution(context, backend_name, validation.reason, FailureReason.INVALID_RESOURCE)
         else:
             lock = DirectoryLock(
@@ -493,6 +551,7 @@ class TicketRunOrchestrator:
             next_tickets_path=next_tickets_artifact.path,
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),
+            worktree_path=worktree_path,
         )
 
     def _progress(
