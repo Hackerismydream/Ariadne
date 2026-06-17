@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import fcntl
 import json
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Iterator
 from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -28,6 +32,7 @@ from ariadne_ltb.models import (
     RuntimeCapability,
     SourceDocument,
     TicketAssignment,
+    TicketStatus,
     TicketComment,
     WorkerHeartbeat,
     WorktreeIsolation,
@@ -46,6 +51,7 @@ class AriadneStore:
         self.agents_dir = self.base / "agents"
         self.agent_profiles_path = self.agents_dir / "profiles.json"
         self.assignments_dir = self.base / "assignments"
+        self.assignment_claim_lock_path = self.assignments_dir / ".claim.lock"
         self.comments_dir = self.base / "comments"
         self.journal_dir = self.base / "journal"
         self.journal_path = self.journal_dir / "events.jsonl"
@@ -279,6 +285,67 @@ class AriadneStore:
                 AssignmentStatus.RUNNING,
             }
         ]
+
+    def claim_next_assignment(
+        self,
+        runtime_id: str,
+        lease_seconds: int = 600,
+    ) -> TicketAssignment | None:
+        with self._assignment_claim_lock():
+            for assignment in sorted(self.list_assignments(), key=lambda item: item.created_at):
+                if not self._claimable_assignment(assignment):
+                    continue
+                try:
+                    ticket = self.load_ticket(assignment.ticket_id)
+                except FileNotFoundError:
+                    continue
+                if ticket.status is TicketStatus.SUPERSEDED:
+                    self.save_assignment(
+                        assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
+                    )
+                    continue
+                metadata = assignment.metadata
+                if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+                    metadata = metadata | {
+                        "lease_reclaimed_at": utc_now(),
+                        "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
+                        "lease_reclaimed_from_status": assignment.status.value,
+                    }
+                claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
+                claimed = claimed.model_copy(
+                    deep=True,
+                    update={
+                        "started_at": None,
+                        "ended_at": None,
+                        "blocker": None,
+                        "failure_reason": None,
+                        "metadata": metadata,
+                    },
+                )
+                self.save_assignment(claimed)
+                return claimed
+        return None
+
+    @contextmanager
+    def _assignment_claim_lock(self) -> Iterator[None]:
+        self.assignment_claim_lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.assignment_claim_lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                handle.seek(0)
+                handle.truncate()
+                handle.write(json.dumps({"pid": __import__("os").getpid(), "locked_at": utc_now()}))
+                handle.flush()
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def _claimable_assignment(self, assignment: TicketAssignment) -> bool:
+        if assignment.status is AssignmentStatus.QUEUED:
+            return True
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            return is_assignment_lease_expired(assignment)
+        return False
 
     def find_latest_assignment_for_ticket(self, ticket_id: str) -> TicketAssignment | None:
         assignments = self.list_assignments_for_ticket(ticket_id)
@@ -617,3 +684,13 @@ def _default_agent_profiles() -> list[AgentProfile]:
             capabilities=["memory", "feishu_dry_run", "next_tickets"],
         ),
     ]
+
+
+def is_assignment_lease_expired(assignment: TicketAssignment, now: datetime | None = None) -> bool:
+    if assignment.lease_expires_at is None:
+        return assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}
+    try:
+        expires_at = datetime.fromisoformat(assignment.lease_expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return (now or datetime.now(UTC)) >= expires_at

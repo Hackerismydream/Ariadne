@@ -13,6 +13,7 @@ from ariadne_ltb.models import (
     AgentRun,
     AgentRunLifecycleState,
     AgentRunStatus,
+    AssignmentStatus,
     Artifact,
     BuildPacket,
     BuildTicket,
@@ -26,7 +27,7 @@ from ariadne_ltb.models import (
     TicketAssignment,
     stable_id,
 )
-from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.storage import AriadneStore, is_assignment_lease_expired
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -313,6 +314,28 @@ def _check_assignment_links(
                     entity_id=assignment.id,
                 )
             )
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            if assignment.lease_expires_at is None:
+                issues.append(
+                    _issue(
+                        StoreInvariantReason.INVALID_ASSIGNMENT_LIFECYCLE,
+                        path,
+                        "claimed or running assignment is missing lease_expires_at",
+                        entity_type="assignment",
+                        entity_id=assignment.id,
+                    )
+                )
+            elif is_assignment_lease_expired(assignment):
+                issues.append(
+                    _issue(
+                        StoreInvariantReason.STALE_ASSIGNMENT_LEASE,
+                        path,
+                        f"assignment lease expired at {assignment.lease_expires_at}",
+                        entity_type="assignment",
+                        entity_id=assignment.id,
+                        severity=StoreInvariantSeverity.WARNING,
+                    )
+                )
 
 
 def _check_run_links(

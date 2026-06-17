@@ -1364,3 +1364,64 @@ Known limitations:
   automatic repair plan yet.
 - Artifact orphan detection is local-store based; it does not try to infer
   intent from unindexed loose files under `.ariadne/artifacts/`.
+
+## Core Batch 8: Atomic Local Claim and Lease
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-01 / LOC-6` by making local daemon assignment
+claiming atomic and lease-backed.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/daemon.py`
+- `ariadne_ltb/store_doctor.py`
+- `ariadne_ltb/board.py`
+- `tests/test_assignment_claim_lease.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- `TicketAssignment` now carries `lease_expires_at`.
+- Terminal assignment transitions clear the lease.
+- `AriadneStore.claim_next_assignment()` performs queue selection and claim
+  update under a local file lock at `.ariadne/assignments/.claim.lock`.
+- Two local daemon workers cannot claim the same queued assignment.
+- Expired claimed/running assignments can be reclaimed deterministically by a
+  new runtime.
+- Reclaimed assignments record `lease_reclaimed_at`,
+  `lease_reclaimed_from_runtime_id`, and `lease_reclaimed_from_status`.
+- Daemon claim journal events include `claimed_by_runtime_id`,
+  `lease_expires_at`, and reclaim metadata.
+- Board assignment sections show claim runtime and lease expiry.
+- Store doctor reports stale assignment leases as warnings with the typed
+  `stale_assignment_lease` reason.
+
+Safety boundaries:
+
+- Lease reclaim only happens after expiry.
+- This is a local filesystem lock, not a distributed lock.
+- The runtime still does not auto-commit, auto-push, auto-merge, or create PRs.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_assignment_claim_lease.py
+  tests/test_v1_daemon_supervision.py tests/test_agent_teammate_mode.py
+  tests/test_store_doctor.py -q`: passed, 24 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, 124 tests.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Lease duration is currently fixed by the caller default; there is no CLI flag
+  yet to configure it per daemon run.
+- There is no heartbeat-based lease extension yet. Long-running assignments
+  should either complete within the lease or add a future renewal step.

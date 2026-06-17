@@ -251,6 +251,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 f"- Claimed by runtime: `{assignment.claimed_by_runtime_id or ''}`",
                 f"- Created: `{assignment.created_at}`",
                 f"- Claimed: `{assignment.claimed_at or ''}`",
+                f"- Lease expires: `{assignment.lease_expires_at or ''}`",
                 f"- Ended: `{assignment.ended_at or ''}`",
                 "",
             ]
@@ -263,13 +264,15 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     if assignment_chain:
         lines.extend(
             [
-                "| Assignment | Status | Attempt | Parent | Failure reason | Retry reason | Created | Ended |",
-                "|---|---|---:|---|---|---|---|---|",
+                "| Assignment | Status | Attempt | Runtime | Lease expires | Parent | Failure reason | Retry reason | Created | Ended |",
+                "|---|---|---:|---|---|---|---|---|---|---|",
             ]
         )
         for item in assignment_chain:
             lines.append(
                 f"| `{item.id}` | `{item.status.value}` | {item.attempt} | "
+                f"`{item.claimed_by_runtime_id or ''}` | "
+                f"`{item.lease_expires_at or ''}` | "
                 f"`{item.parent_assignment_id or ''}` | "
                 f"`{item.failure_reason.value if item.failure_reason else ''}` | "
                 f"{item.retry_reason or ''} | `{item.created_at}` | `{item.ended_at or ''}` |"

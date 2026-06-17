@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from hashlib import sha256
 from typing import Any
@@ -11,6 +11,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def utc_after(seconds: int) -> str:
+    return (
+        (datetime.now(UTC) + timedelta(seconds=seconds))
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def stable_id(prefix: str, *parts: object) -> str:
@@ -146,6 +155,7 @@ class StoreInvariantReason(str, Enum):
     BROKEN_REVIEW_LINK = "broken_review_link"
     INVALID_RUN_LIFECYCLE = "invalid_run_lifecycle"
     INVALID_ASSIGNMENT_LIFECYCLE = "invalid_assignment_lifecycle"
+    STALE_ASSIGNMENT_LEASE = "stale_assignment_lease"
     STALE_LOCK = "stale_lock"
 
 
@@ -377,6 +387,7 @@ class TicketAssignment(AriadneModel):
     claimed_by_runtime_id: str | None = None
     created_at: str = Field(default_factory=utc_now)
     claimed_at: str | None = None
+    lease_expires_at: str | None = None
     started_at: str | None = None
     ended_at: str | None = None
     failure_reason: FailureReason | None = None
@@ -391,11 +402,12 @@ class TicketAssignment(AriadneModel):
     def is_terminal(self) -> bool:
         return self.status.is_terminal
 
-    def mark_claimed(self, runtime_id: str) -> TicketAssignment:
+    def mark_claimed(self, runtime_id: str, lease_seconds: int = 600) -> TicketAssignment:
         assignment = self.model_copy(deep=True)
         assignment.status = AssignmentStatus.CLAIMED
         assignment.claimed_by_runtime_id = runtime_id
         assignment.claimed_at = assignment.claimed_at or utc_now()
+        assignment.lease_expires_at = utc_after(lease_seconds)
         return assignment
 
     def mark_running(self) -> TicketAssignment:
@@ -408,6 +420,7 @@ class TicketAssignment(AriadneModel):
         assignment = self.model_copy(deep=True)
         assignment.status = AssignmentStatus.DONE
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         if metadata:
             assignment.metadata = assignment.metadata | metadata
         return assignment
@@ -422,6 +435,7 @@ class TicketAssignment(AriadneModel):
         assignment.blocker = blocker
         assignment.failure_reason = failure_reason
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         return assignment
 
     def mark_failed(
@@ -434,6 +448,7 @@ class TicketAssignment(AriadneModel):
         assignment.blocker = blocker
         assignment.failure_reason = failure_reason
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         return assignment
 
     def mark_cancelled(
@@ -446,6 +461,7 @@ class TicketAssignment(AriadneModel):
         assignment.blocker = blocker
         assignment.failure_reason = failure_reason
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         return assignment
 
 

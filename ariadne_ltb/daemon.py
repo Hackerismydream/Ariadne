@@ -7,14 +7,12 @@ from datetime import UTC, datetime
 
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
-    AssignmentStatus,
     BuildTicket,
     CommentAuthorType,
     CommentKind,
     DaemonStatus,
     FailureReason,
     TicketAssignment,
-    TicketStatus,
     WorkerHeartbeat,
     utc_now,
 )
@@ -47,8 +45,7 @@ class LocalDaemonWorker:
 
         ticket = self.store.load_ticket(assignment.ticket_id)
         self._heartbeat(DaemonStatus.RUNNING, "claiming", assignment=assignment, ticket=ticket)
-        claimed = assignment.mark_claimed(self.runtime_id)
-        self.store.save_assignment(claimed)
+        claimed = assignment
         self.store.add_comment(
             ticket,
             CommentAuthorType.AGENT,
@@ -65,6 +62,11 @@ class LocalDaemonWorker:
             claimed.agent_name,
             assignment_id=claimed.id,
             payload_ref=claimed.id,
+            metadata={
+                "claimed_by_runtime_id": claimed.claimed_by_runtime_id,
+                "lease_expires_at": claimed.lease_expires_at,
+                "lease_reclaimed_at": claimed.metadata.get("lease_reclaimed_at"),
+            },
         )
         self.store.append_runtime_event(claim_event)
         self._heartbeat(
@@ -222,20 +224,7 @@ class LocalDaemonWorker:
             time.sleep(interval_seconds)
 
     def _next_assignment(self) -> TicketAssignment | None:
-        open_assignments = [
-            assignment
-            for assignment in self.store.list_open_assignments()
-            if assignment.status is AssignmentStatus.QUEUED
-        ]
-        for assignment in sorted(open_assignments, key=lambda item: item.created_at):
-            ticket = self.store.load_ticket(assignment.ticket_id)
-            if ticket.status is TicketStatus.SUPERSEDED:
-                self.store.save_assignment(
-                    assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
-                )
-                continue
-            return assignment
-        return None
+        return self.store.claim_next_assignment(self.runtime_id)
 
     def _write_blocker(self, ticket: BuildTicket, assignment: TicketAssignment, body: str) -> None:
         self.store.add_comment(
