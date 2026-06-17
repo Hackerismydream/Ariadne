@@ -36,6 +36,13 @@ def github_doctor_lines(root: Path) -> list[str]:
         lines.append(f"git https.proxy: {transport['https_proxy']}")
     if transport["evidence"]:
         lines.append(f"git transport evidence: {transport['evidence'][:240]}")
+    direct = transport.get("direct_without_proxy")
+    if isinstance(direct, dict):
+        lines.append(f"git transport without proxy: {direct['status']}")
+        if direct.get("evidence"):
+            lines.append(f"git transport without proxy evidence: {direct['evidence'][:240]}")
+    if transport.get("suggested_fix"):
+        lines.append(f"git transport suggested fix: {transport['suggested_fix']}")
     if not gh_path:
         lines.append("gh auth status: unavailable")
         return lines
@@ -66,16 +73,61 @@ def github_transport_snapshot(root: Path, branch: str | None = None, timeout_sec
         "command": None,
         "exit_code": None,
         "evidence": "",
+        "direct_without_proxy": None,
+        "suggested_fix": None,
     }
     if not remote_url:
         snapshot["failure_reason"] = FailureReason.INVALID_RESOURCE.value
         snapshot["evidence"] = "remote.origin.url is not configured"
         return snapshot
 
-    command = ["git", "ls-remote", "--heads", "origin"]
-    if current_branch:
-        command.append(current_branch)
-    snapshot["command"] = _redact_command(command)
+    probe = _probe_git_transport(
+        root,
+        current_branch,
+        timeout_seconds=timeout_seconds,
+        proxy_secrets=proxy_secrets,
+        bypass_proxy=False,
+    )
+    snapshot.update(probe)
+    if not snapshot["ok"] and (http_proxy or https_proxy):
+        direct_probe = _probe_git_transport(
+            root,
+            current_branch,
+            timeout_seconds=timeout_seconds,
+            proxy_secrets=proxy_secrets,
+            bypass_proxy=True,
+        )
+        snapshot["direct_without_proxy"] = direct_probe
+        if direct_probe["ok"]:
+            snapshot["suggested_fix"] = (
+                "Configured git proxy failed, but direct GitHub transport works. "
+                "Unset or repair git http.proxy/https.proxy for this repository."
+            )
+    return snapshot
+
+
+def _probe_git_transport(
+    root: Path,
+    branch: str | None,
+    *,
+    timeout_seconds: int,
+    proxy_secrets: list[str],
+    bypass_proxy: bool,
+) -> dict[str, Any]:
+    command = ["git"]
+    if bypass_proxy:
+        command.extend(["-c", "http.proxy=", "-c", "https.proxy="])
+    command.extend(["ls-remote", "--heads", "origin"])
+    if branch:
+        command.append(branch)
+    probe: dict[str, Any] = {
+        "command": _redact_command(command),
+        "status": "unknown",
+        "ok": False,
+        "failure_reason": None,
+        "exit_code": None,
+        "evidence": "",
+    }
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
     try:
@@ -89,31 +141,30 @@ def github_transport_snapshot(root: Path, branch: str | None = None, timeout_sec
             env=env,
         )
     except subprocess.TimeoutExpired as exc:
-        snapshot["status"] = "timeout"
-        snapshot["failure_reason"] = FailureReason.TIMEOUT.value
+        probe["status"] = "timeout"
+        probe["failure_reason"] = FailureReason.TIMEOUT.value
         evidence = "\n".join(part for part in [exc.stdout or "", exc.stderr or ""] if isinstance(part, str))
-        snapshot["evidence"] = (
+        probe["evidence"] = (
             _first_line(_redact_dynamic_secrets(evidence, proxy_secrets))
             or f"git transport probe timed out after {timeout_seconds}s"
         )
-        return snapshot
+        return probe
     except (FileNotFoundError, NotADirectoryError, PermissionError) as exc:
-        snapshot["status"] = "failed"
-        snapshot["failure_reason"] = FailureReason.COMMAND_UNAVAILABLE.value
-        snapshot["evidence"] = _first_line(_redact_text(str(exc)))
-        return snapshot
+        probe["status"] = "failed"
+        probe["failure_reason"] = FailureReason.COMMAND_UNAVAILABLE.value
+        probe["evidence"] = _first_line(_redact_text(str(exc)))
+        return probe
 
-    snapshot["exit_code"] = result.returncode
-    evidence = _first_line(_redact_dynamic_secrets(result.stderr or result.stdout, proxy_secrets))
-    snapshot["evidence"] = evidence
+    probe["exit_code"] = result.returncode
+    probe["evidence"] = _first_line(_redact_dynamic_secrets(result.stderr or result.stdout, proxy_secrets))
     if result.returncode == 0:
-        snapshot["status"] = "ok"
-        snapshot["ok"] = True
-        snapshot["failure_reason"] = None
+        probe["status"] = "ok"
+        probe["ok"] = True
+        probe["failure_reason"] = None
     else:
-        snapshot["status"] = "failed"
-        snapshot["failure_reason"] = _classify_failure(result.stdout, result.stderr).value
-    return snapshot
+        probe["status"] = "failed"
+        probe["failure_reason"] = _classify_failure(result.stdout, result.stderr).value
+    return probe
 
 
 def link_ticket_to_github(

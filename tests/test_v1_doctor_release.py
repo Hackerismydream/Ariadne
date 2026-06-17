@@ -349,6 +349,60 @@ def test_doctor_integrations_json_output_is_machine_readable(
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
 
 
+def test_doctor_integrations_reports_direct_git_transport_when_proxy_fails(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    def fake_which(command: str) -> str | None:
+        return {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command)
+
+    def fake_github_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "remote.origin.url":
+            return subprocess.CompletedProcess(command, 0, "https://github.com/owner/repo.git\n", "")
+        if command[:3] == ["git", "config", "--get"] and command[-1] in {"http.proxy", "https.proxy"}:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                "http://user:proxy-secret@127.0.0.1:7890\n",
+                "",
+            )
+        if command[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(command, 0, "codex/product\n", "")
+        if command[:5] == ["git", "-c", "http.proxy=", "-c", "https.proxy="]:
+            return subprocess.CompletedProcess(command, 0, "abc123\trefs/heads/codex/product\n", "")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            return subprocess.CompletedProcess(command, 128, "", "SSL_ERROR_SYSCALL proxy-secret")
+        return subprocess.CompletedProcess(command, 1, "", f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_github_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "integrations"])
+
+    assert result.exit_code == 0, result.output
+    assert "GitHub git transport: failed" in result.output
+    assert "GitHub git transport without proxy: ok" in result.output
+    assert "GitHub git transport suggested fix: Configured git proxy failed" in result.output
+    assert "proxy-secret" not in result.output
+    snapshot = json.loads((tmp_path / ".ariadne" / "doctor" / "integrations.json").read_text())
+    assert snapshot["github"]["git_transport"]["status"] == "failed"
+    assert snapshot["github"]["git_transport"]["direct_without_proxy"]["status"] == "ok"
+    assert "proxy-secret" not in json.dumps(snapshot)
+
+
 def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     monkeypatch,
     tmp_path: Path,

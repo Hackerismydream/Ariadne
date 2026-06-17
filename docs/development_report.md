@@ -4716,3 +4716,60 @@ Result:
 - Deterministic mode remains explicit and available for offline regression, but
   the recommended product path no longer depends on remembering several
   separate LLM flags.
+
+## 2026-06-18 04:09 CST GitHub Transport Diagnostic Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Problem found:
+
+- During push, the configured GitHub HTTPS path temporarily failed with
+  `LibreSSL SSL_connect: SSL_ERROR_SYSCALL`.
+- Bypassing the configured git proxy with `git -c http.proxy=` allowed the push
+  to complete.
+- Ariadne already reported `github_git_transport`, but it did not record a
+  second probe showing whether the failure was caused by the configured proxy
+  or by GitHub credentials/network in general.
+
+Implemented:
+
+- Enhanced `github_transport_snapshot` so that when normal git transport fails
+  and `http.proxy` or `https.proxy` is configured, Ariadne runs a second
+  read-only probe with git proxy disabled.
+- Persisted this probe under `direct_without_proxy` in the GitHub transport
+  snapshot.
+- Added `suggested_fix` when the configured proxy fails but direct transport
+  succeeds.
+- Updated `ari github doctor` and `ari doctor integrations` output to show:
+  - configured git transport status;
+  - direct-without-proxy transport status when relevant;
+  - proxy repair suggestion when relevant.
+- Kept production readiness conservative: the main configured transport still
+  determines `github_git_transport`; the direct probe is diagnostic evidence,
+  not a silent bypass.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_github_integration.py tests/test_v1_doctor_release.py -q`:
+  passed, `23 passed`.
+- `python3.11 -m ruff check ariadne_ltb/github_integration.py ariadne_ltb/doctor.py tests/test_github_integration.py tests/test_v1_doctor_release.py`:
+  passed.
+- `python3.11 -m ariadne_ltb.cli github doctor`: passed locally. Current
+  GitHub transport and `gh auth status` are both `ok`; the direct probe is not
+  emitted when the configured transport already works.
+- `python3.11 -m ariadne_ltb.cli doctor integrations`: passed locally and
+  reports GitHub auth/transport `ok`.
+- `python3.11 -m pytest`: passed, `235 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_9a06c467148b`.
+
+Result:
+
+- When GitHub HTTPS transport flakes because of a configured proxy, Ariadne can
+  now show whether direct GitHub transport would work and give the operator a
+  concrete proxy repair action.

@@ -71,6 +71,13 @@ def test_github_doctor_reports_git_transport_timeout_without_proxy_secret(
             return CompletedProcess(command, 0, stdout="http://user:proxy-secret@127.0.0.1:7890\n", stderr="")
         if command[:2] == ["git", "rev-parse"]:
             return CompletedProcess(command, 0, stdout="codex/branch\n", stderr="")
+        if command[:5] == ["git", "-c", "http.proxy=", "-c", "https.proxy="]:
+            return CompletedProcess(
+                command,
+                0,
+                stdout="abc123\trefs/heads/codex/branch\n",
+                stderr="",
+            )
         if command[:3] == ["git", "ls-remote", "--heads"]:
             raise subprocess.TimeoutExpired(command, timeout=8, stderr="proxy-secret timeout")
         if len(command) >= 3 and command[1:3] == ["auth", "status"]:
@@ -83,6 +90,8 @@ def test_github_doctor_reports_git_transport_timeout_without_proxy_secret(
 
     assert result.exit_code == 0, result.output
     assert "git transport status: timeout" in result.output
+    assert "git transport without proxy: ok" in result.output
+    assert "git transport suggested fix: Configured git proxy failed" in result.output
     assert "git https.proxy: http://[REDACTED]:[REDACTED]@127.0.0.1:7890" in result.output
     assert "gh auth status: ok" in result.output
     assert "proxy-secret" not in result.output

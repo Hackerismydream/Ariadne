@@ -125,6 +125,12 @@ def integration_doctor_lines(store: AriadneStore, repo_root: Path) -> list[str]:
         f"GitHub git transport: {snapshot['github']['git_transport']['status']}",
         "Secrets: values redacted",
     ]
+    direct = snapshot["github"]["git_transport"].get("direct_without_proxy")
+    if isinstance(direct, dict):
+        lines.insert(-1, f"GitHub git transport without proxy: {direct['status']}")
+    suggested_fix = snapshot["github"]["git_transport"].get("suggested_fix")
+    if suggested_fix:
+        lines.insert(-1, f"GitHub git transport suggested fix: {suggested_fix}")
     return lines
 
 
