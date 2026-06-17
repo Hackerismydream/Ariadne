@@ -5085,6 +5085,55 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 05:52 CST Inbox Resolution Workflow Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Extended `InboxItem` with `resolution_note`.
+- Added `AriadneStore.load_inbox_item()` and
+  `AriadneStore.update_inbox_item_status()` for item-level inbox operations.
+- `ari inbox show <item_id>` now displays status, severity, source, failure
+  reason, recommended action, evidence reference, and resolution note.
+- `ari inbox resolve <item_id> --note ...` marks an inbox item resolved after
+  evidence review.
+- `ari inbox list` now hides resolved items by default; `--include-resolved`
+  shows them for audit.
+- `ari inbox refresh` preserves acknowledged/resolved status instead of
+  reopening the same materialized failure item.
+- Local search now indexes inbox status and resolution note so resolved failure
+  decisions remain searchable.
+
+Why this matters:
+
+- Ariadne's production loop now has a basic work-management closure for real
+  failures: materialize issue -> inspect evidence -> resolve with note ->
+  keep searchable audit history.
+- This moves inbox from a passive failure list toward the Multica-style issue
+  lifecycle Ariadne needs for real agent workbench usage.
+
+Focused verification:
+
+- `python3.11 -m pytest tests/test_inbox.py`: passed, `4 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, `251 passed`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_0cb0a8ae09f0`; workbench sync reported 18 inbox items.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 05:28 CST AgentRun Failure Inbox/Search Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

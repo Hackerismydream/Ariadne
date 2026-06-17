@@ -32,6 +32,7 @@ from ariadne_ltb.models import (
     FeishuWritePlan,
     GitHubIntegrationResult,
     InboxItem,
+    InboxStatus,
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
@@ -839,6 +840,40 @@ class AriadneStore:
             return []
         data = json.loads(self.inbox_items_path.read_text(encoding="utf-8"))
         return [InboxItem.model_validate(item) for item in data.get("items", [])]
+
+    def load_inbox_item(self, item_id: str) -> InboxItem:
+        for item in self.list_inbox_items():
+            if item.id == item_id:
+                return item
+        msg = f"inbox item not found: {item_id}"
+        raise FileNotFoundError(msg)
+
+    def update_inbox_item_status(
+        self,
+        item_id: str,
+        status: InboxStatus,
+        note: str | None = None,
+    ) -> InboxItem:
+        items = self.list_inbox_items()
+        updated_items: list[InboxItem] = []
+        updated_item: InboxItem | None = None
+        for item in items:
+            if item.id == item_id:
+                updated_item = item.model_copy(
+                    update={
+                        "status": status,
+                        "resolution_note": note if note is not None else item.resolution_note,
+                        "updated_at": utc_now(),
+                    }
+                )
+                updated_items.append(updated_item)
+            else:
+                updated_items.append(item)
+        if updated_item is None:
+            msg = f"inbox item not found: {item_id}"
+            raise FileNotFoundError(msg)
+        self.save_inbox_items(updated_items)
+        return updated_item
 
     def save_project_resources(self, resources: list[ProjectResource]) -> Path:
         path = self.project_dir / "resources.json"

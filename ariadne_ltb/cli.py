@@ -59,6 +59,7 @@ from ariadne_ltb.models import (
     ExecutionContext,
     ExecutionResult,
     FeishuWritePlan,
+    InboxStatus,
     ReviewReport,
     ResumeSafety,
     RuntimeCapability,
@@ -2009,6 +2010,10 @@ def inbox_refresh() -> None:
 @inbox_app.command("list")
 def inbox_list(
     refresh: Annotated[bool, typer.Option("--refresh", help="Refresh before listing.")] = False,
+    include_resolved: Annotated[
+        bool,
+        typer.Option("--include-resolved", help="Include resolved inbox items."),
+    ] = False,
     output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
 ) -> None:
     """List local inbox items for failures, blockers, and integration issues."""
@@ -2016,6 +2021,8 @@ def inbox_list(
         raise typer.BadParameter("output must be table or json")
     store = AriadneStore(state.root)
     items = refresh_inbox(store) if refresh else store.list_inbox_items()
+    if not include_resolved:
+        items = [item for item in items if item.status is not InboxStatus.RESOLVED]
     if output == "json":
         typer.echo(json.dumps([item.model_dump(mode="json") for item in items], indent=2))
         return
@@ -2024,9 +2031,57 @@ def inbox_list(
         return
     for item in items:
         typer.echo(
-            f"{item.severity.value}\t{item.ticket_key or ''}\t{item.source_type}\t"
+            f"{item.id}\t{item.status.value}\t{item.severity.value}\t{item.ticket_key or ''}\t{item.source_type}\t"
             f"{item.failure_reason.value if item.failure_reason else ''}\t{item.summary}"
         )
+
+
+@inbox_app.command("show")
+def inbox_show(
+    item_id: str,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Show one inbox item with evidence and recommended action."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    store = AriadneStore(state.root)
+    try:
+        item = store.load_inbox_item(item_id)
+    except FileNotFoundError as exc:
+        raise typer.Exit(2) from exc
+    if output == "json":
+        typer.echo(item.model_dump_json(indent=2))
+        return
+    typer.echo(f"id: {item.id}")
+    typer.echo(f"status: {item.status.value}")
+    typer.echo(f"severity: {item.severity.value}")
+    typer.echo(f"ticket: {item.ticket_key or item.ticket_id or ''}")
+    typer.echo(f"source: {item.source_type} {item.source_id}")
+    typer.echo(f"failure reason: {item.failure_reason.value if item.failure_reason else ''}")
+    typer.echo(f"summary: {item.summary}")
+    typer.echo(f"recommended action: {item.recommended_action}")
+    typer.echo(f"evidence: {item.evidence_ref or ''}")
+    if item.resolution_note:
+        typer.echo(f"resolution note: {item.resolution_note}")
+
+
+@inbox_app.command("resolve")
+def inbox_resolve(
+    item_id: str,
+    note: Annotated[str, typer.Option("--note", help="Resolution note.")] = "",
+) -> None:
+    """Mark one inbox item resolved after reviewing evidence."""
+    store = AriadneStore(state.root)
+    try:
+        item = store.update_inbox_item_status(
+            item_id,
+            InboxStatus.RESOLVED,
+            note or "resolved after evidence review",
+        )
+    except FileNotFoundError as exc:
+        raise typer.Exit(2) from exc
+    typer.echo(f"resolved: {item.id}")
+    typer.echo(f"status: {item.status.value}")
 
 
 @app.command("search")

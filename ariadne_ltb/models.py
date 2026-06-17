@@ -1176,6 +1176,7 @@ class InboxItem(AriadneModel):
     failure_reason: FailureReason | None = None
     evidence_ref: str | None = None
     recommended_action: str = "human_review_required"
+    resolution_note: str | None = None
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
 

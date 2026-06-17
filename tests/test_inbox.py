@@ -10,7 +10,7 @@ from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.github_integration import sync_ticket_with_github
 from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import ExecutionResult, FailureReason, FeishuWritePlan
+from ariadne_ltb.models import ExecutionResult, FailureReason, FeishuWritePlan, InboxStatus
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
@@ -124,3 +124,50 @@ def test_inbox_refresh_materializes_blocked_llm_agent_runs(tmp_path: Path, monke
     assert "llm:knowledge" in llm_items[0].summary
     assert result.artifact_path
     assert llm_items[0].evidence_ref == result.artifact_path
+
+
+def test_inbox_show_and_resolve_preserves_status_across_refresh(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+    items = refresh_inbox(store)
+    item_id = items[0].id
+
+    show = CliRunner().invoke(app, ["--root", str(tmp_path), "inbox", "show", item_id])
+    assert show.exit_code == 0, show.output
+    assert "recommended action:" in show.output
+    assert "evidence:" in show.output
+
+    resolve = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "inbox",
+            "resolve",
+            item_id,
+            "--note",
+            "fixed local provider config",
+        ],
+    )
+    assert resolve.exit_code == 0, resolve.output
+    assert "resolved:" in resolve.output
+
+    listed = CliRunner().invoke(app, ["--root", str(tmp_path), "inbox", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert "No inbox items." in listed.output
+
+    listed_with_resolved = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "list", "--include-resolved", "--output", "json"],
+    )
+    assert listed_with_resolved.exit_code == 0, listed_with_resolved.output
+    payload = json.loads(listed_with_resolved.output)
+    assert payload[0]["status"] == "resolved"
+    assert payload[0]["resolution_note"] == "fixed local provider config"
+
+    refreshed = refresh_inbox(store)
+    refreshed_item = next(item for item in refreshed if item.id == item_id)
+    assert refreshed_item.status is InboxStatus.RESOLVED
+    assert refreshed_item.resolution_note == "fixed local provider config"

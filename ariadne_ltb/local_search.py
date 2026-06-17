@@ -235,8 +235,10 @@ def _documents(store: AriadneStore) -> list[_SearchDocument]:
                 text=" ".join(
                     [
                         item.summary,
+                        item.status.value,
                         item.failure_reason.value if item.failure_reason else "",
                         item.recommended_action,
+                        item.resolution_note or "",
                     ]
                 ),
                 source_ref=item.evidence_ref or str(store.inbox_items_path),

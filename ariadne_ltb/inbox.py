@@ -12,6 +12,7 @@ from ariadne_ltb.models import (
     GitHubIntegrationResult,
     InboxItem,
     InboxSeverity,
+    InboxStatus,
     TicketAssignment,
     stable_id,
 )
@@ -47,7 +48,7 @@ def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
         if not result.ok or result.blocked:
             items.append(_from_github(store, result))
 
-    deduped = _dedupe(items)
+    deduped = _preserve_existing_status(store, _dedupe(items))
     store.save_inbox_items(deduped)
     return deduped
 
@@ -207,3 +208,24 @@ def _dedupe(items: list[InboxItem]) -> list[InboxItem]:
     for item in items:
         by_id[item.id] = item
     return sorted(by_id.values(), key=lambda item: (item.severity.value, item.created_at, item.id))
+
+
+def _preserve_existing_status(store: AriadneStore, items: list[InboxItem]) -> list[InboxItem]:
+    existing_by_id = {item.id: item for item in store.list_inbox_items()}
+    merged: list[InboxItem] = []
+    for item in items:
+        existing = existing_by_id.get(item.id)
+        if existing and existing.status is not InboxStatus.OPEN:
+            merged.append(
+                item.model_copy(
+                    update={
+                        "status": existing.status,
+                        "resolution_note": existing.resolution_note,
+                        "created_at": existing.created_at,
+                        "updated_at": existing.updated_at,
+                    }
+                )
+            )
+        else:
+            merged.append(item)
+    return merged
