@@ -78,6 +78,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     heartbeats = store.list_worker_heartbeats()
     capabilities = store.load_runtime_capabilities() or collect_runtime_capabilities()
     backlog_updates = store.list_backlog_updates()
+    inbox_items = store.list_inbox_items()
     secret_scan = scan_for_secrets(store.root)
     store_invariants = load_latest_store_invariant_report(store)
     executed = [ticket for ticket in tickets if ticket.metadata.get("execution_result_id")]
@@ -94,6 +95,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         f"- Open assignments: `{len(open_assignments)}`",
         f"- Runtime events: `{len(events)}`",
         f"- Executed tickets: `{len(executed)}`",
+        f"- Inbox items: `{len(inbox_items)}`",
         f"- Secret safety: `{'ok' if secret_scan.ok else 'blocked'}`",
         f"- Secret findings: `{len(secret_scan.findings)}`",
         f"- Store invariants: `{_store_invariant_status(store_invariants)}`",
@@ -111,6 +113,15 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
             )
     else:
         lines.append("No assignments yet.")
+    lines.extend(["", "## Inbox", ""])
+    if inbox_items:
+        for item in inbox_items[-10:]:
+            lines.append(
+                f"- `{item.severity.value}` `{item.ticket_key or ''}` `{item.source_type}` "
+                f"`{item.failure_reason.value if item.failure_reason else ''}` - {item.summary}"
+            )
+    else:
+        lines.append("No inbox items. Run `ari inbox refresh` to materialize failure evidence.")
     lines.extend(["", "## Build Teams", ""])
     teams = store.ensure_default_build_teams()
     if teams:

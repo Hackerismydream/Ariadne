@@ -28,6 +28,7 @@ from ariadne_ltb.models import (
     FeishuWriteResult,
     FeishuWritePlan,
     GitHubIntegrationResult,
+    InboxItem,
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
@@ -80,6 +81,8 @@ class AriadneStore:
         self.worktree_records_dir = self.worktrees_dir / "records"
         self.backlog_dir = self.base / "backlog"
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
+        self.inbox_dir = self.base / "inbox"
+        self.inbox_items_path = self.inbox_dir / "items.json"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
         self.integrations_dir = self.base / "integrations"
@@ -117,6 +120,7 @@ class AriadneStore:
             self.worktrees_dir,
             self.worktree_records_dir,
             self.backlog_dir,
+            self.inbox_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
             self.integrations_dir,
@@ -690,6 +694,12 @@ class AriadneStore:
     def load_execution_result(self, result_id: str) -> ExecutionResult:
         return self._read_model(self.execution_results_dir / f"{result_id}.json", ExecutionResult)
 
+    def list_execution_results(self) -> list[ExecutionResult]:
+        return [
+            self._read_model(path, ExecutionResult)
+            for path in sorted(self.execution_results_dir.glob("*.json"))
+        ]
+
     def save_memory_record(self, record: MemoryRecord) -> None:
         self._write_model(self.memory_dir / "tickets" / f"{record.ticket_id}.json", record)
 
@@ -749,6 +759,23 @@ class AriadneStore:
             [self._read_model(path, GitHubIntegrationResult) for path in paths],
             key=lambda result: (result.created_at, _github_operation_order(result.operation)),
         )
+
+    def save_inbox_items(self, items: list[InboxItem]) -> Path:
+        self.inbox_items_path.write_text(
+            json.dumps(
+                {"items": [item.model_dump(mode="json", exclude_none=False) for item in items]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return self.inbox_items_path
+
+    def list_inbox_items(self) -> list[InboxItem]:
+        if not self.inbox_items_path.exists():
+            return []
+        data = json.loads(self.inbox_items_path.read_text(encoding="utf-8"))
+        return [InboxItem.model_validate(item) for item in data.get("items", [])]
 
     def save_project_resources(self, resources: list[ProjectResource]) -> Path:
         path = self.project_dir / "resources.json"

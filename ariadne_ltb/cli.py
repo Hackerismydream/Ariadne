@@ -28,8 +28,10 @@ from ariadne_ltb.github_integration import (
     link_ticket_to_github,
     sync_ticket_with_github,
 )
+from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
+from ariadne_ltb.local_search import search_local_evidence
 from ariadne_ltb.llm import DeepSeekClient, LLMClientError, llm_doctor_status, load_local_env
 from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory_record
@@ -73,6 +75,7 @@ run_app = typer.Typer(help="Agent Run message stream commands.")
 board_app = typer.Typer(help="Local board commands.")
 doctor_app = typer.Typer(help="Release and safety doctors.")
 backlog_app = typer.Typer(help="Ticket backlog update commands.")
+inbox_app = typer.Typer(help="Local inbox for failures, blockers, and integration issues.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
@@ -90,6 +93,7 @@ app.add_typer(run_app, name="run")
 app.add_typer(board_app, name="board")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(backlog_app, name="backlog")
+app.add_typer(inbox_app, name="inbox")
 
 
 class CliState:
@@ -1278,6 +1282,63 @@ def doctor_v1() -> None:
     store = AriadneStore(state.root)
     for line in v1_readiness_lines(store, state.root):
         typer.echo(line)
+
+
+@inbox_app.command("refresh")
+def inbox_refresh() -> None:
+    """Refresh local inbox items from blocked runs and integration results."""
+    store = AriadneStore(state.root)
+    items = refresh_inbox(store)
+    typer.echo(f"inbox items: {len(items)}")
+    typer.echo(f"path: {store.inbox_items_path}")
+
+
+@inbox_app.command("list")
+def inbox_list(
+    refresh: Annotated[bool, typer.Option("--refresh", help="Refresh before listing.")] = False,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """List local inbox items for failures, blockers, and integration issues."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    store = AriadneStore(state.root)
+    items = refresh_inbox(store) if refresh else store.list_inbox_items()
+    if output == "json":
+        typer.echo(json.dumps([item.model_dump(mode="json") for item in items], indent=2))
+        return
+    if not items:
+        typer.echo("No inbox items.")
+        return
+    for item in items:
+        typer.echo(
+            f"{item.severity.value}\t{item.ticket_key or ''}\t{item.source_type}\t"
+            f"{item.failure_reason.value if item.failure_reason else ''}\t{item.summary}"
+        )
+
+
+@app.command("search")
+def search_command(
+    query: str,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 20,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Search local tickets, comments, artifacts, reviews, memory, inbox, and integrations."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    store = AriadneStore(state.root)
+    hits = search_local_evidence(store, query, limit=limit)
+    if output == "json":
+        typer.echo(json.dumps([hit.__dict__ for hit in hits], indent=2, ensure_ascii=False))
+        return
+    if not hits:
+        typer.echo("No local search matches.")
+        return
+    for hit in hits:
+        terms = ", ".join(hit.matched_terms)
+        typer.echo(f"{hit.score:.4f}\t{hit.kind}\t{hit.ticket_key or ''}\t{hit.title}")
+        typer.echo(f"  source: {hit.source_ref}")
+        typer.echo(f"  terms: {terms}")
+        typer.echo(f"  snippet: {hit.snippet}")
 
 
 @memory_app.command("export")

@@ -2565,3 +2565,64 @@ Known limitations:
   status/check synchronization and issue creation are still future work.
 - Successful real remote write still requires an explicitly selected safe issue
   target.
+
+## 2026-06-17 Inbox Search Recovery Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Added `InboxItem` domain model with severity, status, typed failure reason,
+  evidence ref, and recommended action.
+- Added `.ariadne/inbox/items.json` persistence through `AriadneStore`.
+- Added `ariadne_ltb/inbox.py` to materialize blocked assignments, failed or
+  blocked execution results, Feishu write failures, and GitHub integration
+  failures into local inbox items.
+- Added `ari inbox refresh` and `ari inbox list --refresh --output json`.
+- Added `ariadne_ltb/local_search.py` and top-level `ari search` for local
+  lexical evidence search.
+- Search indexes tickets, comments, artifacts, memory records, reviews,
+  execution results, inbox items, Feishu write results, and GitHub integration
+  results.
+- Updated the board system summary to show inbox count and latest inbox items.
+- Updated README and the active production execution plan.
+
+Real integration smoke:
+
+- No new real external write was attempted in this slice.
+- The slice uses persisted failure evidence from assignments, execution,
+  Feishu, and GitHub results; automated tests use deterministic local model
+  objects and monkeypatched command discovery.
+
+Safety boundaries:
+
+- Inbox and search are local-only and do not require network, Codex, Claude,
+  DeepSeek, Feishu, GitHub, or credentials.
+- Search reads persisted Ariadne evidence and artifact text; it does not send
+  content to an external service.
+- Inbox materialization records failure summaries and evidence paths but does
+  not rerun or mutate external integrations.
+
+Verification:
+
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest tests/test_inbox.py tests/test_local_search.py`:
+  passed.
+- `python3.11 -m pytest`: 187 passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env`
+  finding was redacted.
+- `python3.11 -m ariadne_ltb.cli inbox refresh`: passed and wrote 29 local
+  inbox items in the current dogfood store.
+- `python3.11 -m ariadne_ltb.cli inbox list --output json`: passed.
+- `python3.11 -m ariadne_ltb.cli search "isolated worktree" --output json
+  --limit 5`: passed.
+- `scripts/verify_v1.sh`: passed.
+
+Known limitations:
+
+- Inbox severity currently maps to a small high/medium set; richer ownership,
+  snooze, and recovery workflow states remain future work.
+- Search is lexical and local; ranking is intentionally simple until retrieval
+  requirements harden around real dogfood evidence.

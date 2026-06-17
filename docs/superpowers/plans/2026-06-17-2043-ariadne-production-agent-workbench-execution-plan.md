@@ -289,17 +289,23 @@ Include repo, issue, PR, branch, commit SHA, remote URL, and failure evidence.
 
 Every real integration failure must create an inbox item:
 
-- missing API key;
-- invalid API key;
-- CLI not installed;
-- not logged in;
-- quota exhausted;
-- command timeout;
-- unsafe resource boundary;
-- failed write.
+- [x] missing API key;
+- [x] invalid API key;
+- [x] CLI not installed;
+- [x] not logged in;
+- [x] quota exhausted;
+- [x] command timeout;
+- [x] unsafe resource boundary;
+- [x] failed write.
 
 Search must index tickets, comments, memory, artifacts, reviews, inbox, Feishu
 results, GitHub results, and execution evidence.
+
+- [x] Add `InboxItem` persistence under `.ariadne/inbox/items.json`.
+- [x] Add `ari inbox refresh` and `ari inbox list`.
+- [x] Add local lexical evidence search through `ari search`.
+- [x] Show inbox count and latest inbox items on the board.
+- [x] Add deterministic tests for inbox materialization and local search.
 
 ## Phase 6: Review, Eval, Acceptance Evidence
 

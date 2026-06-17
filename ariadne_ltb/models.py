@@ -258,6 +258,19 @@ class DaemonStatus(str, Enum):
     STOPPED = "stopped"
 
 
+class InboxSeverity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class InboxStatus(str, Enum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
+
+
 class WorkerHeartbeat(AriadneModel):
     runtime_id: str
     pid: int
@@ -1021,6 +1034,23 @@ class GitHubIntegrationResult(AriadneModel):
     stderr: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
     created_at: str = Field(default_factory=utc_now)
+
+
+class InboxItem(AriadneModel):
+    id: str
+    source_type: str
+    source_id: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    title: str
+    summary: str
+    severity: InboxSeverity = InboxSeverity.MEDIUM
+    status: InboxStatus = InboxStatus.OPEN
+    failure_reason: FailureReason | None = None
+    evidence_ref: str | None = None
+    recommended_action: str = "human_review_required"
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
 
 
 class BuildSkill(AriadneModel):

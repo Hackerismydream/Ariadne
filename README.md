@@ -369,6 +369,30 @@ Sync writes a GitHub issue comment only through `gh` and only with
 `--confirm-write`. Results are persisted under
 `.ariadne/integrations/github/<ticket>/` with tokens redacted.
 
+## Inbox And Local Search
+
+Real integration failures are materialized into a local inbox so blocked work is
+visible instead of buried in command output:
+
+```bash
+ari inbox refresh
+ari inbox list --refresh
+```
+
+Inbox items are persisted under `.ariadne/inbox/items.json` and include source
+type, ticket key, typed failure reason, severity, evidence ref, and a suggested
+recovery action.
+
+Ariadne also includes local lexical search over the workbench evidence:
+
+```bash
+ari search "auth quota" --output json
+```
+
+Search indexes tickets, comments, artifacts, reviews, execution results,
+memory records, inbox items, Feishu results, and GitHub results. It is local
+only and does not require network access or credentials.
+
 ## Safety
 
 - No auto-commit, auto-push, auto-merge, or PR creation from Ariadne runtime.
