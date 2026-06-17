@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+import subprocess
 
 from typer.testing import CliRunner
 
@@ -43,6 +45,80 @@ def test_doctor_v1_reports_local_readiness(tmp_path: Path) -> None:
     assert "board: ok" in result.output
     assert "safety gates: ok" in result.output
     assert "secret scan:" in result.output
+
+
+def test_doctor_integrations_reports_readiness_without_secret_values(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
+    monkeypatch.setenv(
+        "ARIADNE_LLM_BASE_URL",
+        "https://user:do-not-leak-url-password@proxy.example.com:8443/v1?token=do-not-leak-url-token",
+    )
+    monkeypatch.setenv("FEISHU_APP_SECRET", "do-not-leak-feishu")
+    monkeypatch.setenv("GITHUB_TOKEN", "do-not-leak-github")
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("FEISHU_ENABLE_WRITE", "1")
+
+    def fake_which(command: str) -> str | None:
+        return {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command)
+
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "integrations"])
+
+    assert result.exit_code == 0, result.output
+    assert "Integration doctor: ok" in result.output
+    assert "DeepSeek API key: set" in result.output
+    assert "CodexBackend command: found /usr/local/bin/codex" in result.output
+    assert "ClaudeCodeBackend command: found /usr/local/bin/claude" in result.output
+    assert "Feishu lark-cli command: found /usr/local/bin/lark-cli" in result.output
+    assert "GitHub gh command: found /usr/local/bin/gh" in result.output
+    assert "GitHub auth status: ok" in result.output
+    assert "DeepSeek base URL: https://proxy.example.com:8443" in result.output
+    assert "do-not-leak" not in result.output
+    assert "user:" not in result.output
+
+    snapshot_path = tmp_path / ".ariadne" / "doctor" / "integrations.json"
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert snapshot["llm"]["deepseek_api_key"] == "set"
+    assert snapshot["llm"]["base_url"] == "https://proxy.example.com:8443"
+    assert snapshot["feishu"]["FEISHU_APP_SECRET"] == "set"
+    assert snapshot["github"]["GITHUB_TOKEN"] == "set"
+    assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
+    assert "user:" not in snapshot_path.read_text(encoding="utf-8")
+
+
+def test_doctor_integrations_json_output_is_machine_readable(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("FEISHU_ENABLE_WRITE", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", lambda command: None)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", lambda command: None)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "integrations", "--json"])
+
+    assert result.exit_code == 0, result.output
+    snapshot = json.loads(result.output)
+    assert snapshot["llm"]["provider"] == "deepseek"
+    assert snapshot["llm"]["deepseek_api_key"] == "unset"
+    assert snapshot["coding_backends"]["codex"]["available"] is False
+    assert snapshot["github"]["auth_status"] == "unavailable"
+    assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
 
 
 def test_gitignore_contains_v1_secret_patterns() -> None:

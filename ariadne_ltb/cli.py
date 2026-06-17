@@ -1305,6 +1305,24 @@ def doctor_v1() -> None:
         typer.echo(line)
 
 
+@doctor_app.command("integrations")
+def doctor_integrations(
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print the machine-readable integration doctor snapshot."),
+    ] = False,
+) -> None:
+    """Report real integration readiness without printing secret values."""
+    from ariadne_ltb.doctor import integration_doctor_lines, integration_doctor_snapshot
+
+    store = AriadneStore(state.root)
+    if json_output:
+        typer.echo(json.dumps(integration_doctor_snapshot(store, state.root), indent=2, sort_keys=True))
+        return
+    for line in integration_doctor_lines(store, state.root):
+        typer.echo(line)
+
+
 @inbox_app.command("refresh")
 def inbox_refresh() -> None:
     """Refresh local inbox items from blocked runs and integration results."""

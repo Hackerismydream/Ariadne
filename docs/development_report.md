@@ -3017,3 +3017,61 @@ Safety boundaries:
 - The frontend remains read-only.
 - `frontend/ariadne-workbench/public/web_data/*.json` is ignored because it is
   a generated local snapshot and can contain local filesystem paths.
+
+## 2026-06-17 23:05 CST Integration Doctor Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added the roadmap acceptance command `ari doctor integrations`.
+- The command aggregates local readiness for DeepSeek, Codex, Claude Code,
+  Feishu/lark-cli, GitHub/gh, and required safety gates.
+- The command persists a local machine-readable snapshot at
+  `.ariadne/doctor/integrations.json` for release evidence and workbench use.
+- Added `--json` output for automation.
+- Added `doctor integrations` to `scripts/verify_v1.sh` so release readiness
+  now verifies the integration surface, not only the deterministic demo path.
+
+Safety boundaries:
+
+- The command does not perform external writes.
+- It prints only set/unset and command availability, never secret values.
+- LLM base URL values are reduced to URL origin before printing or persisting,
+  so userinfo, paths, and query tokens from proxy URLs are not exposed.
+- `gh auth status` is used only as a local auth readiness check; no GitHub
+  mutation is performed.
+- In `scripts/verify_v1.sh`, `doctor integrations` is a report-only readiness
+  smoke. It records missing auth/gates as evidence instead of failing the whole
+  deterministic release script.
+
+Local result observed:
+
+- DeepSeek API key: set.
+- Codex CLI: found at `/opt/homebrew/bin/codex`.
+- Claude Code CLI: found at `/opt/homebrew/bin/claude`.
+- lark-cli: found at `/opt/homebrew/bin/lark-cli`.
+- gh CLI: found at `/opt/homebrew/bin/gh`.
+- GitHub auth status: ok.
+- External execution and Feishu write gates: unset, as expected unless a real
+  confirmed run is being performed.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py -q`: passed,
+  `6 passed`.
+- `python3.11 -m pytest`: passed, `206 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `python3.11 -m ruff check ariadne_ltb/doctor.py ariadne_ltb/cli.py
+  tests/test_v1_doctor_release.py`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor integrations`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor integrations --json | python3.11 -m
+  json.tool`: passed.
+- `scripts/verify_v1.sh`: passed and now includes `doctor integrations`; release
+  evidence packet generated as `release_evidence_3a2c34bc7edb`.
+- Secret grep found no real DeepSeek, GitHub, or Feishu token in tracked code,
+  docs, tests, frontend, or scripts; only placeholder references remain.
