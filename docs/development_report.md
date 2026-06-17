@@ -3075,3 +3075,55 @@ Verification:
   evidence packet generated as `release_evidence_3a2c34bc7edb`.
 - Secret grep found no real DeepSeek, GitHub, or Feishu token in tracked code,
   docs, tests, frontend, or scripts; only placeholder references remain.
+
+## 2026-06-17 23:25 CST GitHub Transport Doctor Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- During the integration doctor push, `gh auth status` was healthy but local
+  `git push` still failed or hung because git transport was using a broken
+  proxy / credential path.
+- That is a real production-readiness gap: Ariadne must distinguish GitHub API
+  authentication from local git transport readiness.
+
+Implemented:
+
+- `ari github doctor` now runs a read-only git transport probe with
+  `git ls-remote --heads origin <current-branch>`.
+- The probe uses `GIT_TERMINAL_PROMPT=0` and a short timeout so doctor commands
+  do not hang on broken credential helpers.
+- The probe reports branch, transport status, configured git proxies, and a
+  redacted first-line evidence string.
+- `ari doctor integrations` now persists the same GitHub git transport snapshot
+  under `.ariadne/doctor/integrations.json`.
+
+Safety boundaries:
+
+- The transport probe is read-only.
+- Proxy URLs are redacted if they contain username/password userinfo.
+- GitHub tokens and environment secrets are still reported only as set/unset.
+
+Local result observed:
+
+- GitHub API auth is healthy after `gh auth login`.
+- The previous direct `git push` path exposed a local transport/proxy problem;
+  this slice makes that class of failure visible through Ariadne doctor output.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_github_integration.py
+  tests/test_v1_doctor_release.py -q`: passed, `18 passed`.
+- `python3.11 -m pytest`: passed, `207 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted secret-scan finding.
+- `python3.11 -m ariadne_ltb.cli github doctor`: passed and now reports
+  `git transport status: ok` locally.
+- `python3.11 -m ariadne_ltb.cli doctor integrations`: passed and now includes
+  GitHub git transport status.
+- `scripts/verify_v1.sh`: passed; release evidence packet generated as
+  `release_evidence_b17915af9789`.

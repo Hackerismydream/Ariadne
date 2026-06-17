@@ -21,12 +21,21 @@ from ariadne_ltb.storage import AriadneStore
 
 def github_doctor_lines(root: Path) -> list[str]:
     gh_path = shutil.which("gh")
+    transport = github_transport_snapshot(root)
     lines = [
         f"gh command: {'found ' + gh_path if gh_path else 'missing'}",
         f"GITHUB_TOKEN: {'set' if os.environ.get('GITHUB_TOKEN') else 'unset'}",
     ]
     repo = infer_github_repo(root)
     lines.append(f"repo: {repo or 'unknown'}")
+    lines.append(f"git transport branch: {transport['branch'] or 'unknown'}")
+    lines.append(f"git transport status: {transport['status']}")
+    if transport["http_proxy"]:
+        lines.append(f"git http.proxy: {transport['http_proxy']}")
+    if transport["https_proxy"]:
+        lines.append(f"git https.proxy: {transport['https_proxy']}")
+    if transport["evidence"]:
+        lines.append(f"git transport evidence: {transport['evidence'][:240]}")
     if not gh_path:
         lines.append("gh auth status: unavailable")
         return lines
@@ -37,6 +46,74 @@ def github_doctor_lines(root: Path) -> list[str]:
         if evidence:
             lines.append(f"auth evidence: {_redact_text(evidence).splitlines()[0][:240]}")
     return lines
+
+
+def github_transport_snapshot(root: Path, branch: str | None = None, timeout_seconds: int = 8) -> dict[str, Any]:
+    """Probe local git transport without writing to GitHub."""
+    remote_url = _git_output(["git", "config", "--get", "remote.origin.url"], root)
+    current_branch = branch or _git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], root)
+    http_proxy = _git_output(["git", "config", "--get", "http.proxy"], root)
+    https_proxy = _git_output(["git", "config", "--get", "https.proxy"], root)
+    proxy_secrets = _url_userinfo_secrets(http_proxy, https_proxy)
+    snapshot: dict[str, Any] = {
+        "remote_url": _redact_url(remote_url),
+        "branch": current_branch,
+        "status": "no_remote" if not remote_url else "unknown",
+        "ok": False,
+        "failure_reason": None,
+        "http_proxy": _redact_url(http_proxy),
+        "https_proxy": _redact_url(https_proxy),
+        "command": None,
+        "exit_code": None,
+        "evidence": "",
+    }
+    if not remote_url:
+        snapshot["failure_reason"] = FailureReason.INVALID_RESOURCE.value
+        snapshot["evidence"] = "remote.origin.url is not configured"
+        return snapshot
+
+    command = ["git", "ls-remote", "--heads", "origin"]
+    if current_branch:
+        command.append(current_branch)
+    snapshot["command"] = _redact_command(command)
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        result = subprocess.run(
+            command,
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        snapshot["status"] = "timeout"
+        snapshot["failure_reason"] = FailureReason.TIMEOUT.value
+        evidence = "\n".join(part for part in [exc.stdout or "", exc.stderr or ""] if isinstance(part, str))
+        snapshot["evidence"] = (
+            _first_line(_redact_dynamic_secrets(evidence, proxy_secrets))
+            or f"git transport probe timed out after {timeout_seconds}s"
+        )
+        return snapshot
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as exc:
+        snapshot["status"] = "failed"
+        snapshot["failure_reason"] = FailureReason.COMMAND_UNAVAILABLE.value
+        snapshot["evidence"] = _first_line(_redact_text(str(exc)))
+        return snapshot
+
+    snapshot["exit_code"] = result.returncode
+    evidence = _first_line(_redact_dynamic_secrets(result.stderr or result.stdout, proxy_secrets))
+    snapshot["evidence"] = evidence
+    if result.returncode == 0:
+        snapshot["status"] = "ok"
+        snapshot["ok"] = True
+        snapshot["failure_reason"] = None
+    else:
+        snapshot["status"] = "failed"
+        snapshot["failure_reason"] = _classify_failure(result.stdout, result.stderr).value
+    return snapshot
 
 
 def link_ticket_to_github(
@@ -756,6 +833,8 @@ def _classify_failure(stdout: str, stderr: str) -> FailureReason:
         return FailureReason.AUTHENTICATION_FAILED
     if any(marker in text for marker in ["rate limit", "quota", "too many requests"]):
         return FailureReason.QUOTA_EXCEEDED
+    if "timed out" in text or "timeout" in text:
+        return FailureReason.TIMEOUT
     return FailureReason.AGENT_ERROR
 
 
@@ -790,6 +869,37 @@ def _redact_text(text: str) -> str:
     redacted = re.sub(r"(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]+", r"\1[REDACTED]", redacted)
     redacted = re.sub(r"gh[pousr]_[A-Za-z0-9_]{20,}", "[REDACTED]", redacted)
     return redacted
+
+
+def _redact_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = _redact_text(value.strip())
+    return re.sub(r"(https?://)[^/@\s:]+:[^/@\s]+@", r"\1[REDACTED]:[REDACTED]@", text)
+
+
+def _redact_dynamic_secrets(text: str, secrets: list[str]) -> str:
+    redacted = _redact_text(text)
+    for secret in sorted({secret for secret in secrets if secret}, key=len, reverse=True):
+        redacted = redacted.replace(secret, "[REDACTED]")
+    return redacted
+
+
+def _url_userinfo_secrets(*values: str | None) -> list[str]:
+    secrets: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        match = re.search(r"https?://(?P<userinfo>[^/@\s]+)@", value)
+        if not match:
+            continue
+        userinfo = match.group("userinfo")
+        secrets.extend(part for part in userinfo.split(":", 1) if part)
+    return secrets
+
+
+def _first_line(text: str) -> str:
+    return next((line.strip() for line in text.splitlines() if line.strip()), "")
 
 
 def _extract_issue_url(stdout: str) -> str | None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 from subprocess import CompletedProcess
 
 from typer.testing import CliRunner
@@ -51,6 +52,40 @@ def test_github_doctor_reports_without_printing_token(monkeypatch, tmp_path: Pat
     assert result.exit_code == 0, result.output
     assert "gh command: missing" in result.output
     assert "GITHUB_TOKEN: set" in result.output
+    assert "ghp_" not in result.output
+
+
+def test_github_doctor_reports_git_transport_timeout_without_proxy_secret(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", _fake_github_token())
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", lambda command: "/usr/local/bin/gh")
+
+    def fake_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "remote.origin.url":
+            return CompletedProcess(command, 0, stdout="https://github.com/owner/repo.git\n", stderr="")
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "http.proxy":
+            return CompletedProcess(command, 0, stdout="http://user:proxy-secret@127.0.0.1:7890\n", stderr="")
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "https.proxy":
+            return CompletedProcess(command, 0, stdout="http://user:proxy-secret@127.0.0.1:7890\n", stderr="")
+        if command[:2] == ["git", "rev-parse"]:
+            return CompletedProcess(command, 0, stdout="codex/branch\n", stderr="")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            raise subprocess.TimeoutExpired(command, timeout=8, stderr="proxy-secret timeout")
+        if len(command) >= 3 and command[1:3] == ["auth", "status"]:
+            return CompletedProcess(command, 0, stdout="", stderr="")
+        return CompletedProcess(command, 1, stdout="", stderr=f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "github", "doctor"])
+
+    assert result.exit_code == 0, result.output
+    assert "git transport status: timeout" in result.output
+    assert "git https.proxy: http://[REDACTED]:[REDACTED]@127.0.0.1:7890" in result.output
+    assert "gh auth status: ok" in result.output
+    assert "proxy-secret" not in result.output
     assert "ghp_" not in result.output
 
 

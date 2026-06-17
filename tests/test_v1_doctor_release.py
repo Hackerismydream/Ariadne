@@ -71,9 +71,14 @@ def test_doctor_integrations_reports_readiness_without_secret_values(
 
     monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
     monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", fake_which)
     monkeypatch.setattr(
         "ariadne_ltb.doctor.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr(
+        "ariadne_ltb.github_integration.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "ok\n", ""),
     )
 
     result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "integrations"])
@@ -86,6 +91,7 @@ def test_doctor_integrations_reports_readiness_without_secret_values(
     assert "Feishu lark-cli command: found /usr/local/bin/lark-cli" in result.output
     assert "GitHub gh command: found /usr/local/bin/gh" in result.output
     assert "GitHub auth status: ok" in result.output
+    assert "GitHub git transport: ok" in result.output
     assert "DeepSeek base URL: https://proxy.example.com:8443" in result.output
     assert "do-not-leak" not in result.output
     assert "user:" not in result.output
@@ -96,6 +102,7 @@ def test_doctor_integrations_reports_readiness_without_secret_values(
     assert snapshot["llm"]["base_url"] == "https://proxy.example.com:8443"
     assert snapshot["feishu"]["FEISHU_APP_SECRET"] == "set"
     assert snapshot["github"]["GITHUB_TOKEN"] == "set"
+    assert snapshot["github"]["git_transport"]["status"] == "ok"
     assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
     assert "user:" not in snapshot_path.read_text(encoding="utf-8")
 
@@ -118,6 +125,7 @@ def test_doctor_integrations_json_output_is_machine_readable(
     assert snapshot["llm"]["deepseek_api_key"] == "unset"
     assert snapshot["coding_backends"]["codex"]["available"] is False
     assert snapshot["github"]["auth_status"] == "unavailable"
+    assert snapshot["github"]["git_transport"]["status"] in {"no_remote", "failed"}
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
 
 

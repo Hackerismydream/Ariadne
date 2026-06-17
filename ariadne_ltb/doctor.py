@@ -8,7 +8,7 @@ import subprocess
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from ariadne_ltb.github_integration import infer_github_repo
+from ariadne_ltb.github_integration import github_transport_snapshot, infer_github_repo
 from ariadne_ltb.llm import (
     DEFAULT_DEEPSEEK_BASE_URL,
     DEFAULT_DEEPSEEK_FAST_MODEL,
@@ -121,6 +121,7 @@ def integration_doctor_lines(store: AriadneStore, repo_root: Path) -> list[str]:
         f"GITHUB_TOKEN: {snapshot['github']['GITHUB_TOKEN']}",
         f"GitHub repo: {snapshot['github']['repo'] or 'unknown'}",
         f"GitHub auth status: {snapshot['github']['auth_status']}",
+        f"GitHub git transport: {snapshot['github']['git_transport']['status']}",
         "Secrets: values redacted",
     ]
     return lines
@@ -167,6 +168,7 @@ def _github_snapshot(repo_root: Path) -> dict[str, Any]:
         "GITHUB_TOKEN": _set_unset("GITHUB_TOKEN"),
         "repo": infer_github_repo(repo_root),
         "auth_status": auth_status,
+        "git_transport": github_transport_snapshot(repo_root),
         "confirm_write_required": True,
     }
 
