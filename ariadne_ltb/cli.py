@@ -12,7 +12,13 @@ import typer
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.board_server import board_serve_command
-from ariadne_ltb.backlog import apply_backlog_preview, generate_source_backlog_preview, supersede_ticket
+from ariadne_ltb.backlog import (
+    apply_backlog_preview,
+    generate_execution_feedback_preview,
+    generate_review_feedback_preview,
+    generate_source_backlog_preview,
+    supersede_ticket,
+)
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND, PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
@@ -283,16 +289,36 @@ def backlog_preview(
         list[Path] | None,
         typer.Option("--from-source", help="Source markdown path to preview into the ticket backlog."),
     ] = None,
+    from_review: Annotated[
+        str | None,
+        typer.Option("--from-review", help="Review report id to preview as backlog feedback."),
+    ] = None,
+    from_execution: Annotated[
+        str | None,
+        typer.Option("--from-execution", help="Execution result id to preview as backlog feedback."),
+    ] = None,
 ) -> None:
-    """Preview source-driven backlog mutations without changing tickets."""
+    """Preview source, review, or execution-driven backlog mutations without changing tickets."""
     paths = [*(from_sources or []), *(source_paths or [])]
-    if not paths:
-        typer.echo("No --from-source paths provided.")
+    selected_inputs = sum(bool(item) for item in [paths, from_review, from_execution])
+    if selected_inputs != 1:
+        typer.echo("Provide exactly one of --from-source/source paths, --from-review, or --from-execution.")
         raise typer.Exit(2)
     store = AriadneStore(state.root)
     try:
-        preview = generate_source_backlog_preview(store, paths)
-    except OSError as exc:
+        if paths:
+            preview = generate_source_backlog_preview(store, paths)
+        elif from_review:
+            review_report = store.load_review_report(from_review)
+            ticket = store.load_ticket(review_report.ticket_id)
+            preview = generate_review_feedback_preview(store, ticket, review_report)
+        elif from_execution:
+            execution = store.load_execution_result(from_execution)
+            ticket = store.load_ticket(execution.ticket_id)
+            preview = generate_execution_feedback_preview(store, ticket, execution)
+        else:  # pragma: no cover - selected_inputs guard is exhaustive.
+            raise ValueError("no backlog preview input selected")
+    except (FileNotFoundError, OSError, ValueError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(2) from exc
     typer.echo(f"preview: {preview.id}")

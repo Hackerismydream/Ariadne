@@ -135,6 +135,203 @@ def generate_source_backlog_preview(store: AriadneStore, source_paths: list[Path
     return preview
 
 
+def generate_review_feedback_preview(
+    store: AriadneStore,
+    ticket: BuildTicket,
+    review_report: ReviewReport,
+) -> BacklogPreview:
+    fingerprint = ticket_backlog_fingerprint(store)
+    idempotency_key = stable_id(
+        "backlog_preview_key",
+        BacklogUpdateTrigger.REVIEW_FEEDBACK.value,
+        fingerprint,
+        ticket.id,
+        review_report.id,
+        review_report.verdict.value,
+        "|".join(review_report.failed_checks),
+        "|".join(review_report.warnings),
+        "|".join(review_report.required_fixes),
+    )
+    preview_id = stable_id("backlog_preview", idempotency_key)
+    existing = _load_existing_preview(store, preview_id)
+    if existing:
+        return existing
+
+    operations: list[BacklogOperation] = []
+    if review_report.verdict is ReviewVerdict.PASS:
+        operations.append(
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, ticket.id, "review_promote"),
+                operation_type=BacklogOperationType.PROMOTE_TICKET,
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                status=TicketStatus.DONE,
+                reason=f"Promote {ticket.key} after passing review {review_report.id}.",
+                metadata={"review_report_id": review_report.id},
+            )
+        )
+    else:
+        operations.append(
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, ticket.id, "review_defer"),
+                operation_type=BacklogOperationType.DEFER_TICKET,
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                reason=f"Defer {ticket.key} because review {review_report.id} did not pass.",
+                metadata={
+                    "review_report_id": review_report.id,
+                    "failed_checks": review_report.failed_checks,
+                    "warnings": review_report.warnings,
+                },
+            )
+        )
+        next_index = 1
+        for index, fix in enumerate(review_report.required_fixes, start=1):
+            ticket_key, next_index = _next_preview_ticket_key(store, operations, start_index=next_index)
+            operations.append(
+                BacklogOperation(
+                    id=stable_id("backlog_op", preview_id, ticket.id, "review_fix", index, fix),
+                    operation_type=BacklogOperationType.ADD_TICKET,
+                    ticket_id=stable_id("ticket", ticket.id, review_report.id, "fix", index),
+                    ticket_key=ticket_key,
+                    title=f"Fix review issue for {ticket.key}: {fix[:72]}",
+                    description=fix,
+                    source_type=SourceType.REVIEW.value,
+                    source_ref=review_report.id,
+                    priority=ticket.priority,
+                    status=TicketStatus.PLANNING,
+                    reason=f"Create follow-up from review required fix: {fix}",
+                    metadata={
+                        "source_ticket_id": ticket.id,
+                        "source_ticket_key": ticket.key,
+                        "review_report_id": review_report.id,
+                    },
+                )
+            )
+
+    preview = BacklogPreview(
+        id=preview_id,
+        trigger_type=BacklogUpdateTrigger.REVIEW_FEEDBACK,
+        trigger_ref=review_report.id,
+        idempotency_key=idempotency_key,
+        base_ticket_fingerprint=fingerprint,
+        operations=operations,
+        conflicts=_detect_preview_conflicts(store, operations),
+        rationale=f"Previewed backlog changes from review {review_report.id} for {ticket.key}.",
+        evidence_refs=[review_report.id, ticket.id],
+    )
+    store.save_backlog_preview(preview)
+    return preview
+
+
+def generate_execution_feedback_preview(
+    store: AriadneStore,
+    ticket: BuildTicket,
+    execution_result: ExecutionResult,
+) -> BacklogPreview:
+    fingerprint = ticket_backlog_fingerprint(store)
+    idempotency_key = stable_id(
+        "backlog_preview_key",
+        BacklogUpdateTrigger.EXECUTION_RESULT.value,
+        fingerprint,
+        ticket.id,
+        execution_result.id,
+        execution_result.exit_code,
+        execution_result.test_exit_code,
+        execution_result.blocked,
+        execution_result.block_reason,
+        execution_result.failure_reason.value if execution_result.failure_reason else "",
+        "|".join(execution_result.changed_files),
+        "|".join(execution_result.warnings),
+    )
+    preview_id = stable_id("backlog_preview", idempotency_key)
+    existing = _load_existing_preview(store, preview_id)
+    if existing:
+        return existing
+
+    execution_passed = (
+        not execution_result.blocked
+        and execution_result.exit_code == 0
+        and (execution_result.test_exit_code is None or execution_result.test_exit_code == 0)
+    )
+    if execution_passed:
+        operations = [
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, ticket.id, "execution_promote"),
+                operation_type=BacklogOperationType.PROMOTE_TICKET,
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                status=TicketStatus.REVIEWING,
+                reason=f"Promote {ticket.key} after successful execution {execution_result.id}.",
+                metadata={
+                    "execution_result_id": execution_result.id,
+                    "changed_files": execution_result.changed_files,
+                },
+            )
+        ]
+    else:
+        reason = execution_result.block_reason or (
+            f"execution exit={execution_result.exit_code} test_exit={execution_result.test_exit_code}"
+        )
+        ticket_key, _ = _next_preview_ticket_key(store, [], start_index=1)
+        operations = [
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, ticket.id, "execution_defer"),
+                operation_type=BacklogOperationType.DEFER_TICKET,
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                reason=f"Defer {ticket.key} after failed execution {execution_result.id}: {reason}.",
+                metadata={
+                    "execution_result_id": execution_result.id,
+                    "failure_reason": (
+                        execution_result.failure_reason.value
+                        if execution_result.failure_reason
+                        else None
+                    ),
+                    "changed_files": execution_result.changed_files,
+                    "warnings": execution_result.warnings,
+                },
+            ),
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, ticket.id, "execution_repair"),
+                operation_type=BacklogOperationType.ADD_TICKET,
+                ticket_id=stable_id("ticket", ticket.id, execution_result.id, "repair"),
+                ticket_key=ticket_key,
+                title=f"Repair execution failure for {ticket.key}",
+                description=reason,
+                source_type=SourceType.REVIEW.value,
+                source_ref=execution_result.id,
+                priority=ticket.priority,
+                status=TicketStatus.PLANNING,
+                reason=f"Create repair ticket from failed execution: {reason}",
+                metadata={
+                    "source_ticket_id": ticket.id,
+                    "source_ticket_key": ticket.key,
+                    "execution_result_id": execution_result.id,
+                    "failure_reason": (
+                        execution_result.failure_reason.value
+                        if execution_result.failure_reason
+                        else None
+                    ),
+                },
+            ),
+        ]
+
+    preview = BacklogPreview(
+        id=preview_id,
+        trigger_type=BacklogUpdateTrigger.EXECUTION_RESULT,
+        trigger_ref=execution_result.id,
+        idempotency_key=idempotency_key,
+        base_ticket_fingerprint=fingerprint,
+        operations=operations,
+        conflicts=_detect_preview_conflicts(store, operations),
+        rationale=f"Previewed backlog changes from execution {execution_result.id} for {ticket.key}.",
+        evidence_refs=[execution_result.id, ticket.id],
+    )
+    store.save_backlog_preview(preview)
+    return preview
+
+
 def apply_backlog_preview(store: AriadneStore, preview_id: str) -> BacklogApplyResult:
     from ariadne_ltb.ingest import build_packet_from_source
 

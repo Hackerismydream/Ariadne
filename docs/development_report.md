@@ -4837,3 +4837,64 @@ Known limitation:
 - This slice wires preview/apply for source-driven backlog updates first.
   Review and execution feedback still record direct `BacklogUpdate` entries;
   they should be routed through the same preview/apply mechanism next.
+
+## 2026-06-18 04:27 CST Feedback Backlog Preview Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Extended backlog previews beyond source ingest:
+  - `generate_review_feedback_preview`
+  - `generate_execution_feedback_preview`
+- Extended `ari backlog preview` with:
+  - `--from-review <review_report_id>`
+  - `--from-execution <execution_result_id>`
+- Review feedback preview behavior:
+  - passing review proposes a `promote_ticket` operation to `done`;
+  - non-passing review proposes a `defer_ticket` operation plus repair
+    `add_ticket` operations for each required fix.
+- Execution feedback preview behavior:
+  - successful execution proposes a `promote_ticket` operation to `reviewing`;
+  - failed or blocked execution proposes a `defer_ticket` operation plus a
+    repair `add_ticket` operation with typed failure metadata.
+- Existing source preview/apply behavior remains unchanged.
+
+Why this matters:
+
+- Ariadne's state machine now has a previewable representation for review and
+  execution feedback, not only for source ingestion.
+- This moves the product closer to the intended loop:
+  `execution/review feedback -> update ticket backlog -> assign next agent`.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_backlog_preview_apply.py -q`: passed,
+  `9 passed`.
+- `python3.11 -m ruff check ariadne_ltb/backlog.py ariadne_ltb/cli.py tests/test_backlog_preview_apply.py`:
+  passed.
+- `python3.11 -m pytest tests/test_backlog_update_loop.py tests/test_true_mvp_product_loop.py tests/test_v1_board_ux.py -q`:
+  passed, `36 passed`.
+- Temporary-store CLI smoke:
+  `ari backlog preview --from-review review_manual`,
+  `ari backlog preview --from-execution execution_manual`, and
+  `ari export board`: passed.
+- `python3.11 -m pytest`: passed, `244 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_59072dc92ad0`.
+- Release evidence path:
+  `.ariadne/evidence/release_evidence_packet.json`.
+- Board path:
+  `.ariadne/board/index.md`.
+
+Known limitation:
+
+- The full ticket orchestrator still records feedback-driven `BacklogUpdate`
+  entries directly. The next slice should either create feedback previews during
+  ticket runs or introduce an explicit apply mode so production operators can
+  choose preview-only vs preview-and-apply behavior.

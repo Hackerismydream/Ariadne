@@ -4,10 +4,25 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from ariadne_ltb.backlog import generate_source_backlog_preview, ticket_backlog_fingerprint
+from ariadne_ltb.backlog import (
+    generate_execution_feedback_preview,
+    generate_review_feedback_preview,
+    generate_source_backlog_preview,
+    ticket_backlog_fingerprint,
+)
 from ariadne_ltb.board import export_board
 from ariadne_ltb.cli import app
-from ariadne_ltb.models import BacklogOperationType, BuildTicket, TicketStatus
+from ariadne_ltb.models import (
+    BacklogOperationType,
+    BacklogUpdateTrigger,
+    BuildTicket,
+    ExecutionResult,
+    FailureReason,
+    ReviewReport,
+    ReviewVerdict,
+    TicketChangeType,
+    TicketStatus,
+)
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -98,6 +113,132 @@ def test_backlog_fingerprint_tracks_ticket_state(tmp_path: Path) -> None:
     store.save_ticket(_ticket_for_stale_state())
 
     assert ticket_backlog_fingerprint(store) != before
+
+
+def test_review_feedback_preview_apply_creates_fix_tickets(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    store.save_ticket(ticket)
+    review = ReviewReport(
+        id="review_needs_fix",
+        ticket_id=ticket.id,
+        verdict=ReviewVerdict.NEEDS_FIX,
+        failed_checks=["missing acceptance evidence"],
+        required_fixes=["Add board evidence", "Add memory evidence"],
+    )
+    store.save_review_report(review)
+
+    preview = generate_review_feedback_preview(store, ticket, review)
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "backlog", "apply", preview.id])
+    tickets = store.list_tickets()
+    updated_source = store.load_ticket(ticket.id)
+    changes = store.list_backlog_updates()[0].ticket_changes
+
+    assert result.exit_code == 0, result.output
+    assert preview.trigger_type is BacklogUpdateTrigger.REVIEW_FEEDBACK
+    assert [operation.operation_type for operation in preview.operations] == [
+        BacklogOperationType.DEFER_TICKET,
+        BacklogOperationType.ADD_TICKET,
+        BacklogOperationType.ADD_TICKET,
+    ]
+    assert len(tickets) == 3
+    assert updated_source.status is TicketStatus.BLOCKED
+    assert {change.change_type for change in changes} == {
+        TicketChangeType.DOWNGRADED,
+        TicketChangeType.CREATED,
+    }
+
+
+def test_execution_feedback_preview_apply_creates_repair_ticket(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    store.save_ticket(ticket)
+    execution = ExecutionResult(
+        id="execution_failed",
+        ticket_id=ticket.id,
+        backend_name="codex",
+        dry_run=False,
+        blocked=True,
+        block_reason="quota exhausted",
+        failure_reason=FailureReason.QUOTA_EXCEEDED,
+        command="codex exec",
+        exit_code=2,
+        changed_files=[],
+        test_command="pytest",
+        test_exit_code=None,
+    )
+    store.save_execution_result(execution)
+
+    preview = generate_execution_feedback_preview(store, ticket, execution)
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "backlog", "apply", preview.id])
+    repair_tickets = [
+        item
+        for item in store.list_tickets()
+        if item.metadata.get("execution_result_id") == execution.id
+    ]
+
+    assert result.exit_code == 0, result.output
+    assert preview.trigger_type is BacklogUpdateTrigger.EXECUTION_RESULT
+    assert [operation.operation_type for operation in preview.operations] == [
+        BacklogOperationType.DEFER_TICKET,
+        BacklogOperationType.ADD_TICKET,
+    ]
+    assert store.load_ticket(ticket.id).status is TicketStatus.BLOCKED
+    assert len(repair_tickets) == 1
+    assert repair_tickets[0].title == "Repair execution failure for ARI-999"
+
+
+def test_backlog_preview_cli_supports_review_and_execution_inputs(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    store.save_ticket(ticket)
+    review = ReviewReport(
+        id="review_pass",
+        ticket_id=ticket.id,
+        verdict=ReviewVerdict.PASS,
+    )
+    execution = ExecutionResult(
+        id="execution_pass",
+        ticket_id=ticket.id,
+        backend_name="codex",
+        dry_run=False,
+        command="codex exec",
+        exit_code=0,
+        changed_files=["demo_todo/cli.py"],
+        test_command="pytest",
+        test_exit_code=0,
+    )
+    store.save_review_report(review)
+    store.save_execution_result(execution)
+    runner = CliRunner()
+
+    from_review = runner.invoke(app, ["--root", str(tmp_path), "backlog", "preview", "--from-review", review.id])
+    from_execution = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "backlog", "preview", "--from-execution", execution.id],
+    )
+    invalid = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "backlog",
+            "preview",
+            "--from-review",
+            review.id,
+            "--from-execution",
+            execution.id,
+        ],
+    )
+
+    assert from_review.exit_code == 0, from_review.output
+    assert "trigger: review_feedback" in from_review.output
+    assert "promote_ticket" in from_review.output
+    assert from_execution.exit_code == 0, from_execution.output
+    assert "trigger: execution_result" in from_execution.output
+    assert "promote_ticket" in from_execution.output
+    assert invalid.exit_code == 2
+    assert "Provide exactly one" in invalid.output
 
 
 def _source(tmp_path: Path, name: str, content: str) -> Path:
