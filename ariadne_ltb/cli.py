@@ -775,6 +775,15 @@ def ticket_assign(
     ticket_id: str,
     agent_id: Annotated[str, typer.Option("--to", help="Agent profile id or name.")],
     backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
+    planner: Annotated[str | None, typer.Option("--planner", help="Override planner name.")] = None,
+    agent_runtime: Annotated[
+        str | None,
+        typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm."),
+    ] = None,
+    backlog_planner: Annotated[
+        str | None,
+        typer.Option("--backlog-planner", help="Override feedback backlog planner: deterministic|llm."),
+    ] = None,
 ) -> None:
     """Assign a Build Ticket to a local Agent teammate."""
     store = AriadneStore(state.root)
@@ -784,16 +793,34 @@ def ticket_assign(
     except FileNotFoundError:
         team = None
     if team is not None:
-        routed = route_ticket_to_build_team(store, ticket, team, backend_name=backend)
+        routed = route_ticket_to_build_team(
+            store,
+            ticket,
+            team,
+            backend_name=backend,
+            planner_name=planner,
+            agent_runtime=agent_runtime,
+            backlog_planner_name=backlog_planner,
+        )
         typer.echo(f"Build Team routed: {routed.team.id}")
         typer.echo(f"ticket: {ticket.key}")
         typer.echo(f"selected agent: {routed.assignment.agent_id}")
         typer.echo(f"backend: {routed.assignment.backend_name or ''}")
+        typer.echo(f"planner: {routed.assignment.planner_name}")
+        typer.echo(f"agent runtime: {routed.assignment.agent_runtime}")
+        typer.echo(f"backlog planner: {routed.assignment.backlog_planner_name}")
         typer.echo(f"assignment: {routed.assignment.id}")
         typer.echo(f"route decision: {routed.route_artifact.path}")
         return
     agent = store.resolve_agent_profile(agent_id)
-    assignment = store.create_assignment(ticket, agent, backend_name=backend)
+    assignment = store.create_assignment(
+        ticket,
+        agent,
+        backend_name=backend,
+        planner_name=planner,
+        agent_runtime=agent_runtime,
+        backlog_planner_name=backlog_planner,
+    )
     status = (
         TicketStatus.READY_FOR_EXECUTION
         if (assignment.backend_name or agent.backend_name) == "fake-codex"
@@ -809,6 +836,9 @@ def ticket_assign(
     typer.echo(f"ticket: {ticket.key}")
     typer.echo(f"agent: {agent.id}")
     typer.echo(f"backend: {assignment.backend_name or ''}")
+    typer.echo(f"planner: {assignment.planner_name}")
+    typer.echo(f"agent runtime: {assignment.agent_runtime}")
+    typer.echo(f"backlog planner: {assignment.backlog_planner_name}")
 
 
 @ticket_app.command("comment")
@@ -1190,10 +1220,20 @@ def _format_acceptance_coverage(review: ReviewReport) -> str:
 def daemon_run_once(
     runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    agent_runtime: Annotated[
+        str | None,
+        typer.Option("--agent-runtime", help="Override assignment upstream agent runtime: deterministic|llm."),
+    ] = None,
+    backlog_planner: Annotated[
+        str | None,
+        typer.Option("--backlog-planner", help="Override assignment feedback backlog planner."),
+    ] = None,
 ) -> None:
     """Claim and run one queued assignment."""
     result = LocalDaemonWorker(AriadneStore(state.root), runtime_id=runtime_id).run_once(
         confirm_execution=confirm_execution,
+        agent_runtime=agent_runtime,
+        backlog_planner=backlog_planner,
     )
     if not result.did_work:
         typer.echo("no work")
@@ -1202,6 +1242,13 @@ def daemon_run_once(
     typer.echo(f"running ticket: {result.ticket_key}")
     if result.ticket_run_result:
         typer.echo(f"reviewer verdict: {result.ticket_run_result.review_verdict}")
+        typer.echo(f"agent runtime: {result.ticket_run_result.agent_runtime}")
+        if result.ticket_run_result.llm_agent_artifact_paths:
+            typer.echo(
+                "llm agent artifacts: "
+                f"{', '.join(result.ticket_run_result.llm_agent_artifact_paths)}"
+            )
+        typer.echo(f"backlog planner: {result.ticket_run_result.backlog_planner_name}")
         typer.echo(f"board: {result.ticket_run_result.board_path}")
     typer.echo(f"assignment {result.status}: {result.assignment_id}")
 
@@ -1212,12 +1259,22 @@ def daemon_start(
     interval: Annotated[float, typer.Option("--interval")] = 5.0,
     max_iterations: Annotated[int | None, typer.Option("--max-iterations")] = None,
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    agent_runtime: Annotated[
+        str | None,
+        typer.Option("--agent-runtime", help="Override assignment upstream agent runtime: deterministic|llm."),
+    ] = None,
+    backlog_planner: Annotated[
+        str | None,
+        typer.Option("--backlog-planner", help="Override assignment feedback backlog planner."),
+    ] = None,
 ) -> None:
     """Run a simple local daemon polling loop."""
     LocalDaemonWorker(AriadneStore(state.root), runtime_id=runtime_id).run_loop(
         interval_seconds=interval,
         max_iterations=max_iterations,
         confirm_execution=confirm_execution,
+        agent_runtime=agent_runtime,
+        backlog_planner=backlog_planner,
     )
     typer.echo("daemon loop finished")
 

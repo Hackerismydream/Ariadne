@@ -14,7 +14,7 @@ from ariadne_ltb.handoffs import record_handoff
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
 from ariadne_ltb.llm import DeepSeekClient
-from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
+from ariadne_ltb.llm_agents import LLMAgentResult, LLMAgentRole, run_ticket_llm_agent
 from ariadne_ltb.llm_backlog import generate_llm_backlog_artifact
 from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
 from ariadne_ltb.models import (
@@ -22,6 +22,7 @@ from ariadne_ltb.models import (
     AgentRunStatus,
     Artifact,
     ArtifactType,
+    BuildTicket,
     CommentAuthorType,
     CommentKind,
     DaemonStatus,
@@ -149,6 +150,7 @@ class TicketRunOrchestrator:
                 ),
                 payload_ref=build_lead_result.artifact_id,
             )
+            self._require_llm_role_success(ticket, build_lead_result)
 
         planner_result = planner_for_name(planner, use_memory=use_memory).plan_ticket(self.store, ticket)
         if not planner_result.succeeded:
@@ -182,6 +184,7 @@ class TicketRunOrchestrator:
                 ),
                 payload_ref=knowledge_result.artifact_id,
             )
+            self._require_llm_role_success(ticket, knowledge_result)
         record_handoff(
             self.store,
             ticket,
@@ -773,6 +776,7 @@ class TicketRunOrchestrator:
                 ),
                 payload_ref=memory_role_result.artifact_id,
             )
+            self._require_llm_role_success(ticket, memory_role_result)
         memory_run = _finish_run(
             self.store,
             memory_run,
@@ -961,6 +965,16 @@ class TicketRunOrchestrator:
                 heartbeat_at=utc_now(),
                 last_event_id=event_id,
             )
+        )
+
+    def _require_llm_role_success(self, ticket: BuildTicket, result: LLMAgentResult) -> None:
+        if result.succeeded:
+            return
+        board_path = export_board(self.store)
+        role_name = result.role.value.replace("_", " ")
+        msg = result.error or "unknown LLM role failure"
+        raise RuntimeError(
+            f"DeepSeek {role_name} role blocked for {ticket.key}: {msg}; board: {board_path}"
         )
 
 

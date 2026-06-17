@@ -3933,3 +3933,88 @@ Verification:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_db080fc377cc` and completed product doctor, release
   packet, workbench sync, and workbench build checks.
+
+## 2026-06-18 02:41 CST Daemon LLM Runtime Strategy Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- `ari ticket run ... --agent-runtime llm` could invoke DeepSeek Build Lead,
+  Knowledge, and Memory roles, but the roadmap's normal product path is
+  assignment-centered: `ari ticket assign ...` followed by `ari daemon run-once`.
+- Before this slice, daemon workers always called the orchestrator with the
+  assignment planner and deterministic upstream agent runtime defaults. That
+  meant the daemon path could still bypass real upstream LLM agents even when
+  the ticket-run path supported them.
+
+Implemented:
+
+- Added runtime strategy fields to the local work-management model:
+  - `AgentProfile.agent_runtime`
+  - `AgentProfile.backlog_planner_name`
+  - `BuildTeam.agent_runtime`
+  - `BuildTeam.backlog_planner_name`
+  - `TicketAssignment.agent_runtime`
+  - `TicketAssignment.backlog_planner_name`
+  - `RouteDecision.agent_runtime`
+  - `RouteDecision.backlog_planner_name`
+- Added strategy overrides to `ari ticket assign`:
+  - `--planner`
+  - `--agent-runtime deterministic|llm`
+  - `--backlog-planner deterministic|llm`
+- `LocalDaemonWorker.run_once(...)` now passes assignment strategy into
+  `TicketRunOrchestrator.run_ticket(...)`.
+- Explicit `agent_runtime=llm` now treats a blocked DeepSeek role as a blocked
+  ticket run instead of allowing execution to continue and marking the
+  assignment done.
+- `ari daemon run-once` and `ari daemon start` can override assignment strategy
+  for one worker pass with `--agent-runtime` and `--backlog-planner`.
+- The board Route Decision section now shows Agent Runtime and Backlog Planner.
+- README now documents the assignment-centered LLM runtime path:
+
+```bash
+ari ticket assign ARI-003 --to codex --agent-runtime llm --backlog-planner llm
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+```
+
+Deterministic tests:
+
+- Added coverage that `ari ticket assign` persists planner/runtime/backlog
+  planner overrides on assignments.
+- Added daemon coverage using a fake DeepSeek transport to prove
+  `LocalDaemonWorker.run_once(agent_runtime="llm")` invokes Build Lead,
+  Knowledge, and Memory LLM role AgentRuns inside the assignment-centered path.
+- Added daemon coverage proving that missing `DEEPSEEK_API_KEY` fails the
+  assignment instead of reporting a successful run.
+- Added board coverage for Route Decision Agent Runtime and Backlog Planner.
+
+Verification:
+
+- Targeted deterministic tests:
+  `python3.11 -m pytest tests/test_agent_teammate_mode.py tests/test_v1_daemon_supervision.py tests/test_true_mvp_product_loop.py -q`
+  passed, `36 passed`.
+- Targeted Ruff:
+  `python3.11 -m ruff check ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/team.py ariadne_ltb/daemon.py ariadne_ltb/cli.py ariadne_ltb/board.py tests/test_agent_teammate_mode.py`
+  passed.
+- Real DeepSeek daemon dogfood:
+  `ari ticket assign ARI-003 --to fake-codex --agent-runtime llm` followed by
+  `ari daemon run-once --agent-runtime llm` passed on a temporary Ariadne root
+  with the local ignored `.env` loaded.
+- The daemon-centered dogfood wrote successful role artifacts:
+  - `llm_build_lead.json`: model `deepseek-v4-pro`, total tokens `2748`;
+  - `llm_knowledge.json`: model `deepseek-v4-pro`, total tokens `2564`;
+  - `llm_memory.json`: model `deepseek-v4-pro`, total tokens `2423`.
+- Reviewer verdict: `pass`; assignment status: `done`.
+- A temporary-root run without `.env` now exits the daemon pass with
+  `assignment failed` because `DEEPSEEK_API_KEY` is missing. This prevents an
+  explicit LLM-runtime request from being misreported as a completed assignment.
+- Full `python3.11 -m pytest`: passed, `224 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_209859c72b9a` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.

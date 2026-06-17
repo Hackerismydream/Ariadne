@@ -265,6 +265,9 @@ class AriadneStore:
         ticket: BuildTicket,
         agent: AgentProfile,
         backend_name: str | None = None,
+        planner_name: str | None = None,
+        agent_runtime: str | None = None,
+        backlog_planner_name: str | None = None,
         assigned_by: str = "human",
     ) -> TicketAssignment:
         assignment = TicketAssignment(
@@ -274,7 +277,9 @@ class AriadneStore:
             agent_id=agent.id,
             agent_name=agent.name,
             backend_name=backend_name or agent.backend_name,
-            planner_name=agent.planner_name,
+            planner_name=planner_name or agent.planner_name,
+            agent_runtime=agent_runtime or agent.agent_runtime,
+            backlog_planner_name=backlog_planner_name or agent.backlog_planner_name,
             priority=ticket.priority,
             assigned_by=assigned_by,
         )

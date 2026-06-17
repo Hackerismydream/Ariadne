@@ -223,6 +223,17 @@ The full ticket loop can also run upstream DeepSeek role agents directly:
 ari ticket run ARI-003 --backend codex --agent-runtime llm --confirm-execution
 ```
 
+The daemon / assignment path can use the same upstream runtime. This keeps the
+normal product flow ticket-centered instead of requiring manual role-agent calls:
+
+```bash
+ari ticket assign ARI-003 --to codex --agent-runtime llm --backlog-planner llm
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+```
+
+`daemon run-once` also accepts `--agent-runtime` and `--backlog-planner` as
+runtime overrides for one worker pass.
+
 Real LLM smoke tests are explicit external calls:
 
 ```bash

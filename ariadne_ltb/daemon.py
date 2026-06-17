@@ -21,6 +21,7 @@ from ariadne_ltb.models import (
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator, TicketRunResult
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.llm import DeepSeekClient
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,13 @@ class LocalDaemonWorker:
         self.store = store
         self.runtime_id = runtime_id
 
-    def run_once(self, confirm_execution: bool = False) -> DaemonRunResult:
+    def run_once(
+        self,
+        confirm_execution: bool = False,
+        agent_runtime: str | None = None,
+        backlog_planner: str | None = None,
+        llm_agent_client: DeepSeekClient | None = None,
+    ) -> DaemonRunResult:
         self._heartbeat(DaemonStatus.IDLE, "idle")
         assignment = self._next_assignment()
         if assignment is None:
@@ -109,6 +116,9 @@ class LocalDaemonWorker:
                 ticket.key,
                 backend_name=running.backend_name or PRODUCT_DEFAULT_BACKEND,
                 planner=running.planner_name,
+                agent_runtime=agent_runtime or running.agent_runtime,
+                backlog_planner=backlog_planner or running.backlog_planner_name,
+                llm_agent_client=llm_agent_client,
                 confirm_execution=confirm_execution,
                 isolate_worktree=True,
             )
@@ -240,10 +250,16 @@ class LocalDaemonWorker:
         interval_seconds: float = 5.0,
         max_iterations: int | None = None,
         confirm_execution: bool = False,
+        agent_runtime: str | None = None,
+        backlog_planner: str | None = None,
     ) -> None:
         iterations = 0
         while max_iterations is None or iterations < max_iterations:
-            self.run_once(confirm_execution=confirm_execution)
+            self.run_once(
+                confirm_execution=confirm_execution,
+                agent_runtime=agent_runtime,
+                backlog_planner=backlog_planner,
+            )
             iterations += 1
             if max_iterations is not None and iterations >= max_iterations:
                 break

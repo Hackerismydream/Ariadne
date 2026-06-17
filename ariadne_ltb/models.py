@@ -395,6 +395,8 @@ class AgentProfile(AriadneModel):
     role: str
     backend_name: str | None = None
     planner_name: str = "deterministic"
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     description: str = ""
     capabilities: list[str] = Field(default_factory=list)
     default_confirm_execution: bool = False
@@ -412,6 +414,8 @@ class BuildTeam(AriadneModel):
     memory_agent_id: str = "memory"
     default_backend_name: str = PRODUCT_DEFAULT_BACKEND
     planner_name: str = "deterministic"
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     skill_refs: list[str] = Field(default_factory=list)
     resource_policy: str = "local_project_resources"
     enabled: bool = True
@@ -426,6 +430,8 @@ class TicketAssignment(AriadneModel):
     agent_name: str
     backend_name: str | None = None
     planner_name: str = "deterministic"
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     status: AssignmentStatus = AssignmentStatus.QUEUED
     priority: str = "medium"
     assigned_by: str = "human"
@@ -970,6 +976,8 @@ class RouteDecision(AriadneModel):
     ticket_id: str
     ticket_key: str
     planner_name: str
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     backend_name: str
     build_team_id: str | None = None
     build_team_name: str | None = None

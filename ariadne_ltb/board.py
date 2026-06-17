@@ -479,6 +479,10 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         lines.append(f"- Selected agent: `{route_decision.get('selected_agent_id') or ''}`")
         lines.append(f"- Backend: `{route_decision.get('backend_name')}`")
         lines.append(f"- Planner: `{route_decision.get('planner_name')}`")
+        lines.append(f"- Agent runtime: `{route_decision.get('agent_runtime') or 'deterministic'}`")
+        lines.append(
+            f"- Backlog planner: `{route_decision.get('backlog_planner_name') or 'deterministic'}`"
+        )
         lines.append(f"- Target repo: `{route_decision.get('target_repo_path')}`")
         lines.append(f"- Permission profile: `{route_decision.get('permission_profile_id') or 'missing'}`")
         lines.append(f"- Reason: {route_decision.get('reason', '')}")

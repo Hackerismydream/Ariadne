@@ -37,11 +37,19 @@ def route_ticket_to_build_team(
     ticket: BuildTicket,
     team: BuildTeam,
     backend_name: str | None = None,
+    planner_name: str | None = None,
+    agent_runtime: str | None = None,
+    backlog_planner_name: str | None = None,
     target_repo_path: str | None = None,
 ) -> BuildTeamRouteResult:
     lead = store.resolve_agent_profile(team.lead_agent_id)
     implementer = store.resolve_agent_profile(team.implementer_agent_id)
     selected_backend = backend_name or team.default_backend_name or implementer.backend_name or ""
+    selected_planner = planner_name or team.planner_name or implementer.planner_name
+    selected_agent_runtime = agent_runtime or team.agent_runtime or implementer.agent_runtime
+    selected_backlog_planner = (
+        backlog_planner_name or team.backlog_planner_name or implementer.backlog_planner_name
+    )
     target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(store.root)
     runtime_capability_path = store.save_runtime_capabilities(collect_runtime_capabilities())
     project_resources = [
@@ -64,7 +72,9 @@ def route_ticket_to_build_team(
         id=stable_id("route", ticket.id, team.id, selected_backend, str(target_repo)),
         ticket_id=ticket.id,
         ticket_key=ticket.key,
-        planner_name=team.planner_name,
+        planner_name=selected_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
         backend_name=selected_backend,
         build_team_id=team.id,
         build_team_name=team.name,
@@ -108,18 +118,25 @@ def route_ticket_to_build_team(
         ticket,
         implementer,
         backend_name=selected_backend,
+        planner_name=selected_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
         assigned_by=lead.name,
     )
     assignment = assignment.model_copy(
         deep=True,
         update={
-            "planner_name": team.planner_name,
+            "planner_name": selected_planner,
+            "agent_runtime": selected_agent_runtime,
+            "backlog_planner_name": selected_backlog_planner,
             "metadata": assignment.metadata
             | {
                 "build_team_id": team.id,
                 "build_team_name": team.name,
                 "lead_agent_id": lead.id,
                 "route_decision_artifact_id": route_artifact.id,
+                "agent_runtime": selected_agent_runtime,
+                "backlog_planner_name": selected_backlog_planner,
             },
         },
     )
@@ -178,6 +195,8 @@ def route_ticket_to_build_team(
                 "build_team_id": team.id,
                 "selected_agent_id": implementer.id,
                 "backend_name": selected_backend,
+                "agent_runtime": selected_agent_runtime,
+                "backlog_planner_name": selected_backlog_planner,
                 "reason": route_decision.reason,
             },
         )
