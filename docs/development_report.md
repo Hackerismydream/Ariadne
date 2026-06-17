@@ -5085,6 +5085,58 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 06:18 CST Inbox Recovery Ticket Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `BacklogUpdateTrigger.INBOX_RECOVERY`.
+- Added `create_repair_ticket_from_inbox()` so an inbox item can be promoted
+  into a repair Build Ticket through Ariadne's existing BacklogPreview and
+  BacklogUpdate audit path.
+- Added `ari inbox create-ticket <item_id>`:
+  - default behavior writes and applies a repair-ticket preview;
+  - `--preview-only` writes the preview without mutating tickets;
+  - output supports `table|json`;
+  - repeated calls are idempotent and return the existing repair ticket.
+- The created repair ticket includes:
+  - source document metadata derived from the inbox item;
+  - Build Packet creation through the existing preview apply path;
+  - metadata linking it back to the inbox item and source failure.
+- The source inbox item is marked `acknowledged` after repair-ticket creation.
+
+Why this matters:
+
+- This closes the failure recovery loop:
+  real failure -> inbox item -> repair ticket -> backlog update evidence.
+- Ariadne can now turn provider/auth/quota/runtime failures into visible work
+  instead of leaving them as passive diagnostics or requiring manual ticket
+  creation outside the system.
+
+Focused verification:
+
+- `python3.11 -m pytest tests/test_inbox.py`: passed, `6 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, `253 passed`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `python3.11 -m ariadne_ltb.cli inbox --help`: passed and shows
+  `create-ticket`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_740c8c6554c4`; workbench sync reported 18 inbox items.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 05:52 CST Inbox Resolution Workflow Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

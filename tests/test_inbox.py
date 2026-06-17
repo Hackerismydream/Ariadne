@@ -171,3 +171,59 @@ def test_inbox_show_and_resolve_preserves_status_across_refresh(tmp_path: Path) 
     refreshed_item = next(item for item in refreshed if item.id == item_id)
     assert refreshed_item.status is InboxStatus.RESOLVED
     assert refreshed_item.resolution_note == "fixed local provider config"
+
+
+def test_inbox_create_ticket_applies_repair_backlog_update_idempotently(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+    item = refresh_inbox(store)[0]
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "create-ticket", item.id, "--output", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["ticket_key"]
+    assert payload["update_id"]
+    assert payload["inbox_status"] == "acknowledged"
+
+    repair_ticket = store.load_ticket(payload["ticket_id"])
+    assert repair_ticket.metadata["generated_from_inbox_item_id"] == item.id
+    assert repair_ticket.status.value == "planning"
+    assert repair_ticket.build_packet_id
+    assert len(store.list_backlog_updates()) == 2  # source ingest plus inbox recovery
+
+    second = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "create-ticket", item.id, "--output", "json"],
+    )
+    assert second.exit_code == 0, second.output
+    second_payload = json.loads(second.output)
+    assert second_payload["already_exists"] is True
+    assert second_payload["ticket_id"] == repair_ticket.id
+    assert len(store.list_tickets()) == 2
+
+
+def test_inbox_create_ticket_preview_only_does_not_mutate_tickets(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_blocked("quota exceeded", FailureReason.QUOTA_EXCEEDED))
+    item = refresh_inbox(store)[0]
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "create-ticket", item.id, "--preview-only", "--output", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["preview_only"] is True
+    assert payload["preview_id"]
+    assert payload["ticket_id"] is None
+    assert len(store.list_tickets()) == 1
+    assert store.load_inbox_item(item.id).status is InboxStatus.OPEN

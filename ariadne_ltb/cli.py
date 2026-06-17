@@ -41,7 +41,7 @@ from ariadne_ltb.github_integration import (
     link_ticket_to_github,
     sync_ticket_with_github,
 )
-from ariadne_ltb.inbox import refresh_inbox
+from ariadne_ltb.inbox import create_repair_ticket_from_inbox, refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_search import search_local_evidence
@@ -2082,6 +2082,56 @@ def inbox_resolve(
         raise typer.Exit(2) from exc
     typer.echo(f"resolved: {item.id}")
     typer.echo(f"status: {item.status.value}")
+
+
+@inbox_app.command("create-ticket")
+def inbox_create_ticket(
+    item_id: str,
+    priority: Annotated[str, typer.Option("--priority", help="Priority for the repair ticket.")] = "high",
+    preview_only: Annotated[
+        bool,
+        typer.Option("--preview-only", help="Only write the backlog preview; do not apply it."),
+    ] = False,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Create a repair Build Ticket from an inbox item."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    store = AriadneStore(state.root)
+    try:
+        result = create_repair_ticket_from_inbox(
+            store,
+            item_id,
+            priority=priority,
+            preview_only=preview_only,
+        )
+    except FileNotFoundError as exc:
+        raise typer.Exit(2) from exc
+    payload = {
+        "inbox_item_id": result.inbox_item.id,
+        "inbox_status": result.inbox_item.status.value,
+        "preview_id": result.preview.id if result.preview else None,
+        "update_id": result.update.id if result.update else None,
+        "ticket_id": result.ticket.id if result.ticket else None,
+        "ticket_key": result.ticket.key if result.ticket else None,
+        "already_exists": result.already_exists,
+        "preview_only": result.preview_only,
+    }
+    if output == "json":
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    typer.echo(f"inbox: {payload['inbox_item_id']}")
+    typer.echo(f"status: {payload['inbox_status']}")
+    if payload["preview_id"]:
+        typer.echo(f"preview: {payload['preview_id']}")
+    if payload["update_id"]:
+        typer.echo(f"update: {payload['update_id']}")
+    if payload["ticket_key"]:
+        typer.echo(f"ticket: {payload['ticket_key']} ({payload['ticket_id']})")
+    if result.already_exists:
+        typer.echo("already exists: true")
+    if result.preview_only:
+        typer.echo("preview only: true")
 
 
 @app.command("search")

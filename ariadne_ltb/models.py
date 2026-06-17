@@ -57,6 +57,7 @@ class BacklogUpdateTrigger(str, Enum):
     EXECUTION_RESULT = "execution_result"
     MEMORY_GAP = "memory_gap"
     CODEBASE_OBSERVATION = "codebase_observation"
+    INBOX_RECOVERY = "inbox_recovery"
     MANUAL_GOAL = "manual_goal"
 
 

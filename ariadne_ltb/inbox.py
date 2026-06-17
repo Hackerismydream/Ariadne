@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from ariadne_ltb.models import (
     AgentRun,
     AgentRunStatus,
     AssignmentStatus,
+    BacklogOperation,
+    BacklogOperationType,
+    BacklogPreview,
+    BacklogUpdate,
+    BacklogUpdateTrigger,
+    BuildTicket,
     ExecutionResult,
     FailureReason,
     FeishuWriteResult,
@@ -13,10 +21,23 @@ from ariadne_ltb.models import (
     InboxItem,
     InboxSeverity,
     InboxStatus,
+    SourceDocument,
+    SourceType,
+    TicketStatus,
     TicketAssignment,
     stable_id,
 )
 from ariadne_ltb.storage import AriadneStore
+
+
+@dataclass(frozen=True)
+class InboxRepairTicketResult:
+    inbox_item: InboxItem
+    preview: BacklogPreview | None
+    update: BacklogUpdate | None
+    ticket: BuildTicket | None
+    already_exists: bool = False
+    preview_only: bool = False
 
 
 def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
@@ -51,6 +72,165 @@ def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
     deduped = _preserve_existing_status(store, _dedupe(items))
     store.save_inbox_items(deduped)
     return deduped
+
+
+def create_repair_ticket_from_inbox(
+    store: AriadneStore,
+    item_id: str,
+    priority: str = "high",
+    preview_only: bool = False,
+) -> InboxRepairTicketResult:
+    """Create or preview a repair Build Ticket from one inbox item."""
+
+    item = store.load_inbox_item(item_id)
+    existing = _find_repair_ticket_for_inbox_item(store, item.id)
+    if existing:
+        acknowledged = store.update_inbox_item_status(
+            item.id,
+            InboxStatus.ACKNOWLEDGED,
+            f"repair ticket already exists: {existing.key}",
+        )
+        return InboxRepairTicketResult(
+            inbox_item=acknowledged,
+            preview=None,
+            update=None,
+            ticket=existing,
+            already_exists=True,
+        )
+
+    preview = _repair_ticket_preview(store, item, priority)
+    store.save_backlog_preview(preview)
+    if preview_only:
+        return InboxRepairTicketResult(
+            inbox_item=item,
+            preview=preview,
+            update=None,
+            ticket=None,
+            preview_only=True,
+        )
+
+    from ariadne_ltb.backlog import apply_backlog_preview
+
+    applied = apply_backlog_preview(store, preview.id)
+    ticket = (
+        store.load_ticket(applied.update.created_ticket_ids[0])
+        if applied.update and applied.update.created_ticket_ids
+        else None
+    )
+    note = f"repair ticket created: {ticket.key}" if ticket else f"repair preview applied: {preview.id}"
+    acknowledged = store.update_inbox_item_status(item.id, InboxStatus.ACKNOWLEDGED, note)
+    return InboxRepairTicketResult(
+        inbox_item=acknowledged,
+        preview=applied.preview,
+        update=applied.update,
+        ticket=ticket,
+        already_exists=applied.already_applied,
+    )
+
+
+def _repair_ticket_preview(store: AriadneStore, item: InboxItem, priority: str) -> BacklogPreview:
+    from ariadne_ltb.backlog import ticket_backlog_fingerprint
+    from ariadne_ltb.ingest import next_ticket_key
+
+    fingerprint = ticket_backlog_fingerprint(store)
+    source_document = _source_document_for_inbox_item(item)
+    idempotency_key = stable_id(
+        "backlog_preview_key",
+        BacklogUpdateTrigger.INBOX_RECOVERY.value,
+        fingerprint,
+        item.id,
+        item.status.value,
+    )
+    preview_id = stable_id("backlog_preview", idempotency_key)
+    ticket_key = next_ticket_key(store)
+    title = _repair_ticket_title(item)
+    description = _repair_ticket_description(item)
+    return BacklogPreview(
+        id=preview_id,
+        trigger_type=BacklogUpdateTrigger.INBOX_RECOVERY,
+        trigger_ref=item.id,
+        idempotency_key=idempotency_key,
+        base_ticket_fingerprint=fingerprint,
+        operations=[
+            BacklogOperation(
+                id=stable_id("backlog_op", preview_id, item.id, "repair_ticket"),
+                operation_type=BacklogOperationType.ADD_TICKET,
+                ticket_id=stable_id("ticket", "inbox_repair", item.id),
+                ticket_key=ticket_key,
+                title=title,
+                description=description,
+                source_type=SourceType.REVIEW.value,
+                source_ref=item.evidence_ref or f"ariadne://inbox/{item.id}",
+                priority=priority,
+                status=TicketStatus.PLANNING,
+                reason=f"Create {ticket_key} to repair inbox item {item.id}.",
+                metadata={
+                    "source_document": source_document.model_dump(mode="json"),
+                    "owner_agent": "Build Lead",
+                    "generated_from_inbox_item_id": item.id,
+                    "generated_from_inbox_source_type": item.source_type,
+                    "generated_from_inbox_source_id": item.source_id,
+                },
+            )
+        ],
+        conflicts=[],
+        rationale=f"Create a repair Build Ticket from inbox item {item.id}.",
+        evidence_refs=[item.id, item.evidence_ref or str(store.inbox_items_path)],
+    )
+
+
+def _source_document_for_inbox_item(item: InboxItem) -> SourceDocument:
+    content = "\n".join(
+        [
+            _repair_ticket_title(item),
+            item.summary,
+            item.failure_reason.value if item.failure_reason else "unknown",
+            item.recommended_action,
+            item.evidence_ref or "",
+        ]
+    )
+    return SourceDocument(
+        id=stable_id("source", "inbox_repair", item.id),
+        source_type=SourceType.REVIEW,
+        title=_repair_ticket_title(item),
+        path_or_url=item.evidence_ref or f"ariadne://inbox/{item.id}",
+        content_hash=sha256(content.encode("utf-8")).hexdigest(),
+        summary=_repair_ticket_description(item),
+        metadata={
+            "inbox_item_id": item.id,
+            "inbox_source_type": item.source_type,
+            "inbox_source_id": item.source_id,
+            "inbox_ticket_key": item.ticket_key,
+            "inbox_failure_reason": item.failure_reason.value if item.failure_reason else None,
+            "inbox_recommended_action": item.recommended_action,
+        },
+    )
+
+
+def _find_repair_ticket_for_inbox_item(store: AriadneStore, item_id: str) -> BuildTicket | None:
+    for ticket in store.list_tickets():
+        if ticket.metadata.get("generated_from_inbox_item_id") == item_id:
+            return ticket
+    return None
+
+
+def _repair_ticket_title(item: InboxItem) -> str:
+    ticket_part = f"{item.ticket_key} " if item.ticket_key else ""
+    reason = item.failure_reason.value.replace("_", " ") if item.failure_reason else "failure"
+    return f"Repair {ticket_part}{item.source_type} {reason}".strip()
+
+
+def _repair_ticket_description(item: InboxItem) -> str:
+    lines = [
+        f"Repair inbox item `{item.id}` from `{item.source_type}`.",
+        "",
+        f"Summary: {item.summary}",
+        f"Failure reason: {item.failure_reason.value if item.failure_reason else 'unknown'}",
+        f"Recommended action: {item.recommended_action}",
+    ]
+    if item.evidence_ref:
+        lines.append(f"Evidence: {item.evidence_ref}")
+    return "\n".join(lines)
 
 
 def _from_assignment(store: AriadneStore, assignment: TicketAssignment, ticket_key: str | None) -> InboxItem:
