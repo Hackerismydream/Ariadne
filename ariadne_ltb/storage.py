@@ -681,6 +681,12 @@ class AriadneStore:
     def load_build_packet(self, packet_id: str) -> BuildPacket:
         return self._read_model(self.build_packets_dir / f"{packet_id}.json", BuildPacket)
 
+    def list_build_packets(self) -> list[BuildPacket]:
+        return [
+            self._read_model(path, BuildPacket)
+            for path in sorted(self.build_packets_dir.glob("*.json"))
+        ]
+
     def save_source_document(self, source: SourceDocument) -> None:
         self._write_model(self.sources_dir / f"{source.id}.json", source)
 

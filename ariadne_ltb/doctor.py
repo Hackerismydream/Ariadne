@@ -197,6 +197,15 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             "Run `ari evidence packet` with the current release evidence implementation.",
         ),
         _product_evidence_check(
+            "real_llm_agent_evidence",
+            real_evidence["llm_agents"],
+            "DeepSeek-backed planner, reviewer, and backlog agents have successful evidence.",
+            (
+                "Run `ari ticket plan --planner llm`, `ari review run --reviewer llm`, "
+                "and `ari ticket run --backlog-planner llm`, then regenerate release evidence."
+            ),
+        ),
+        _product_evidence_check(
             "real_codex_execution_evidence",
             real_evidence["codex"],
             "A real CodexBackend execution succeeded with tests.",
@@ -275,12 +284,14 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
         "integration_report": str(store.doctor_dir / "integrations.json"),
         "release_evidence_packet": release_packet,
         "real_success_evidence": {
+            "llm_agents": real_evidence["llm_agents"]["success"],
             "codex": real_evidence["codex"]["success"],
             "claude_code": real_evidence["claude_code"]["success"],
             "feishu": real_evidence["feishu"]["success"],
             "github": real_evidence["github"]["success"],
         },
         "real_failure_evidence": {
+            "llm_agents": real_evidence["llm_agents"]["latest_failure"],
             "codex": real_evidence["codex"]["latest_failure"],
             "claude_code": real_evidence["claude_code"]["latest_failure"],
             "feishu": real_evidence["feishu"]["latest_failure"],
@@ -517,11 +528,215 @@ def _real_evidence_snapshot(store: AriadneStore) -> dict[str, Any]:
     feishu_results = store.list_feishu_write_results()
     github_results = store.list_github_integration_results()
     return {
+        "llm_agents": _llm_agent_evidence(store),
         "codex": _execution_evidence(executions, "codex"),
         "claude_code": _execution_evidence(executions, "claude-code"),
         "feishu": _feishu_evidence(feishu_results),
         "github": _github_evidence(github_results),
     }
+
+
+def _llm_agent_evidence(store: AriadneStore) -> dict[str, Any]:
+    planner = _llm_planner_evidence(store)
+    reviewer = _llm_reviewer_evidence(store)
+    backlog = _llm_backlog_evidence(store)
+    successes = {
+        "planner": planner["success"],
+        "reviewer": reviewer["success"],
+        "backlog": backlog["success"],
+    }
+    missing = [name for name, evidence in successes.items() if not evidence]
+    latest_failure = _latest_llm_failure(
+        [
+            planner["latest_failure"],
+            reviewer["latest_failure"],
+            backlog["latest_failure"],
+        ]
+    )
+    return {
+        "success": _llm_agent_summary(successes) if not missing else None,
+        "operation_successes": successes,
+        "missing_operations": missing,
+        "latest_failure": latest_failure,
+    }
+
+
+def _llm_planner_evidence(store: AriadneStore) -> dict[str, Any]:
+    packet_successes = [
+        packet
+        for packet in store.list_build_packets()
+        if packet.metadata.get("planner_mode") == "llm"
+    ]
+    artifact_successes = [
+        artifact
+        for artifact in _list_artifacts(store)
+        if artifact.artifact_type.value == "build_packet"
+        and artifact.metadata.get("planner_mode") == "llm"
+    ]
+    latest_packet = _build_packet_summary(_latest_by_time(packet_successes, "updated_at"))
+    latest_artifact = _artifact_success_summary(_latest_by_time(artifact_successes, "created_at"))
+    failures = [
+        artifact
+        for artifact in _list_artifacts(store)
+        if artifact.artifact_type.value == "planner_error"
+        and (
+            artifact.metadata.get("planner_mode") in {"llm", "llm_blocked"}
+            or artifact.metadata.get("planner_name") == "llm"
+        )
+    ]
+    return {
+        "success": _latest_llm_success([latest_packet, latest_artifact]),
+        "latest_failure": _artifact_failure_summary(_latest_by_time(failures, "created_at")),
+    }
+
+
+def _llm_reviewer_evidence(store: AriadneStore) -> dict[str, Any]:
+    successes = [
+        review
+        for review in store.list_review_reports()
+        if review.reviewer_mode == "llm"
+    ]
+    failures = [
+        review for review in store.list_review_reports() if review.reviewer_mode == "llm_blocked"
+    ]
+    return {
+        "success": _review_summary(_latest_by_time(successes, "created_at")),
+        "latest_failure": _review_failure_summary(_latest_by_time(failures, "created_at")),
+    }
+
+
+def _llm_backlog_evidence(store: AriadneStore) -> dict[str, Any]:
+    artifacts = [
+        artifact
+        for artifact in _list_artifacts(store)
+        if artifact.artifact_type.value == "next_tickets"
+        and artifact.metadata.get("source") == "llm_backlog_planner"
+    ]
+    successes = [artifact for artifact in artifacts if artifact.metadata.get("blocked") is False]
+    failures = [artifact for artifact in artifacts if artifact.metadata.get("blocked") is True]
+    return {
+        "success": _artifact_success_summary(_latest_by_time(successes, "created_at")),
+        "latest_failure": _artifact_failure_summary(_latest_by_time(failures, "created_at")),
+    }
+
+
+def _list_artifacts(store: AriadneStore) -> list[Any]:
+    return [
+        store.load_artifact(path.stem)
+        for path in sorted(store.artifact_index_dir.glob("*.json"))
+    ]
+
+
+def _llm_agent_summary(operation_successes: dict[str, Any]) -> dict[str, Any]:
+    latest = next(
+        (
+            operation_successes[operation]
+            for operation in ("backlog", "reviewer", "planner")
+            if operation_successes.get(operation)
+        ),
+        {},
+    )
+    return {
+        "operations": {
+            operation: bool(summary)
+            for operation, summary in sorted(operation_successes.items())
+        },
+        "latest_id": latest.get("id"),
+        "ticket_id": latest.get("ticket_id"),
+        "ticket_key": latest.get("ticket_key"),
+        "created_at": latest.get("created_at"),
+    }
+
+
+def _build_packet_summary(packet: Any | None) -> dict[str, Any] | None:
+    if packet is None:
+        return None
+    return {
+        "id": packet.id,
+        "ticket_id": packet.ticket_id,
+        "planner_mode": packet.metadata.get("planner_mode"),
+        "build_decision": packet.build_decision.value,
+        "updated_at": packet.updated_at,
+        "created_at": packet.created_at,
+    }
+
+
+def _review_summary(review: Any | None) -> dict[str, Any] | None:
+    if review is None:
+        return None
+    return {
+        "id": review.id,
+        "ticket_id": review.ticket_id,
+        "reviewer_mode": review.reviewer_mode,
+        "verdict": review.verdict.value,
+        "risk_score": review.risk_score,
+        "created_at": review.created_at,
+    }
+
+
+def _review_failure_summary(review: Any | None) -> dict[str, Any] | None:
+    if review is None:
+        return None
+    reason = "LLM reviewer did not complete successfully"
+    if review.required_fixes:
+        reason = review.required_fixes[-1]
+    return {
+        "id": review.id,
+        "ticket_id": review.ticket_id,
+        "reviewer_mode": review.reviewer_mode,
+        "reason": _safe_reason(reason),
+        "verdict": review.verdict.value,
+        "created_at": review.created_at,
+    }
+
+
+def _artifact_success_summary(artifact: Any | None) -> dict[str, Any] | None:
+    if artifact is None:
+        return None
+    return {
+        "id": artifact.id,
+        "ticket_id": artifact.ticket_id,
+        "artifact_type": artifact.artifact_type.value,
+        "path": artifact.path,
+        "source": artifact.metadata.get("source"),
+        "planner": artifact.metadata.get("planner"),
+        "created_at": artifact.created_at,
+    }
+
+
+def _artifact_failure_summary(artifact: Any | None) -> dict[str, Any] | None:
+    if artifact is None:
+        return None
+    reason = artifact.summary
+    try:
+        path = Path(artifact.path)
+        if path.exists():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            reason = payload.get("reason") or payload.get("error") or reason
+    except (OSError, json.JSONDecodeError, TypeError):
+        reason = artifact.summary
+    return {
+        "id": artifact.id,
+        "ticket_id": artifact.ticket_id,
+        "artifact_type": artifact.artifact_type.value,
+        "reason": _safe_reason(str(reason)),
+        "path": artifact.path,
+        "created_at": artifact.created_at,
+    }
+
+
+def _latest_llm_failure(failures: list[dict[str, Any] | None]) -> dict[str, Any] | None:
+    present = [failure for failure in failures if failure]
+    if not present:
+        return None
+    return sorted(present, key=lambda item: item.get("created_at") or "")[-1]
+
+
+def _latest_llm_success(successes: list[dict[str, Any] | None]) -> dict[str, Any] | None:
+    present = [success for success in successes if success]
+    if not present:
+        return None
+    return sorted(present, key=lambda item: item.get("created_at") or "")[-1]
 
 
 def _execution_evidence(results: list[Any], backend_name: str) -> dict[str, Any]:

@@ -3631,3 +3631,75 @@ Verification so far:
   structured JSON keys and `usage total tokens: 142`.
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_616123fc8eda` and verified workbench data sync/build.
+
+## 2026-06-18 02:58 CST LLM Agent Evidence Gate Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- Ariadne already had DeepSeek runtime, LLM planner/reviewer, and the new LLM
+  backlog planner path.
+- Product acceptance still treated LLM readiness mostly as configuration:
+  `DEEPSEEK_API_KEY` set. That is too weak for a production Agent Workbench.
+- The product doctor and release packet should prove that real LLM agents have
+  participated in the ticket loop, not merely that a key is available.
+
+Implemented:
+
+- Added `AriadneStore.list_build_packets()` for evidence aggregation.
+- Added `real_llm_agent_evidence` to `ari doctor product`.
+- LLM agent evidence is ready only when Ariadne has successful local records for:
+  - LLM planner BuildPacket creation;
+  - LLM reviewer execution;
+  - LLM backlog planner `next_tickets` artifact generation.
+- Added LLM agent success/failure summaries to
+  `.ariadne/doctor/product_readiness.json`.
+- Added `llm_agents` to release packet `real_success_evidence` and
+  `real_failure_evidence`.
+- Planner BuildPacket artifacts now persist `planner_mode`, so a later
+  deterministic planning run can overwrite the current packet without erasing
+  historical LLM planner evidence.
+- Updated README so release evidence describes LLM agent evidence alongside
+  Codex, Claude Code, Feishu, and GitHub evidence.
+
+Real DeepSeek dogfood:
+
+- `python3.11 -m ariadne_ltb.cli ticket plan ARI-003 --planner llm`: passed and
+  wrote BuildPacket `packet_f9a69184a238`.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend fake-codex --planner llm --backlog-planner llm`:
+  passed for the orchestrator path and wrote
+  `.ariadne/artifacts/ticket_88fbff51677a/llm_next_tickets.json`.
+- `python3.11 -m ariadne_ltb.cli review run ARI-003 --reviewer llm`: passed;
+  reviewer mode was `llm`. The review verdict was `blocked` because it reviewed
+  a blocked execution result; this is valid reviewer evidence, not an LLM
+  runtime failure.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed and reports
+  `real_llm_agent_evidence: ready`, `Production acceptance: ready`, and
+  `Run gates: action_required`.
+- `python3.11 -m ariadne_ltb.cli evidence packet`: passed and generated
+  `release_evidence_2523f5dde803`, whose `real_success_evidence.llm_agents`
+  records planner/reviewer/backlog operation coverage.
+- After preserving planner mode in BuildPacket artifact metadata, rerunning
+  `python3.11 -m ariadne_ltb.cli ticket plan ARI-003 --planner llm` plus
+  `python3.11 -m ariadne_ltb.cli doctor product` kept
+  `real_llm_agent_evidence: ready` even after the default demo path rewrote the
+  current BuildPacket.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py tests/test_release_evidence.py -q`:
+  passed, `12 passed`.
+- `python3.11 -m ruff check ariadne_ltb/doctor.py ariadne_ltb/planner.py ariadne_ltb/storage.py tests/test_v1_doctor_release.py tests/test_release_evidence.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `214 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed after demo rewrote the
+  current packet and still reported `real_llm_agent_evidence: ready`.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_e62746eb3b4c` and verified product doctor plus workbench
+  sync/build.

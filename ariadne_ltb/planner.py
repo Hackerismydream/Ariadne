@@ -539,7 +539,10 @@ def _write_packet_artifact(store: AriadneStore, run_id: str, packet: BuildPacket
         "build_packet.json",
         packet.model_dump_json(indent=2) + "\n",
         "Planner Build Packet",
-        metadata={"build_packet_id": packet.id},
+        metadata={
+            "build_packet_id": packet.id,
+            "planner_mode": packet.metadata.get("planner_mode", "deterministic"),
+        },
     )
     store.append_run_message(
         run_id,

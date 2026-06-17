@@ -8,7 +8,17 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import ExecutionResult, FeishuWriteResult, GitHubIntegrationResult
+from ariadne_ltb.models import (
+    ArtifactType,
+    BuildDecision,
+    BuildPacket,
+    Evidence,
+    ExecutionResult,
+    FeishuWriteResult,
+    GitHubIntegrationResult,
+    ReviewReport,
+    ReviewVerdict,
+)
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -104,6 +114,90 @@ def _seed_full_github_product_evidence(store: AriadneStore) -> None:
             commit_sha="abc123",
             evidence={"checks_status": "captured"},
         )
+    )
+
+
+def _seed_llm_agent_product_evidence(store: AriadneStore) -> None:
+    llm_packet = BuildPacket(
+        id="packet_llm_success",
+        ticket_id="ticket_ari_003",
+        source_summary="LLM planner summarized the source.",
+        insight="The ticket requires code work.",
+        evidence=[
+            Evidence(
+                id="evidence_llm_success",
+                source_ref="source_llm_success",
+                quote_or_summary="Evidence extracted by LLM planner.",
+                location="fixture:1",
+            )
+        ],
+        project_relevance="Relevant to the local workbench.",
+        build_decision=BuildDecision.CODE_TASK,
+        tasks=["Implement the requested change."],
+        acceptance_criteria=["The change is verified."],
+        affected_modules=["ariadne_ltb/example.py"],
+        metadata={"planner_mode": "llm"},
+    )
+    store.save_build_packet(llm_packet)
+    store.write_artifact(
+        llm_packet.ticket_id,
+        "run_llm_planner",
+        ArtifactType.BUILD_PACKET,
+        "build_packet.json",
+        llm_packet.model_dump_json(indent=2) + "\n",
+        "Planner Build Packet",
+        metadata={"build_packet_id": llm_packet.id, "planner_mode": "llm"},
+    )
+    # A later deterministic run may overwrite the current packet record. Product
+    # evidence must still recognize the historical LLM planner artifact.
+    store.save_build_packet(
+        BuildPacket(
+            id="packet_llm_success",
+            ticket_id="ticket_ari_003",
+            source_summary="Deterministic planner overwrote the current packet.",
+            insight="The ticket requires code work.",
+            evidence=[
+                Evidence(
+                    id="evidence_deterministic_success",
+                    source_ref="source_deterministic_success",
+                    quote_or_summary="Evidence extracted by deterministic planner.",
+                    location="fixture:1",
+                )
+            ],
+            project_relevance="Relevant to the local workbench.",
+            build_decision=BuildDecision.CODE_TASK,
+            tasks=["Implement the requested change."],
+            acceptance_criteria=["The change is verified."],
+            affected_modules=["ariadne_ltb/example.py"],
+            metadata={"planner_mode": "deterministic"},
+        )
+    )
+    store.save_review_report(
+        ReviewReport(
+            id="review_llm_success",
+            ticket_id="ticket_ari_003",
+            verdict=ReviewVerdict.PASS,
+            reviewer_mode="llm",
+            risk_score=0.1,
+            passed_checks=["LLM reviewer completed"],
+        )
+    )
+    store.write_artifact(
+        "ticket_ari_003",
+        "run_llm_backlog",
+        ArtifactType.NEXT_TICKETS,
+        "llm_next_tickets.json",
+        json.dumps(
+            {
+                "source_ticket_id": "ticket_ari_003",
+                "planner": "llm",
+                "blocked": False,
+                "next_tickets": [],
+            }
+        )
+        + "\n",
+        "LLM-generated backlog delta suggestions",
+        metadata={"source": "llm_backlog_planner", "planner": "llm", "blocked": False},
     )
 
 
@@ -314,6 +408,7 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     assert statuses["real_github_pr_evidence"] == "action_required"
     assert statuses["real_github_comment_evidence"] == "action_required"
     assert statuses["real_github_status_evidence"] == "action_required"
+    assert statuses["real_llm_agent_evidence"] == "action_required"
     assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
 
 
@@ -368,6 +463,7 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
             operation_summary="Created Feishu doc.",
         )
     )
+    _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
 
     def fake_which(command: str) -> str | None:
@@ -413,6 +509,7 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert snapshot["run_gate_status"] == "ready"
     statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
     assert statuses["real_codex_execution_evidence"] == "ready"
+    assert statuses["real_llm_agent_evidence"] == "ready"
     assert statuses["real_claude_execution_evidence"] == "ready"
     assert statuses["real_feishu_write_evidence"] == "ready"
     assert statuses["real_github_write_evidence"] == "ready"
@@ -421,6 +518,11 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert statuses["real_github_comment_evidence"] == "ready"
     assert statuses["real_github_status_evidence"] == "ready"
     assert snapshot["real_success_evidence"]["codex"]["id"] == "exec_codex_success"
+    assert snapshot["real_success_evidence"]["llm_agents"]["operations"] == {
+        "backlog": True,
+        "planner": True,
+        "reviewer": True,
+    }
     assert snapshot["real_success_evidence"]["feishu"]["id"] == "feishu_success"
     assert snapshot["real_success_evidence"]["github"]["operations"] == {
         "create_issue": True,
@@ -485,6 +587,7 @@ def test_doctor_product_does_not_accept_partial_github_evidence(
             operation_summary="Created Feishu doc.",
         )
     )
+    _seed_llm_agent_product_evidence(store)
     store.save_github_integration_result(
         GitHubIntegrationResult(
             id="github_sync_only",
@@ -538,6 +641,7 @@ def test_doctor_product_does_not_accept_partial_github_evidence(
     assert statuses["real_github_issue_evidence"] == "action_required"
     assert statuses["real_github_pr_evidence"] == "action_required"
     assert statuses["real_github_status_evidence"] == "action_required"
+    assert statuses["real_llm_agent_evidence"] == "ready"
     assert snapshot["real_success_evidence"]["github"] is None
     assert snapshot["real_failure_evidence"]["github"] is None
 
@@ -594,6 +698,7 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
             operation_summary="Created Feishu doc.",
         )
     )
+    _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
 
     def fake_which(command: str) -> str | None:
