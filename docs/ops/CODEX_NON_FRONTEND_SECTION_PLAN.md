@@ -1,6 +1,18 @@
 # Codex Non-Frontend Section Plan
 
-Status: active execution plan for the current Codex section.
+Status: superseded
+
+Superseded by:
+
+```text
+docs/goals/2026-06-17-2043-ariadne-production-agent-workbench-goal.md
+docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md
+```
+
+Reason: this plan preserved a non-frontend, fake-codex-tolerant execution
+model. The active direction is now production-first: real DeepSeek upstream LLM
+runtime, real Codex, real Claude Code, gated real Feishu writes, and real
+GitHub integration.
 
 This document is intentionally new. Do not append this content to the shared
 v1.0 sprint plan or to any frontend section plan. The frontend section may keep

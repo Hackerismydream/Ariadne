@@ -1,6 +1,17 @@
 # Codex Core Section Execution Plan
 
-Status: active plan for the current Codex section.
+Status: superseded
+
+Superseded by:
+
+```text
+docs/goals/2026-06-17-2043-ariadne-production-agent-workbench-goal.md
+docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md
+```
+
+Reason: this plan kept the earlier core/backend/runtime section boundary. The
+active direction is now production-first and requires real DeepSeek, Codex,
+Claude Code, Feishu, and GitHub integrations where configured.
 
 This document is intentionally separate from the shared v1.0 sprint plan. The
 frontend section may keep using the existing plan without having its context
@@ -268,4 +279,3 @@ needed, run verification, commit, push, and write Chinese Multica progress.
 Do not touch frontend issues unless extracting a backend data contract needed
 by the frontend section.
 ```
-

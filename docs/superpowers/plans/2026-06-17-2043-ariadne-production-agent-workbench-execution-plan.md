@@ -1,5 +1,7 @@
 # Ariadne Production Agent Workbench Execution Plan
 
+Status: active execution plan
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build Ariadne into a production-usable local Agent Workbench with real DeepSeek, Codex, Claude Code, Feishu, and GitHub integrations.

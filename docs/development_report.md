@@ -2253,3 +2253,38 @@ Known limitations:
 - This update changes roadmap and execution handoff only. It does not implement
   the real integrations yet.
 - The supplied DeepSeek key was intentionally not written to the repository.
+
+## Local DeepSeek Key And Plan Cleanup
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Local-only configuration:
+
+- Wrote `DEEPSEEK_API_KEY` into ignored local `.env` files for the core worktree
+  and the frontend worktree.
+- Also wrote `ARIADNE_LLM_PROVIDER=deepseek`,
+  `ARIADNE_LLM_MODEL=deepseek-v4-pro`, and
+  `ARIADNE_LLM_FAST_MODEL=deepseek-v4-flash`.
+- Confirmed `.env` is ignored by git in both worktrees.
+
+Plan cleanup:
+
+- Marked older active planning documents as superseded by the 2043 production
+  goal and execution plan:
+  - `docs/ops/CODEX_NON_FRONTEND_SECTION_PLAN.md`
+  - `docs/ops/CODEX_CORE_SECTION_EXECUTION_PLAN.md`
+  - `docs/ops/CODEX_CORE_PARALLEL_EXECUTION_PROTOCOL.md`
+  - `docs/superpowers/plans/2026-06-15-ariadne-v1-0-sprint.md`
+- Marked the 2043 goal and execution plan as active.
+
+Verification:
+
+- `git check-ignore -v .env .env.local`: confirmed ignored.
+- Secret scan over docs found no DeepSeek key.
+- `git diff --check`: passed.
+
+Known limitations:
+
+- The local `.env` exists only on this machine and is intentionally untracked.
+- Real DeepSeek runtime is not implemented yet; the active plan now makes it the
+  first production integration phase.

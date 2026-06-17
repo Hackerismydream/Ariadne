@@ -1,5 +1,7 @@
 # Goal: 2026-06-17-2043 Ariadne Production Agent Workbench
 
+Status: active goal
+
 You are Codex working on Ariadne.
 
 Your objective is to turn Ariadne into a production-usable, local-first Agent

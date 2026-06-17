@@ -1,6 +1,17 @@
 # Codex Core Parallel Execution Protocol
 
-Status: active protocol for the current non-frontend Codex section.
+Status: superseded
+
+Superseded by:
+
+```text
+docs/goals/2026-06-17-2043-ariadne-production-agent-workbench-goal.md
+docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md
+```
+
+Reason: this protocol was written for a non-frontend core section. The active
+direction is now production-first and should not treat fake-codex/demo work as
+the product path.
 
 This file is separate from the shared sprint plan and from the frontend
 section's plan. The frontend section may continue to use its current document.
