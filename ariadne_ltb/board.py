@@ -444,12 +444,22 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.append("")
 
     skills = route_decision.get("skill_refs", []) if route_decision else []
+    skill_bundle = _latest_json_artifact(store, artifacts, ArtifactType.SKILL_BUNDLE)
     lines.extend(["### Build Skills", ""])
     if skills:
         for skill in skills:
             lines.append(f"- `{skill}`")
     else:
         lines.append("No BuildSkill references found.")
+    if skill_bundle:
+        lines.append(f"- Skill bundle: `{_latest_artifact_path(artifacts, ArtifactType.SKILL_BUNDLE)}`")
+        lines.append(f"- Provider-visible dir: `{skill_bundle.get('provider_skill_dir', '')}`")
+        for item in skill_bundle.get("materializations", []):
+            status = "included" if item.get("included") else "withheld"
+            path = item.get("materialized_skill_path") or item.get("warning") or "missing"
+            lines.append(f"  - `{item.get('skill_name')}` {status}: `{path}`")
+    else:
+        lines.append("- Skill bundle: `missing`")
     lines.append("")
 
     if ticket.build_packet_id:

@@ -40,7 +40,7 @@ from ariadne_ltb.permissions import build_execution_permission_profile, permissi
 from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.review import review_execution
 from ariadne_ltb.runtime import collect_runtime_capabilities
-from ariadne_ltb.skills import discover_build_skills
+from ariadne_ltb.skills import materialize_build_skills, materialized_skill_handoff_section
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 from ariadne_ltb.worktrees import WorktreeBlock, prepare_isolated_worktree
@@ -190,7 +190,13 @@ class TicketRunOrchestrator:
             )
         ]
         project_resources_path = self.store.save_project_resources(project_resources)
-        skill_refs = [skill.name for skill in discover_build_skills()]
+        skill_bundle_artifact, skill_materializations = materialize_build_skills(
+            self.store,
+            ticket,
+            "build_lead",
+            backend_name,
+        )
+        skill_refs = [item.skill_name for item in skill_materializations if item.included]
         execution_command = command or (packet.tasks[0] if packet.tasks else ticket.title)
         execution_test_command = target_test_command()
         permission_profile = build_execution_permission_profile(
@@ -215,6 +221,7 @@ class TicketRunOrchestrator:
         )
         handoff_prompt = (
             handoff_prompt.rstrip()
+            + materialized_skill_handoff_section(skill_bundle_artifact, skill_materializations)
             + permission_profile_handoff_section(permission_profile, permission_artifact.path)
         )
         Path(handoff_artifact.path).write_text(handoff_prompt, encoding="utf-8")
@@ -247,6 +254,10 @@ class TicketRunOrchestrator:
                 "runtime_capability_path": str(runtime_capability_path),
                 "project_resources_path": str(project_resources_path),
                 "permission_profile_path": permission_artifact.path,
+                "skill_bundle_path": skill_bundle_artifact.path,
+                "provider_skill_dir": skill_materializations[0].provider_skill_dir
+                if skill_materializations
+                else "",
             },
         )
         resources_artifact = self.store.write_artifact(
@@ -269,7 +280,15 @@ class TicketRunOrchestrator:
         )
         ticket = (
             self.store.load_ticket(ticket.id)
-            .with_artifacts([permission_artifact, route_artifact, resources_artifact, runtime_artifact])
+            .with_artifacts(
+                [
+                    skill_bundle_artifact,
+                    permission_artifact,
+                    route_artifact,
+                    resources_artifact,
+                    runtime_artifact,
+                ]
+            )
             .append_event(
                 "route_decision",
                 "Build Lead",
@@ -297,6 +316,10 @@ class TicketRunOrchestrator:
             run_id=execution_run.id,
             permission_profile_id=permission_profile.id,
             permission_profile_path=permission_artifact.path,
+            skill_bundle_path=skill_bundle_artifact.path,
+            provider_skill_dir=skill_materializations[0].provider_skill_dir
+            if skill_materializations
+            else None,
         )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "execution_started",
@@ -607,6 +630,7 @@ class TicketRunOrchestrator:
                 "review_report_id": review.id,
                 "review_verdict": review.verdict.value,
                 "permission_profile_id": permission_profile.id,
+                "skill_bundle_artifact_id": skill_bundle_artifact.id,
                 "changed_files": execution.changed_files,
                 "test_command": execution.test_command,
                 "test_exit_code": execution.test_exit_code,
@@ -623,6 +647,10 @@ class TicketRunOrchestrator:
                     "next_tickets_path": next_tickets_artifact.path,
                     "board_path": str(board_path),
                     "permission_profile_path": permission_artifact.path,
+                    "skill_bundle_path": skill_bundle_artifact.path,
+                    "provider_skill_dir": skill_materializations[0].provider_skill_dir
+                    if skill_materializations
+                    else "",
                 },
             },
         )

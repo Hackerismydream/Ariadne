@@ -183,6 +183,14 @@ class FakeCodexBackend:
                 "backend": self.name,
                 "action": "added demo-todo export-json",
                 "changed_files": ["demo_todo/cli.py", "tests/test_cli.py"],
+                "skill_bundle_path": context.skill_bundle_path,
+                "skill_bundle_available": bool(
+                    context.skill_bundle_path and Path(context.skill_bundle_path).exists()
+                ),
+                "provider_skill_dir": context.provider_skill_dir,
+                "provider_skill_dir_available": bool(
+                    context.provider_skill_dir and Path(context.provider_skill_dir).exists()
+                ),
             }
         )
         test_command = context.test_command or f"{self.python_executable} -m pytest"

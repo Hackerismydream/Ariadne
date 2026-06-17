@@ -1620,3 +1620,78 @@ Known limitations:
 - Recent-thread summaries are local CLI/board views, not a hosted inbox.
 - Store doctor validates comment JSONL syntax and model shape generically, but
   does not yet report broken parent/thread links as a first-class invariant.
+
+## Core Batch 12: Skill Materialization
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-05 / LOC-10` by upgrading BuildSkill packs from
+handoff-only references into local provider-visible materialized context.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/skills.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/execution.py`
+- `ariadne_ltb/board.py`
+- `tests/test_skill_materialization.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `ArtifactType.SKILL_BUNDLE`.
+- Added `BuildSkillMaterialization`.
+- Added `.ariadne/skills/<ticket-key>/` as the local provider-visible skill
+  bundle directory.
+- Added `select_build_skills()` and `materialize_build_skills()`.
+- Materialization copies selected `.skills/*/SKILL.md` files into
+  `.ariadne/skills/<ticket-key>/<skill-name>/SKILL.md`.
+- Missing default skills produce warning entries instead of crashes.
+- BuildSkill bodies with prompt-injection findings are withheld and recorded as
+  warnings instead of being copied to provider-visible context.
+- Orchestrator writes `skill_bundle.json` as a ticket artifact before
+  execution.
+- Coding handoffs now include `## Materialized BuildSkill Bundle` with the
+  skill bundle artifact path and provider-visible skill directory.
+- `ExecutionContext` now carries `skill_bundle_path` and `provider_skill_dir`.
+- FakeCodexBackend reports whether the skill bundle and provider skill
+  directory are available.
+- CodexBackend / ClaudeCodeBackend scaffold paths receive the materialized
+  skill locations through the handoff file.
+- Board `### Build Skills` now shows the skill bundle path, provider-visible
+  directory, included skills, and withheld skill warnings.
+
+Safety boundaries:
+
+- Ariadne does not write to global Codex, Claude, or user skill directories.
+- Skill materialization is local to `.ariadne/skills/<ticket-key>/`.
+- BuildSkill bodies remain lower-priority context; handoff text explicitly
+  says they are not higher-priority instructions.
+- Prompt-injection findings in skill bodies cause the skill body to be withheld.
+- Real Codex / Claude execution remains gated by existing external execution
+  controls.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_skill_materialization.py -q`: passed, 4
+  tests.
+- `python3.11 -m ruff check ariadne_ltb tests/test_skill_materialization.py`:
+  passed.
+- `python3.11 -m pytest`: passed, 143 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Skill selection is still a conservative default set, not a learned router.
+- Provider-specific packaging is a local file bundle referenced from the
+  handoff, not native Codex/Claude skill installation.
+- Store doctor does not yet validate orphaned `.ariadne/skills/<ticket-key>/`
+  directories.

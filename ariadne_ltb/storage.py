@@ -66,6 +66,7 @@ class AriadneStore:
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
         self.sources_dir = self.base / "sources"
+        self.skill_materializations_dir = self.base / "skills"
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
         self.project_dir = self.base / "project"
@@ -96,6 +97,7 @@ class AriadneStore:
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
+            self.skill_materializations_dir,
             self.build_packets_dir,
             self.execution_results_dir,
             self.memory_dir,

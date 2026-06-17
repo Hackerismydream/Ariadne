@@ -206,6 +206,7 @@ class ArtifactType(str, Enum):
     RUNTIME_CAPABILITY = "runtime_capability"
     PROJECT_RESOURCES = "project_resources"
     PERMISSION_PROFILE = "permission_profile"
+    SKILL_BUNDLE = "skill_bundle"
     WORKTREE_ISOLATION = "worktree_isolation"
     ORCHESTRATOR_RESULT = "orchestrator_result"
     STORE_INVARIANT_REPORT = "store_invariant_report"
@@ -767,6 +768,8 @@ class ExecutionContext(AriadneModel):
     run_id: str | None = None
     permission_profile_id: str | None = None
     permission_profile_path: str | None = None
+    skill_bundle_path: str | None = None
+    provider_skill_dir: str | None = None
 
 
 class ExecutionResult(AriadneModel):
@@ -935,6 +938,22 @@ class BuildSkill(AriadneModel):
     body_markdown: str
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
+
+
+class BuildSkillMaterialization(AriadneModel):
+    skill_name: str
+    backend_name: str
+    materialization_strategy: str = "local_provider_visible_copy"
+    source_skill_path: str
+    materialized_skill_path: str | None = None
+    provider_skill_dir: str
+    included: bool = True
+    prompt_injection_warning_count: int = 0
+    warning: str | None = None
+    requires_confirmation: bool = False
+    notes: str = (
+        "Local BuildSkill materialization only. Do not write to global Codex or Claude config."
+    )
 
 
 class StoreInvariantIssue(AriadneModel):
