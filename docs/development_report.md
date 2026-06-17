@@ -2903,3 +2903,48 @@ Known limitations:
   Feishu writes, and GitHub writes remain CLI-only and gated.
 - Browser-level interaction QA has not yet been run on this integration branch;
   this slice verified static build plus HTTP availability.
+
+## 2026-06-17 GitHub PR And Status Integration Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added gated PR creation:
+  `ari github create-pr <ticket> --base <branch> --head <branch>
+  --confirm-write`.
+- Added read-only GitHub status capture:
+  `ari github status <ticket>`.
+- `create-pr` writes a PR body file under
+  `.ariadne/integrations/github/<ticket>/`, uses `gh pr create`, parses the PR
+  URL, records the PR number, and links it back into local ticket metadata.
+- `status` reads linked issue, PR, branch, mergeability/review/check evidence
+  through `gh issue view`, `gh pr view`, and `gh pr checks`.
+- `gh pr checks` exit code `8` is treated as a successful status capture with
+  pending checks, not as a failed integration.
+- Added deterministic tests for missing confirmation, successful PR creation,
+  secret redaction, and status capture.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_github_integration.py`: passed, `10 passed`.
+- `python3.11 -m ruff check ariadne_ltb/github_integration.py
+  ariadne_ltb/cli.py tests/test_github_integration.py`: passed.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, `201 passed`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` is
+  reported as a redacted blocked secret finding.
+- `scripts/verify_v1.sh`: passed; final release evidence packet
+  `release_evidence_824c4715493b` reports store invariants ok, active workdirs
+  `0`, dirty workdirs `0`.
+- `npm run sync:data`: passed and generated a frontend snapshot with `8`
+  tickets, `5` runtimes, and `16` inbox items.
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+
+Real integration status:
+
+- Real PR creation will be attempted after this implementation is committed and
+  pushed, so the PR head includes the current slice.

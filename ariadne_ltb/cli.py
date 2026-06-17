@@ -26,6 +26,8 @@ from ariadne_ltb.full_demo import (
 )
 from ariadne_ltb.github_integration import (
     create_github_issue_for_ticket,
+    create_github_pr_for_ticket,
+    github_status_for_ticket,
     github_doctor_lines,
     link_ticket_to_github,
     sync_ticket_with_github,
@@ -1631,6 +1633,73 @@ def github_sync(
         typer.echo(f"pr url: {result.pr_url}")
     if result.comment_url:
         typer.echo(f"comment url: {result.comment_url}")
+    if result.reason:
+        typer.echo(f"reason: {result.reason}")
+    if not result.ok:
+        raise typer.Exit(2)
+
+
+@github_app.command("create-pr")
+def github_create_pr(
+    ticket_id: str,
+    repo: Annotated[str | None, typer.Option("--repo", help="GitHub repo as owner/name.")] = None,
+    base: Annotated[str, typer.Option("--base", help="Base branch for the PR.")] = "main",
+    head: Annotated[str | None, typer.Option("--head", help="Head branch for the PR.")] = None,
+    draft: Annotated[bool, typer.Option("--draft", help="Create the PR as draft.")] = False,
+    confirm_write: Annotated[
+        bool,
+        typer.Option("--confirm-write", help="Allow GitHub remote PR creation through gh CLI."),
+    ] = False,
+) -> None:
+    """Create a GitHub PR from a linked Ariadne ticket and record evidence."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    result = create_github_pr_for_ticket(
+        store,
+        ticket,
+        repo=repo,
+        base=base,
+        head=head,
+        draft=draft,
+        confirm_write=confirm_write,
+    )
+    result_path = store.save_github_integration_result(result)
+    typer.echo(f"GitHub create PR result: {result.id}")
+    typer.echo(f"ok: {str(result.ok).lower()}")
+    typer.echo(f"blocked: {str(result.blocked).lower()}")
+    typer.echo(f"repo: {result.repo or ''}")
+    if result.issue_number:
+        typer.echo(f"issue: {result.issue_number}")
+    if result.pr_number:
+        typer.echo(f"pr: {result.pr_number}")
+    if result.pr_url:
+        typer.echo(f"pr url: {result.pr_url}")
+    if result.branch:
+        typer.echo(f"branch: {result.branch}")
+    typer.echo(f"result: {result_path}")
+    if result.reason:
+        typer.echo(f"reason: {result.reason}")
+    if not result.ok:
+        raise typer.Exit(2)
+
+
+@github_app.command("status")
+def github_status(ticket_id: str) -> None:
+    """Read linked GitHub issue, PR, branch, and check status into evidence."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    result = github_status_for_ticket(store, ticket)
+    result_path = store.save_github_integration_result(result)
+    typer.echo(f"GitHub status result: {result.id}")
+    typer.echo(f"ok: {str(result.ok).lower()}")
+    typer.echo(f"blocked: {str(result.blocked).lower()}")
+    typer.echo(f"result: {result_path}")
+    if result.issue_url:
+        typer.echo(f"issue url: {result.issue_url}")
+    if result.pr_url:
+        typer.echo(f"pr url: {result.pr_url}")
+    if result.branch:
+        typer.echo(f"branch: {result.branch}")
     if result.reason:
         typer.echo(f"reason: {result.reason}")
     if not result.ok:

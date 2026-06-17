@@ -34,7 +34,10 @@ def _latest_result(root: Path) -> dict:
         payloads,
         key=lambda payload: (
             payload["created_at"],
-            {"link": 0, "sync": 1}.get(payload.get("operation", ""), 2),
+            {"link": 0, "create_issue": 1, "create_pr": 2, "sync": 3, "status": 4}.get(
+                payload.get("operation", ""),
+                5,
+            ),
         ),
     )[-1]
 
@@ -176,6 +179,112 @@ def test_github_sync_blocks_without_confirm_and_persists_result(tmp_path: Path) 
     assert persisted["failure_reason"] == FailureReason.EXTERNAL_EXECUTION_BLOCKED.value
 
 
+def test_github_create_pr_blocks_without_confirm_and_persists_result(tmp_path: Path) -> None:
+    _seed_ticket(tmp_path)
+    CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "github",
+            "link",
+            "ARI-003",
+            "--repo",
+            "owner/repo",
+            "--issue",
+            "7",
+            "--branch",
+            "codex/phase-4",
+        ],
+    )
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "github", "create-pr", "ARI-003"])
+
+    assert result.exit_code == 2, result.output
+    assert "--confirm-write" in result.output
+    persisted = _latest_result(tmp_path)
+    assert persisted["operation"] == "create_pr"
+    assert persisted["blocked"] is True
+    assert persisted["failure_reason"] == FailureReason.EXTERNAL_EXECUTION_BLOCKED.value
+
+
+def test_github_create_pr_uses_gh_links_ticket_and_redacts_token(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _seed_ticket(tmp_path)
+    CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "github",
+            "link",
+            "ARI-003",
+            "--repo",
+            "owner/repo",
+            "--issue",
+            "7",
+            "--branch",
+            "codex/phase-4",
+        ],
+    )
+    fake_token = _fake_github_token()
+    monkeypatch.setenv("GITHUB_TOKEN", fake_token)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", lambda command: "/usr/local/bin/gh")
+
+    def fake_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        text = " ".join(command)
+        if command[:3] == ["git", "config", "--get"]:
+            return CompletedProcess(command, 0, stdout="https://github.com/owner/repo.git\n", stderr="")
+        if command[:2] == ["git", "rev-parse"]:
+            return CompletedProcess(command, 0, stdout="abc123def456\n", stderr="")
+        if "pr create" in text:
+            body_file = Path(command[command.index("--body-file") + 1])
+            assert "Closes #7" in body_file.read_text(encoding="utf-8")
+            assert "--base" in command
+            assert "--head" in command
+            return CompletedProcess(
+                command,
+                0,
+                stdout="https://github.com/owner/repo/pull/11\n",
+                stderr=f"created token={fake_token}",
+            )
+        return CompletedProcess(command, 1, stdout="", stderr=f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "github",
+            "create-pr",
+            "ARI-003",
+            "--base",
+            "main",
+            "--head",
+            "codex/phase-4",
+            "--confirm-write",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    store = AriadneStore(tmp_path)
+    linked = store.resolve_ticket("ARI-003")
+    assert linked.metadata["github"]["pr"] == 11
+    persisted = _latest_result(tmp_path)
+    assert persisted["ok"] is True
+    assert persisted["operation"] == "create_pr"
+    assert persisted["issue_number"] == 7
+    assert persisted["pr_number"] == 11
+    assert persisted["pr_url"] == "https://github.com/owner/repo/pull/11"
+    assert persisted["branch"] == "codex/phase-4"
+    assert "ghp_" not in json.dumps(persisted)
+    assert "[REDACTED]" in json.dumps(persisted)
+
+
 def test_github_sync_blocks_when_gh_missing(tmp_path: Path, monkeypatch) -> None:
     _seed_ticket(tmp_path)
     CliRunner().invoke(
@@ -193,6 +302,86 @@ def test_github_sync_blocks_when_gh_missing(tmp_path: Path, monkeypatch) -> None
     assert "gh command is not installed" in result.output
     persisted = _latest_result(tmp_path)
     assert persisted["failure_reason"] == FailureReason.COMMAND_UNAVAILABLE.value
+
+
+def test_github_status_reads_issue_pr_checks_and_records_evidence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _seed_ticket(tmp_path)
+    CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "github",
+            "link",
+            "ARI-003",
+            "--repo",
+            "owner/repo",
+            "--issue",
+            "7",
+            "--pr",
+            "11",
+            "--branch",
+            "codex/phase-4",
+        ],
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", lambda command: "/usr/local/bin/gh")
+
+    def fake_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        text = " ".join(command)
+        if command[:3] == ["git", "config", "--get"]:
+            return CompletedProcess(command, 0, stdout="https://github.com/owner/repo.git\n", stderr="")
+        if command[:2] == ["git", "rev-parse"]:
+            return CompletedProcess(command, 0, stdout="abc123def456\n", stderr="")
+        if "issue view 7" in text:
+            return CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps({"number": 7, "title": "Issue", "state": "OPEN", "url": "https://github.com/owner/repo/issues/7"}),
+                stderr="",
+            )
+        if "pr view 11" in text:
+            return CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps(
+                    {
+                        "number": 11,
+                        "title": "PR",
+                        "state": "OPEN",
+                        "url": "https://github.com/owner/repo/pull/11",
+                        "headRefName": "codex/phase-4",
+                        "headRefOid": "abc123def456",
+                        "baseRefName": "main",
+                        "mergeable": "MERGEABLE",
+                        "reviewDecision": "REVIEW_REQUIRED",
+                        "statusCheckRollup": [],
+                    }
+                ),
+                stderr="",
+            )
+        if "pr checks 11" in text:
+            return CompletedProcess(
+                command,
+                8,
+                stdout=json.dumps([{"name": "pytest", "bucket": "pending", "state": "IN_PROGRESS"}]),
+                stderr="checks pending",
+            )
+        return CompletedProcess(command, 1, stdout="", stderr=f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "github", "status", "ARI-003"])
+
+    assert result.exit_code == 0, result.output
+    persisted = _latest_result(tmp_path)
+    assert persisted["ok"] is True
+    assert persisted["operation"] == "status"
+    assert persisted["issue_url"] == "https://github.com/owner/repo/issues/7"
+    assert persisted["pr_url"] == "https://github.com/owner/repo/pull/11"
+    assert persisted["evidence"]["checks"][0]["bucket"] == "pending"
 
 
 def test_github_sync_uses_gh_records_remote_evidence_and_redacts_token(

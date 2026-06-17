@@ -195,6 +195,236 @@ def create_github_issue_for_ticket(
     )
 
 
+def create_github_pr_for_ticket(
+    store: AriadneStore,
+    ticket: BuildTicket,
+    *,
+    repo: str | None,
+    base: str,
+    head: str | None,
+    draft: bool,
+    confirm_write: bool,
+) -> GitHubIntegrationResult:
+    github_meta = ticket.metadata.get("github") if isinstance(ticket.metadata.get("github"), dict) else {}
+    resolved_repo = repo or github_meta.get("repo") or infer_github_repo(store.root)
+    issue = _int_or_none(github_meta.get("issue"))
+    resolved_head = head or github_meta.get("branch") or _git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], store.root)
+    result_id = stable_id("github", ticket.id, "create_pr", resolved_repo, resolved_head, utc_now())
+    if not confirm_write:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="create_pr",
+            reason="GitHub PR creation writes require --confirm-write",
+            repo=resolved_repo,
+            issue=issue,
+            pr=None,
+            branch=resolved_head,
+        )
+    gh_path = shutil.which("gh")
+    if gh_path is None:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="create_pr",
+            reason="gh command is not installed",
+            failure_reason=FailureReason.COMMAND_UNAVAILABLE,
+            repo=resolved_repo,
+            issue=issue,
+            pr=None,
+            branch=resolved_head,
+        )
+    if not resolved_repo or not resolved_head:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="create_pr",
+            reason="GitHub repo and head branch are required before PR creation",
+            failure_reason=FailureReason.INVALID_RESOURCE,
+            repo=resolved_repo,
+            issue=issue,
+            pr=None,
+            branch=resolved_head,
+        )
+
+    body_path = _write_pr_body(store, ticket, issue)
+    command = [
+        gh_path,
+        "pr",
+        "create",
+        "--repo",
+        resolved_repo,
+        "--base",
+        base,
+        "--head",
+        resolved_head,
+        "--title",
+        f"[Ariadne] {ticket.key}: {ticket.title}",
+        "--body-file",
+        str(body_path),
+    ]
+    if draft:
+        command.append("--draft")
+    pr_result = _run(command, cwd=store.root)
+    commands = [_redact_command(command)]
+    if pr_result.returncode != 0:
+        return _failed_result(
+            result_id,
+            ticket,
+            "create_pr",
+            resolved_repo,
+            issue,
+            None,
+            resolved_head,
+            commands,
+            pr_result,
+            store.root,
+        )
+
+    stdout = _redact_text(pr_result.stdout)
+    stderr = _redact_text(pr_result.stderr)
+    pr_url = _extract_pr_url(stdout)
+    pr_number = _extract_pr_number(pr_url)
+    github_meta = {
+        **github_meta,
+        "repo": resolved_repo,
+        "issue": issue,
+        "pr": pr_number,
+        "branch": resolved_head,
+        "base": base,
+        "linked_at": utc_now(),
+    }
+    store.save_ticket(ticket.model_copy(deep=True, update={"metadata": ticket.metadata | {"github": github_meta}}))
+    return GitHubIntegrationResult(
+        id=result_id,
+        ticket_id=ticket.id,
+        ticket_key=ticket.key,
+        operation="create_pr",
+        ok=True,
+        blocked=False,
+        repo=resolved_repo,
+        issue_number=issue,
+        pr_number=pr_number,
+        pr_url=pr_url,
+        branch=resolved_head,
+        commit_sha=_git_output(["git", "rev-parse", "HEAD"], store.root),
+        remote_url=_git_output(["git", "config", "--get", "remote.origin.url"], store.root),
+        command_summaries=commands,
+        stdout=stdout,
+        stderr=stderr,
+        evidence={"body_path": str(body_path), "base": base, "draft": draft},
+    )
+
+
+def github_status_for_ticket(
+    store: AriadneStore,
+    ticket: BuildTicket,
+) -> GitHubIntegrationResult:
+    github_meta = ticket.metadata.get("github") if isinstance(ticket.metadata.get("github"), dict) else {}
+    repo = github_meta.get("repo") or infer_github_repo(store.root)
+    issue = _int_or_none(github_meta.get("issue"))
+    pr = _int_or_none(github_meta.get("pr"))
+    branch = github_meta.get("branch") or _git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], store.root)
+    result_id = stable_id("github", ticket.id, "status", repo, issue, pr, branch, utc_now())
+    gh_path = shutil.which("gh")
+    if gh_path is None:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="status",
+            reason="gh command is not installed",
+            failure_reason=FailureReason.COMMAND_UNAVAILABLE,
+            repo=repo,
+            issue=issue,
+            pr=pr,
+            branch=branch,
+        )
+    if not repo:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="status",
+            reason="GitHub repo is required before status read",
+            failure_reason=FailureReason.INVALID_RESOURCE,
+            repo=repo,
+            issue=issue,
+            pr=pr,
+            branch=branch,
+        )
+
+    commands: list[str] = []
+    issue_payload: dict[str, Any] = {}
+    if issue:
+        issue_payload, issue_result = _gh_json(
+            [gh_path, "issue", "view", str(issue), "--repo", repo, "--json", "number,title,state,url"],
+            store.root,
+            commands,
+        )
+        if issue_result.returncode != 0:
+            return _failed_result(result_id, ticket, "status", repo, issue, pr, branch, commands, issue_result, store.root)
+
+    pr_payload: dict[str, Any] = {}
+    checks_payload: list[Any] = []
+    check_result: subprocess.CompletedProcess[str] | None = None
+    pr_ref = str(pr) if pr else branch
+    if pr_ref:
+        pr_payload, pr_result = _gh_json(
+            [
+                gh_path,
+                "pr",
+                "view",
+                pr_ref,
+                "--repo",
+                repo,
+                "--json",
+                "number,title,state,url,headRefName,headRefOid,baseRefName,mergeable,reviewDecision,statusCheckRollup",
+            ],
+            store.root,
+            commands,
+        )
+        if pr_result.returncode != 0:
+            return _failed_result(result_id, ticket, "status", repo, issue, pr, branch, commands, pr_result, store.root)
+        pr = _int_or_none(pr_payload.get("number")) or pr
+        check_ref = str(pr) if pr else pr_ref
+        check_payload, check_result = _gh_checks_json(
+            [
+                gh_path,
+                "pr",
+                "checks",
+                check_ref,
+                "--repo",
+                repo,
+                "--json",
+                "name,state,bucket,link,workflow,completedAt,startedAt",
+            ],
+            store.root,
+            commands,
+        )
+        checks_payload = check_payload
+        if check_result.returncode not in (0, 8):
+            return _failed_result(result_id, ticket, "status", repo, issue, pr, branch, commands, check_result, store.root)
+
+    return GitHubIntegrationResult(
+        id=result_id,
+        ticket_id=ticket.id,
+        ticket_key=ticket.key,
+        operation="status",
+        ok=True,
+        blocked=False,
+        repo=repo,
+        issue_number=issue,
+        issue_url=_string(issue_payload.get("url")),
+        pr_number=pr,
+        pr_url=_string(pr_payload.get("url")),
+        branch=_string(pr_payload.get("headRefName")) or branch,
+        commit_sha=_string(pr_payload.get("headRefOid")) or _git_output(["git", "rev-parse", "HEAD"], store.root),
+        remote_url=_git_output(["git", "config", "--get", "remote.origin.url"], store.root),
+        command_summaries=commands,
+        stderr=_redact_text(check_result.stderr) if check_result else "",
+        evidence={"issue": issue_payload, "pr": pr_payload, "checks": checks_payload},
+    )
+
+
 def sync_ticket_with_github(
     store: AriadneStore,
     ticket: BuildTicket,
@@ -372,6 +602,16 @@ def _gh_json(command: list[str], cwd: Path, commands: list[str]) -> tuple[dict[s
     return payload if isinstance(payload, dict) else {"stdout": payload}, result
 
 
+def _gh_checks_json(command: list[str], cwd: Path, commands: list[str]) -> tuple[list[Any], subprocess.CompletedProcess[str]]:
+    result = _run(command, cwd=cwd)
+    commands.append(_redact_command(command))
+    try:
+        payload = json.loads(result.stdout) if result.stdout.strip() else []
+    except json.JSONDecodeError:
+        payload = [{"stdout": _redact_text(result.stdout)}]
+    return payload if isinstance(payload, list) else [payload], result
+
+
 def _write_comment_body(
     store: AriadneStore,
     ticket: BuildTicket,
@@ -413,6 +653,27 @@ def _write_issue_body(store: AriadneStore, ticket: BuildTicket) -> Path:
         "This issue was created by Ariadne's gated GitHub integration from the "
         "local ticket-centered Agent Workbench.\n\n"
         "Description:\n\n"
+        f"{ticket.description.strip()}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_pr_body(store: AriadneStore, ticket: BuildTicket, issue: int | None) -> Path:
+    workspace = store.github_integrations_dir / ticket.key
+    workspace.mkdir(parents=True, exist_ok=True)
+    path = workspace / f"{ticket.id}_github_pr.md"
+    close_line = f"\nCloses #{issue}\n" if issue else ""
+    path.write_text(
+        f"### Ariadne PR for {ticket.key}\n\n"
+        f"- Ticket: `{ticket.key}`\n"
+        f"- Local ticket id: `{ticket.id}`\n"
+        f"- Status: `{ticket.status.value}`\n"
+        f"- Source type: `{ticket.source_type}`\n\n"
+        "This PR was created by Ariadne's gated GitHub integration after local "
+        "verification evidence was recorded.\n"
+        f"{close_line}\n"
+        "Summary:\n\n"
         f"{ticket.description.strip()}\n",
         encoding="utf-8",
     )
@@ -528,6 +789,18 @@ def _extract_issue_number(issue_url: str | None) -> int | None:
     if not issue_url:
         return None
     match = re.search(r"/issues/(?P<number>\d+)$", issue_url)
+    return int(match.group("number")) if match else None
+
+
+def _extract_pr_url(stdout: str) -> str | None:
+    match = re.search(r"https://github\.com/[^\s]+/pull/\d+", stdout)
+    return match.group(0) if match else None
+
+
+def _extract_pr_number(pr_url: str | None) -> int | None:
+    if not pr_url:
+        return None
+    match = re.search(r"/pull/(?P<number>\d+)$", pr_url)
     return int(match.group("number")) if match else None
 
 

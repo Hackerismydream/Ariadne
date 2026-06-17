@@ -405,10 +405,13 @@ python3.11 -m ariadne_ltb.cli github doctor
 python3.11 -m ariadne_ltb.cli github create-issue ARI-003 --repo Hackerismydream/Ariadne --confirm-write
 python3.11 -m ariadne_ltb.cli github link ARI-003 --repo Hackerismydream/Ariadne --issue 123
 python3.11 -m ariadne_ltb.cli github sync ARI-003 --confirm-write
+python3.11 -m ariadne_ltb.cli github create-pr ARI-003 --base main --head codex/my-branch --confirm-write
+python3.11 -m ariadne_ltb.cli github status ARI-003
 ```
 
-Sync writes a GitHub issue comment only through `gh` and only with
-`--confirm-write`. Results are persisted under
+Issue creation, PR creation, and sync comments write only through `gh` and only
+with `--confirm-write`. Status reads issue, PR, branch, and check information
+without remote writes. Results are persisted under
 `.ariadne/integrations/github/<ticket>/` with tokens redacted.
 
 ## Inbox And Local Search
