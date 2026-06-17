@@ -139,6 +139,63 @@ def test_ticket_assign_records_runtime_strategy_overrides(tmp_path: Path) -> Non
     assert "backlog planner: llm" in result.output
 
 
+def test_ticket_assign_production_runtime_profile_selects_llm_strategy(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "codex",
+            "--runtime-profile",
+            "production",
+        ],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+
+    assert result.exit_code == 0, result.output
+    assert assignment is not None
+    assert assignment.backend_name == "codex"
+    assert assignment.planner_name == "llm"
+    assert assignment.agent_runtime == "llm"
+    assert assignment.backlog_planner_name == "llm"
+    assert "planner: llm" in result.output
+    assert "agent runtime: llm" in result.output
+    assert "backlog planner: llm" in result.output
+
+
+def test_ticket_assign_rejects_unknown_runtime_profile(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "codex",
+            "--runtime-profile",
+            "demo",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "runtime profile must be `deterministic` or `production`" in result.output
+
+
 def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
@@ -188,6 +245,45 @@ def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) ->
     assert "Selected agent: `codex`" in board_text
     assert "Agent runtime: `deterministic`" in board_text
     assert "Backlog planner: `deterministic`" in board_text
+
+
+def test_ticket_assign_to_build_team_production_profile_routes_llm_strategy(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "build-team",
+            "--runtime-profile",
+            "production",
+        ],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    route_artifacts = [
+        store.load_artifact(artifact_id)
+        for artifact_id in ticket.artifact_ids
+        if store.load_artifact(artifact_id).artifact_type is ArtifactType.ROUTE_DECISION
+    ]
+    route_json = json.loads(Path(route_artifacts[-1].path).read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0, result.output
+    assert assignment is not None
+    assert assignment.planner_name == "llm"
+    assert assignment.agent_runtime == "llm"
+    assert assignment.backlog_planner_name == "llm"
+    assert route_json["planner_name"] == "llm"
+    assert route_json["agent_runtime"] == "llm"
+    assert route_json["backlog_planner_name"] == "llm"
 
 
 def test_daemon_runs_build_team_assignment(tmp_path: Path) -> None:

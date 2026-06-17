@@ -35,6 +35,25 @@ def test_readme_has_v1_quickstart_and_limitations() -> None:
     assert "JSON/JSONL" in readme
 
 
+def test_production_docs_use_runtime_profile_not_manual_llm_flags() -> None:
+    active_docs = [
+        ROOT / "README.md",
+        ROOT / "docs" / "ops" / "HUMAN_DEMO_SCRIPT.md",
+        ROOT / "docs" / "ops" / "V1_RELEASE_CHECKLIST.md",
+        ROOT / "docs" / "ops" / "2026-06-17-2043-ARIADNE_PRODUCTION_AGENT_WORKBENCH_ROADMAP.md",
+        ROOT
+        / "docs"
+        / "superpowers"
+        / "plans"
+        / "2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md",
+    ]
+
+    for path in active_docs:
+        text = path.read_text(encoding="utf-8")
+        assert "--runtime-profile production" in text, path
+        assert "--agent-runtime llm --backlog-planner llm" not in text, path
+
+
 def test_ticket_centered_architecture_is_current_positioning() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     architecture = (

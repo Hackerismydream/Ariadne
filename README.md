@@ -17,7 +17,7 @@ Ariadne v1.0 is a local-first, Ticket-centered Agent Workbench:
 ari ingest examples/sources/*.md
 ari backlog history
 ari ticket list
-ari ticket assign ARI-003 --to codex
+ari ticket assign ARI-003 --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ari ticket comments ARI-003
 ari runtime journal
@@ -50,7 +50,7 @@ ari doctor integrations
 ari doctor product
 ari ingest examples/sources/*.md --planner llm
 ari ticket list
-ari ticket assign ARI-003 --to codex
+ari ticket assign ARI-003 --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ari review run ARI-003 --reviewer llm
 FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
@@ -86,7 +86,7 @@ Fallback:
 ```bash
 python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
 python3.11 -m ariadne_ltb.cli ticket list
-python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to codex
+python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli daemon run-once --confirm-execution
 python3.11 -m ariadne_ltb.cli ticket comments ARI-003
 python3.11 -m ariadne_ltb.cli export board
@@ -123,7 +123,7 @@ Generated outputs are under `.ariadne/`, including:
 Agent Teammate Mode adds a small local work-management layer:
 
 - `ari agent list` shows assignable local Agent profiles.
-- `ari ticket assign <ticket> --to codex --agent-runtime llm --backlog-planner llm`
+- `ari ticket assign <ticket> --to codex --runtime-profile production`
   creates a queued production assignment for the Codex teammate.
 - `ari daemon run-once` claims one assignment and runs it through
   `TicketRunOrchestrator`.
@@ -182,14 +182,14 @@ section.
 
 Feedback-to-backlog updates can also use the DeepSeek-backed LLM backlog
 planner. Ariadne still writes deterministic next-ticket suggestions first; when
-`--backlog-planner llm` succeeds, those LLM suggestions become the input to the
-backlog update engine. If the key or provider is unavailable, Ariadne records a
-blocked `llm_next_tickets_blocked.json` artifact and keeps the deterministic
-fallback evidence visible.
+`--runtime-profile production` or `--backlog-planner llm` succeeds, those LLM
+suggestions become the input to the backlog update engine. If the key or
+provider is unavailable, Ariadne records a blocked `llm_next_tickets_blocked.json`
+artifact and keeps the deterministic fallback evidence visible.
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ari ticket run ARI-003 --backend codex --confirm-execution --backlog-planner llm
+ari ticket run ARI-003 --backend codex --runtime-profile production --confirm-execution
 ```
 
 ## Review Evidence
@@ -225,19 +225,21 @@ ari review run ARI-003 --reviewer llm
 The full ticket loop can also run upstream DeepSeek role agents directly:
 
 ```bash
-ari ticket run ARI-003 --backend codex --agent-runtime llm --confirm-execution
+ari ticket run ARI-003 --backend codex --runtime-profile production --confirm-execution
 ```
 
 The daemon / assignment path can use the same upstream runtime. This keeps the
 normal product flow ticket-centered instead of requiring manual role-agent calls:
 
 ```bash
-ari ticket assign ARI-003 --to codex --agent-runtime llm --backlog-planner llm
+ari ticket assign ARI-003 --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ```
 
-`daemon run-once` also accepts `--agent-runtime` and `--backlog-planner` as
-runtime overrides for one worker pass.
+`--runtime-profile production` sets the planner, upstream role agents, and
+feedback backlog planner to `llm`. `daemon run-once` also accepts
+`--runtime-profile`, `--agent-runtime`, and `--backlog-planner` as runtime
+overrides for one worker pass.
 
 Real LLM smoke tests are explicit external calls:
 
@@ -317,10 +319,10 @@ backend execution -> review -> memory -> board.
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ari backend smoke-test codex --confirm-execution --timeout-seconds 180
+ari backend smoke-test codex --runtime-profile production --confirm-execution --timeout-seconds 180
 
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ari backend smoke-test claude-code --confirm-execution --timeout-seconds 180
+ari backend smoke-test claude-code --runtime-profile production --confirm-execution --timeout-seconds 180
 ```
 
 Each smoke run now writes first-class backend evidence under
@@ -398,7 +400,7 @@ ari export board
 Real Codex path remains optional and gated:
 
 ```bash
-ari ticket assign ARI-003 --to codex
+ari ticket assign ARI-003 --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ```
 

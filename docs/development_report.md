@@ -4640,3 +4640,79 @@ Result:
   verification can no longer pass solely on fake/offline evidence.
 - Current local product acceptance is ready based on recorded real integration
   evidence; current run gates remain action-required until explicitly enabled.
+
+## 2026-06-18 04:02 CST Production Runtime Profile Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Branch integration decision:
+
+- Re-checked the existing frontend lane against the current production branch.
+- Whole-branch integration is still deferred because the frontend lane would
+  remove current production backend modules, tests, doctors, evidence commands,
+  and roadmap files.
+- The current slice stayed in the non-frontend lane and only changed CLI/runtime
+  contract plus production docs.
+
+Problem found:
+
+- The product path used real Codex/Claude backends, but several commands and
+  docs still relied on manually combining `--planner llm`, `--agent-runtime
+  llm`, and `--backlog-planner llm`.
+- That made it too easy for a user or future agent to run a real coding backend
+  while silently leaving upstream Build Lead / Knowledge / Memory agents and
+  feedback backlog planning in deterministic mode.
+
+Implemented:
+
+- Added `--runtime-profile production` to:
+  - `ari ticket assign`;
+  - `ari ticket run`;
+  - `ari daemon run-once`;
+  - `ari daemon start`;
+  - `ari backend smoke-test`.
+- The production profile sets:
+  - planner: `llm`;
+  - upstream role agent runtime: `llm`;
+  - feedback backlog planner: `llm`.
+- Kept the default profile as `deterministic` so tests and offline regression
+  remain credential-free.
+- Added validation for unknown runtime profiles.
+- Updated production docs to use `--runtime-profile production` instead of the
+  longer manual LLM flag combination.
+- Added tests for:
+  - direct ticket assignment with production profile;
+  - Build Team routing with production profile;
+  - invalid profile rejection;
+  - active production docs containing the production profile and not the older
+    manual flag pair.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_agent_teammate_mode.py -q`: passed,
+  `18 passed`.
+- `python3.11 -m pytest tests/test_agent_teammate_mode.py tests/test_v1_docs.py tests/test_backend_smoke_cli.py -q`:
+  passed, `34 passed`.
+- `python3.11 -m ruff check ariadne_ltb/cli.py tests/test_agent_teammate_mode.py tests/test_v1_docs.py`:
+  passed.
+- CLI smoke with a temporary store:
+  `ari ticket assign ARI-003 --to codex --runtime-profile production` wrote
+  `planner=llm`, `agent runtime=llm`, and `backlog planner=llm`.
+- `ari ticket run --help` and `ari backend smoke-test --help` both show
+  `--runtime-profile deterministic|production`.
+- `python3.11 -m pytest`: passed, `234 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env` was
+  reported only as `[REDACTED]`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_090019a68684`.
+
+Result:
+
+- Production runs now have a single stable profile switch for real upstream LLM
+  agent behavior.
+- Deterministic mode remains explicit and available for offline regression, but
+  the recommended product path no longer depends on remembering several
+  separate LLM flags.

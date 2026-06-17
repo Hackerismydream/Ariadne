@@ -176,7 +176,7 @@ Ariadne is not production-ready until this real path works:
 ```bash
 ari doctor integrations
 ari ingest examples/sources/*.md --planner llm
-ari ticket assign ARI-003 --to codex
+ari ticket assign ARI-003 --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ari review run ARI-003 --reviewer llm
 FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
@@ -220,7 +220,7 @@ Commands:
 ```bash
 ari backend diagnose codex
 ari backend diagnose claude-code
-ari ticket run ARI-003 --backend codex --confirm-execution
+ari ticket run ARI-003 --backend codex --runtime-profile production --confirm-execution
 ari ticket run ARI-003 --backend claude-code --confirm-execution
 ```
 

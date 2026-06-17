@@ -13,7 +13,7 @@
 - [ ] `ari doctor product --require-acceptance-ready`
 - [ ] `ari ingest examples/sources/*.md --planner llm`
 - [ ] `ari ticket list`
-- [ ] `ari ticket assign ARI-003 --to codex --agent-runtime llm --backlog-planner llm`
+- [ ] `ari ticket assign ARI-003 --to codex --runtime-profile production`
 - [ ] `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution`
 - [ ] `ari review run ARI-003 --reviewer llm`
 - [ ] `FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write`

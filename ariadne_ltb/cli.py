@@ -544,6 +544,37 @@ def _yes_no(value: bool) -> str:
     return "yes" if value else "no"
 
 
+def _runtime_profile_values(
+    runtime_profile: str,
+    planner: str | None,
+    agent_runtime: str | None,
+    backlog_planner: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    if runtime_profile not in {"deterministic", "production"}:
+        raise typer.BadParameter("runtime profile must be `deterministic` or `production`")
+    if runtime_profile == "production":
+        return (
+            "llm" if planner in {None, "deterministic"} else planner,
+            "llm" if agent_runtime in {None, "deterministic"} else agent_runtime,
+            "llm" if backlog_planner in {None, "deterministic"} else backlog_planner,
+        )
+    return planner, agent_runtime, backlog_planner
+
+
+def _runtime_profile_pair(
+    runtime_profile: str,
+    agent_runtime: str | None,
+    backlog_planner: str | None,
+) -> tuple[str | None, str | None]:
+    _, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        runtime_profile,
+        None,
+        agent_runtime,
+        backlog_planner,
+    )
+    return selected_agent_runtime, selected_backlog_planner
+
+
 @backend_app.command("diagnose")
 def backend_diagnose(
     backend: Annotated[str, typer.Argument(help="Backend to diagnose: codex|claude-code.")],
@@ -689,6 +720,13 @@ def backend_smoke_test(
         int,
         typer.Option("--timeout-seconds", help="Maximum seconds for the real backend command."),
     ] = 300,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM upstream agents and backlog planner.",
+        ),
+    ] = "deterministic",
     agent_runtime: Annotated[
         str,
         typer.Option("--agent-runtime", help="deterministic|llm upstream agent runtime for the daemon pass."),
@@ -715,6 +753,11 @@ def backend_smoke_test(
             f"Refusing real {backend} smoke test: {backend_adapter.executable_name} command is not available."
         )
         raise typer.Exit(2)
+    selected_agent_runtime, selected_backlog_planner = _runtime_profile_pair(
+        runtime_profile,
+        agent_runtime,
+        backlog_planner,
+    )
 
     store = AriadneStore(state.root)
     ensure_demo_target_project(state.root)
@@ -724,8 +767,8 @@ def backend_smoke_test(
         selected,
         store.resolve_agent_profile(backend),
         backend_name=backend,
-        agent_runtime=agent_runtime,
-        backlog_planner_name=backlog_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
         assigned_by="backend smoke-test",
     )
     updated = store.load_ticket(selected.id).with_status(
@@ -736,8 +779,8 @@ def backend_smoke_test(
     store.save_ticket(updated)
     daemon_result = LocalDaemonWorker(store, runtime_id=f"smoke-{backend}").run_once(
         confirm_execution=True,
-        agent_runtime=agent_runtime,
-        backlog_planner=backlog_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner=selected_backlog_planner,
         timeout_seconds=timeout_seconds,
     )
     final_assignment = store.load_assignment(assignment.id)
@@ -1019,6 +1062,13 @@ def ticket_assign(
     agent_id: Annotated[str, typer.Option("--to", help="Agent profile id or name.")],
     backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
     planner: Annotated[str | None, typer.Option("--planner", help="Override planner name.")] = None,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+        ),
+    ] = "deterministic",
     agent_runtime: Annotated[
         str | None,
         typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm."),
@@ -1031,6 +1081,12 @@ def ticket_assign(
     """Assign a Build Ticket to a local Agent teammate."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
+    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        runtime_profile,
+        planner,
+        agent_runtime,
+        backlog_planner,
+    )
     try:
         team = store.resolve_build_team(agent_id)
     except FileNotFoundError:
@@ -1041,9 +1097,9 @@ def ticket_assign(
             ticket,
             team,
             backend_name=backend,
-            planner_name=planner,
-            agent_runtime=agent_runtime,
-            backlog_planner_name=backlog_planner,
+            planner_name=selected_planner,
+            agent_runtime=selected_agent_runtime,
+            backlog_planner_name=selected_backlog_planner,
         )
         typer.echo(f"Build Team routed: {routed.team.id}")
         typer.echo(f"ticket: {ticket.key}")
@@ -1060,9 +1116,9 @@ def ticket_assign(
         ticket,
         agent,
         backend_name=backend,
-        planner_name=planner,
-        agent_runtime=agent_runtime,
-        backlog_planner_name=backlog_planner,
+        planner_name=selected_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
     )
     status = (
         TicketStatus.READY_FOR_EXECUTION
@@ -1317,6 +1373,13 @@ def ticket_run(
     ] = None,
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+        ),
+    ] = "deterministic",
     agent_runtime: Annotated[
         str,
         typer.Option(
@@ -1339,14 +1402,20 @@ def ticket_run(
     ] = False,
 ) -> None:
     """Run a Build Ticket through the full Ariadne product loop."""
+    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        runtime_profile,
+        planner,
+        agent_runtime,
+        backlog_planner,
+    )
     result = TicketRunOrchestrator(AriadneStore(state.root)).run_ticket(
         ticket_id,
         backend_name=backend,
         target_repo_path=str(target_repo_path) if target_repo_path else None,
         command=command,
-        planner=planner,
-        agent_runtime=agent_runtime,
-        backlog_planner=backlog_planner,
+        planner=selected_planner or "deterministic",
+        agent_runtime=selected_agent_runtime or "deterministic",
+        backlog_planner=selected_backlog_planner or "deterministic",
         use_memory=use_memory,
         confirm_execution=confirm_execution,
         isolate_worktree=isolate_worktree,
@@ -1467,6 +1536,13 @@ def daemon_run_once(
         int | None,
         typer.Option("--timeout-seconds", help="Maximum seconds for one execution backend command."),
     ] = None,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM upstream agents and backlog planner.",
+        ),
+    ] = "deterministic",
     agent_runtime: Annotated[
         str | None,
         typer.Option("--agent-runtime", help="Override assignment upstream agent runtime: deterministic|llm."),
@@ -1477,10 +1553,15 @@ def daemon_run_once(
     ] = None,
 ) -> None:
     """Claim and run one queued assignment."""
+    selected_agent_runtime, selected_backlog_planner = _runtime_profile_pair(
+        runtime_profile,
+        agent_runtime,
+        backlog_planner,
+    )
     result = LocalDaemonWorker(AriadneStore(state.root), runtime_id=runtime_id).run_once(
         confirm_execution=confirm_execution,
-        agent_runtime=agent_runtime,
-        backlog_planner=backlog_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner=selected_backlog_planner,
         timeout_seconds=timeout_seconds,
     )
     if not result.did_work:
@@ -1511,6 +1592,13 @@ def daemon_start(
         int | None,
         typer.Option("--timeout-seconds", help="Maximum seconds for one execution backend command."),
     ] = None,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM upstream agents and backlog planner.",
+        ),
+    ] = "deterministic",
     agent_runtime: Annotated[
         str | None,
         typer.Option("--agent-runtime", help="Override assignment upstream agent runtime: deterministic|llm."),
@@ -1521,12 +1609,17 @@ def daemon_start(
     ] = None,
 ) -> None:
     """Run a simple local daemon polling loop."""
+    selected_agent_runtime, selected_backlog_planner = _runtime_profile_pair(
+        runtime_profile,
+        agent_runtime,
+        backlog_planner,
+    )
     LocalDaemonWorker(AriadneStore(state.root), runtime_id=runtime_id).run_loop(
         interval_seconds=interval,
         max_iterations=max_iterations,
         confirm_execution=confirm_execution,
-        agent_runtime=agent_runtime,
-        backlog_planner=backlog_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner=selected_backlog_planner,
         timeout_seconds=timeout_seconds,
     )
     typer.echo("daemon loop finished")
