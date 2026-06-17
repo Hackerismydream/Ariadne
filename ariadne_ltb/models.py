@@ -673,6 +673,7 @@ class ExecutionContext(AriadneModel):
     ticket_key: str | None = None
     build_packet_id: str
     target_repo_path: str
+    target_worktree_path: str | None = None
     handoff_prompt: str
     handoff_file: str | None = None
     backend_name: str
@@ -689,6 +690,8 @@ class ExecutionResult(AriadneModel):
     id: str
     ticket_id: str
     backend_name: str
+    target_repo_path: str | None = None
+    target_worktree_path: str | None = None
     dry_run: bool
     blocked: bool = False
     block_reason: str | None = None

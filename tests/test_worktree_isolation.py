@@ -82,6 +82,38 @@ def test_isolated_fake_codex_changes_worktree_without_dirtying_base(tmp_path: Pa
     assert git_status(target) == ""
 
 
+def test_isolated_fake_codex_records_worktree_target_and_handoff_resource(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+
+    result = TicketRunOrchestrator(store).run_ticket(
+        "ARI-003",
+        backend_name="fake-codex",
+        target_repo_path=str(target),
+        isolate_worktree=True,
+    )
+
+    ticket = store.load_ticket(result.ticket_id)
+    worktree_path = ticket.metadata["worktree_isolation"]["worktree_path"]
+    execution = store.load_execution_result(result.execution_result_id)
+    handoff = store.read_artifact_text(store.load_artifact(result.handoff_artifact_id))
+    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    resource_artifacts = [
+        artifact for artifact in artifacts if artifact.artifact_type.value == "project_resources"
+    ]
+    resources = json.loads(Path(resource_artifacts[-1].path).read_text(encoding="utf-8"))
+    worktree_resource = resources["resources"][0]
+
+    assert execution.target_repo_path == worktree_path
+    assert execution.target_worktree_path == worktree_path
+    assert "## Project Resources" in handoff
+    assert worktree_resource["id"] in handoff
+    assert worktree_resource["resource_ref"]["local_path"] == worktree_path
+    assert worktree_path in handoff
+    assert git_status(target) == ""
+
+
 def test_daemon_assignment_runs_ticket_in_isolated_worktree(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
@@ -140,6 +172,27 @@ def test_isolate_worktree_blocks_dirty_base_with_typed_execution_artifact(tmp_pa
     payload = json.loads(Path(log.path).read_text(encoding="utf-8"))
     assert payload["failure_reason"] == "dirty_base_checkout"
     assert not (tmp_path / ".ariadne" / "worktrees" / result.ticket_key.lower()).exists()
+
+
+def test_isolate_worktree_blocks_missing_target_without_demo_fallback(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    missing_target = tmp_path / "missing-target"
+
+    result = TicketRunOrchestrator(store).run_ticket(
+        "ARI-003",
+        backend_name="dry-run",
+        target_repo_path=str(missing_target),
+        isolate_worktree=True,
+    )
+
+    execution = store.load_execution_result(result.execution_result_id)
+    assert execution.blocked is True
+    assert execution.failure_reason is FailureReason.INVALID_RESOURCE
+    assert execution.target_repo_path == str(missing_target)
+    assert execution.target_worktree_path is None
+    assert execution.block_reason == "target path does not exist"
+    assert not (tmp_path / ".ariadne" / "demo_target_project").exists()
 
 
 def test_worktree_isolation_metadata_persists_to_file_and_artifact(tmp_path: Path) -> None:

@@ -129,10 +129,11 @@ class TicketRunOrchestrator:
             payload_ref=handoff_artifact.id,
         )
 
-        target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        target_repo = Path(target_repo_path).expanduser().resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        target_validation = validate_target_repo_path(target_repo)
         worktree_block: WorktreeBlock | None = None
         worktree_path: str | None = None
-        if isolate_worktree:
+        if isolate_worktree and target_validation.valid:
             isolation = prepare_isolated_worktree(self.store, ticket, target_repo, self.assignment_id)
             if isolation.block:
                 worktree_block = isolation.block
@@ -177,16 +178,38 @@ class TicketRunOrchestrator:
                     payload_ref=worktree_artifact.id,
                 )
                 target_repo = Path(isolation.record.worktree_path)
+                target_validation = validate_target_repo_path(target_repo)
                 worktree_path = isolation.record.worktree_path
         runtime_capability_path = self.store.save_runtime_capabilities(collect_runtime_capabilities())
+        resource_label = f"{ticket.key} isolated worktree" if worktree_path else f"{ticket.key} target repository"
         project_resources = [
             ProjectResource.local_directory(
                 "ariadne-local",
                 target_repo,
-                label=f"{ticket.key} target repository",
+                label=resource_label,
             )
         ]
         project_resources_path = self.store.save_project_resources(project_resources)
+        handoff_prompt = _augment_handoff_with_project_resources(
+            handoff_prompt,
+            project_resources,
+            target_repo,
+            worktree_path,
+        )
+        handoff_artifact = self.store.write_artifact(
+            ticket.id,
+            handoff_artifact.agent_run_id,
+            ArtifactType.CODEX_HANDOFF,
+            "handoff.md",
+            handoff_prompt,
+            "Coding backend handoff prompt",
+            metadata=handoff_artifact.metadata
+            | {
+                "project_resource_ids": [resource.id for resource in project_resources],
+                "target_repo_path": str(target_repo),
+                "target_worktree_path": worktree_path,
+            },
+        )
         skill_refs = [skill.name for skill in discover_build_skills()]
         route_decision = RouteDecision(
             id=stable_id("route", ticket.id, backend_name, str(target_repo)),
@@ -253,6 +276,7 @@ class TicketRunOrchestrator:
             ticket_key=ticket.key,
             build_packet_id=packet.id,
             target_repo_path=str(target_repo),
+            target_worktree_path=worktree_path,
             handoff_prompt=handoff_prompt,
             handoff_file=str(self.store.base / "handoffs" / f"{ticket.key}.md"),
             backend_name=backend_name,
@@ -271,7 +295,6 @@ class TicketRunOrchestrator:
             payload_ref=execution_run.id,
         )
         self.store.save_ticket(ticket)
-        validation = validate_target_repo_path(target_repo)
         if worktree_block:
             execution = _blocked_execution(
                 context,
@@ -279,8 +302,13 @@ class TicketRunOrchestrator:
                 worktree_block.reason,
                 worktree_block.failure_reason,
             )
-        elif not validation.valid:
-            execution = _blocked_execution(context, backend_name, validation.reason, FailureReason.INVALID_RESOURCE)
+        elif not target_validation.valid:
+            execution = _blocked_execution(
+                context,
+                backend_name,
+                target_validation.reason,
+                target_validation.failure_reason or FailureReason.INVALID_RESOURCE,
+            )
         else:
             lock = DirectoryLock(
                 self.store,
@@ -681,6 +709,8 @@ def _blocked_execution(
         id=stable_id("execution", context.ticket_id, backend_name, failure_reason.value, reason),
         ticket_id=context.ticket_id,
         backend_name=backend_name,
+        target_repo_path=context.target_repo_path,
+        target_worktree_path=context.target_worktree_path,
         dry_run=False,
         blocked=True,
         block_reason=reason,
@@ -700,6 +730,32 @@ def _blocked_execution(
         test_exit_code=None,
         warnings=[reason],
     )
+
+
+def _augment_handoff_with_project_resources(
+    handoff_prompt: str,
+    project_resources: list[ProjectResource],
+    target_repo: Path,
+    worktree_path: str | None,
+) -> str:
+    lines = [
+        "## Project Resources",
+        "",
+        f"Target repo path: `{target_repo}`",
+    ]
+    if worktree_path:
+        lines.append(f"Target worktree path: `{worktree_path}`")
+    lines.append("")
+    for resource in project_resources:
+        ref = resource.resource_ref
+        label = resource.label or ref.get("label") or resource.resource_type
+        local_path = ref.get("local_path")
+        lines.append(f"- ProjectResource `{resource.id}` ({label}): `{local_path}`")
+    section = "\n".join(lines) + "\n\n"
+    marker = "\n## Safety Constraints\n"
+    if marker in handoff_prompt:
+        return handoff_prompt.replace(marker, f"\n{section}## Safety Constraints\n", 1)
+    return handoff_prompt.rstrip() + "\n\n" + section
 
 
 def _write_execution_artifacts(

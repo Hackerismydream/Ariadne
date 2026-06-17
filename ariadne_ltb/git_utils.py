@@ -10,13 +10,17 @@ def git_available() -> bool:
 
 
 def run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    command = ["git", *args]
+    try:
+        return subprocess.run(
+            command,
+            cwd=repo,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as exc:
+        return subprocess.CompletedProcess(command, 128, "", str(exc))
 
 
 def is_git_repo(repo: Path) -> bool:
