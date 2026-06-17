@@ -15,7 +15,7 @@ from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.backlog import supersede_ticket
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
-from ariadne_ltb.execution import CodexBackend, backend_for_name
+from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.full_demo import (
     FullDemoResult,
@@ -471,24 +471,35 @@ def _yes_no(value: bool) -> str:
 
 @backend_app.command("diagnose")
 def backend_diagnose(
-    backend: Annotated[str, typer.Argument(help="Backend to diagnose. Currently supports `codex`.")],
+    backend: Annotated[str, typer.Argument(help="Backend to diagnose: codex|claude-code.")],
 ) -> None:
     """Diagnose provider command compatibility without running a ticket."""
-    if backend != "codex":
-        raise typer.BadParameter("only `codex` diagnosis is supported")
+    if backend == "codex":
+        _diagnose_codex_backend()
+        return
+    if backend == "claude-code":
+        _diagnose_claude_backend()
+        return
+    raise typer.BadParameter("backend must be `codex` or `claude-code`")
 
+
+def _diagnose_codex_backend() -> None:
     codex_path = shutil.which("codex")
     help_result = _codex_exec_help(codex_path)
     prompt_file_support = _codex_help_supports_prompt_file(help_result)
     recommended_template = (
         "codex exec --cd {target_repo} --prompt-file {handoff_file}"
         if prompt_file_support is True
-        else 'codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}'
+        else CodexBackend.default_template
     )
 
+    typer.echo("Backend: codex")
     typer.echo(f"CodexBackend command: {'found ' + codex_path if codex_path else 'missing'}")
     typer.echo(f"Codex exec help: {help_result['status']}")
     typer.echo(f"Prompt-file support: {_support_label(prompt_file_support)}")
+    typer.echo("Stdin prompt support: yes")
+    typer.echo("Model selection support: yes")
+    typer.echo("Service tier default: from Codex config or provider default")
     typer.echo("Recommended template:")
     typer.echo(recommended_template)
     typer.echo(
@@ -500,6 +511,31 @@ def backend_diagnose(
         f"{'set' if os.environ.get('ARIADNE_CODEX_COMMAND_TEMPLATE') else 'unset'}"
     )
     typer.echo(f"Codex config: {_codex_config_summary()}")
+    typer.echo("Real execution gate: requires ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 and --confirm-execution")
+
+
+def _diagnose_claude_backend() -> None:
+    claude_path = shutil.which("claude")
+    help_result = _claude_help(claude_path)
+    help_text = f"{help_result['stdout']}\n{help_result['stderr']}"
+    typer.echo("Backend: claude-code")
+    typer.echo(f"ClaudeCodeBackend command: {'found ' + claude_path if claude_path else 'missing'}")
+    typer.echo(f"Claude help: {help_result['status']}")
+    typer.echo(f"Print mode support: {_support_label(_help_contains(help_text, '--print'))}")
+    typer.echo(f"JSON output support: {_support_label(_help_contains(help_text, '--output-format'))}")
+    typer.echo(f"Model selection support: {_support_label(_help_contains(help_text, '--model'))}")
+    typer.echo(f"Reasoning effort support: {_support_label(_help_contains(help_text, '--effort'))}")
+    typer.echo(f"Session id support: {_support_label(_help_contains(help_text, '--session-id'))}")
+    typer.echo("Recommended template:")
+    typer.echo(ClaudeCodeBackend.default_template)
+    typer.echo(
+        "ARIADNE_ENABLE_EXTERNAL_EXECUTION: "
+        f"{'set' if os.environ.get('ARIADNE_ENABLE_EXTERNAL_EXECUTION') else 'unset'}"
+    )
+    typer.echo(
+        "ARIADNE_CLAUDE_COMMAND_TEMPLATE: "
+        f"{'set' if os.environ.get('ARIADNE_CLAUDE_COMMAND_TEMPLATE') else 'unset'}"
+    )
     typer.echo("Real execution gate: requires ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 and --confirm-execution")
 
 
@@ -520,11 +556,34 @@ def _codex_exec_help(codex_path: str | None) -> dict[str, str]:
     return {"status": status, "stdout": result.stdout, "stderr": result.stderr}
 
 
+def _claude_help(claude_path: str | None) -> dict[str, str]:
+    if not claude_path:
+        return {"status": "unavailable", "stdout": "", "stderr": ""}
+    try:
+        result = subprocess.run(
+            [claude_path, "--help"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"status": f"unavailable ({exc})", "stdout": "", "stderr": ""}
+    status = "available" if result.returncode == 0 else f"error exit {result.returncode}"
+    return {"status": status, "stdout": result.stdout, "stderr": result.stderr}
+
+
 def _codex_help_supports_prompt_file(help_result: dict[str, str]) -> bool | None:
     if help_result["status"].startswith("unavailable"):
         return None
     help_text = f"{help_result['stdout']}\n{help_result['stderr']}"
     return "--prompt-file" in help_text
+
+
+def _help_contains(help_text: str, needle: str) -> bool | None:
+    if not help_text:
+        return None
+    return needle in help_text
 
 
 def _support_label(value: bool | None) -> str:

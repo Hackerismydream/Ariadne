@@ -30,7 +30,7 @@ class FakeTransport:
 
 def test_json_llm_agent_returns_structured_result(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    client = DeepSeekClient(api_key="sk-test-secret", transport=FakeTransport())
+    client = DeepSeekClient(api_key="test-secret-key", transport=FakeTransport())
 
     result = JSONLLMAgent(LLMAgentRole.PLANNER, client=client, root=tmp_path).run(
         "Return json.",
@@ -47,8 +47,8 @@ def test_json_llm_agent_returns_structured_result(monkeypatch, tmp_path: Path) -
 def test_json_llm_agent_redacts_errors(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     client = DeepSeekClient(
-        api_key="sk-test-secret",
-        transport=FakeTransport(error=OSError("bad sk-test-secret")),
+        api_key="test-secret-key",
+        transport=FakeTransport(error=OSError("bad test-secret-key")),
     )
 
     result = JSONLLMAgent(LLMAgentRole.REVIEWER, client=client, root=tmp_path).run(
@@ -58,4 +58,4 @@ def test_json_llm_agent_redacts_errors(monkeypatch, tmp_path: Path) -> None:
 
     assert result.succeeded is False
     assert result.error
-    assert "sk-test-secret" not in result.error
+    assert "test-secret-key" not in result.error

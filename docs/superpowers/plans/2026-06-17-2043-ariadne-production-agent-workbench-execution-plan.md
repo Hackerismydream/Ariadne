@@ -165,7 +165,7 @@ instead of silently falling back to deterministic output.
 - Test: `tests/test_codex_backend_real_path.py`
 - Test: `tests/test_claude_backend_real_path.py`
 
-- [ ] **Step 1: Make real backend paths first-class**
+- [x] **Step 1: Make real backend paths first-class**
 
 Required commands:
 
@@ -176,7 +176,7 @@ ari ticket run ARI-003 --backend codex --confirm-execution
 ari ticket run ARI-003 --backend claude-code --confirm-execution
 ```
 
-- [ ] **Step 2: Preserve safety gates**
+- [x] **Step 2: Preserve safety gates**
 
 Real execution still requires:
 
@@ -187,7 +187,7 @@ ARIADNE_ENABLE_EXTERNAL_EXECUTION=1
 
 But the implementation target is real execution, not dry-run.
 
-- [ ] **Step 3: Capture evidence**
+- [x] **Step 3: Capture evidence**
 
 Capture:
 

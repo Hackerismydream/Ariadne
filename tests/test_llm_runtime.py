@@ -54,7 +54,7 @@ def test_deepseek_client_uses_official_chat_json_payload(monkeypatch) -> None:
     transport = FakeTransport()
 
     response = DeepSeekClient(
-        api_key="sk-test-secret",
+        api_key="test-secret-key",
         transport=transport,
         timeout_seconds=12,
     ).complete_json_response("Return json.", "ariadne_test")
@@ -64,7 +64,7 @@ def test_deepseek_client_uses_official_chat_json_payload(monkeypatch) -> None:
     assert transport.payload["response_format"] == {"type": "json_object"}
     assert transport.payload["stream"] is False
     assert "json" in transport.payload["messages"][0]["content"].lower()
-    assert transport.headers["Authorization"] == "Bearer sk-test-secret"
+    assert transport.headers["Authorization"] == "Bearer test-secret-key"
     assert transport.timeout_seconds == 12
     assert response.content_json == {"ok": True, "summary": "valid json"}
     assert response.usage.total_tokens == 7
@@ -72,16 +72,16 @@ def test_deepseek_client_uses_official_chat_json_payload(monkeypatch) -> None:
 
 def test_deepseek_client_redacts_transport_errors(monkeypatch) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    transport = FakeTransport(error=OSError("bad token sk-test-secret"))
+    transport = FakeTransport(error=OSError("bad token test-secret-key"))
 
     try:
-        DeepSeekClient(api_key="sk-test-secret", transport=transport).complete_json(
+        DeepSeekClient(api_key="test-secret-key", transport=transport).complete_json(
             "Return json.",
             "ariadne_test",
         )
     except LLMClientError as exc:
-        assert "sk-test-secret" not in exc.error.message
-        assert "sk-[REDACTED]" in exc.error.message or "[REDACTED]" in exc.error.message
+        assert "test-secret-key" not in exc.error.message
+        assert "[REDACTED]" in exc.error.message or "[REDACTED]" in exc.error.message
     else:
         raise AssertionError("expected LLMClientError")
 
@@ -90,7 +90,7 @@ def test_load_local_env_reads_only_llm_allowlist(monkeypatch, tmp_path: Path) ->
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("ARIADNE_LLM_MODEL", raising=False)
     (tmp_path / ".env").write_text(
-        "DEEPSEEK_API_KEY=sk-local-test\n"
+        "DEEPSEEK_API_KEY=local-test-key\n"
         "ARIADNE_LLM_MODEL=deepseek-v4-flash\n"
         "UNRELATED_SECRET=do-not-load\n",
         encoding="utf-8",
@@ -104,7 +104,7 @@ def test_load_local_env_reads_only_llm_allowlist(monkeypatch, tmp_path: Path) ->
 
 def test_llm_doctor_reports_configuration_without_secret(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    (tmp_path / ".env").write_text("DEEPSEEK_API_KEY=sk-local-test\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("DEEPSEEK_API_KEY=local-test-key\n", encoding="utf-8")
 
     result = CliRunner().invoke(app, ["--root", str(tmp_path), "llm", "doctor"])
 
@@ -112,7 +112,7 @@ def test_llm_doctor_reports_configuration_without_secret(monkeypatch, tmp_path: 
     assert "LLM provider: deepseek" in result.output
     assert "DeepSeek API key: set" in result.output
     assert "https://api.deepseek.com" in result.output
-    assert "sk-local-test" not in result.output
+    assert "local-test-key" not in result.output
 
 
 def test_llm_smoke_requires_external_confirmation(tmp_path: Path) -> None:
@@ -126,7 +126,7 @@ def test_llm_planner_reads_local_env_with_fake_transport(monkeypatch, tmp_path: 
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     source_path = tmp_path / "feature.md"
     source_path.write_text("# Feature\n\nImplement export-json for the CLI.\n", encoding="utf-8")
-    (tmp_path / ".env").write_text("DEEPSEEK_API_KEY=sk-local-test\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("DEEPSEEK_API_KEY=local-test-key\n", encoding="utf-8")
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, [source_path])[0]
     response = {
@@ -150,7 +150,7 @@ def test_llm_planner_reads_local_env_with_fake_transport(monkeypatch, tmp_path: 
             }
         ],
     }
-    client = DeepSeekClient(api_key="sk-local-test", transport=FakeTransport(response=response))
+    client = DeepSeekClient(api_key="local-test-key", transport=FakeTransport(response=response))
 
     result = LLMPlanner(client=client).plan_ticket(store, ticket)
 

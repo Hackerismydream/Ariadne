@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -337,8 +338,12 @@ class ShellBackend:
 class CodexBackend(ShellBackend):
     name = "codex"
     template_env_var = "ARIADNE_CODEX_COMMAND_TEMPLATE"
-    default_template = "codex exec --cd {target_repo} --prompt-file {handoff_file}"
+    default_template = "codex exec --cd {target_repo} - < {handoff_file}"
     executable_name = "codex"
+    model_env_var = "ARIADNE_CODEX_MODEL"
+    reasoning_effort_env_var = "ARIADNE_CODEX_REASONING_EFFORT"
+    service_tier_env_var = "ARIADNE_CODEX_SERVICE_TIER"
+    default_service_tier = ""
 
     def is_available(self) -> bool:
         return shutil.which(self.executable_name) is not None
@@ -349,6 +354,8 @@ class CodexBackend(ShellBackend):
         handoff_file = self.write_handoff_file(context)
         prepared = context.model_copy(update={"handoff_file": str(handoff_file)})
         command = self.render_command(prepared)
+        command_template = self.command_template()
+        safe_command = _redact_execution_text(command)
         if os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") != "1":
             return _blocked_result(
                 prepared,
@@ -356,9 +363,9 @@ class CodexBackend(ShellBackend):
                 "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.",
                 started,
                 repo,
-                command=command,
+                command=safe_command,
                 failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
-            )
+            ).model_copy(update=self._evidence_metadata(prepared, command_template))
         if not context.confirm_execution:
             return _blocked_result(
                 prepared,
@@ -366,11 +373,13 @@ class CodexBackend(ShellBackend):
                 "External execution blocked: --confirm-execution is required.",
                 started,
                 repo,
-                command=command,
+                command=safe_command,
                 failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
-            )
+            ).model_copy(update=self._evidence_metadata(prepared, command_template))
         if blocked := _permission_block(prepared, self.name, started, repo):
-            return blocked.model_copy(update={"command": command})
+            return blocked.model_copy(
+                update={"command": safe_command, **self._evidence_metadata(prepared, command_template)}
+            )
         executable = shlex.split(command)[0] if command.strip() else self.executable_name
         if shutil.which(executable) is None:
             return _blocked_result(
@@ -379,9 +388,9 @@ class CodexBackend(ShellBackend):
                 f"External execution blocked: `{executable}` command is unavailable.",
                 started,
                 repo,
-                command=command,
+                command=safe_command,
                 failure_reason=FailureReason.COMMAND_UNAVAILABLE,
-            )
+            ).model_copy(update=self._evidence_metadata(prepared, command_template))
 
         before_head = git_head(repo)
         before_status = git_status(repo)
@@ -407,6 +416,11 @@ class CodexBackend(ShellBackend):
                 _timeout_stream(exc.stderr)
                 + f"\nCommand timed out after {context.timeout_seconds} seconds."
             ).strip()
+        failure_reason, provider_failure_kind, provider_failure_evidence = _classify_provider_failure(
+            exit_code,
+            stdout,
+            stderr,
+        )
         test = None
         if context.test_command:
             test = subprocess.run(
@@ -425,7 +439,7 @@ class CodexBackend(ShellBackend):
                 backend_name=self.name,
                 dry_run=False,
                 blocked=False,
-                command=command,
+                command=safe_command,
                 exit_code=exit_code,
                 stdout=stdout,
                 stderr=stderr,
@@ -442,22 +456,36 @@ class CodexBackend(ShellBackend):
                 test_stdout=test.stdout if test else "",
                 test_stderr=test.stderr if test else "",
                 warnings=["Execution command timed out."] if timed_out else [],
-                failure_reason=FailureReason.TIMEOUT if timed_out else None,
+                failure_reason=FailureReason.TIMEOUT if timed_out else failure_reason,
+                provider_session_id=_extract_provider_session_id(stdout, stderr),
+                provider_failure_kind=provider_failure_kind,
+                provider_failure_evidence=provider_failure_evidence,
+                **self._evidence_metadata(prepared, command_template),
             ),
             prepared,
         )
 
     def render_command(self, context: ExecutionContext) -> str:
-        template = os.environ.get(self.template_env_var) or self.default_template
+        template = self.command_template()
         handoff_file = context.handoff_file or str(self._handoff_file_path(context))
         return template.format(
-            target_repo=context.target_repo_path,
-            handoff_file=handoff_file,
+            target_repo=shlex.quote(context.target_repo_path),
+            handoff_file=shlex.quote(handoff_file),
             ticket_id=context.ticket_id,
             ticket_key=context.ticket_key or context.ticket_id,
             assignment_id=context.assignment_id or "",
             run_id=context.run_id or "",
+            model=_quote_optional(os.environ.get(self.model_env_var, "")),
+            reasoning_effort=_quote_optional(os.environ.get(self.reasoning_effort_env_var, "")),
+            effort=_quote_optional(os.environ.get(self.reasoning_effort_env_var, "")),
+            service_tier=_quote_optional(os.environ.get(self.service_tier_env_var, self.default_service_tier)),
+            max_turns=_quote_optional(os.environ.get("ARIADNE_CLAUDE_MAX_TURNS", "")),
+            system_prompt=_quote_optional(os.environ.get("ARIADNE_CLAUDE_SYSTEM_PROMPT", "")),
+            system_prompt_file=_quote_optional(os.environ.get("ARIADNE_CLAUDE_SYSTEM_PROMPT_FILE", "")),
         )
+
+    def command_template(self) -> str:
+        return os.environ.get(self.template_env_var) or self.default_template
 
     def write_handoff_file(self, context: ExecutionContext) -> Path:
         handoff_file = Path(context.handoff_file) if context.handoff_file else self._handoff_file_path(context)
@@ -470,12 +498,22 @@ class CodexBackend(ShellBackend):
         handoffs_dir = target.parent / "handoffs" if target.parent.name == ".ariadne" else target / ".ariadne" / "handoffs"
         return handoffs_dir / f"{context.ticket_key or context.ticket_id}.md"
 
+    def _evidence_metadata(self, context: ExecutionContext, command_template: str) -> dict[str, str]:
+        return {
+            "handoff_file": context.handoff_file or str(self._handoff_file_path(context)),
+            "command_template": _redact_execution_text(command_template),
+            "command_template_env_var": self.template_env_var,
+        }
+
 
 class ClaudeCodeBackend(CodexBackend):
     name = "claude-code"
     template_env_var = "ARIADNE_CLAUDE_COMMAND_TEMPLATE"
-    default_template = "claude --print < {handoff_file}"
+    default_template = "claude --print --output-format json < {handoff_file}"
     executable_name = "claude"
+    model_env_var = "ARIADNE_CLAUDE_MODEL"
+    reasoning_effort_env_var = "ARIADNE_CLAUDE_EFFORT"
+    service_tier_env_var = "ARIADNE_CLAUDE_SERVICE_TIER"
 
     def is_available(self) -> bool:
         return shutil.which(self.executable_name) is not None
@@ -501,3 +539,102 @@ def _timeout_stream(value: str | bytes | None) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
+
+
+def _quote_optional(value: str) -> str:
+    return shlex.quote(value) if value else ""
+
+
+def _classify_provider_failure(
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+) -> tuple[FailureReason | None, str | None, str | None]:
+    if exit_code == 0:
+        return None, None, None
+    text = f"{stdout}\n{stderr}".lower()
+    if any(token in text for token in ["not logged in", "login", "unauthorized", "auth", "api key"]):
+        return (
+            FailureReason.AUTHENTICATION_FAILED,
+            "authentication_failed",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    if any(token in text for token in ["quota", "rate limit", "rate-limit", "usage limit", "billing"]):
+        return (
+            FailureReason.QUOTA_EXCEEDED,
+            "quota_exceeded",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    if any(
+        token in text
+        for token in ["config.toml", "unknown variant", "invalid config", "unsupported service_tier"]
+    ):
+        return (
+            FailureReason.PROVIDER_CONFIG_INVALID,
+            "provider_config_invalid",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    return FailureReason.AGENT_ERROR, "agent_error", _provider_failure_evidence(stdout, stderr)
+
+
+def _provider_failure_evidence(stdout: str, stderr: str) -> str:
+    text = _redact_execution_text((stderr or stdout).strip())
+    return text[-1000:]
+
+
+def _redact_execution_text(text: str) -> str:
+    redacted = re.sub(r"sk-[A-Za-z0-9_-]{8,}", "sk-[REDACTED]", text)
+    redacted = re.sub(r"(Bearer\s+)[A-Za-z0-9._~+/=-]+", r"\1[REDACTED]", redacted)
+    redacted = re.sub(
+        r"(?i)(api[_-]?key|secret|token|password)=([^\s'\"]+)",
+        r"\1=[REDACTED]",
+        redacted,
+    )
+    return redacted
+
+
+def _extract_provider_session_id(stdout: str, stderr: str) -> str | None:
+    for text in [stdout, stderr]:
+        parsed = _extract_session_id_from_json(text)
+        if parsed:
+            return parsed
+        match = re.search(r"(?i)\bsession(?:[_ -]?id)?\b\s*[:=]\s*([A-Za-z0-9_.:-]{6,})", text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _extract_session_id_from_json(text: str) -> str | None:
+    try:
+        value = _session_id_from_mapping(json.loads(text))
+        if value:
+            return value
+    except json.JSONDecodeError:
+        pass
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        value = _session_id_from_mapping(data)
+        if value:
+            return value
+    return None
+
+
+def _session_id_from_mapping(data: object) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    for key in ["session_id", "sessionId", "conversation_id", "conversationId"]:
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+    session = data.get("session")
+    if isinstance(session, dict):
+        value = session.get("id")
+        if isinstance(value, str) and value:
+            return value
+    return None

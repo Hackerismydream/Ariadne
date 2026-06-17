@@ -63,7 +63,6 @@ runs through `TicketRunOrchestrator` and `CodexBackend`.
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
 uv run ari demo codex --confirm-execution --timeout-seconds 180
 ```
 
@@ -71,7 +70,6 @@ Fallback:
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
 python3.11 -m ariadne_ltb.cli demo codex --confirm-execution --timeout-seconds 180
 ```
 
@@ -79,21 +77,21 @@ python3.11 -m ariadne_ltb.cli demo codex --confirm-execution --timeout-seconds 1
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}' \
 uv run ari backend smoke-test codex --confirm-execution
 ```
 
-Some Codex CLI versions do not support `--prompt-file` and instead read prompts
-from stdin. For those versions, use:
+The current local Codex CLI reads prompts from stdin and does not advertise
+`--prompt-file`, so Ariadne's default Codex template is:
 
 ```bash
-ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} - < {handoff_file}' \
-uv run ari backend smoke-test codex --confirm-execution
+codex exec --cd {target_repo} - < {handoff_file}
 ```
 
-For a short deterministic smoke task, you can also lower reasoning effort in the
-template:
+Some older Codex CLI versions may support `--prompt-file`; `ari backend
+diagnose codex` reports the local capability and recommended template.
+
+For a short deterministic smoke task, you can override the template and lower
+reasoning effort if your Codex CLI/provider supports that config key:
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
@@ -105,7 +103,6 @@ Fallback:
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}' \
 python3.11 -m ariadne_ltb.cli backend smoke-test codex --confirm-execution
 ```
 

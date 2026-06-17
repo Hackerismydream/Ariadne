@@ -2356,3 +2356,70 @@ Known limitations:
 - Local `.ariadne` contains older run history with blocked fake-codex assignment
   records caused by a stale isolated worktree. This is ignored local state; store
   invariants and verification still pass.
+
+## 2026-06-17 Real Codex And Claude Code Production Backend Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Promoted Codex and Claude Code execution results to carry first-class provider
+  evidence:
+  - handoff file path;
+  - command template and template env var;
+  - provider session id when available;
+  - provider failure kind and redacted provider failure evidence.
+- Added typed failure reasons for authentication failure, quota exhaustion, and
+  invalid provider configuration.
+- Added provider failure classification for auth/login/API key, quota/rate
+  limit/billing, and invalid service tier/config failures.
+- Updated Codex default template to use stdin:
+  `codex exec --cd {target_repo} - < {handoff_file}`.
+- Updated Claude Code default template to use JSON output:
+  `claude --print --output-format json < {handoff_file}`.
+- Added command-template placeholders for model, reasoning effort, service tier,
+  Claude max turns, and Claude system prompt configuration.
+- Added `ari backend diagnose claude-code`.
+- Updated provider capability matrix and board output to show stdin/session/model
+  support and provider evidence.
+- Updated README and the real Codex smoke-test runbook.
+
+Real integration smoke:
+
+- `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli backend smoke-test codex --confirm-execution --timeout-seconds 240`
+  initially failed with `Unsupported service_tier: flex`.
+- The failure was captured in the execution result with provider failure
+  evidence and led to a code change: Ariadne no longer forces `service_tier` in
+  the default Codex template.
+- Local Codex config was restored to `service_tier=fast` after the provider
+  rejected `flex`.
+- Re-running the same real Codex smoke test passed:
+  - execution result `execution_8737a2ea729f`;
+  - exit code `0`;
+  - changed files `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code `0`;
+  - reviewer verdict `pass`;
+  - provider session id captured.
+- Real Claude Code run also passed:
+  - command `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli ticket run ARI-003 --backend claude-code --confirm-execution`;
+  - execution result `execution_815fae43c42b`;
+  - exit code `0`;
+  - changed files `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code `0`;
+  - reviewer verdict `pass`;
+  - provider session id captured.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_real_backend_gates.py tests/test_v1_codex_teammate.py tests/test_true_mvp_product_loop.py tests/test_backend_smoke_cli.py tests/test_provider_capability_matrix.py`: passed.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: 172 passed.
+- `python3.11 -m ariadne_ltb.cli backend diagnose codex`: passed.
+- `python3.11 -m ariadne_ltb.cli backend diagnose claude-code`: passed.
+
+Known limitations:
+
+- Codex `flex` service tier is not currently usable with the local/provider
+  combination tested here; Ariadne records that as provider configuration
+  evidence instead of assuming it works.
+- Real Feishu and GitHub integration phases are still pending.

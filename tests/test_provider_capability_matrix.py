@@ -41,7 +41,8 @@ def test_backend_matrix_persists_required_backend_capabilities(
     }
     assert set(capabilities) == {"fake-codex", "dry-run", "shell", "codex", "claude-code"}
     assert capabilities["codex"].available is False
-    assert capabilities["codex"].supports_prompt_file is True
+    assert capabilities["codex"].supports_prompt_file is False
+    assert capabilities["codex"].supports_stdin_prompt is True
     assert capabilities["codex"].supports_diff_capture is True
     assert capabilities["codex"].supports_test_capture is True
     assert capabilities["codex"].command_template_set is True
@@ -93,6 +94,6 @@ def test_export_board_includes_provider_capability_matrix(
     board = tmp_path / ".ariadne" / "board" / "index.md"
     text = board.read_text(encoding="utf-8")
     assert "## Provider Capability Matrix" in text
-    assert "prompt_file=`true`" in text
+    assert "prompt_file=`false`" in text
     assert "stdin=`true`" in text
     assert "blocked=`codex command is missing; ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset`" in text

@@ -161,5 +161,5 @@ def test_backend_diagnose_codex_recommends_stdin_template_for_local_cli(
     assert result.exit_code == 0, result.output
     assert "CodexBackend command: found /usr/local/bin/codex" in result.output
     assert "Prompt-file support: no" in result.output
-    assert 'codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' in result.output
+    assert "codex exec --cd {target_repo} - < {handoff_file}" in result.output
     assert "service_tier=priority unsupported; expected fast or flex" in result.output

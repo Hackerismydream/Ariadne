@@ -124,6 +124,9 @@ class RunMessageType(str, Enum):
 
 class FailureReason(str, Enum):
     AGENT_ERROR = "agent_error"
+    AUTHENTICATION_FAILED = "authentication_failed"
+    QUOTA_EXCEEDED = "quota_exceeded"
+    PROVIDER_CONFIG_INVALID = "provider_config_invalid"
     RUNTIME_OFFLINE = "runtime_offline"
     RUNTIME_RECOVERY = "runtime_recovery"
     TIMEOUT = "timeout"
@@ -816,6 +819,12 @@ class ExecutionResult(AriadneModel):
     test_stdout: str = ""
     test_stderr: str = ""
     warnings: list[str] = Field(default_factory=list)
+    handoff_file: str | None = None
+    command_template: str | None = None
+    command_template_env_var: str | None = None
+    provider_session_id: str | None = None
+    provider_failure_kind: str | None = None
+    provider_failure_evidence: str | None = None
 
 
 class ExecutionPermissionProfile(AriadneModel):

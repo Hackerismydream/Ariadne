@@ -190,8 +190,8 @@ Tests use fake transports and do not require network access or a DeepSeek key.
   `demo_todo/cli.py` and `tests/test_cli.py`.
 - `dry-run`: records an execution result without changing files.
 - `shell`: low-level command backend, requires `--confirm-execution`.
-- `codex`: gated Codex CLI adapter scaffold.
-- `claude-code`: gated Claude Code adapter scaffold.
+- `codex`: gated Codex CLI production backend.
+- `claude-code`: gated Claude Code production backend.
 
 Real external execution requires both:
 
@@ -203,17 +203,19 @@ ARIADNE_ENABLE_EXTERNAL_EXECUTION=1
 Codex command template:
 
 ```bash
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}'
+ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} - < {handoff_file}'
 ```
 
 Claude command template:
 
 ```bash
-ARIADNE_CLAUDE_COMMAND_TEMPLATE='claude --print < {handoff_file}'
+ARIADNE_CLAUDE_COMMAND_TEMPLATE='claude --print --output-format json < {handoff_file}'
 ```
 
 Supported placeholders are `{target_repo}`, `{handoff_file}`, `{ticket_id}`,
-and `{ticket_key}`.
+`{ticket_key}`, `{assignment_id}`, `{run_id}`, `{model}`,
+`{reasoning_effort}`, `{effort}`, `{service_tier}`, `{max_turns}`,
+`{system_prompt}`, and `{system_prompt_file}`.
 
 ## Real CodexBackend Smoke Test
 
@@ -246,7 +248,6 @@ Run the first-class real Codex demo path only when explicitly gated:
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec -c model_reasoning_effort="none" --cd {target_repo} - < {handoff_file}' \
 ari demo codex --confirm-execution --timeout-seconds 180
 ```
 

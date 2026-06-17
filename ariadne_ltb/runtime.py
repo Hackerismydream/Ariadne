@@ -240,8 +240,11 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             confirm_execution_required=True,
             supports_external_execution=True,
             supports_dry_run=False,
-            supports_prompt_file=True,
+            supports_prompt_file=False,
+            supports_stdin_prompt=True,
             supports_skill_materialization=True,
+            supports_model_selection=True,
+            supports_reasoning_effort=True,
             supports_timeout=True,
             supports_diff_capture=True,
             supports_test_capture=True,
@@ -256,7 +259,8 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             ],
             notes=[
                 "Writes a handoff file under the target repo .ariadne/handoffs directory.",
-                "Default template: codex exec --cd {target_repo} --prompt-file {handoff_file}.",
+                "Default template reads the handoff from stdin because this local Codex CLI does not advertise --prompt-file.",
+                "Service tier is left to Codex config/provider default unless an explicit command template overrides it.",
             ],
         ),
         RuntimeCapability(
@@ -272,7 +276,10 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             supports_external_execution=True,
             supports_dry_run=False,
             supports_stdin_prompt=True,
+            supports_session_resume=True,
             supports_skill_materialization=True,
+            supports_model_selection=True,
+            supports_reasoning_effort=True,
             supports_timeout=True,
             supports_diff_capture=True,
             supports_test_capture=True,
@@ -287,7 +294,7 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             ],
             notes=[
                 "Writes a handoff file and passes it through the configured Claude command template.",
-                "Default template: claude --print < {handoff_file}.",
+                "Default template: claude --print --output-format json < {handoff_file}.",
             ],
         ),
     ]
