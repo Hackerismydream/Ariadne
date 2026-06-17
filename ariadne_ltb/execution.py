@@ -11,6 +11,7 @@ from typing import Protocol
 
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
 from ariadne_ltb.models import ExecutionContext, ExecutionResult, FailureReason, stable_id, utc_now
+from ariadne_ltb.permissions import validate_changed_files, validate_execution_context_permissions
 
 
 class ExecutionBackend(Protocol):
@@ -70,6 +71,44 @@ def _blocked_result(
     )
 
 
+def _permission_block(
+    context: ExecutionContext,
+    backend_name: str,
+    started: str,
+    repo: Path,
+) -> ExecutionResult | None:
+    validation = validate_execution_context_permissions(context)
+    if validation.valid:
+        return None
+    return _blocked_result(
+        context,
+        backend_name,
+        validation.reason,
+        started,
+        repo,
+        failure_reason=validation.failure_reason or FailureReason.SCOPE_VIOLATION,
+    )
+
+
+def _apply_changed_file_policy(
+    result: ExecutionResult,
+    context: ExecutionContext,
+) -> ExecutionResult:
+    validation = validate_changed_files(context.allowed_paths, result.changed_files)
+    if validation.valid:
+        return result
+    warning = validation.reason
+    return result.model_copy(
+        update={
+            "blocked": True,
+            "block_reason": warning,
+            "failure_reason": validation.failure_reason or FailureReason.SCOPE_VIOLATION,
+            "exit_code": result.exit_code if result.exit_code != 0 else 2,
+            "warnings": [*result.warnings, warning],
+        }
+    )
+
+
 class DryRunBackend:
     name = "dry-run"
 
@@ -79,6 +118,8 @@ class DryRunBackend:
     def execute(self, context: ExecutionContext) -> ExecutionResult:
         repo = Path(context.target_repo_path)
         started = utc_now()
+        if blocked := _permission_block(context, self.name, started, repo):
+            return blocked
         return ExecutionResult(
             id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
@@ -111,6 +152,8 @@ class FakeCodexBackend:
     def execute(self, context: ExecutionContext) -> ExecutionResult:
         repo = Path(context.target_repo_path)
         started = utc_now()
+        if blocked := _permission_block(context, self.name, started, repo):
+            return blocked
         head_before = git_head(repo)
         status_before = git_status(repo)
         validation_reason = self._validate_context(context)
@@ -138,29 +181,32 @@ class FakeCodexBackend:
         test = _run_command(shlex.split(test_command), repo, context.timeout_seconds)
         files = changed_files(repo)
         diff = git_diff(repo)
-        return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name, started),
-            ticket_id=context.ticket_id,
-            backend_name=self.name,
-            dry_run=False,
-            blocked=False,
-            command=context.command,
-            exit_code=0,
-            stdout=execution_stdout,
-            stderr="",
-            started_at=started,
-            ended_at=utc_now(),
-            git_head_before=head_before,
-            git_head_after=git_head(repo),
-            git_status_before=status_before,
-            git_status_after=git_status(repo),
-            changed_files=files,
-            git_diff=diff,
-            test_command=test_command,
-            test_exit_code=test.returncode,
-            test_stdout=test.stdout,
-            test_stderr=test.stderr,
-            warnings=[] if diff else ["git diff unavailable or empty"],
+        return _apply_changed_file_policy(
+            ExecutionResult(
+                id=stable_id("execution", context.ticket_id, self.name, started),
+                ticket_id=context.ticket_id,
+                backend_name=self.name,
+                dry_run=False,
+                blocked=False,
+                command=context.command,
+                exit_code=0,
+                stdout=execution_stdout,
+                stderr="",
+                started_at=started,
+                ended_at=utc_now(),
+                git_head_before=head_before,
+                git_head_after=git_head(repo),
+                git_status_before=status_before,
+                git_status_after=git_status(repo),
+                changed_files=files,
+                git_diff=diff,
+                test_command=test_command,
+                test_exit_code=test.returncode,
+                test_stdout=test.stdout,
+                test_stderr=test.stderr,
+                warnings=[] if diff else ["git diff unavailable or empty"],
+            ),
+            context,
         )
 
     def _validate_context(self, context: ExecutionContext) -> str | None:
@@ -225,6 +271,8 @@ class ShellBackend:
                 repo,
                 failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
+        if blocked := _permission_block(context, self.name, started, repo):
+            return blocked
         result = subprocess.run(
             context.command,
             cwd=repo,
@@ -244,26 +292,29 @@ class ShellBackend:
                 capture_output=True,
                 timeout=context.timeout_seconds,
                 check=False,
-            )
-        return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name, started),
-            ticket_id=context.ticket_id,
-            backend_name=self.name,
-            dry_run=False,
-            command=context.command,
-            exit_code=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
-            started_at=started,
-            ended_at=utc_now(),
-            git_status_before="",
-            git_status_after=git_status(repo),
-            changed_files=changed_files(repo),
-            git_diff=git_diff(repo),
-            test_command=context.test_command,
-            test_exit_code=test.returncode if test else None,
-            test_stdout=test.stdout if test else "",
-            test_stderr=test.stderr if test else "",
+        )
+        return _apply_changed_file_policy(
+            ExecutionResult(
+                id=stable_id("execution", context.ticket_id, self.name, started),
+                ticket_id=context.ticket_id,
+                backend_name=self.name,
+                dry_run=False,
+                command=context.command,
+                exit_code=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                started_at=started,
+                ended_at=utc_now(),
+                git_status_before="",
+                git_status_after=git_status(repo),
+                changed_files=changed_files(repo),
+                git_diff=git_diff(repo),
+                test_command=context.test_command,
+                test_exit_code=test.returncode if test else None,
+                test_stdout=test.stdout if test else "",
+                test_stderr=test.stderr if test else "",
+            ),
+            context,
         )
 
 
@@ -302,6 +353,8 @@ class CodexBackend(ShellBackend):
                 command=command,
                 failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
+        if blocked := _permission_block(prepared, self.name, started, repo):
+            return blocked.model_copy(update={"command": command})
         executable = shlex.split(command)[0] if command.strip() else self.executable_name
         if shutil.which(executable) is None:
             return _blocked_result(
@@ -348,31 +401,34 @@ class CodexBackend(ShellBackend):
                 capture_output=True,
                 timeout=context.timeout_seconds,
                 check=False,
-            )
-        return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name, started),
-            ticket_id=context.ticket_id,
-            backend_name=self.name,
-            dry_run=False,
-            blocked=False,
-            command=command,
-            exit_code=exit_code,
-            stdout=stdout,
-            stderr=stderr,
-            started_at=started,
-            ended_at=utc_now(),
-            git_head_before=before_head,
-            git_head_after=git_head(repo),
-            git_status_before=before_status,
-            git_status_after=git_status(repo),
-            changed_files=changed_files(repo),
-            git_diff=git_diff(repo),
-            test_command=context.test_command,
-            test_exit_code=test.returncode if test else None,
-            test_stdout=test.stdout if test else "",
-            test_stderr=test.stderr if test else "",
-            warnings=["Execution command timed out."] if timed_out else [],
-            failure_reason=FailureReason.TIMEOUT if timed_out else None,
+        )
+        return _apply_changed_file_policy(
+            ExecutionResult(
+                id=stable_id("execution", context.ticket_id, self.name, started),
+                ticket_id=context.ticket_id,
+                backend_name=self.name,
+                dry_run=False,
+                blocked=False,
+                command=command,
+                exit_code=exit_code,
+                stdout=stdout,
+                stderr=stderr,
+                started_at=started,
+                ended_at=utc_now(),
+                git_head_before=before_head,
+                git_head_after=git_head(repo),
+                git_status_before=before_status,
+                git_status_after=git_status(repo),
+                changed_files=changed_files(repo),
+                git_diff=git_diff(repo),
+                test_command=context.test_command,
+                test_exit_code=test.returncode if test else None,
+                test_stdout=test.stdout if test else "",
+                test_stderr=test.stderr if test else "",
+                warnings=["Execution command timed out."] if timed_out else [],
+                failure_reason=FailureReason.TIMEOUT if timed_out else None,
+            ),
+            prepared,
         )
 
     def render_command(self, context: ExecutionContext) -> str:

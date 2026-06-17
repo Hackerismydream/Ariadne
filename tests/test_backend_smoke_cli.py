@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from ariadne_ltb.cli import app
 from ariadne_ltb.execution import CodexBackend, ExecutionContext, ShellBackend
 from ariadne_ltb.models import FailureReason
+from ariadne_ltb.target_project import ensure_demo_target_project
 
 
 def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Path) -> None:
@@ -150,3 +151,50 @@ def test_shell_backend_requires_confirmation_as_blocked_result(tmp_path: Path) -
     assert result.blocked is True
     assert result.failure_reason is FailureReason.EXTERNAL_EXECUTION_BLOCKED
     assert "--confirm-execution" in (result.block_reason or "")
+
+
+def test_shell_backend_blocks_dangerous_git_operation_when_confirmed(tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+
+    result = ShellBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_shell",
+            ticket_key="ARI-SHELL",
+            build_packet_id="packet_shell",
+            target_repo_path=str(target),
+            handoff_prompt="Do not run dangerous git operations.",
+            backend_name="shell",
+            allowed_paths=["."],
+            command="git push origin main",
+            test_command="",
+            confirm_execution=True,
+        )
+    )
+
+    assert result.blocked is True
+    assert result.failure_reason is FailureReason.SCOPE_VIOLATION
+    assert "dangerous git operation" in (result.block_reason or "")
+
+
+def test_shell_backend_blocks_changed_files_outside_allowed_paths(tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+
+    result = ShellBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_shell",
+            ticket_key="ARI-SHELL",
+            build_packet_id="packet_shell",
+            target_repo_path=str(target),
+            handoff_prompt="Write outside the allowed module.",
+            backend_name="shell",
+            allowed_paths=["demo_todo/cli.py"],
+            command="python3.11 -c 'from pathlib import Path; Path(\"outside.txt\").write_text(\"x\")'",
+            test_command="",
+            confirm_execution=True,
+        )
+    )
+
+    assert result.blocked is True
+    assert result.failure_reason is FailureReason.SCOPE_VIOLATION
+    assert "outside allowed paths" in (result.block_reason or "")
+    assert "outside.txt" in result.changed_files

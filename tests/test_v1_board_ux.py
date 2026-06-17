@@ -40,6 +40,8 @@ def test_board_contains_v1_workbench_sections(tmp_path: Path) -> None:
         "Assignment Retry Chain",
         "Agent Handoffs",
         "Codex Gate Status",
+        "Execution Permission Profile",
+        "Provider Audit Artifacts",
     ]:
         assert heading in board
 

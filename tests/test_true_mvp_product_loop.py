@@ -47,6 +47,7 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert ArtifactType.CODEX_HANDOFF in artifact_types
     assert ArtifactType.NEXT_TICKETS in artifact_types
     assert ArtifactType.ORCHESTRATOR_RESULT in artifact_types
+    assert ArtifactType.PERMISSION_PROFILE in artifact_types
     assert result.orchestrator_result_path
     manifest = json.loads(Path(result.orchestrator_result_path).read_text(encoding="utf-8"))
     assert manifest["ticket_key"] == "ARI-003"
@@ -54,7 +55,14 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert manifest["execution_result_id"] == result.execution_result_id
     assert manifest["review_verdict"] == "pass"
     assert manifest["board_path"] == result.board_path
+    assert manifest["permission_profile_id"]
     assert manifest["artifacts"]["next_tickets_path"] == result.next_tickets_path
+    assert manifest["artifacts"]["permission_profile_path"].endswith("execution_permission_profile.json")
+
+    handoff_path = store.load_artifact(result.handoff_artifact_id).path
+    handoff = Path(handoff_path).read_text(encoding="utf-8")
+    assert "## Execution Permission Profile" in handoff
+    assert "Git operations policy" in handoff
 
 
 def test_demo_full_uses_ticket_run_orchestrator(monkeypatch, tmp_path: Path) -> None:
@@ -261,6 +269,9 @@ def test_board_links_provider_audit_artifacts(tmp_path: Path) -> None:
     assert "execution_log.json" in board
     assert "git_diff.patch" in board
     assert "test_output.json" in board
+    assert "execution_permission_profile.json" in board
+    assert "### Execution Permission Profile" in board
+    assert "block_commit_push_merge_pr" in board
     assert "- Backend: `fake-codex`" in board
     assert "- Review verdict: `pass`" in board
     assert "- External execution enabled: `false`" in board

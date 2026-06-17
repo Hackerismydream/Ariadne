@@ -35,6 +35,7 @@ from ariadne_ltb.models import (
     utc_now,
 )
 from ariadne_ltb.next_tickets import generate_next_tickets_artifact
+from ariadne_ltb.permissions import build_execution_permission_profile, permission_profile_handoff_section
 from ariadne_ltb.planner import planner_for_name
 from ariadne_ltb.review import review_execution
 from ariadne_ltb.runtime import collect_runtime_capabilities
@@ -189,6 +190,33 @@ class TicketRunOrchestrator:
         ]
         project_resources_path = self.store.save_project_resources(project_resources)
         skill_refs = [skill.name for skill in discover_build_skills()]
+        execution_command = command or (packet.tasks[0] if packet.tasks else ticket.title)
+        execution_test_command = target_test_command()
+        permission_profile = build_execution_permission_profile(
+            ticket_id=ticket.id,
+            ticket_key=ticket.key,
+            backend_name=backend_name,
+            target_repo_path=str(target_repo),
+            allowed_paths=packet.affected_modules,
+            external_execution_enabled=os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1",
+            confirm_execution=confirm_execution,
+            command=execution_command,
+            test_command=execution_test_command,
+        )
+        permission_artifact = self.store.write_artifact(
+            ticket.id,
+            "build_lead",
+            ArtifactType.PERMISSION_PROFILE,
+            "execution_permission_profile.json",
+            permission_profile.model_dump_json(indent=2) + "\n",
+            "Execution permission profile",
+            metadata={"permission_profile_id": permission_profile.id},
+        )
+        handoff_prompt = (
+            handoff_prompt.rstrip()
+            + permission_profile_handoff_section(permission_profile, permission_artifact.path)
+        )
+        Path(handoff_artifact.path).write_text(handoff_prompt, encoding="utf-8")
         route_decision = RouteDecision(
             id=stable_id("route", ticket.id, backend_name, str(target_repo)),
             ticket_id=ticket.id,
@@ -203,6 +231,7 @@ class TicketRunOrchestrator:
             )
             == "1",
             confirm_execution=confirm_execution,
+            permission_profile_id=permission_profile.id,
             skill_refs=skill_refs,
             resource_refs=[resource.id for resource in project_resources],
         )
@@ -216,6 +245,7 @@ class TicketRunOrchestrator:
             metadata={
                 "runtime_capability_path": str(runtime_capability_path),
                 "project_resources_path": str(project_resources_path),
+                "permission_profile_path": permission_artifact.path,
             },
         )
         resources_artifact = self.store.write_artifact(
@@ -238,7 +268,7 @@ class TicketRunOrchestrator:
         )
         ticket = (
             self.store.load_ticket(ticket.id)
-            .with_artifacts([route_artifact, resources_artifact, runtime_artifact])
+            .with_artifacts([permission_artifact, route_artifact, resources_artifact, runtime_artifact])
             .append_event(
                 "route_decision",
                 "Build Lead",
@@ -258,12 +288,14 @@ class TicketRunOrchestrator:
             handoff_file=str(self.store.base / "handoffs" / f"{ticket.key}.md"),
             backend_name=backend_name,
             allowed_paths=packet.affected_modules,
-            command=command or (packet.tasks[0] if packet.tasks else ticket.title),
-            test_command=target_test_command(),
+            command=execution_command,
+            test_command=execution_test_command,
             confirm_execution=confirm_execution,
             timeout_seconds=timeout_seconds,
             assignment_id=self.assignment_id,
             run_id=execution_run.id,
+            permission_profile_id=permission_profile.id,
+            permission_profile_path=permission_artifact.path,
         )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "execution_started",
@@ -538,6 +570,7 @@ class TicketRunOrchestrator:
                 "execution_result_id": execution.id,
                 "review_report_id": review.id,
                 "review_verdict": review.verdict.value,
+                "permission_profile_id": permission_profile.id,
                 "changed_files": execution.changed_files,
                 "test_command": execution.test_command,
                 "test_exit_code": execution.test_exit_code,
@@ -553,6 +586,7 @@ class TicketRunOrchestrator:
                     "feishu_plan_path": str(feishu_path),
                     "next_tickets_path": next_tickets_artifact.path,
                     "board_path": str(board_path),
+                    "permission_profile_path": permission_artifact.path,
                 },
             },
         )

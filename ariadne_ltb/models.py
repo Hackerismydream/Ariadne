@@ -161,6 +161,7 @@ class ArtifactType(str, Enum):
     ROUTE_DECISION = "route_decision"
     RUNTIME_CAPABILITY = "runtime_capability"
     PROJECT_RESOURCES = "project_resources"
+    PERMISSION_PROFILE = "permission_profile"
     WORKTREE_ISOLATION = "worktree_isolation"
     ORCHESTRATOR_RESULT = "orchestrator_result"
     PLANNER_ERROR = "planner_error"
@@ -684,6 +685,8 @@ class ExecutionContext(AriadneModel):
     timeout_seconds: int = 120
     assignment_id: str | None = None
     run_id: str | None = None
+    permission_profile_id: str | None = None
+    permission_profile_path: str | None = None
 
 
 class ExecutionResult(AriadneModel):
@@ -713,6 +716,24 @@ class ExecutionResult(AriadneModel):
     test_stdout: str = ""
     test_stderr: str = ""
     warnings: list[str] = Field(default_factory=list)
+
+
+class ExecutionPermissionProfile(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    backend_name: str
+    target_repo_path: str
+    allowed_paths: list[str] = Field(default_factory=list)
+    env_allowlist: list[str] = Field(default_factory=list)
+    network_policy: str = "disabled_by_default"
+    git_operations_policy: str = "block_commit_push_merge_pr"
+    dangerous_git_operations: list[str] = Field(default_factory=list)
+    external_execution_enabled: bool = False
+    confirm_execution: bool = False
+    command: str
+    test_command: str
+    created_at: str = Field(default_factory=utc_now)
 
 
 class WorktreeIsolation(AriadneModel):
@@ -788,6 +809,7 @@ class RouteDecision(AriadneModel):
     reason: str
     external_execution_enabled: bool = False
     confirm_execution: bool = False
+    permission_profile_id: str | None = None
     skill_refs: list[str] = Field(default_factory=list)
     resource_refs: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)

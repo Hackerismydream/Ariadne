@@ -351,9 +351,29 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
         lines.append(f"- Backend: `{route_decision.get('backend_name')}`")
         lines.append(f"- Planner: `{route_decision.get('planner_name')}`")
         lines.append(f"- Target repo: `{route_decision.get('target_repo_path')}`")
+        lines.append(f"- Permission profile: `{route_decision.get('permission_profile_id') or 'missing'}`")
         lines.append(f"- Reason: {route_decision.get('reason', '')}")
     else:
         lines.append("No route decision artifact found.")
+    lines.append("")
+
+    permission_profile = _latest_json_artifact(store, artifacts, ArtifactType.PERMISSION_PROFILE)
+    lines.extend(["### Execution Permission Profile", ""])
+    if permission_profile:
+        lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.PERMISSION_PROFILE)}`")
+        lines.append(f"- Backend: `{permission_profile.get('backend_name')}`")
+        lines.append(f"- Target repo: `{permission_profile.get('target_repo_path')}`")
+        lines.append(f"- Network policy: `{permission_profile.get('network_policy')}`")
+        lines.append(f"- Git operations policy: `{permission_profile.get('git_operations_policy')}`")
+        lines.append(
+            f"- External execution enabled: `{str(permission_profile.get('external_execution_enabled')).lower()}`"
+        )
+        lines.append(f"- Confirm execution: `{str(permission_profile.get('confirm_execution')).lower()}`")
+        lines.append("- Allowed paths:")
+        for path in permission_profile.get("allowed_paths", []):
+            lines.append(f"  - `{path}`")
+    else:
+        lines.append("No execution permission profile found.")
     lines.append("")
 
     skills = route_decision.get("skill_refs", []) if route_decision else []
@@ -505,6 +525,7 @@ def _provider_audit_artifact_lines(store: AriadneStore, artifacts: list) -> list
     git_diff = _latest_artifact(artifacts, ArtifactType.GIT_DIFF)
     changed_files = _latest_artifact(artifacts, ArtifactType.CHANGED_FILES)
     test_output = _latest_artifact(artifacts, ArtifactType.TEST_OUTPUT)
+    permission_profile = _latest_artifact(artifacts, ArtifactType.PERMISSION_PROFILE)
     lines = ["### Provider Audit Artifacts", ""]
     if manifest_artifact:
         lines.append(f"- Orchestrator result: `{manifest_artifact.path}`")
@@ -514,6 +535,7 @@ def _provider_audit_artifact_lines(store: AriadneStore, artifacts: list) -> list
     lines.append(f"- Git diff: `{git_diff.path if git_diff else 'missing'}`")
     lines.append(f"- Changed files: `{changed_files.path if changed_files else 'missing'}`")
     lines.append(f"- Test output: `{test_output.path if test_output else 'missing'}`")
+    lines.append(f"- Permission profile: `{permission_profile.path if permission_profile else 'missing'}`")
     if manifest:
         lines.append(f"- Backend: `{manifest.get('backend_name', 'missing')}`")
         lines.append(f"- Execution result: `{manifest.get('execution_result_id', 'missing')}`")

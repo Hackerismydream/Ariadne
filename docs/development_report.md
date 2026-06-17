@@ -1089,3 +1089,76 @@ Verification after review hardening:
   environment/key state without secret values.
 - `uv run ari demo full && uv run ari doctor v1 && uv run ari export board`:
   passed.
+
+## Core Batch 4: Execution Sandbox Permission Profiles
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch completes `ARI-MUL-39 / LOC-44` by making Ariadne's local execution
+boundaries explicit and visible before backend execution.
+
+Implemented files:
+
+- `ariadne_ltb/permissions.py`
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/execution.py`
+- `ariadne_ltb/board.py`
+- `tests/test_true_mvp_product_loop.py`
+- `tests/test_backend_smoke_cli.py`
+- `tests/test_v1_board_ux.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `ExecutionPermissionProfile` and `ArtifactType.PERMISSION_PROFILE`.
+- `TicketRunOrchestrator` now writes
+  `execution_permission_profile.json` for each ticket run.
+- The permission profile records target repo, allowed paths, environment
+  allowlist, network policy, git-operation policy, dangerous git operations,
+  external execution state, confirmation state, command, and test command.
+- The provider-facing handoff now includes an `Execution Permission Profile`
+  section.
+- `RouteDecision` and `orchestrator_result.json` reference the permission
+  profile.
+- `ari export board` now shows `Execution Permission Profile` and links it
+  from `Provider Audit Artifacts`.
+- `FakeCodexBackend`, `ShellBackend`, `CodexBackend`, and `ClaudeCodeBackend`
+  share local permission validation for target repo, allowed paths, dangerous
+  git commands, and changed files outside the allowed paths.
+
+Safety boundaries:
+
+- This is a local policy layer, not an OS-level sandbox.
+- Dangerous direct shell git operations such as `git push`, `git merge`, and
+  `git reset` are blocked by default.
+- Real Codex/Claude execution remains gated by
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and `--confirm-execution`.
+- The profile is recorded as evidence and injected into handoff context, but it
+  does not grant new privileges.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_true_mvp_product_loop.py
+  tests/test_backend_smoke_cli.py tests/test_v1_board_ux.py -q`: passed, 26
+  tests.
+- `python3.11 -m ruff check ariadne_ltb/permissions.py
+  ariadne_ltb/execution.py ariadne_ltb/orchestrator.py ariadne_ltb/board.py
+  ariadne_ltb/models.py tests/test_true_mvp_product_loop.py
+  tests/test_backend_smoke_cli.py tests/test_v1_board_ux.py`: passed.
+- `python3.11 -m pytest`: passed, 107 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed, with external
+  execution disabled and secrets redacted.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Permission profiles are enforced at Ariadne's Python backend boundary and by
+  changed-file review after execution. They do not provide kernel-level
+  isolation.
+- Provider adapters cannot physically prevent an external Codex/Claude process
+  from attempting side effects beyond the handoff policy; Ariadne still blocks
+  external execution by default and records/reviews changed files.
