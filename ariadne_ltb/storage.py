@@ -71,6 +71,7 @@ class AriadneStore:
         self.artifacts_dir = self.base / "artifacts"
         self.artifact_index_dir = self.base / "artifact_index"
         self.board_dir = self.base / "board"
+        self.doctor_dir = self.base / "doctor"
         self._ensure_layout()
 
     def _ensure_layout(self) -> None:
@@ -103,6 +104,7 @@ class AriadneStore:
             self.artifacts_dir,
             self.artifact_index_dir,
             self.board_dir,
+            self.doctor_dir,
         ]:
             directory.mkdir(parents=True, exist_ok=True)
 

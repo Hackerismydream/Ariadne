@@ -7,10 +7,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ariadne_ltb.local_safety import list_locks
-from ariadne_ltb.models import ArtifactType, BuildTicket, TicketStatus, WorkerHeartbeat
+from ariadne_ltb.models import (
+    ArtifactType,
+    BuildTicket,
+    StoreInvariantReport,
+    TicketStatus,
+    WorkerHeartbeat,
+)
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.secret_safety import scan_for_secrets
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.store_doctor import load_latest_store_invariant_report
 
 
 def export_board(store: AriadneStore) -> Path:
@@ -70,6 +77,7 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     capabilities = store.load_runtime_capabilities() or collect_runtime_capabilities()
     backlog_updates = store.list_backlog_updates()
     secret_scan = scan_for_secrets(store.root)
+    store_invariants = load_latest_store_invariant_report(store)
     executed = [ticket for ticket in tickets if ticket.metadata.get("execution_result_id")]
     next_ticket_paths = [
         ticket.metadata.get("next_tickets_path")
@@ -86,6 +94,9 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         f"- Executed tickets: `{len(executed)}`",
         f"- Secret safety: `{'ok' if secret_scan.ok else 'blocked'}`",
         f"- Secret findings: `{len(secret_scan.findings)}`",
+        f"- Store invariants: `{_store_invariant_status(store_invariants)}`",
+        f"- Store invariant errors: `{store_invariants.error_count if store_invariants else 'not_run'}`",
+        f"- Store invariant warnings: `{store_invariants.warning_count if store_invariants else 'not_run'}`",
         "",
         "## Agent Queue",
         "",
@@ -181,8 +192,27 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
         lines.append(f"- Confirm required: `{str(codex.confirm_execution_required).lower()}`")
     else:
         lines.append("Codex capability snapshot missing.")
+    lines.extend(["", "## Store Invariants", ""])
+    if store_invariants:
+        lines.append(f"- Status: `{'ok' if store_invariants.ok else 'blocked'}`")
+        lines.append(f"- Report: `{store.doctor_dir / 'store_invariants.json'}`")
+        lines.append(f"- Errors: `{store_invariants.error_count}`")
+        lines.append(f"- Warnings: `{store_invariants.warning_count}`")
+        for issue in store_invariants.issues[:10]:
+            lines.append(
+                f"- `{issue.severity.value}` `{issue.reason.value}` "
+                f"{issue.entity_type or 'file'}:`{issue.entity_id or issue.path}`"
+            )
+    else:
+        lines.append("Store invariant doctor has not been run yet.")
     lines.append("")
     return lines
+
+
+def _store_invariant_status(report: StoreInvariantReport | None) -> str:
+    if report is None:
+        return "not_run"
+    return "ok" if report.ok else "blocked"
 
 
 def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:

@@ -15,4 +15,5 @@ python3.11 -m ariadne_ltb.cli daemon status
 python3.11 -m ariadne_ltb.cli export board
 python3.11 -m ariadne_ltb.cli backend doctor
 python3.11 -m ariadne_ltb.cli doctor secrets
+python3.11 -m ariadne_ltb.cli doctor store
 python3.11 -m ariadne_ltb.cli doctor v1

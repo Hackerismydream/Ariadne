@@ -6,6 +6,7 @@ from pathlib import Path
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.secret_safety import secret_status_lines as secret_scan_status_lines
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.store_doctor import check_store_invariants
 
 
 SECRET_ENV_VARS = [
@@ -28,6 +29,7 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     code_root = Path(__file__).resolve().parents[1]
     profiles = store.ensure_default_agent_profiles()
     capabilities = collect_runtime_capabilities()
+    store_invariants = check_store_invariants(store)
     fixtures_ok = (code_root / "examples" / "sources").exists()
     board_ok = (store.board_dir / "index.md").exists()
     gitignore_path = repo_root / ".gitignore"
@@ -46,6 +48,9 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
         f"assignment queue: {len(store.list_assignments())}",
         f"journal exists: {'ok' if store.journal_path.exists() else 'missing'}",
         f"board: {'ok' if board_ok else 'missing'}",
+        f"store invariants: {'ok' if store_invariants.ok else 'blocked'}",
+        f"store invariant errors: {store_invariants.error_count}",
+        f"store invariant warnings: {store_invariants.warning_count}",
         f"safety gates: {'ok' if safety_ok else 'missing'}",
         *secret_scan_status_lines(repo_root),
     ]

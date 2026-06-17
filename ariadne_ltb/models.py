@@ -123,6 +123,32 @@ class FailureReason(str, Enum):
     UNKNOWN = "unknown"
 
 
+class StoreInvariantSeverity(str, Enum):
+    ERROR = "error"
+    WARNING = "warning"
+
+
+class StoreInvariantReason(str, Enum):
+    DUPLICATE_TICKET_KEY = "duplicate_ticket_key"
+    MALFORMED_JSON = "malformed_json"
+    MALFORMED_JSONL = "malformed_jsonl"
+    MODEL_VALIDATION_FAILED = "model_validation_failed"
+    MISSING_TICKET = "missing_ticket"
+    MISSING_BUILD_PACKET = "missing_build_packet"
+    MISSING_AGENT_RUN = "missing_agent_run"
+    MISSING_ARTIFACT_INDEX = "missing_artifact_index"
+    MISSING_ARTIFACT_FILE = "missing_artifact_file"
+    ORPHAN_ARTIFACT = "orphan_artifact"
+    BROKEN_ASSIGNMENT_LINK = "broken_assignment_link"
+    BROKEN_RUN_LINK = "broken_run_link"
+    BROKEN_HANDOFF_LINK = "broken_handoff_link"
+    BROKEN_MEMORY_LINK = "broken_memory_link"
+    BROKEN_REVIEW_LINK = "broken_review_link"
+    INVALID_RUN_LIFECYCLE = "invalid_run_lifecycle"
+    INVALID_ASSIGNMENT_LIFECYCLE = "invalid_assignment_lifecycle"
+    STALE_LOCK = "stale_lock"
+
+
 class SourceType(str, Enum):
     PAPER = "paper"
     BLOG = "blog"
@@ -164,6 +190,7 @@ class ArtifactType(str, Enum):
     PERMISSION_PROFILE = "permission_profile"
     WORKTREE_ISOLATION = "worktree_isolation"
     ORCHESTRATOR_RESULT = "orchestrator_result"
+    STORE_INVARIANT_REPORT = "store_invariant_report"
     PLANNER_ERROR = "planner_error"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
@@ -855,3 +882,24 @@ class BuildSkill(AriadneModel):
     body_markdown: str
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
+
+
+class StoreInvariantIssue(AriadneModel):
+    reason: StoreInvariantReason
+    severity: StoreInvariantSeverity = StoreInvariantSeverity.ERROR
+    path: str
+    message: str
+    entity_type: str | None = None
+    entity_id: str | None = None
+    related_entity_id: str | None = None
+
+
+class StoreInvariantReport(AriadneModel):
+    id: str
+    root_path: str
+    ok: bool
+    error_count: int
+    warning_count: int
+    checked_files: int
+    issues: list[StoreInvariantIssue] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)

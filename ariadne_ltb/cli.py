@@ -779,6 +779,32 @@ def doctor_secrets() -> None:
         typer.echo(line)
 
 
+@doctor_app.command("store")
+def doctor_store(
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print the machine-readable store invariant report."),
+    ] = False,
+    stale_lock_seconds: Annotated[
+        int,
+        typer.Option("--stale-lock-seconds", help="Seconds before a directory lock is stale."),
+    ] = 3600,
+) -> None:
+    """Validate local .ariadne store invariants without repairing state."""
+    from ariadne_ltb.store_doctor import check_store_invariants, store_invariant_human_lines
+
+    store = AriadneStore(state.root)
+    report = check_store_invariants(store, stale_lock_seconds=stale_lock_seconds)
+    report_path = store.doctor_dir / "store_invariants.json"
+    if json_output:
+        typer.echo(report.model_dump_json(indent=2, exclude_none=False))
+    else:
+        for line in store_invariant_human_lines(report, report_path):
+            typer.echo(line)
+    if report.error_count:
+        raise typer.Exit(2)
+
+
 @doctor_app.command("v1")
 def doctor_v1() -> None:
     """Run local read-only Ariadne v1 readiness checks."""

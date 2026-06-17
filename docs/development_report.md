@@ -1300,3 +1300,67 @@ Known limitations:
   formats.
 - The scanner is designed for local preflight and review evidence; it is not a
   replacement for dedicated repository secret scanning in CI.
+
+## Core Batch 7: Store Invariant Doctor
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch completes `ARI-MUL-25 / LOC-30` by adding a local read-only doctor
+for impossible Ariadne workspace states before agents trust `.ariadne/`.
+
+Implemented files:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/store_doctor.py`
+- `ariadne_ltb/doctor.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/board.py`
+- `scripts/verify_v1.sh`
+- `tests/test_store_doctor.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added typed store invariant severities and reasons.
+- Added `StoreInvariantIssue` and `StoreInvariantReport` models.
+- Added `ari doctor store` / `python3.11 -m ariadne_ltb.cli doctor store`.
+- The store doctor writes `.ariadne/doctor/store_invariants.json`.
+- The doctor validates malformed JSON, malformed JSONL, duplicate ticket keys,
+  missing BuildPackets, missing AgentRuns, missing artifact indexes, missing
+  artifact payload files, orphan artifacts, broken assignment links, broken
+  handoff links, broken memory/review/execution links, invalid AgentRun
+  lifecycle states, invalid assignment lifecycle states, and stale directory
+  locks.
+- Stale locks are warnings; structural corruption and broken references are
+  errors.
+- Run link problems use the typed `broken_run_link` reason instead of being
+  collapsed into assignment failures.
+- `ari doctor v1` now includes store invariant status, error count, and warning
+  count.
+- Board system summary and `## Store Invariants` show the latest store doctor
+  report and first issues.
+- `scripts/verify_v1.sh` now runs `doctor store`.
+
+Safety boundaries:
+
+- The doctor is read-only. It reports repair evidence but does not delete,
+  rewrite, or auto-heal state.
+- Invalid JSON and invalid model files are reported deterministically instead
+  of crashing the doctor.
+- Machine-readable output is available through `--json` for future frontend or
+  automation consumption.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_store_doctor.py -q`: passed, 6 tests.
+- `python3.11 -m pytest tests/test_v1_doctor_release.py
+  tests/test_v1_board_ux.py tests/test_true_mvp_product_loop.py
+  tests/test_store_doctor.py -q`: passed, 27 tests.
+
+Known limitations:
+
+- The doctor reports broken state but intentionally does not generate an
+  automatic repair plan yet.
+- Artifact orphan detection is local-store based; it does not try to infer
+  intent from unindexed loose files under `.ariadne/artifacts/`.
