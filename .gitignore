@@ -16,3 +16,4 @@ dist/
 build/
 *.tsbuildinfo
 *.egg-info/
+frontend/ariadne-workbench/public/web_data/*.json

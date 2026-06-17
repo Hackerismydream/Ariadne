@@ -7,15 +7,16 @@ import {
   Monitor,
   Plus,
   Search,
+  Send,
   Settings,
   Sparkles,
   Target,
   Users,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { workbenchData } from "./data";
-import type { AriadneTicket, TicketStatus, TimelineEvent } from "./types";
+import { useEffect, useMemo, useState } from "react";
+import { loadWorkbenchData, workbenchData } from "./data";
+import type { AriadneTicket, RuntimeInfo, TicketStatus, TimelineEvent, WorkbenchData } from "./types";
 
 type PageKey = "goal" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
 
@@ -63,24 +64,58 @@ const statusColumns: Array<{ status: TicketStatus; label: string; tone: string }
 
 export function App() {
   const [page, setPage] = useState<PageKey>("goal");
+  const [data, setData] = useState<WorkbenchData>(workbenchData);
+  const [dataSource, setDataSource] = useState<"local" | "fixture">("fixture");
   const [selectedTicketId, setSelectedTicketId] = useState(workbenchData.tickets[0]?.id ?? "");
-  const selectedTicket = workbenchData.tickets.find((ticket) => ticket.id === selectedTicketId) ?? workbenchData.tickets[0];
+  const [selectedRuntime, setSelectedRuntime] = useState(workbenchData.runtimes[0]?.backend ?? "fake-codex");
+  const selectedTicket = data.tickets.find((ticket) => ticket.id === selectedTicketId) ?? data.tickets[0];
+
+  useEffect(() => {
+    let mounted = true;
+    loadWorkbenchData().then((result) => {
+      if (!mounted) return;
+      setData(result.data);
+      setDataSource(result.source);
+      setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
+      setSelectedRuntime((current) => result.data.runtimes.some((runtime) => runtime.backend === current) ? current : result.data.runtimes[0]?.backend ?? "fake-codex");
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="app-shell">
-      <Sidebar page={page} onNavigate={setPage} />
+      <Sidebar data={data} page={page} onNavigate={setPage} />
       <main className="main">
-        <PageFrame page={page} selectedTicket={selectedTicket} onTicketSelect={setSelectedTicketId} />
+        <PageFrame
+          data={data}
+          dataSource={dataSource}
+          page={page}
+          selectedRuntime={selectedRuntime}
+          selectedTicket={selectedTicket}
+          onNavigate={setPage}
+          onRuntimeSelect={setSelectedRuntime}
+          onTicketSelect={setSelectedTicketId}
+        />
       </main>
-      <AgentDock compact={page === "issues"} />
+      <AgentDock
+        compactDefault={true}
+        runtimes={data.runtimes}
+        selectedRuntime={selectedRuntime}
+        selectedTicket={selectedTicket}
+        onRuntimeSelect={setSelectedRuntime}
+      />
     </div>
   );
 }
 
 function Sidebar({
+  data,
   page,
   onNavigate,
 }: {
+  data: WorkbenchData;
   page: PageKey;
   onNavigate: (page: PageKey) => void;
 }) {
@@ -118,7 +153,7 @@ function Sidebar({
               >
                 <Icon size={16} />
                 <span>{item.label}</span>
-                {item.key === "inbox" ? <em>{workbenchData.inbox.length}</em> : null}
+                {item.key === "inbox" ? <em>{data.inbox.length}</em> : null}
               </button>
             );
           })}
@@ -130,20 +165,39 @@ function Sidebar({
 }
 
 function PageFrame({
+  data,
+  dataSource,
   page,
+  selectedRuntime,
   selectedTicket,
+  onNavigate,
+  onRuntimeSelect,
   onTicketSelect,
 }: {
+  data: WorkbenchData;
+  dataSource: "local" | "fixture";
   page: PageKey;
+  selectedRuntime: string;
   selectedTicket: AriadneTicket;
+  onNavigate: (page: PageKey) => void;
+  onRuntimeSelect: (backend: string) => void;
   onTicketSelect: (ticketId: string) => void;
 }) {
-  if (page === "goal") return <GoalPage onTicketSelect={onTicketSelect} />;
-  if (page === "issues") return <IssuesPage selectedTicket={selectedTicket} onTicketSelect={onTicketSelect} />;
-  if (page === "agents") return <AgentsPage />;
-  if (page === "runtimes") return <RuntimesPage />;
-  if (page === "skills") return <SkillsPage />;
-  return <InboxPage onTicketSelect={onTicketSelect} />;
+  if (page === "goal") return <GoalPage data={data} onTicketSelect={onTicketSelect} />;
+  if (page === "issues") return <IssuesPage data={data} selectedTicket={selectedTicket} onTicketSelect={onTicketSelect} />;
+  if (page === "agents") return <AgentsPage data={data} />;
+  if (page === "runtimes") {
+    return (
+      <RuntimesPage
+        data={data}
+        dataSource={dataSource}
+        selectedRuntime={selectedRuntime}
+        onRuntimeSelect={onRuntimeSelect}
+      />
+    );
+  }
+  if (page === "skills") return <SkillsPage data={data} />;
+  return <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />;
 }
 
 function PageHeader({
@@ -172,8 +226,8 @@ function PageHeader({
   );
 }
 
-function GoalPage({ onTicketSelect }: { onTicketSelect: (ticketId: string) => void }) {
-  const goal = workbenchData.goal;
+function GoalPage({ data, onTicketSelect }: { data: WorkbenchData; onTicketSelect: (ticketId: string) => void }) {
+  const goal = data.goal;
   return (
     <section className="page">
       <PageHeader
@@ -205,7 +259,7 @@ function GoalPage({ onTicketSelect }: { onTicketSelect: (ticketId: string) => vo
         <section className="panel wide">
           <h2>由 Goal 派生的当前 tickets</h2>
           <div className="compact-ticket-list">
-            {workbenchData.tickets.slice(0, 4).map((ticket) => (
+            {data.tickets.slice(0, 4).map((ticket) => (
               <button key={ticket.id} type="button" onClick={() => onTicketSelect(ticket.id)}>
                 <span>{ticket.key}</span>
                 <strong>{ticket.title}</strong>
@@ -220,18 +274,20 @@ function GoalPage({ onTicketSelect }: { onTicketSelect: (ticketId: string) => vo
 }
 
 function IssuesPage({
+  data,
   selectedTicket,
   onTicketSelect,
 }: {
+  data: WorkbenchData;
   selectedTicket: AriadneTicket;
   onTicketSelect: (ticketId: string) => void;
 }) {
   const grouped = useMemo(() => {
     return statusColumns.map((column) => ({
       ...column,
-      tickets: workbenchData.tickets.filter((ticket) => ticket.status === column.status),
+      tickets: data.tickets.filter((ticket) => ticket.status === column.status),
     }));
-  }, []);
+  }, [data.tickets]);
 
   return (
     <section className="page full-bleed">
@@ -340,13 +396,13 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
   );
 }
 
-function AgentsPage() {
+function AgentsPage({ data }: { data: WorkbenchData }) {
   return (
     <section className="page">
       <PageHeader
         icon={<Bot size={17} />}
         title="智能体"
-        count={workbenchData.agents.length}
+        count={data.agents.length}
         description="能领取 issue、留下评论、推进状态的 AI 队友。"
         action={<button className="outline-button" type="button">新建智能体</button>}
       />
@@ -358,7 +414,7 @@ function AgentsPage() {
           <span>运行时</span>
           <span>运行次数</span>
         </div>
-        {workbenchData.agents.map((agent) => (
+        {data.agents.map((agent) => (
           <div className="table-row" key={agent.name}>
             <strong><Bot size={16} />{agent.name}<small>{agent.description}</small></strong>
             <span className={`state ${agent.status}`}>{agent.status === "online" ? "在线" : agent.status}</span>
@@ -372,14 +428,26 @@ function AgentsPage() {
   );
 }
 
-function RuntimesPage() {
+function RuntimesPage({
+  data,
+  dataSource,
+  selectedRuntime,
+  onRuntimeSelect,
+}: {
+  data: WorkbenchData;
+  dataSource: "local" | "fixture";
+  selectedRuntime: string;
+  onRuntimeSelect: (backend: string) => void;
+}) {
+  const currentRuntime = data.runtimes.find((runtime) => runtime.backend === selectedRuntime) ?? data.runtimes[0];
   return (
     <section className="page full-bleed">
       <PageHeader
         icon={<Monitor size={17} />}
         title="运行时"
-        count={workbenchData.runtimes.length}
-        action={<button className="outline-button" type="button">添加电脑</button>}
+        count={data.runtimes.length}
+        description={dataSource === "local" ? "已接入本地 .ariadne runtime snapshot。" : "使用内置 fixture，运行 sync-local-data 可读取本地状态。"}
+        action={<button className="outline-button" type="button">刷新快照</button>}
       />
       <div className="runtime-layout">
         <aside className="machine-list">
@@ -387,35 +455,95 @@ function RuntimesPage() {
           <button className="machine active" type="button">
             <Monitor size={18} />
             <strong>local-mac</strong>
-            <span>{workbenchData.runtimes.length} 个运行时</span>
+            <span>{data.runtimes.length} 个运行时</span>
           </button>
+          <section className="runtime-picker" aria-label="选择运行时">
+            <h3>Backend</h3>
+            {data.runtimes.map((runtime) => (
+              <button
+                className={runtime.backend === selectedRuntime ? "active" : ""}
+                data-backend={runtime.backend}
+                disabled={runtime.status !== "online"}
+                key={runtime.backend}
+                type="button"
+                onClick={() => onRuntimeSelect(runtime.backend)}
+              >
+                <span>{runtime.backend}</span>
+                <em>{runtime.status === "online" ? "可用" : "不可用"}</em>
+              </button>
+            ))}
+          </section>
         </aside>
         <section className="runtime-detail">
           <h2>local-mac <span>在线</span></h2>
-          <p>{workbenchData.runtimes.length} 个运行时 · 全部空闲 · daemon local</p>
+          <p>{data.runtimes.length} 个运行时 · 当前选择 {currentRuntime?.backend ?? "missing"} · daemon local</p>
+          {currentRuntime ? <RuntimeCapability runtime={currentRuntime} /> : null}
           <div className="runtime-table">
-            {workbenchData.runtimes.map((runtime) => (
+            {data.runtimes.map((runtime) => (
               <div className="runtime-row" key={runtime.backend}>
                 <strong>{runtime.backend}</strong>
-                <span className={`state ${runtime.status}`}>在线</span>
+                <span className={`state ${runtime.status}`}>{runtime.status === "online" ? "在线" : "离线"}</span>
                 <span>{runtime.version}</span>
                 <span>{runtime.cost7d}</span>
               </div>
             ))}
           </div>
+          {data.projectResources?.length ? (
+            <section className="panel resource-panel">
+              <h3>Project resources</h3>
+              {data.projectResources.map((resource) => (
+                <div className="resource-row" key={resource.id}>
+                  <strong>{resource.label}</strong>
+                  <span>{resource.resourceType}</span>
+                  <code>{resource.localPath ?? "no local path"}</code>
+                </div>
+              ))}
+            </section>
+          ) : null}
         </section>
       </div>
     </section>
   );
 }
 
-function SkillsPage() {
+function RuntimeCapability({ runtime }: { runtime: RuntimeInfo }) {
+  return (
+    <section className="runtime-capability">
+      <div>
+        <span>Command</span>
+        <strong>{runtime.command ?? runtime.backend}</strong>
+      </div>
+      <div>
+        <span>Path</span>
+        <strong>{runtime.commandPath ?? "internal"}</strong>
+      </div>
+      <div>
+        <span>External execution</span>
+        <strong>{runtime.externalExecutionEnabled ? "enabled" : "gated / disabled"}</strong>
+      </div>
+      <div>
+        <span>Confirm required</span>
+        <strong>{runtime.confirmExecutionRequired ? "yes" : "no"}</strong>
+      </div>
+      <div>
+        <span>Dry run</span>
+        <strong>{runtime.supportsDryRun ? "supported" : "not supported"}</strong>
+      </div>
+      <div>
+        <span>Checked</span>
+        <strong>{runtime.checkedAt ?? "fixture"}</strong>
+      </div>
+    </section>
+  );
+}
+
+function SkillsPage({ data }: { data: WorkbenchData }) {
   return (
     <section className="page">
       <PageHeader
         icon={<BookOpenText size={17} />}
         title="Skills"
-        count={workbenchData.skills.length}
+        count={data.skills.length}
         description="工作区里任何智能体都能使用的指令。"
         action={<button className="outline-button" type="button">新建 skill</button>}
       />
@@ -429,7 +557,7 @@ function SkillsPage() {
           <span>被谁使用</span>
           <span>更新时间</span>
         </div>
-        {workbenchData.skills.map((skill) => (
+        {data.skills.map((skill) => (
           <div className="table-row skill-row" key={skill.name}>
             <strong>{skill.name}<small>{skill.description}</small></strong>
             <span>{skill.usedBy.join(", ")}</span>
@@ -441,13 +569,30 @@ function SkillsPage() {
   );
 }
 
-function InboxPage({ onTicketSelect }: { onTicketSelect: (ticketId: string) => void }) {
+function InboxPage({
+  data,
+  onNavigate,
+  onTicketSelect,
+}: {
+  data: WorkbenchData;
+  onNavigate: (page: PageKey) => void;
+  onTicketSelect: (ticketId: string) => void;
+}) {
   return (
     <section className="page">
-      <PageHeader icon={<Inbox size={17} />} title="收件箱" count={workbenchData.inbox.length} />
+      <PageHeader icon={<Inbox size={17} />} title="收件箱" count={data.inbox.length} />
       <div className="inbox-list">
-        {workbenchData.inbox.map((item, index) => (
-          <button key={item.id} type="button" onClick={() => onTicketSelect(workbenchData.tickets[index % workbenchData.tickets.length].id)}>
+        {data.inbox.map((item, index) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              const fallbackTicket = data.tickets[index % data.tickets.length];
+              const ticket = data.tickets.find((candidate) => candidate.id === item.ticketId) ?? fallbackTicket;
+              if (ticket) onTicketSelect(ticket.id);
+              onNavigate("issues");
+            }}
+          >
             <span className={`inbox-kind ${item.kind}`}>{item.kind}</span>
             <strong>{item.title}</strong>
             <p>{item.body}</p>
@@ -459,10 +604,49 @@ function InboxPage({ onTicketSelect }: { onTicketSelect: (ticketId: string) => v
   );
 }
 
-function AgentDock({ compact }: { compact: boolean }) {
-  if (compact) {
+function AgentDock({
+  compactDefault,
+  runtimes,
+  selectedRuntime,
+  selectedTicket,
+  onRuntimeSelect,
+}: {
+  compactDefault: boolean;
+  runtimes: RuntimeInfo[];
+  selectedRuntime: string;
+  selectedTicket?: AriadneTicket;
+  onRuntimeSelect: (backend: string) => void;
+}) {
+  const [open, setOpen] = useState(!compactDefault);
+  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState<Array<{ actor: "user" | "agent"; body: string }>>([]);
+
+  useEffect(() => {
+    if (compactDefault) setOpen(false);
+  }, [compactDefault]);
+
+  const selected = runtimes.find((runtime) => runtime.backend === selectedRuntime) ?? runtimes[0];
+  const disabledReason = selected?.supportsExternalExecution && !selected.externalExecutionEnabled
+    ? "外部执行未开启，只生成安全的本地 handoff 预览。"
+    : "当前运行时可用于本地只读编排预览。";
+
+  function sendMessage() {
+    const body = draft.trim();
+    if (!body) return;
+    setMessages((current) => [
+      ...current,
+      { actor: "user", body },
+      {
+        actor: "agent",
+        body: `已选择 ${selected?.backend ?? selectedRuntime}。当前 ticket: ${selectedTicket?.key ?? "未选择"}。${disabledReason}`,
+      },
+    ]);
+    setDraft("");
+  }
+
+  if (!open) {
     return (
-      <button className="agent-dock compact" type="button">
+      <button className="agent-dock compact" type="button" onClick={() => setOpen(true)}>
         <Bot size={16} />
         <span>对话</span>
       </button>
@@ -473,16 +657,47 @@ function AgentDock({ compact }: { compact: boolean }) {
       <header>
         <Plus size={16} />
         <strong>新对话</strong>
-        <span>⌟</span>
-        <span>−</span>
+        <button aria-label="收起对话" type="button" onClick={() => setOpen(false)}>−</button>
       </header>
       <div className="agent-empty">
-        <h3>和你的智能体对话</h3>
-        <p>它们了解你的工作区：goal、issue、runtime、skill。</p>
+        <div className="agent-runtime-line">
+          <span>Runtime</span>
+          <select value={selectedRuntime} onChange={(event) => onRuntimeSelect(event.target.value)}>
+            {runtimes.map((runtime) => (
+              <option key={runtime.backend} value={runtime.backend}>
+                {runtime.backend}
+              </option>
+            ))}
+          </select>
+        </div>
+        {messages.length ? (
+          <div className="agent-messages">
+            {messages.map((message, index) => (
+              <p className={message.actor} key={`${message.actor}-${index}`}>
+                {message.body}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <>
+            <h3>和你的智能体对话</h3>
+            <p>它们了解你的工作区：goal、issue、runtime、skill。</p>
+            <small>{disabledReason}</small>
+          </>
+        )}
       </div>
       <footer>
-        <input placeholder="输入消息..." />
-        <button type="button">↑</button>
+        <input
+          placeholder="输入消息..."
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") sendMessage();
+          }}
+        />
+        <button aria-label="发送消息" type="button" onClick={sendMessage}>
+          <Send size={15} />
+        </button>
       </footer>
     </aside>
   );

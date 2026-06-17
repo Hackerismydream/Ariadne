@@ -135,8 +135,8 @@ export const workbenchData: WorkbenchData = {
     { name: "Ariadne Release Verifier", description: "Release gate verifier for tests, CLI smoke, and evidence packets.", backend: "fake-codex", status: "idle", runs: 5, reasoning: "默认" },
   ],
   runtimes: [
-    { machine: "local-mac", backend: "Codex", status: "online", version: "codex-cli flex", cost7d: "$0.51" },
-    { machine: "local-mac", backend: "Claude", status: "online", version: "claude-code", cost7d: "$0.00" },
+    { machine: "local-mac", backend: "codex", status: "online", version: "codex-cli flex", cost7d: "$0.51" },
+    { machine: "local-mac", backend: "claude-code", status: "online", version: "claude-code", cost7d: "$0.00" },
     { machine: "local-mac", backend: "fake-codex", status: "online", version: "deterministic", cost7d: "$0.00" },
   ],
   skills: [
@@ -146,9 +146,35 @@ export const workbenchData: WorkbenchData = {
     { name: "ariadne-local-first-guardrails", description: "Keep external execution, Feishu writes, and hosted behavior gated.", usedBy: ["Codex", "Implementer"], updatedAt: "13 小时前" },
   ],
   inbox: [
-    { id: "i-1", title: "ARI-FE-002 needs stronger timeline", body: "Reviewer asked for visible progress events in ticket detail.", time: "44 分钟", kind: "review" },
-    { id: "i-2", title: "Goal direction updated", body: "Goal remains an input. Ticket state changes are the product center.", time: "1 小时", kind: "goal" },
-    { id: "i-3", title: "Codex runtime config", body: "Use flex service tier. Do not run when quota is under the stop threshold.", time: "2 小时", kind: "blocker" },
-    { id: "i-4", title: "Memory written", body: "Multica alignment notes are available for future planning.", time: "3 小时", kind: "memory" },
+    { id: "i-1", ticketId: "t-2", title: "ARI-FE-002 needs stronger timeline", body: "Reviewer asked for visible progress events in ticket detail.", time: "44 分钟", kind: "review" },
+    { id: "i-2", ticketId: "t-4", title: "Goal direction updated", body: "Goal remains an input. Ticket state changes are the product center.", time: "1 小时", kind: "goal" },
+    { id: "i-3", ticketId: "t-3", title: "Codex runtime config", body: "Use flex service tier. Do not run when quota is under the stop threshold.", time: "2 小时", kind: "blocker" },
+    { id: "i-4", ticketId: "t-2", title: "Memory written", body: "Multica alignment notes are available for future planning.", time: "3 小时", kind: "memory" },
   ],
 };
+
+export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source: "local" | "fixture" }> {
+  try {
+    const response = await fetch("/web_data/workbench.json", { cache: "no-store" });
+    if (!response.ok) {
+      return { data: workbenchData, source: "fixture" };
+    }
+    const localData = (await response.json()) as Partial<WorkbenchData>;
+    return {
+      data: {
+        ...workbenchData,
+        ...localData,
+        goal: { ...workbenchData.goal, ...localData.goal },
+        tickets: localData.tickets?.length ? localData.tickets : workbenchData.tickets,
+        agents: localData.agents?.length ? localData.agents : workbenchData.agents,
+        runtimes: localData.runtimes?.length ? localData.runtimes : workbenchData.runtimes,
+        skills: localData.skills?.length ? localData.skills : workbenchData.skills,
+        inbox: localData.inbox?.length ? localData.inbox : workbenchData.inbox,
+        projectResources: localData.projectResources ?? workbenchData.projectResources,
+      },
+      source: "local",
+    };
+  } catch {
+    return { data: workbenchData, source: "fixture" };
+  }
+}

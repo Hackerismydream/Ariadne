@@ -58,6 +58,21 @@ export type RuntimeInfo = {
   status: "online" | "offline";
   version: string;
   cost7d: string;
+  command?: string;
+  commandPath?: string | null;
+  externalExecutionEnabled?: boolean;
+  commandTemplateSet?: boolean;
+  confirmExecutionRequired?: boolean;
+  supportsExternalExecution?: boolean;
+  supportsDryRun?: boolean;
+  checkedAt?: string;
+};
+
+export type ProjectResource = {
+  id: string;
+  label: string;
+  resourceType: string;
+  localPath?: string;
 };
 
 export type SkillInfo = {
@@ -69,6 +84,7 @@ export type SkillInfo = {
 
 export type InboxItem = {
   id: string;
+  ticketId?: string;
   title: string;
   body: string;
   time: string;
@@ -80,6 +96,7 @@ export type WorkbenchData = {
   tickets: AriadneTicket[];
   agents: AgentRole[];
   runtimes: RuntimeInfo[];
+  projectResources?: ProjectResource[];
   skills: SkillInfo[];
   inbox: InboxItem[];
 };
