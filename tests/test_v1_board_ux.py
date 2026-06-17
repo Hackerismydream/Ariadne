@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -42,6 +43,34 @@ def test_board_contains_v1_workbench_sections(tmp_path: Path) -> None:
         "Codex Gate Status",
     ]:
         assert heading in board
+
+
+def test_board_export_tolerates_legacy_unknown_artifact_types(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    ticket = store.resolve_ticket("ARI-003")
+    artifact_id = "artifact_legacy_landing_gate"
+    (store.artifact_index_dir / f"{artifact_id}.json").write_text(
+        json.dumps(
+            {
+                "id": artifact_id,
+                "ticket_id": ticket.id,
+                "agent_run_id": "legacy",
+                "artifact_type": "landing_gate",
+                "path": str(tmp_path / ".ariadne" / "legacy.json"),
+                "summary": "Legacy landing gate artifact.",
+                "created_at": "2026-06-17T00:00:00Z",
+                "metadata": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    store.save_ticket(ticket.model_copy(update={"artifact_ids": [artifact_id]}))
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "export", "board"])
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".ariadne" / "board" / "index.md").exists()
 
 
 def test_board_serve_command_builds_expected_handler(tmp_path: Path) -> None:

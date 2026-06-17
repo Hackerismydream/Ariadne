@@ -207,7 +207,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 "",
             ]
         )
-    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    artifacts = _load_ticket_artifacts(store, ticket)
     assignment = store.find_latest_assignment_for_ticket(ticket.id)
     lines.extend(["## Agent Assignment", ""])
     if assignment:
@@ -528,6 +528,16 @@ def _latest_json_artifact(store: AriadneStore, artifacts: list, artifact_type: A
             except json.JSONDecodeError:
                 continue
     return None
+
+
+def _load_ticket_artifacts(store: AriadneStore, ticket: BuildTicket) -> list:
+    artifacts = []
+    for artifact_id in ticket.artifact_ids:
+        try:
+            artifacts.append(store.load_artifact(artifact_id))
+        except (FileNotFoundError, ValueError):
+            continue
+    return artifacts
 
 
 def _latest_artifact(artifacts: list, artifact_type: ArtifactType):

@@ -32,6 +32,31 @@ This path shows the full local loop:
 Source -> Ticket -> Assignment -> Daemon -> Planner -> Backend -> Review -> Memory -> Board
 ```
 
+## Ariadne Workbench Frontend
+
+A standalone React/Vite frontend now lives under:
+
+```text
+frontend/ariadne-workbench/
+```
+
+It adapts Multica's local workbench UI pattern for Ariadne's `/goal`,
+ticket board, ticket detail, agents, runtimes, skills, and inbox surfaces. It is
+independent of Multica and can be built as static assets:
+
+```bash
+cd frontend/ariadne-workbench
+npm install
+npm run dev
+npm run build
+```
+
+Reference analysis is in:
+
+```text
+docs/frontend/multica_parity_analysis.md
+```
+
 Ticket backlog updates are persisted under `.ariadne/backlog/updates.jsonl` and
 shown on the board. The explicit backlog commands are:
 

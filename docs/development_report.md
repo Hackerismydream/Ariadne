@@ -998,3 +998,68 @@ Verification after review hardening:
   environment/key state without secret values.
 - `uv run ari demo full && uv run ari doctor v1 && uv run ari export board`:
   passed.
+
+## Ariadne Workbench Frontend Lane
+
+Implemented a new standalone frontend project instead of extending the static
+Python board into a pseudo-frontend.
+
+Multica evidence inspected:
+
+- Local Multica web at `http://localhost:3001`.
+- Local Multica backend health at `http://localhost:8080/health`.
+- Screenshots and route/API observations captured under
+  `.agent_context/multica_frontend_reference/`.
+- Source files inspected under `/Users/martinlos/code/multica/packages/views`
+  and `/Users/martinlos/code/multica/packages/ui/styles`.
+
+Implemented files:
+
+- `docs/frontend/multica_parity_analysis.md`
+- `frontend/ariadne-workbench/README.md`
+- `frontend/ariadne-workbench/package.json`
+- `frontend/ariadne-workbench/package-lock.json`
+- `frontend/ariadne-workbench/index.html`
+- `frontend/ariadne-workbench/tsconfig.json`
+- `frontend/ariadne-workbench/vite.config.ts`
+- `frontend/ariadne-workbench/src/main.tsx`
+- `frontend/ariadne-workbench/src/App.tsx`
+- `frontend/ariadne-workbench/src/types.ts`
+- `frontend/ariadne-workbench/src/data.ts`
+- `frontend/ariadne-workbench/src/styles.css`
+
+Implemented behavior:
+
+- Independent React/Vite product frontend.
+- `/goal`-adapted Ariadne first screen.
+- Multica-style left sidebar, top header, compact workbench density, kanban
+  issue board, ticket inspector, agent list, runtime page, skills list, inbox,
+  and floating agent chat dock.
+- Typed local seed data for Ariadne goals, tickets, agents, runtimes, skills,
+  and inbox events.
+- The frontend intentionally does not depend on Multica APIs, Multica auth, or
+  Ariadne Python core schema changes.
+
+Verification:
+
+- `curl http://localhost:8080/health`: passed.
+- `curl -I http://localhost:3001`: passed.
+- `npm install` in `frontend/ariadne-workbench`: passed.
+- `npm run build` in `frontend/ariadne-workbench`: passed.
+- `npm audit --audit-level=high`: passed after upgrading Vite to `8.0.16`.
+- Playwright screenshots captured for Goal, Issues, Agents, Runtimes, and
+  Skills under `.agent_context/ariadne_workbench_screenshots/`.
+
+Known limitations:
+
+- Frontend currently uses typed seed data, not live `.ariadne` data.
+- Mutating flows such as create issue, assign agent, and run ticket are visible
+  affordances only.
+- The UI is a close Ariadne adaptation of Multica, not a full copy of Multica's
+  hosted multi-workspace product.
+
+Next recommended ticket:
+
+- Add an Ariadne frontend data adapter that reads exported `.ariadne` JSON or a
+  local read-only API and replaces the seed data without changing the UI page
+  contract.
