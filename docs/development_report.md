@@ -3749,3 +3749,44 @@ Final verification:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_e49a873baeab` and completed product doctor, release
   packet, workbench sync, and workbench build checks.
+
+## 2026-06-18 02:14 CST Offline Demo Agent Artifact Wording Cleanup
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The legacy `ari demo` pipeline is still useful as a deterministic offline
+  regression path, but its Build Lead and Planner artifacts still described
+  Ariadne as if execution were permanently dry-run only.
+- That wording conflicts with the production Agent Workbench roadmap where
+  CodexBackend, ClaudeCodeBackend, DeepSeek, Feishu, and GitHub are real gated
+  product capabilities.
+
+Implemented:
+
+- Updated `BuildLeadAgent` routing text so it states that Codex and Claude Code
+  are production backends, while dry-run and fake-codex are offline test paths.
+- Updated Planner-generated Build Packet, execution plan, and handoff wording
+  so dry-run is framed as the offline regression path, not the product
+  destination.
+- Updated Feishu Plan run summary and next actions to point to the gated real
+  Feishu write command instead of saying Feishu must remain dry-run.
+- Added a regression test that fails if the legacy demo artifacts reintroduce
+  `Execution backend remains dry-run only`, `No external APIs`, or
+  `Feishu write plan is dry-run only`.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_pipeline.py -q`: passed, `4 passed`.
+- `python3.11 -m ruff check ariadne_ltb/agents.py tests/test_pipeline.py`:
+  passed.
+- `python3.11 -m pytest`: passed, `216 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_8ce89f2745e9` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.
