@@ -101,6 +101,31 @@ def test_cli_ticket_run_completes_review_memory_next_tickets_and_board(tmp_path:
     assert next_tickets
 
 
+def test_cli_ticket_run_defaults_to_real_codex_and_records_blocked_evidence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+    runner = CliRunner()
+    ingest_result = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "ingest", *[str(path) for path in SOURCE_FIXTURES]],
+    )
+    assert ingest_result.exit_code == 0, ingest_result.output
+
+    run_result = runner.invoke(app, ["--root", str(tmp_path), "ticket", "run", "ARI-003"])
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "backend used: codex" in run_result.output
+    assert (tmp_path / ".ariadne" / "board" / "index.md").exists()
+    store = AriadneStore(tmp_path)
+    ticket = store.resolve_ticket("ARI-003")
+    execution = store.load_execution_result(ticket.metadata["execution_result_id"])
+    assert execution.backend_name == "codex"
+    assert execution.blocked is True
+    assert "ARIADNE_ENABLE_EXTERNAL_EXECUTION" in (execution.block_reason or "")
+
+
 def test_orchestrator_supersedes_stale_non_terminal_execution_run(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, SOURCE_FIXTURES)[2]

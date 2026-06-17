@@ -11,6 +11,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.models import (
     AgentRun,
     AgentHandoff,
@@ -957,10 +958,10 @@ def _default_build_teams() -> list[BuildTeam]:
                 "then review, memory, and backlog update through the standard runtime loop."
             ),
             lead_agent_id="build-lead",
-            implementer_agent_id="fake-codex",
+            implementer_agent_id=PRODUCT_DEFAULT_BACKEND,
             reviewer_agent_id="reviewer",
             memory_agent_id="memory",
-            default_backend_name="fake-codex",
+            default_backend_name=PRODUCT_DEFAULT_BACKEND,
             planner_name="deterministic",
             skill_refs=["codex-handoff", "review-diff", "feishu-write-plan"],
             resource_policy="local_project_resources",

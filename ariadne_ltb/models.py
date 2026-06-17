@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
+
 
 def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -404,10 +406,10 @@ class BuildTeam(AriadneModel):
     name: str
     description: str = ""
     lead_agent_id: str = "build-lead"
-    implementer_agent_id: str = "fake-codex"
+    implementer_agent_id: str = PRODUCT_DEFAULT_BACKEND
     reviewer_agent_id: str = "reviewer"
     memory_agent_id: str = "memory"
-    default_backend_name: str = "fake-codex"
+    default_backend_name: str = PRODUCT_DEFAULT_BACKEND
     planner_name: str = "deterministic"
     skill_refs: list[str] = Field(default_factory=list)
     resource_policy: str = "local_project_resources"

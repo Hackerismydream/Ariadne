@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.backlog import record_feedback_backlog_updates
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.execution import backend_for_name
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
 from ariadne_ltb.handoffs import record_handoff
@@ -88,7 +89,7 @@ class TicketRunOrchestrator:
     def run_ticket(
         self,
         ticket_id_or_key: str,
-        backend_name: str = "fake-codex",
+        backend_name: str = PRODUCT_DEFAULT_BACKEND,
         target_repo_path: str | None = None,
         command: str | None = None,
         planner: str = "deterministic",

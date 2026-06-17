@@ -14,6 +14,7 @@ from ariadne_ltb.board import export_board
 from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.backlog import supersede_ticket
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
+from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND, PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
 from ariadne_ltb.evidence import generate_release_evidence_packet
 from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, backend_for_name
@@ -126,7 +127,7 @@ def configure(
 @app.command()
 def demo(
     mode: Annotated[str, typer.Argument(help="Demo mode: `kernel`, `full`, or `codex`.")] = "kernel",
-    backend: Annotated[str, typer.Option("--backend", help="Execution backend.")] = "fake-codex",
+    backend: Annotated[str, typer.Option("--backend", help="Execution backend.")] = OFFLINE_TEST_BACKEND,
     confirm_execution: Annotated[
         bool,
         typer.Option("--confirm-execution", help="Allow non-dry-run external execution backends."),
@@ -989,7 +990,7 @@ def ticket_plan(
 @ticket_app.command("run")
 def ticket_run(
     ticket_id: str,
-    backend: Annotated[str, typer.Option("--backend", help="dry-run|fake-codex|shell|codex|claude-code")] = "fake-codex",
+    backend: Annotated[str, typer.Option("--backend", help="dry-run|fake-codex|shell|codex|claude-code")] = PRODUCT_DEFAULT_BACKEND,
     target_repo_path: Annotated[
         Path | None,
         typer.Option("--target-repo-path", help="Target repository path. Defaults to demo target."),

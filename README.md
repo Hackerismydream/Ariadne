@@ -17,8 +17,8 @@ Ariadne v1.0 is a local-first, Ticket-centered Agent Workbench:
 ari ingest examples/sources/*.md
 ari backlog history
 ari ticket list
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
+ari ticket assign ARI-003 --to codex
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ari ticket comments ARI-003
 ari runtime journal
 ari runtime recover
@@ -86,8 +86,8 @@ Fallback:
 ```bash
 python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
 python3.11 -m ariadne_ltb.cli ticket list
-python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
-python3.11 -m ariadne_ltb.cli daemon run-once
+python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to codex
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli daemon run-once --confirm-execution
 python3.11 -m ariadne_ltb.cli ticket comments ARI-003
 python3.11 -m ariadne_ltb.cli export board
 ```
@@ -168,7 +168,7 @@ a vector database or network service:
 ```bash
 ari memory search "planner memory retrieval"
 ari ticket plan ARI-003 --planner deterministic --use-memory
-ari ticket run ARI-003 --backend fake-codex --use-memory
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari ticket run ARI-003 --backend codex --use-memory --confirm-execution
 ```
 
 When enabled, planner artifacts include memory evidence with source refs, and
@@ -335,7 +335,7 @@ Architecture entrypoints:
 - [`docs/demo/ARIADNE_V1_DEMO_CONTRACT.md`](docs/demo/ARIADNE_V1_DEMO_CONTRACT.md)
 - [`docs/adr/ADR-0004-ticket-centered-agent-workbench.md`](docs/adr/ADR-0004-ticket-centered-agent-workbench.md)
 
-Main local demo path:
+Offline regression path:
 
 ```bash
 ari ingest examples/sources/*.md

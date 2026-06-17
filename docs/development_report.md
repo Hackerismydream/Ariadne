@@ -3454,3 +3454,56 @@ Verification so far:
   local ignored `.env` finding with redacted secret values.
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_bdec3fe87c03` and verified the workbench data sync/build.
+
+## 2026-06-18 01:12 CST Production Backend Default Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- The production roadmap says `fake-codex` is only for deterministic tests and
+  offline fallback.
+- Before this slice, several product paths still defaulted to `fake-codex`, so a
+  user could run a normal ticket path and get a simulated success without
+  explicitly choosing the offline backend.
+
+Implemented:
+
+- Added `ariadne_ltb/defaults.py` with separate defaults:
+  - `PRODUCT_DEFAULT_BACKEND = "codex"`
+  - `OFFLINE_TEST_BACKEND = "fake-codex"`
+- Changed `ari ticket run` default backend to `codex`.
+- Changed `TicketRunOrchestrator.run_ticket()` default backend to `codex`.
+- Changed daemon fallback backend to `codex` when an assignment does not specify
+  a backend.
+- Changed the default Build Team implementer/backend to `codex`.
+- Kept `demo full` and deterministic tests explicitly on `fake-codex` so offline
+  verification remains stable.
+- Updated README so the production quickstart uses Codex and the fake backend is
+  documented as an offline regression path.
+
+Behavioral impact:
+
+- Running `ari ticket run ARI-003` without a backend now selects Codex.
+- If `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and `--confirm-execution` are not
+  both present, the Codex backend records blocked execution evidence instead of
+  silently falling back to `fake-codex`.
+- Offline tests and `ari demo full` still use `fake-codex` explicitly.
+
+Verification so far:
+
+- `python3.11 -m pytest tests/test_agent_teammate_mode.py tests/test_true_mvp_product_loop.py tests/test_multica_alignment.py tests/test_backlog_update_loop.py -q`:
+  passed, `48 passed`.
+- `python3.11 -m ariadne_ltb.cli ticket run ARI-003` against a temporary
+  workspace: passed and selected `backend used: codex`; because the external
+  execution gate was unset, it recorded a blocked Codex execution instead of
+  falling back to `fake-codex`.
+- `python3.11 -m pytest`: passed, `211 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; this remains an explicit
+  offline regression demo with `backend used: fake-codex`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  is still reported with redacted secret values.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_6497590a3c9a` and verified workbench data sync/build.

@@ -51,10 +51,10 @@ def test_default_build_team_and_cli_show(tmp_path: Path) -> None:
     assert {team.id for team in teams} == {"build-team"}
     assert listing.exit_code == 0, listing.output
     assert "Ariadne Build Team" in listing.output
-    assert "implementer=fake-codex" in listing.output
+    assert "implementer=codex" in listing.output
     assert show.exit_code == 0, show.output
     assert "lead: build-lead" in show.output
-    assert "backend: fake-codex" in show.output
+    assert "backend: codex" in show.output
 
 
 def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) -> None:
@@ -107,15 +107,15 @@ def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) ->
     assert result.exit_code == 0, result.output
     assert "Build Team routed: build-team" in result.output
     assert assignment is not None
-    assert assignment.agent_id == "fake-codex"
-    assert assignment.backend_name == "fake-codex"
+    assert assignment.agent_id == "codex"
+    assert assignment.backend_name == "codex"
     assert assignment.assigned_by == "Build Lead"
     assert assignment.metadata["build_team_id"] == "build-team"
     assert ticket.metadata["assigned_team_id"] == "build-team"
     assert ticket.metadata["latest_route_decision_artifact_id"] == route_artifacts[-1].id
     assert route_json["build_team_id"] == "build-team"
-    assert route_json["selected_agent_id"] == "fake-codex"
-    assert route_json["backend_name"] == "fake-codex"
+    assert route_json["selected_agent_id"] == "codex"
+    assert route_json["backend_name"] == "codex"
     assert route_json["team_role_agent_ids"]["reviewer"] == "reviewer"
     assert route_json["team_role_agent_ids"]["memory"] == "memory"
     assert any(comment.kind is CommentKind.ROUTE for comment in comments)
@@ -127,7 +127,7 @@ def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) ->
     board_text = board.read_text(encoding="utf-8")
     assert "## Build Teams" in board_text
     assert "Build Team: `build-team`" in board_text
-    assert "Selected agent: `fake-codex`" in board_text
+    assert "Selected agent: `codex`" in board_text
 
 
 def test_daemon_runs_build_team_assignment(tmp_path: Path) -> None:
@@ -146,8 +146,8 @@ def test_daemon_runs_build_team_assignment(tmp_path: Path) -> None:
     assert result.did_work is True
     assert result.ticket_run_result is not None
     assert assignment is not None
-    assert assignment.status is AssignmentStatus.DONE
-    assert result.ticket_run_result.review_verdict == "pass"
+    assert assignment.status is AssignmentStatus.BLOCKED
+    assert result.ticket_run_result.backend_name == "codex"
 
 
 def test_human_comment_cli_and_ticket_comments(tmp_path: Path) -> None:

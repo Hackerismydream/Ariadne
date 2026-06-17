@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.failure import record_assignment_failure
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
@@ -106,7 +107,7 @@ class LocalDaemonWorker:
                 actor_name=running.agent_name,
             ).run_ticket(
                 ticket.key,
-                backend_name=running.backend_name or "fake-codex",
+                backend_name=running.backend_name or PRODUCT_DEFAULT_BACKEND,
                 planner=running.planner_name,
                 confirm_execution=confirm_execution,
                 isolate_worktree=True,
