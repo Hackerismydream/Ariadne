@@ -4018,3 +4018,100 @@ Verification:
 - `scripts/verify_v1.sh`: passed. The run generated release evidence packet
   `release_evidence_209859c72b9a` and completed product doctor, release
   packet, workbench sync, and workbench build checks.
+
+## 2026-06-18 02:57 CST Real Backend Smoke Through Daemon Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Why this slice exists:
+
+- `ari backend smoke-test codex` existed, but it was Codex-only and directly
+  invoked `TicketRunOrchestrator`.
+- The production roadmap's main loop is assignment-centered:
+  `ticket -> assignment -> daemon/runtime -> backend -> review/memory/board`.
+  A real backend smoke test should prove that route, not only a direct
+  orchestrator call.
+
+Implemented:
+
+- `ari backend smoke-test` now accepts both `codex` and `claude-code`.
+- The smoke command now uses:
+
+```text
+source fixtures -> selected code_task ticket -> assignment -> LocalDaemonWorker
+  -> TicketRunOrchestrator -> backend execution -> review -> memory -> board
+```
+
+- The command still refuses before creating demo target state unless both real
+  execution gates are present:
+  - `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1`
+  - `--confirm-execution`
+- The command prints assignment id/status, handoff file, execution result, exit
+  code, changed files, test exit code, review verdict, agent runtime, backlog
+  planner, board, memory, Feishu dry-run plan, and next tickets.
+- If the assignment does not finish as `done`, the smoke command exits non-zero
+  after printing the blocker/evidence.
+- `ari daemon run-once/start` now accept `--timeout-seconds`, so smoke-test
+  timeout policy reaches the real backend command through the daemon path.
+- README now documents Codex and Claude Code smoke tests as real backend smoke
+  tests through assignment + daemon.
+- `docs/real_codex_smoke_test.md` now states that `backend smoke-test codex`
+  reaches the orchestrator through `LocalDaemonWorker`.
+
+Deterministic tests:
+
+- Added a deterministic codex smoke-test fixture using a local Python command
+  template. It modifies only the demo target allowed files and proves the smoke
+  command reaches `assignment status: done` through daemon execution.
+- Added a claude-code missing-command gate test.
+- Existing missing external flag and missing confirmation tests still assert
+  the command refuses before creating demo target state.
+
+Real smoke evidence:
+
+- Real Codex smoke through daemon:
+  - command:
+    `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli --root <tmp> backend smoke-test codex --confirm-execution --timeout-seconds 240`
+  - result: passed;
+  - assignment: `assignment_94b12b37f988`, status `done`;
+  - execution: `execution_94b12b37f988`, exit code `0`;
+  - changed files: `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code: `0`;
+  - review verdict: `pass`.
+- Real Claude Code smoke through daemon:
+  - command:
+    `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli --root <tmp> backend smoke-test claude-code --confirm-execution --timeout-seconds 240`
+  - result: passed;
+  - assignment: `assignment_3dbb88f5eb03`, status `done`;
+  - execution: `execution_3dbb88f5eb03`, exit code `0`;
+  - changed files: `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code: `0`;
+  - review verdict: `pass`.
+- Real DeepSeek + Codex combined daemon smoke:
+  - command:
+    `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli --root <tmp> backend smoke-test codex --confirm-execution --timeout-seconds 240 --agent-runtime llm`
+  - result: passed;
+  - assignment: `assignment_88d774e0b547`, status `done`;
+  - execution: `execution_870ac3fd1895`, exit code `0`;
+  - changed files: `demo_todo/cli.py`, `tests/test_cli.py`;
+  - test exit code: `0`;
+  - review verdict: `pass`;
+  - `llm_build_lead.json`: model `deepseek-v4-pro`, total tokens `2210`;
+  - `llm_knowledge.json`: model `deepseek-v4-pro`, total tokens `2259`;
+  - `llm_memory.json`: model `deepseek-v4-pro`, total tokens `2526`.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_backend_smoke_cli.py -q`: passed,
+  `11 passed`.
+- `python3.11 -m ruff check ariadne_ltb/cli.py ariadne_ltb/daemon.py tests/test_backend_smoke_cli.py`:
+  passed.
+- Full `python3.11 -m pytest`: passed, `226 passed`.
+- Full `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed; reviewer verdict `pass`.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local ignored `.env`
+  remained redacted.
+- `scripts/verify_v1.sh`: passed. The run generated release evidence packet
+  `release_evidence_db825ed5373f` and completed product doctor, release
+  packet, workbench sync, and workbench build checks.

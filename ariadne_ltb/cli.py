@@ -679,54 +679,95 @@ def _codex_config_summary() -> str:
 
 @backend_app.command("smoke-test")
 def backend_smoke_test(
-    backend: Annotated[str, typer.Argument(help="Backend smoke test target. Only `codex` is supported.")],
+    backend: Annotated[str, typer.Argument(help="Backend smoke test target: codex|claude-code.")],
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
     timeout_seconds: Annotated[
         int,
         typer.Option("--timeout-seconds", help="Maximum seconds for the real backend command."),
     ] = 300,
+    agent_runtime: Annotated[
+        str,
+        typer.Option("--agent-runtime", help="deterministic|llm upstream agent runtime for the daemon pass."),
+    ] = "deterministic",
+    backlog_planner: Annotated[
+        str,
+        typer.Option("--backlog-planner", help="deterministic|llm feedback backlog planner for the daemon pass."),
+    ] = "deterministic",
 ) -> None:
-    """Run a safety-gated real backend smoke test through TicketRunOrchestrator."""
-    if backend != "codex":
-        raise typer.BadParameter("only `codex` smoke test is supported")
+    """Run a safety-gated real backend smoke test through assignment + daemon."""
+    if backend not in {"codex", "claude-code"}:
+        raise typer.BadParameter("backend must be `codex` or `claude-code`")
     if os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") != "1":
         typer.echo(
-            "Refusing real Codex smoke test: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+            f"Refusing real {backend} smoke test: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
         )
         raise typer.Exit(2)
     if not confirm_execution:
-        typer.echo("Refusing real Codex smoke test: --confirm-execution is required.")
+        typer.echo(f"Refusing real {backend} smoke test: --confirm-execution is required.")
         raise typer.Exit(2)
-    if not CodexBackend().is_available():
-        typer.echo("Refusing real Codex smoke test: codex command is not available.")
+    backend_adapter = CodexBackend() if backend == "codex" else ClaudeCodeBackend()
+    if not backend_adapter.is_available():
+        typer.echo(
+            f"Refusing real {backend} smoke test: {backend_adapter.executable_name} command is not available."
+        )
         raise typer.Exit(2)
 
     store = AriadneStore(state.root)
-    target_repo = ensure_demo_target_project(state.root)
+    ensure_demo_target_project(state.root)
     tickets = ingest_sources(store, default_source_fixtures())
     selected = select_code_task_ticket(store, tickets)
-    result = TicketRunOrchestrator(store).run_ticket(
-        selected.key,
-        backend_name="codex",
-        target_repo_path=str(target_repo),
+    assignment = store.create_assignment(
+        selected,
+        store.resolve_agent_profile(backend),
+        backend_name=backend,
+        agent_runtime=agent_runtime,
+        backlog_planner_name=backlog_planner,
+        assigned_by="backend smoke-test",
+    )
+    updated = store.load_ticket(selected.id).with_status(
+        TicketStatus.READY_FOR_EXECUTION,
+        "Ariadne",
+        f"Real {backend} smoke test assignment queued.",
+    )
+    store.save_ticket(updated)
+    daemon_result = LocalDaemonWorker(store, runtime_id=f"smoke-{backend}").run_once(
         confirm_execution=True,
+        agent_runtime=agent_runtime,
+        backlog_planner=backlog_planner,
         timeout_seconds=timeout_seconds,
     )
-    handoff_file = state.root / ".ariadne" / "handoffs" / f"{result.ticket_key}.md"
+    final_assignment = store.load_assignment(assignment.id)
+    result = daemon_result.ticket_run_result
+    if result is None:
+        typer.echo(f"ticket: {selected.key} ({selected.id})")
+        typer.echo(f"backend: {backend}")
+        typer.echo(f"assignment: {final_assignment.id}")
+        typer.echo(f"assignment status: {final_assignment.status.value}")
+        typer.echo(f"blocker: {final_assignment.blocker or daemon_result.message}")
+        raise typer.Exit(2)
     execution = store.load_execution_result(result.execution_result_id)
 
     typer.echo(f"ticket: {result.ticket_key} ({result.ticket_id})")
     typer.echo(f"backend: {result.backend_name}")
-    typer.echo(f"handoff file: {handoff_file}")
+    typer.echo(f"assignment: {final_assignment.id}")
+    typer.echo(f"assignment status: {final_assignment.status.value}")
+    typer.echo(f"handoff file: {execution.handoff_file}")
     typer.echo(f"execution result: {result.execution_result_id}")
     typer.echo(f"exit code: {execution.exit_code}")
     typer.echo(f"changed files: {', '.join(result.changed_files)}")
     typer.echo(f"test exit code: {result.test_exit_code}")
     typer.echo(f"review verdict: {result.review_verdict}")
+    typer.echo(f"agent runtime: {result.agent_runtime}")
+    if result.llm_agent_artifact_paths:
+        typer.echo(f"llm agent artifacts: {', '.join(result.llm_agent_artifact_paths)}")
+    typer.echo(f"backlog planner: {result.backlog_planner_name}")
     typer.echo(f"board: {result.board_path}")
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu dry-run plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    if final_assignment.status is not AssignmentStatus.DONE:
+        typer.echo(f"blocker: {final_assignment.blocker or 'smoke test did not finish cleanly'}")
+        raise typer.Exit(2)
 
 
 @ticket_app.command("create")
@@ -1220,6 +1261,10 @@ def _format_acceptance_coverage(review: ReviewReport) -> str:
 def daemon_run_once(
     runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    timeout_seconds: Annotated[
+        int | None,
+        typer.Option("--timeout-seconds", help="Maximum seconds for one execution backend command."),
+    ] = None,
     agent_runtime: Annotated[
         str | None,
         typer.Option("--agent-runtime", help="Override assignment upstream agent runtime: deterministic|llm."),
@@ -1234,6 +1279,7 @@ def daemon_run_once(
         confirm_execution=confirm_execution,
         agent_runtime=agent_runtime,
         backlog_planner=backlog_planner,
+        timeout_seconds=timeout_seconds,
     )
     if not result.did_work:
         typer.echo("no work")
@@ -1259,6 +1305,10 @@ def daemon_start(
     interval: Annotated[float, typer.Option("--interval")] = 5.0,
     max_iterations: Annotated[int | None, typer.Option("--max-iterations")] = None,
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    timeout_seconds: Annotated[
+        int | None,
+        typer.Option("--timeout-seconds", help="Maximum seconds for one execution backend command."),
+    ] = None,
     agent_runtime: Annotated[
         str | None,
         typer.Option("--agent-runtime", help="Override assignment upstream agent runtime: deterministic|llm."),
@@ -1275,6 +1325,7 @@ def daemon_start(
         confirm_execution=confirm_execution,
         agent_runtime=agent_runtime,
         backlog_planner=backlog_planner,
+        timeout_seconds=timeout_seconds,
     )
     typer.echo("daemon loop finished")
 

@@ -57,9 +57,9 @@ The Codex diagnosis reports whether the local `codex exec --help` advertises
 
 ## Run The Main Codex Demo
 
-`ari demo codex` is the first-class real Codex demo path. Without both safety
-gates it records a blocked result through the normal loop. With both gates it
-runs through `TicketRunOrchestrator` and `CodexBackend`.
+`ari demo codex` remains available as a compatibility shortcut. Without both
+safety gates it records a blocked result through the normal loop. With both
+gates it runs through `TicketRunOrchestrator` and `CodexBackend`.
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
@@ -74,6 +74,14 @@ python3.11 -m ariadne_ltb.cli demo codex --confirm-execution --timeout-seconds 1
 ```
 
 ## Run The Smoke Test
+
+`ari backend smoke-test codex` is the preferred Codex smoke path. It uses the
+same assignment-centered product flow as normal work:
+
+```text
+source fixtures -> ticket -> assignment -> local daemon -> CodexBackend
+  -> review -> memory -> board
+```
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
@@ -107,7 +115,8 @@ python3.11 -m ariadne_ltb.cli backend smoke-test codex --confirm-execution
 ```
 
 The command uses `TicketRunOrchestrator`; it does not duplicate the product
-pipeline.
+pipeline. It reaches the orchestrator through `LocalDaemonWorker` so the smoke
+also verifies assignment claiming, runtime heartbeat, and assignment status.
 
 ## Inspect Outputs
 

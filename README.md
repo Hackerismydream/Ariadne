@@ -277,10 +277,11 @@ Supported placeholders are `{target_repo}`, `{handoff_file}`, `{ticket_id}`,
 `{reasoning_effort}`, `{effort}`, `{service_tier}`, `{max_turns}`,
 `{system_prompt}`, and `{system_prompt_file}`.
 
-## Real CodexBackend Smoke Test
+## Real Backend Smoke Tests
 
-The default demo uses `FakeCodexBackend`. Real `CodexBackend` execution is
-optional, local, safety-gated, and never auto-commits.
+The default demo uses `FakeCodexBackend`. Real `CodexBackend` and
+`ClaudeCodeBackend` execution is optional, local, safety-gated, and never
+auto-commits.
 
 Run diagnostics:
 
@@ -298,17 +299,23 @@ The matrix records prompt-file/stdin support, skill materialization, timeout,
 diff/test capture, command availability, safety gates, and command-template
 presence without printing secrets.
 
-Diagnose Codex CLI command/template compatibility:
+Diagnose Codex or Claude Code CLI command/template compatibility:
 
 ```bash
 ari backend diagnose codex
+ari backend diagnose claude-code
 ```
 
-Run the first-class real Codex demo path only when explicitly gated:
+Run first-class real backend smoke tests only when explicitly gated. These use
+the product path: source fixtures -> ticket -> assignment -> local daemon ->
+backend execution -> review -> memory -> board.
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ari demo codex --confirm-execution --timeout-seconds 180
+ari backend smoke-test codex --confirm-execution --timeout-seconds 180
+
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+ari backend smoke-test claude-code --confirm-execution --timeout-seconds 180
 ```
 
 The full smoke-test runbook is in

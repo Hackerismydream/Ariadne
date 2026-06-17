@@ -6,7 +6,7 @@ import subprocess
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
-from ariadne_ltb.execution import CodexBackend, ExecutionContext, ShellBackend
+from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, ExecutionContext, ShellBackend
 from ariadne_ltb.models import FailureReason
 from ariadne_ltb.target_project import ensure_demo_target_project
 
@@ -73,6 +73,100 @@ def test_codex_smoke_test_blocks_when_codex_missing(
 
     assert result.exit_code == 2
     assert "codex command is not available" in result.output
+
+
+def test_claude_code_smoke_test_blocks_when_claude_missing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setattr(ClaudeCodeBackend, "is_available", lambda self: False)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "backend", "smoke-test", "claude-code", "--confirm-execution"],
+    )
+
+    assert result.exit_code == 2
+    assert "claude command is not available" in result.output
+
+
+def test_backend_smoke_test_runs_codex_through_assignment_daemon_path(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    patcher = tmp_path / "patch_demo.py"
+    patcher.write_text(
+        '''
+from pathlib import Path
+
+cli = Path("demo_todo/cli.py")
+text = cli.read_text(encoding="utf-8")
+if "export-json" not in text:
+    text = text.replace(
+        '    subcommands.add_parser("list")\\n',
+        '    subcommands.add_parser("list")\\n'
+        '    subcommands.add_parser("export-json")\\n',
+    )
+    text = text.replace(
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n',
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n'
+        '    if args.command == "export-json":\\n'
+        '        import json\\n'
+        '        print(json.dumps(load_tasks()))\\n'
+        '        return 0\\n',
+    )
+cli.write_text(text, encoding="utf-8")
+
+test = Path("tests/test_cli.py")
+test_text = test.read_text(encoding="utf-8")
+if "test_export_json_command" not in test_text:
+    test.write_text(
+        test_text
+        + '\\n\\ndef test_export_json_command(tmp_path, monkeypatch) -> None:\\n'
+        + '    monkeypatch.chdir(tmp_path)\\n'
+        + '    add = run_cli("add", "ship")\\n'
+        + '    exported = run_cli("export-json")\\n'
+        + '    assert add.returncode == 0\\n'
+        + '    assert exported.returncode == 0\\n'
+        + '    assert "ship" in exported.stdout\\n',
+        encoding="utf-8",
+    )
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("ARIADNE_CODEX_COMMAND_TEMPLATE", f"python3.11 {patcher}")
+    monkeypatch.setattr(CodexBackend, "is_available", lambda self: True)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "backend",
+            "smoke-test",
+            "codex",
+            "--confirm-execution",
+            "--timeout-seconds",
+            "30",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "backend: codex" in result.output
+    assert "assignment status: done" in result.output
+    assert "review verdict: pass" in result.output
+    assert "agent runtime: deterministic" in result.output
+    assert "changed files: demo_todo/cli.py, tests/test_cli.py" in result.output
 
 
 def test_existing_fake_codex_ticket_run_still_passes(tmp_path: Path) -> None:
