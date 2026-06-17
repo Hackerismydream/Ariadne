@@ -627,6 +627,21 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.extend(["", "### Review Verdict", ""])
     if review:
         lines.append(f"`{review.get('verdict', 'missing')}`")
+        lines.append(f"- Reviewer mode: `{review.get('reviewer_mode', 'unknown')}`")
+        lines.append(f"- Risk score: `{review.get('risk_score', 'missing')}`")
+        coverage = review.get("acceptance_criteria_coverage") or {}
+        if coverage:
+            covered = sum(1 for value in coverage.values() if value)
+            lines.append(f"- Acceptance coverage: `{covered}/{len(coverage)}`")
+        else:
+            lines.append("- Acceptance coverage: `not_applicable`")
+        if review.get("evidence_refs"):
+            refs = ", ".join(f"`{ref}`" for ref in review["evidence_refs"][:8])
+            lines.append(f"- Evidence refs: {refs}")
+        if review.get("next_ticket_suggestions"):
+            lines.append("- Review next-ticket suggestions:")
+            for suggestion in review["next_ticket_suggestions"][:5]:
+                lines.append(f"  - {suggestion}")
         if review.get("failed_checks"):
             lines.append("")
             lines.append("Failed checks:")

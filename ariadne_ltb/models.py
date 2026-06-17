@@ -776,6 +776,11 @@ class ReviewReport(AriadneModel):
     id: str
     ticket_id: str
     verdict: ReviewVerdict
+    reviewer_mode: str = "deterministic"
+    risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    acceptance_criteria_coverage: dict[str, bool] = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    next_ticket_suggestions: list[str] = Field(default_factory=list)
     passed_checks: list[str] = Field(default_factory=list)
     failed_checks: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

@@ -161,6 +161,20 @@ When enabled, planner artifacts include memory evidence with source refs, and
 the handoff plus board show a `Memory Context` / `Planner Memory Evidence`
 section.
 
+## Review Evidence
+
+Review reports include the conservative verdict plus structured acceptance
+evidence:
+
+```bash
+ari review run ARI-003
+ari review run ARI-003 --reviewer llm
+```
+
+Reports record reviewer mode, risk score, acceptance-criterion coverage,
+evidence refs, failed checks, required fixes, and next-ticket suggestions. The
+board shows the same review evidence for executed tickets.
+
 ## Upstream LLM Runtime
 
 Ariadne uses DeepSeek as the default upstream LLM runtime for non-coding agent

@@ -1065,6 +1065,8 @@ def ticket_review(
     """Review a ticket execution result."""
     review = _run_review(ticket_id, reviewer)
     typer.echo(f"reviewer verdict: {review.verdict.value}")
+    typer.echo(f"risk score: {review.risk_score}")
+    typer.echo(f"acceptance coverage: {_format_acceptance_coverage(review)}")
 
 
 @review_app.command("run")
@@ -1076,6 +1078,8 @@ def review_run(
     review = _run_review(ticket_id, reviewer)
     typer.echo(f"reviewer: {reviewer}")
     typer.echo(f"reviewer verdict: {review.verdict.value}")
+    typer.echo(f"risk score: {review.risk_score}")
+    typer.echo(f"acceptance coverage: {_format_acceptance_coverage(review)}")
     typer.echo(f"review report: {review.id}")
 
 
@@ -1096,6 +1100,14 @@ def _run_review(ticket_id: str, reviewer: str) -> ReviewReport:
         raise typer.BadParameter("reviewer must be `deterministic` or `llm`")
     store.save_review_report(review)
     return review
+
+
+def _format_acceptance_coverage(review: ReviewReport) -> str:
+    if not review.acceptance_criteria_coverage:
+        return "not_applicable"
+    covered = sum(1 for value in review.acceptance_criteria_coverage.values() if value)
+    total = len(review.acceptance_criteria_coverage)
+    return f"{covered}/{total}"
 
 
 @daemon_app.command("run-once")

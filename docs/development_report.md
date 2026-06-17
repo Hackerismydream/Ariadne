@@ -2626,3 +2626,57 @@ Known limitations:
   snooze, and recovery workflow states remain future work.
 - Search is lexical and local; ranking is intentionally simple until retrieval
   requirements harden around real dogfood evidence.
+
+## 2026-06-17 Review Eval Acceptance Evidence Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented:
+
+- Extended `ReviewReport` with reviewer mode, risk score,
+  acceptance-criterion coverage, evidence refs, and next-ticket suggestions.
+- Updated deterministic reviewer output to score risk from verdict, failed
+  checks, warnings, failure reasons, and uncovered acceptance criteria.
+- Updated LLM reviewer output to preserve deterministic baseline evidence and
+  mark missing-key LLM reviews as `llm_blocked` with high risk.
+- Updated `ari ticket review` and `ari review run` to print risk score and
+  acceptance coverage.
+- Updated the board review section to show reviewer mode, risk score,
+  acceptance coverage, evidence refs, and review next-ticket suggestions.
+- Added deterministic tests for passing review evidence, blocked review risk,
+  and missing-key LLM reviewer evidence preservation.
+- Updated README and the active production execution plan.
+
+Real integration smoke:
+
+- No new real LLM call was attempted in this slice. LLM reviewer integration
+  remains available through `ari review run <ticket> --reviewer llm`; tests use
+  missing-key and fake-transport paths so they do not require network.
+
+Safety boundaries:
+
+- Review scoring is local and deterministic unless the user explicitly selects
+  `--reviewer llm`.
+- Missing DeepSeek configuration produces a blocked review report instead of
+  silently falling back to deterministic success.
+
+Verification:
+
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest tests/test_review_risk_scoring.py
+  tests/test_llm_runtime.py tests/test_true_mvp_product_loop.py`: passed.
+- `python3.11 -m pytest`: 190 passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; local `.env`
+  finding was redacted.
+- `python3.11 -m ariadne_ltb.cli review run ARI-003`: passed and printed
+  reviewer mode, verdict, risk score, and acceptance coverage.
+- `scripts/verify_v1.sh`: passed.
+
+Known limitations:
+
+- Risk scoring is intentionally simple and conservative; it is not yet calibrated
+  against a production corpus of real agent runs.
+- Next-ticket suggestions are review-local hints; full ticket generation still
+  happens through the existing next-ticket/backlog path.

@@ -117,10 +117,17 @@ def review_execution(
         verdict = ReviewVerdict.BLOCKED
     else:
         verdict = ReviewVerdict.PASS if not failed else ReviewVerdict.NEEDS_FIX
+    coverage = _acceptance_coverage(packet, execution, failed)
+    risk_score = _risk_score(verdict, failed, warnings, failure_reasons, coverage)
     return ReviewReport(
         id=stable_id("review", ticket.id, execution.id if execution else "missing"),
         ticket_id=ticket.id,
         verdict=verdict,
+        reviewer_mode="deterministic",
+        risk_score=risk_score,
+        acceptance_criteria_coverage=coverage,
+        evidence_refs=_evidence_refs(ticket, packet, execution),
+        next_ticket_suggestions=_next_ticket_suggestions(verdict, failed, warnings),
         passed_checks=passed,
         failed_checks=failed,
         warnings=warnings,
@@ -154,15 +161,34 @@ def review_execution_with_llm(
         return _blocked_llm_review(ticket, execution, baseline, redact_secrets(f"LLM reviewer failed: {exc}"))
 
     verdict = _conservative_verdict(baseline.verdict, payload.verdict, payload.failed_checks)
+    failed_checks = _dedupe([*baseline.failed_checks, *payload.failed_checks])
+    warnings = _dedupe([*baseline.warnings, *payload.warnings, "Reviewer mode: llm"])
+    failure_reasons = list(dict.fromkeys([*baseline.failure_reasons, *payload.failure_reasons]))
     return ReviewReport(
         id=stable_id("review", ticket.id, execution.id if execution else "missing", "llm"),
         ticket_id=ticket.id,
         verdict=verdict,
+        reviewer_mode="llm",
+        risk_score=_risk_score(
+            verdict,
+            failed_checks,
+            warnings,
+            failure_reasons,
+            baseline.acceptance_criteria_coverage,
+        ),
+        acceptance_criteria_coverage=baseline.acceptance_criteria_coverage,
+        evidence_refs=baseline.evidence_refs,
+        next_ticket_suggestions=_dedupe(
+            [
+                *baseline.next_ticket_suggestions,
+                *_next_ticket_suggestions(verdict, failed_checks, warnings),
+            ]
+        ),
         passed_checks=_dedupe([*baseline.passed_checks, *payload.passed_checks]),
-        failed_checks=_dedupe([*baseline.failed_checks, *payload.failed_checks]),
-        warnings=_dedupe([*baseline.warnings, *payload.warnings, "Reviewer mode: llm"]),
+        failed_checks=failed_checks,
+        warnings=warnings,
         required_fixes=_dedupe([*baseline.required_fixes, *payload.required_fixes]),
-        failure_reasons=list(dict.fromkeys([*baseline.failure_reasons, *payload.failure_reasons])),
+        failure_reasons=failure_reasons,
     )
 
 
@@ -176,6 +202,13 @@ def _blocked_llm_review(
         id=stable_id("review", ticket.id, execution.id if execution else "missing", "llm-blocked"),
         ticket_id=ticket.id,
         verdict=ReviewVerdict.BLOCKED,
+        reviewer_mode="llm_blocked",
+        risk_score=1.0,
+        acceptance_criteria_coverage=baseline.acceptance_criteria_coverage,
+        evidence_refs=baseline.evidence_refs,
+        next_ticket_suggestions=_dedupe(
+            [*baseline.next_ticket_suggestions, "Fix LLM reviewer configuration and rerun review."]
+        ),
         passed_checks=baseline.passed_checks,
         failed_checks=_dedupe([*baseline.failed_checks, "LLM reviewer completed"]),
         warnings=_dedupe([*baseline.warnings, "Reviewer mode: llm"]),
@@ -247,3 +280,74 @@ def _llm_review_prompt(
 
 def _dedupe(items: list[str]) -> list[str]:
     return list(dict.fromkeys(item for item in items if item))
+
+
+def _acceptance_coverage(
+    packet: BuildPacket,
+    execution: ExecutionResult | None,
+    failed_checks: list[str],
+) -> dict[str, bool]:
+    if not packet.acceptance_criteria:
+        return {}
+    if execution is None or execution.blocked:
+        return {criterion: False for criterion in packet.acceptance_criteria}
+    execution_ok = execution.exit_code == 0 and execution.test_exit_code == 0
+    scope_ok = "Changed files are within allowed scope" not in failed_checks
+    return {criterion: execution_ok and scope_ok for criterion in packet.acceptance_criteria}
+
+
+def _evidence_refs(
+    ticket: BuildTicket,
+    packet: BuildPacket,
+    execution: ExecutionResult | None,
+) -> list[str]:
+    refs = [ticket.id, packet.id]
+    if ticket.build_packet_id and ticket.build_packet_id not in refs:
+        refs.append(ticket.build_packet_id)
+    refs.extend(item.id for item in packet.evidence[:5])
+    if execution:
+        refs.append(execution.id)
+        refs.extend(execution.changed_files[:10])
+    return _dedupe(refs)
+
+
+def _risk_score(
+    verdict: ReviewVerdict,
+    failed_checks: list[str],
+    warnings: list[str],
+    failure_reasons: list[FailureReason],
+    coverage: dict[str, bool],
+) -> float:
+    if verdict is ReviewVerdict.BLOCKED:
+        return 1.0
+    score = 0.0
+    score += min(len(failed_checks) * 0.16, 0.64)
+    score += min(len(warnings) * 0.06, 0.18)
+    score += min(len(failure_reasons) * 0.08, 0.24)
+    if coverage:
+        uncovered = sum(1 for covered in coverage.values() if not covered)
+        score += min((uncovered / len(coverage)) * 0.35, 0.35)
+    if verdict is ReviewVerdict.NEEDS_HUMAN_REVIEW:
+        score = max(score, 0.7)
+    elif verdict is ReviewVerdict.NEEDS_FIX:
+        score = max(score, 0.55)
+    return round(min(score, 1.0), 3)
+
+
+def _next_ticket_suggestions(
+    verdict: ReviewVerdict,
+    failed_checks: list[str],
+    warnings: list[str],
+) -> list[str]:
+    suggestions: list[str] = []
+    if verdict is ReviewVerdict.PASS and warnings:
+        suggestions.append("Create a follow-up ticket to reduce reviewer warnings.")
+    if any("acceptance" in check.lower() for check in failed_checks):
+        suggestions.append("Add explicit acceptance criteria and rerun planning.")
+    if any("changed files" in check.lower() or "scope" in check.lower() for check in failed_checks):
+        suggestions.append("Constrain backend changes to Build Packet affected modules.")
+    if any("tests" in check.lower() for check in failed_checks):
+        suggestions.append("Fix target project tests before marking the ticket done.")
+    if verdict is ReviewVerdict.BLOCKED:
+        suggestions.append("Resolve blocker evidence and rerun the ticket.")
+    return _dedupe(suggestions)

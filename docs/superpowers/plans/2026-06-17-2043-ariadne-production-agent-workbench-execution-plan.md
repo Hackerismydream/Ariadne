@@ -326,12 +326,15 @@ Automated tests use fake LLM transport.
 
 Review report must include:
 
-- verdict;
-- risk score;
-- acceptance criterion coverage;
-- evidence refs;
-- next tickets;
-- whether the review came from deterministic or real LLM reviewer.
+- [x] verdict;
+- [x] risk score;
+- [x] acceptance criterion coverage;
+- [x] evidence refs;
+- [x] next-ticket suggestions;
+- [x] whether the review came from deterministic or real LLM reviewer.
+
+Review evidence is visible through `ari review run`, persisted review reports,
+and the board review section.
 
 ## Phase 7: Store, Workdir, Release Evidence
 
