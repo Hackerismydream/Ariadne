@@ -2128,3 +2128,36 @@ Known limitations:
   from memory records but does not recursively parse every referenced artifact.
 - Memory is opt-in for planning to avoid historical state changing deterministic
   demo behavior unexpectedly.
+
+## Core Roadmap: Multica-Level Local Maturity
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Added:
+
+- `docs/ops/ARIADNE_MULTICA_MATURITY_ROADMAP.md`
+
+Purpose:
+
+- Capture the current continuation path after the core and frontend branches
+  diverged.
+- Preserve the current ADR-0004 direction: Ariadne is a local-first
+  Ticket-centered Agent Workbench, not a Goal-first planner and not a Multica
+  server clone.
+- Make the next development step explicit: integrate
+  `codex/ariadne-core-orchestration-backends-3` and
+  `codex/ariadne-workbench-frontend-lane` before continuing broad feature work.
+- Define the remaining work needed to approach Multica-level local maturity:
+  resource boundaries, inbox and search, review quality, workdir cleanup, store
+  durability, board/web parity, dogfood evidence, and release readiness.
+
+Verification:
+
+- `git diff --check`: passed.
+
+Known limitations:
+
+- This is a planning and handoff document only. It does not implement remaining
+  runtime, resource, review, frontend, or release features.
+- The document records the current branch reality as of 2026-06-17. Future
+  agents must re-check branch state before merging or continuing work.
