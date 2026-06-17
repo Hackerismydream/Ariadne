@@ -25,6 +25,7 @@ from ariadne_ltb.full_demo import (
     select_code_task_ticket,
 )
 from ariadne_ltb.github_integration import (
+    create_github_issue_for_ticket,
     github_doctor_lines,
     link_ticket_to_github,
     sync_ticket_with_github,
@@ -1567,6 +1568,44 @@ def github_link(
     if result.branch:
         typer.echo(f"branch: {result.branch}")
     typer.echo(f"result: {result_path}")
+
+
+@github_app.command("create-issue")
+def github_create_issue(
+    ticket_id: str,
+    repo: Annotated[str | None, typer.Option("--repo", help="GitHub repo as owner/name.")] = None,
+    branch: Annotated[str | None, typer.Option("--branch", help="Git branch name.")] = None,
+    confirm_write: Annotated[
+        bool,
+        typer.Option("--confirm-write", help="Allow GitHub remote issue creation through gh CLI."),
+    ] = False,
+) -> None:
+    """Create a GitHub issue from a local Ariadne ticket and link it back."""
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    result = create_github_issue_for_ticket(
+        store,
+        ticket,
+        repo=repo,
+        branch=branch,
+        confirm_write=confirm_write,
+    )
+    result_path = store.save_github_integration_result(result)
+    typer.echo(f"GitHub create issue result: {result.id}")
+    typer.echo(f"ok: {str(result.ok).lower()}")
+    typer.echo(f"blocked: {str(result.blocked).lower()}")
+    typer.echo(f"repo: {result.repo or ''}")
+    if result.issue_number:
+        typer.echo(f"issue: {result.issue_number}")
+    if result.issue_url:
+        typer.echo(f"issue url: {result.issue_url}")
+    if result.branch:
+        typer.echo(f"branch: {result.branch}")
+    typer.echo(f"result: {result_path}")
+    if result.reason:
+        typer.echo(f"reason: {result.reason}")
+    if not result.ok:
+        raise typer.Exit(2)
 
 
 @github_app.command("sync")

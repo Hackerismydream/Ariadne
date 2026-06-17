@@ -2747,3 +2747,93 @@ Known limitations:
   attestation.
 - Workdir cleanup does not delete assignment history; it only removes generated
   workdirs and marks worktree isolation records inactive.
+
+## 2026-06-17 Product Dogfood Slice
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+Implemented / fixed:
+
+- Fixed the Feishu `lark-cli` adapter to run from the integration workspace and
+  pass `--content @<relative-file>` instead of an absolute path. The real
+  `lark-cli` rejected absolute `@file` paths.
+- Updated Feishu tests to assert the subprocess cwd and relative content path.
+- Added `ari github create-issue <ticket> --confirm-write` so Ariadne can create
+  a controlled GitHub issue from a local ticket before running sync comments.
+- Ran real DeepSeek, Codex, Claude Code, and Feishu dogfood paths.
+- Ran real GitHub issue creation and sync comment dogfood paths.
+- Regenerated release evidence packet and board after real dogfood runs.
+
+Real integration results:
+
+- `python3.11 -m ariadne_ltb.cli llm doctor`: passed; DeepSeek key reported as
+  set without printing the value.
+- `python3.11 -m ariadne_ltb.cli llm smoke --provider deepseek
+  --confirm-external`: passed with real DeepSeek API; model `deepseek-v4-pro`;
+  usage total tokens `147`.
+- `python3.11 -m ariadne_ltb.cli backend diagnose codex`: passed; local Codex
+  CLI found at `/opt/homebrew/bin/codex`.
+- `python3.11 -m ariadne_ltb.cli backend diagnose claude-code`: passed; local
+  Claude CLI found at `/opt/homebrew/bin/claude`.
+- First real Codex smoke attempt failed with execution
+  `execution_c6bde67efd51` because the local Codex provider rejected
+  `service_tier=flex` with `Unsupported service_tier: flex`.
+- Local Codex config was reverted to `service_tier=fast` because the real
+  provider rejected `flex` in this environment.
+- Second real Codex smoke passed with execution `execution_52c4c7349868`:
+  exit code `0`, test exit code `0`, changed files `demo_todo/cli.py` and
+  `tests/test_cli.py`, provider session `019ed5e8-c434-75b0-8ac1-4bc403144b70`,
+  reviewer verdict `pass`.
+- Real Claude Code run passed with execution `execution_ace5b5b8d093`: exit
+  code `0`, test exit code `0`, changed files `demo_todo/cli.py` and
+  `tests/test_cli.py`, provider session `95689d7e-81b7-44c6-873c-0359fea12669`,
+  reviewer verdict `pass`.
+- First real Feishu write failed with result `feishu_write_73f39fe21d34`
+  because `lark-cli` requires `@file` paths to be relative to cwd.
+- After the adapter fix, real Feishu write passed with result
+  `feishu_write_92be55ff82ce` and document URL
+  `https://icnoljnkix43.feishu.cn/docx/KqOldcuIoomZZ6xDJhgcrNIdnFc`.
+- `python3.11 -m ariadne_ltb.cli github doctor`: passed; `gh auth status` is
+  ok for repo `Hackerismydream/Ariadne`.
+- `python3.11 -m ariadne_ltb.cli github create-issue ARI-003 --repo
+  Hackerismydream/Ariadne --branch codex/ariadne-core-orchestration-backends-3
+  --confirm-write`: passed and created issue #8 at
+  `https://github.com/Hackerismydream/Ariadne/issues/8`.
+- `python3.11 -m ariadne_ltb.cli github sync ARI-003 --confirm-write`: passed
+  and posted sync comment
+  `https://github.com/Hackerismydream/Ariadne/issues/8#issuecomment-4731296757`.
+
+Safety boundaries:
+
+- Real Codex and Claude execution used
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` plus `--confirm-execution`.
+- Real Feishu write used `FEISHU_ENABLE_WRITE=1` plus `--confirm-write`.
+- No Ariadne runtime path committed, pushed, merged, created a PR, or auto-merged.
+- Real coding changes were confined to the generated demo target project under
+  `.ariadne/demo_target_project`.
+- Secret scans continued to redact the local `.env` finding.
+
+Verification so far:
+
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, `198 passed`.
+- `python3.11 -m pytest tests/test_feishu_real_write_gate.py
+  tests/test_github_integration.py`: passed, `12 passed`.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; it reports local
+  `.env` as a blocked/redacted secret finding.
+- `scripts/verify_v1.sh`: passed; final release evidence packet
+  `release_evidence_1f63a56049f0` reports store invariants ok, active workdirs
+  `0`, dirty workdirs `0`.
+- `python3.11 -m ariadne_ltb.cli evidence packet`: passed after real dogfood.
+- `git grep` for DeepSeek, GitHub, and Feishu secret patterns found only
+  placeholders in `.env.example` and archived workpack docs, not real secrets.
+
+Known limitations:
+
+- Codex `service_tier=flex` is not usable in this current provider environment;
+  real Codex success currently requires `service_tier=fast`.
+- GitHub PR/status write paths are still narrower than the full roadmap: this
+  slice proves issue creation and comment sync, while PR creation/check-status
+  automation remains a follow-up.

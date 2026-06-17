@@ -84,6 +84,8 @@ def test_feishu_write_uses_lark_cli_records_doc_and_redacts_secrets(
 
     def fake_run(command, **kwargs):  # type: ignore[no-untyped-def]
         assert command[0] == "/usr/local/bin/lark-cli"
+        assert kwargs["cwd"].name == "ARI-003"
+        assert any(item.startswith("@") and not Path(item[1:]).is_absolute() for item in command)
         assert "--parent-token" in command
         assert "folder-token-value" in command
         return CompletedProcess(

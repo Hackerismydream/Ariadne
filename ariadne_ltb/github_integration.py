@@ -77,6 +77,124 @@ def link_ticket_to_github(
     return result
 
 
+def create_github_issue_for_ticket(
+    store: AriadneStore,
+    ticket: BuildTicket,
+    *,
+    repo: str | None,
+    branch: str | None,
+    confirm_write: bool,
+) -> GitHubIntegrationResult:
+    resolved_repo = repo or infer_github_repo(store.root)
+    resolved_branch = branch or _git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], store.root)
+    result_id = stable_id("github", ticket.id, "create_issue", resolved_repo, utc_now())
+    if not confirm_write:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="create_issue",
+            reason="GitHub issue creation writes require --confirm-write",
+            repo=resolved_repo,
+            issue=None,
+            pr=None,
+            branch=resolved_branch,
+        )
+    gh_path = shutil.which("gh")
+    if gh_path is None:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="create_issue",
+            reason="gh command is not installed",
+            failure_reason=FailureReason.COMMAND_UNAVAILABLE,
+            repo=resolved_repo,
+            issue=None,
+            pr=None,
+            branch=resolved_branch,
+        )
+    if not resolved_repo:
+        return _blocked_result(
+            result_id=result_id,
+            ticket=ticket,
+            operation="create_issue",
+            reason="GitHub repo is required before issue creation",
+            failure_reason=FailureReason.INVALID_RESOURCE,
+            repo=resolved_repo,
+            issue=None,
+            pr=None,
+            branch=resolved_branch,
+        )
+
+    body_path = _write_issue_body(store, ticket)
+    title = f"[Ariadne] {ticket.key}: {ticket.title}"
+    command = [
+        gh_path,
+        "issue",
+        "create",
+        "--repo",
+        resolved_repo,
+        "--title",
+        title,
+        "--body-file",
+        str(body_path),
+    ]
+    issue_result = _run(command, cwd=store.root)
+    commands = [_redact_command(command)]
+    if issue_result.returncode != 0:
+        return _failed_result(
+            result_id,
+            ticket,
+            "create_issue",
+            resolved_repo,
+            None,
+            None,
+            resolved_branch,
+            commands,
+            issue_result,
+            store.root,
+        )
+
+    stdout = _redact_text(issue_result.stdout)
+    stderr = _redact_text(issue_result.stderr)
+    issue_url = _extract_issue_url(stdout)
+    issue_number = _extract_issue_number(issue_url)
+    ticket = ticket.model_copy(
+        deep=True,
+        update={
+            "metadata": ticket.metadata
+            | {
+                "github": {
+                    "repo": resolved_repo,
+                    "issue": issue_number,
+                    "pr": None,
+                    "branch": resolved_branch,
+                    "linked_at": utc_now(),
+                    "created_by": "ariadne",
+                }
+            }
+        },
+    )
+    store.save_ticket(ticket)
+    return GitHubIntegrationResult(
+        id=result_id,
+        ticket_id=ticket.id,
+        ticket_key=ticket.key,
+        operation="create_issue",
+        ok=True,
+        blocked=False,
+        repo=resolved_repo,
+        issue_number=issue_number,
+        issue_url=issue_url,
+        branch=resolved_branch,
+        commit_sha=_git_output(["git", "rev-parse", "HEAD"], store.root),
+        remote_url=_git_output(["git", "config", "--get", "remote.origin.url"], store.root),
+        command_summaries=commands,
+        stdout=stdout,
+        stderr=stderr,
+        evidence={"body_path": str(body_path)},
+    )
+
+
 def sync_ticket_with_github(
     store: AriadneStore,
     ticket: BuildTicket,
@@ -281,6 +399,26 @@ def _write_comment_body(
     return path
 
 
+def _write_issue_body(store: AriadneStore, ticket: BuildTicket) -> Path:
+    workspace = store.github_integrations_dir / ticket.key
+    workspace.mkdir(parents=True, exist_ok=True)
+    path = workspace / f"{ticket.id}_github_issue.md"
+    path.write_text(
+        f"### Ariadne ticket {ticket.key}\n\n"
+        f"- Ticket: `{ticket.key}`\n"
+        f"- Local ticket id: `{ticket.id}`\n"
+        f"- Status: `{ticket.status.value}`\n"
+        f"- Source type: `{ticket.source_type}`\n"
+        f"- Source ref: `{ticket.source_ref}`\n\n"
+        "This issue was created by Ariadne's gated GitHub integration from the "
+        "local ticket-centered Agent Workbench.\n\n"
+        "Description:\n\n"
+        f"{ticket.description.strip()}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _failed_result(
     result_id: str,
     ticket: BuildTicket,
@@ -379,6 +517,18 @@ def _redact_text(text: str) -> str:
     redacted = re.sub(r"(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]+", r"\1[REDACTED]", redacted)
     redacted = re.sub(r"gh[pousr]_[A-Za-z0-9_]{20,}", "[REDACTED]", redacted)
     return redacted
+
+
+def _extract_issue_url(stdout: str) -> str | None:
+    match = re.search(r"https://github\.com/[^\s]+/issues/\d+", stdout)
+    return match.group(0) if match else None
+
+
+def _extract_issue_number(issue_url: str | None) -> int | None:
+    if not issue_url:
+        return None
+    match = re.search(r"/issues/(?P<number>\d+)$", issue_url)
+    return int(match.group("number")) if match else None
 
 
 def _secret_values() -> list[str]:

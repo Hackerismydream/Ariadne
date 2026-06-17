@@ -85,6 +85,81 @@ def test_github_link_records_ticket_metadata_and_result(tmp_path: Path) -> None:
     assert persisted["issue_number"] == 123
 
 
+def test_github_create_issue_blocks_without_confirm_and_persists_result(tmp_path: Path) -> None:
+    _seed_ticket(tmp_path)
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "github", "create-issue", "ARI-003", "--repo", "owner/repo"],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "--confirm-write" in result.output
+    persisted = _latest_result(tmp_path)
+    assert persisted["operation"] == "create_issue"
+    assert persisted["blocked"] is True
+    assert persisted["failure_reason"] == FailureReason.EXTERNAL_EXECUTION_BLOCKED.value
+
+
+def test_github_create_issue_uses_gh_links_ticket_and_redacts_token(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _seed_ticket(tmp_path)
+    fake_token = _fake_github_token()
+    monkeypatch.setenv("GITHUB_TOKEN", fake_token)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", lambda command: "/usr/local/bin/gh")
+
+    def fake_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        text = " ".join(command)
+        if command[:3] == ["git", "config", "--get"]:
+            return CompletedProcess(command, 0, stdout="https://github.com/owner/repo.git\n", stderr="")
+        if command[:2] == ["git", "rev-parse"]:
+            return CompletedProcess(command, 0, stdout="abc123def456\n", stderr="")
+        if "issue create" in text:
+            body_file = Path(command[command.index("--body-file") + 1])
+            assert body_file.exists()
+            assert "Ariadne ticket" in body_file.read_text(encoding="utf-8")
+            return CompletedProcess(
+                command,
+                0,
+                stdout="https://github.com/owner/repo/issues/42\n",
+                stderr=f"created token={fake_token}",
+            )
+        return CompletedProcess(command, 1, stdout="", stderr=f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "github",
+            "create-issue",
+            "ARI-003",
+            "--repo",
+            "owner/repo",
+            "--branch",
+            "codex/phase-4",
+            "--confirm-write",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    store = AriadneStore(tmp_path)
+    linked = store.resolve_ticket("ARI-003")
+    assert linked.metadata["github"]["issue"] == 42
+    persisted = _latest_result(tmp_path)
+    assert persisted["ok"] is True
+    assert persisted["operation"] == "create_issue"
+    assert persisted["issue_number"] == 42
+    assert persisted["issue_url"] == "https://github.com/owner/repo/issues/42"
+    assert persisted["branch"] == "codex/phase-4"
+    assert "ghp_" not in json.dumps(persisted)
+    assert "[REDACTED]" in json.dumps(persisted)
+
+
 def test_github_sync_blocks_without_confirm_and_persists_result(tmp_path: Path) -> None:
     _seed_ticket(tmp_path)
     CliRunner().invoke(

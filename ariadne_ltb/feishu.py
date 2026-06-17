@@ -59,7 +59,7 @@ def create_lark_doc_from_plan(
     command = _lark_create_doc_command(lark_cli_path, content_path)
     command_text = _redact_text(shlex.join(command))
 
-    completed = subprocess.run(command, text=True, capture_output=True, check=False)
+    completed = subprocess.run(command, cwd=workspace, text=True, capture_output=True, check=False)
     stdout = _redact_text(completed.stdout)
     stderr = _redact_text(completed.stderr)
     payload = _parse_stdout(stdout)
@@ -104,7 +104,7 @@ def _lark_create_doc_command(lark_cli_path: str, content_path: Path) -> list[str
         "--doc-format",
         "markdown",
         "--content",
-        f"@{content_path}",
+        f"@{content_path.name}",
         "--json",
     ]
     if os.environ.get("FEISHU_FOLDER_TOKEN"):

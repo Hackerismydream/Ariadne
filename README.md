@@ -370,11 +370,12 @@ errors are recorded as blocked/failed write results with secrets redacted.
 ## GitHub
 
 GitHub integration uses the local `gh` CLI and environment-only credentials.
-Tickets can be linked to remote issues/PRs, then synced with explicit write
-confirmation:
+Tickets can create controlled remote issues, link to existing issues/PRs, then
+sync with explicit write confirmation:
 
 ```bash
 python3.11 -m ariadne_ltb.cli github doctor
+python3.11 -m ariadne_ltb.cli github create-issue ARI-003 --repo Hackerismydream/Ariadne --confirm-write
 python3.11 -m ariadne_ltb.cli github link ARI-003 --repo Hackerismydream/Ariadne --issue 123
 python3.11 -m ariadne_ltb.cli github sync ARI-003 --confirm-write
 ```

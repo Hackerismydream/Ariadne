@@ -387,6 +387,22 @@ ari evidence packet
 If any real step fails, fix it when safe. If the blocker is external login,
 quota, or missing user permission, record exact evidence and next action.
 
+- [x] `ari llm doctor` confirmed DeepSeek configuration without printing the key.
+- [x] `ari llm smoke --provider deepseek --confirm-external` completed with real DeepSeek API.
+- [x] `ari backend diagnose codex` confirmed local Codex CLI and service tier.
+- [x] `ari backend diagnose claude-code` confirmed local Claude Code CLI.
+- [x] Real CodexBackend smoke test completed with exit code 0 and review pass after
+  reverting unsupported local `service_tier=flex` back to `fast`.
+- [x] Real Claude Code ticket run completed with exit code 0 and review pass.
+- [x] Real Feishu write completed through `lark-cli` after fixing relative
+  content path handling.
+- [x] `ari github doctor` confirmed `gh auth status` is ok.
+- [x] Added `ari github create-issue <ticket> --confirm-write` so Ariadne can
+  create a controlled GitHub issue from a local ticket before sync.
+- [x] Real GitHub write completed: `ari github create-issue ARI-003
+  --confirm-write` created issue #8 and `ari github sync ARI-003
+  --confirm-write` posted a sync comment.
+
 ## Verification
 
 For code slices:
