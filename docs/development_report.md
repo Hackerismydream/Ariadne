@@ -1425,3 +1425,59 @@ Known limitations:
   yet to configure it per daemon run.
 - There is no heartbeat-based lease extension yet. Long-running assignments
   should either complete within the lease or add a future renewal step.
+
+## Core Batch 9: Unified Failure Pipeline
+
+Branch: `codex/ariadne-core-orchestration-backends-3`
+
+This batch implements `ARI-MUL-02 / LOC-7` by centralizing assignment failure,
+block, and cancellation side effects.
+
+Implemented files:
+
+- `ariadne_ltb/failure.py`
+- `ariadne_ltb/daemon.py`
+- `ariadne_ltb/backlog.py`
+- `tests/test_failure_pipeline.py`
+- `docs/development_report.md`
+
+Implemented behavior:
+
+- Added `record_assignment_failure()` as the common local failure pipeline.
+- The pipeline updates assignment status, failure reason, blocker, lease state,
+  ticket status, ticket event log, blocker comment, and runtime journal event.
+- Runtime journal events carry typed `FailureReason` and
+  `retry_recommendation` metadata.
+- Safe retry reasons produce `ari ticket retry <ticket-key>`.
+- Unsafe or unknown reasons produce `human_review_required`.
+- Daemon exception, execution blocked, and reviewer blocked paths now use the
+  same failure pipeline.
+- Backlog supersede now cancels open assignments through the same failure
+  pipeline while preserving the ticket's `superseded` status.
+
+Safety boundaries:
+
+- The handler records state and recommendations only; it does not auto-retry,
+  auto-commit, auto-push, auto-merge, or create PRs.
+- Retry safety remains conservative and still requires explicit retry commands.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_failure_pipeline.py
+  tests/test_agent_teammate_mode.py tests/test_backlog_update_loop.py -q`:
+  passed, 24 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m pytest`: passed, 128 tests.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor store`: passed with
+  `store invariants: ok`, `errors: 0`, and `warnings: 0`.
+- `scripts/verify_v1.sh`: exited 0.
+
+Known limitations:
+
+- Orchestrator-level blocked `ExecutionResult` creation is still separate from
+  assignment failure recording. It returns execution evidence, while the daemon
+  records assignment failure state.
+- Retry policy is still a small typed allowlist, not a learned policy.

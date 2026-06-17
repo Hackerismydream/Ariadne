@@ -5,8 +5,10 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from ariadne_ltb.failure import record_assignment_failure
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
+    AssignmentStatus,
     BuildTicket,
     CommentAuthorType,
     CommentKind,
@@ -109,39 +111,54 @@ class LocalDaemonWorker:
                 isolate_worktree=True,
             )
         except Exception as exc:  # pragma: no cover - defensive, tested through blocked result path
-            blocked = running.mark_failed(str(exc), FailureReason.AGENT_ERROR)
-            self.store.save_assignment(blocked)
-            self._write_blocker(ticket, blocked, str(exc))
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.FAILED,
+                str(exc),
+                FailureReason.AGENT_ERROR,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="execution",
+            )
             self._heartbeat(
                 DaemonStatus.FAILED,
                 "failed",
-                assignment=blocked,
+                assignment=failure.assignment,
                 ticket=ticket,
-                last_error=str(exc),
+                last_event_id=failure.event_id,
+                last_error=failure.assignment.blocker,
             )
             return DaemonRunResult(
                 runtime_id=self.runtime_id,
                 did_work=True,
                 assignment_id=running.id,
                 ticket_key=ticket.key,
-                status=blocked.status.value,
+                status=failure.assignment.status.value,
                 message=str(exc),
             )
 
         execution = self.store.load_execution_result(result.execution_result_id)
         if execution.blocked:
-            blocked = running.mark_blocked(
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.BLOCKED,
                 execution.block_reason or "Execution backend blocked.",
                 execution.failure_reason or FailureReason.UNKNOWN,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="execution",
             )
-            self.store.save_assignment(blocked)
-            self._write_blocker(ticket, blocked, blocked.blocker or "Execution blocked.")
             self._heartbeat(
                 DaemonStatus.BLOCKED,
                 "blocked",
-                assignment=blocked,
+                assignment=failure.assignment,
                 ticket=ticket,
-                last_error=blocked.blocker,
+                last_event_id=failure.event_id,
+                last_error=failure.assignment.blocker,
             )
         elif result.review_verdict == "pass":
             done = running.mark_done(
@@ -178,18 +195,24 @@ class LocalDaemonWorker:
                 last_event_id=done_event.id,
             )
         else:
-            blocked = running.mark_blocked(
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.BLOCKED,
                 f"Reviewer verdict: {result.review_verdict}.",
                 FailureReason.REVIEW_FAILED,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="review",
             )
-            self.store.save_assignment(blocked)
-            self._write_blocker(ticket, blocked, blocked.blocker or "Review blocked.")
             self._heartbeat(
                 DaemonStatus.BLOCKED,
                 "blocked",
-                assignment=blocked,
+                assignment=failure.assignment,
                 ticket=ticket,
-                last_error=blocked.blocker,
+                last_event_id=failure.event_id,
+                last_error=failure.assignment.blocker,
             )
 
         latest = self.store.load_assignment(running.id)
@@ -225,35 +248,6 @@ class LocalDaemonWorker:
 
     def _next_assignment(self) -> TicketAssignment | None:
         return self.store.claim_next_assignment(self.runtime_id)
-
-    def _write_blocker(self, ticket: BuildTicket, assignment: TicketAssignment, body: str) -> None:
-        self.store.add_comment(
-            ticket,
-            CommentAuthorType.AGENT,
-            assignment.agent_name,
-            CommentKind.BLOCKER,
-            f"{assignment.agent_name}: blocked - {body}",
-            payload_ref=assignment.id,
-        )
-        blocked_event = runtime_event(
-            ticket,
-            self.runtime_id,
-            "assignment",
-            "blocked",
-            assignment.agent_name,
-            assignment_id=assignment.id,
-            payload_ref=assignment.id,
-            metadata={"blocker": body},
-        )
-        self.store.append_runtime_event(blocked_event)
-        self._heartbeat(
-            DaemonStatus.BLOCKED,
-            "blocked",
-            assignment=assignment,
-            ticket=ticket,
-            last_event_id=blocked_event.id,
-            last_error=body,
-        )
 
     def _heartbeat(
         self,

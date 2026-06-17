@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ariadne_ltb.failure import record_assignment_failure
 from ariadne_ltb.models import (
+    AssignmentStatus,
     BacklogUpdate,
     BacklogUpdateTrigger,
     BuildTicket,
     CommentAuthorType,
     CommentKind,
+    FailureReason,
     TicketChange,
     TicketChangeType,
     TicketStatus,
@@ -80,10 +83,17 @@ def supersede_ticket(store: AriadneStore, ticket: BuildTicket, reason: str) -> B
     store.save_ticket(updated)
     for assignment in store.list_assignments_for_ticket(updated.id):
         if not assignment.is_terminal:
-            store.save_assignment(
-                assignment.mark_cancelled(
-                    f"Ticket superseded: {reason}",
-                )
+            record_assignment_failure(
+                store,
+                updated,
+                assignment,
+                AssignmentStatus.CANCELLED,
+                f"Ticket superseded: {reason}",
+                FailureReason.USER_CANCELLED,
+                "local",
+                actor="Backlog",
+                stage="assignment",
+                ticket_status=TicketStatus.SUPERSEDED,
             )
     store.add_comment(
         updated,
