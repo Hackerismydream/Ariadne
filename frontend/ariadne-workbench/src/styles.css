@@ -1398,6 +1398,36 @@ button {
   color: var(--muted-foreground);
 }
 
+.inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-right: 120px;
+}
+
+.inbox-meta span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.inbox-list .inbox-action {
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.inbox-list code {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.inbox-list small {
+  color: var(--muted-foreground);
+}
+
 .inbox-list em {
   position: absolute;
   right: 16px;

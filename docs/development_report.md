@@ -5085,6 +5085,65 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 11:36 CST Inbox Recovery Visibility Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Extended the board Inbox section with status, severity, source, typed failure
+  reason, recommended action, evidence path, resolution note, and generated
+  repair ticket key.
+- Extended the local workbench sync contract so `.ariadne/inbox/items.json`
+  exports recovery fields into `workbench.json`:
+  - `ticketKey`
+  - `status`
+  - `severity`
+  - `sourceType`
+  - `sourceId`
+  - `failureReason`
+  - `recommendedAction`
+  - `evidenceRef`
+  - `resolutionNote`
+  - `repairTicketId`
+  - `repairTicketKey`
+- Updated the current workbench Inbox page to show recovery metadata and to
+  navigate to the generated repair ticket when one exists.
+- Added deterministic coverage for board inbox repair evidence and workbench
+  inbox recovery data export.
+
+Why this matters:
+
+- Inbox recovery was previously functional but under-visible. Failed runs could
+  become repair tickets, but the board and web workbench did not show enough
+  evidence for a human or supervisor agent to understand what happened.
+- This slice makes the failure-to-repair path inspectable:
+  failure evidence -> inbox item -> recommended action -> repair ticket ->
+  board/workbench visibility.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_v1_board_ux.py tests/test_workbench_data_sync.py`:
+  passed, `8 passed`.
+- `npm run build` in `frontend/ariadne-workbench`: passed.
+- `python3.11 -m pytest`: passed, `254 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_563d10dac2ff`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 06:18 CST Inbox Recovery Ticket Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

@@ -456,22 +456,35 @@ function backlogMutationPreviewFromPreviews(previews, fallbackChanges, releaseEv
   };
 }
 
-function inboxFromStore(item) {
+function inboxFromStore(item, repairTicketByInboxId = new Map()) {
   const kindBySource = {
     review: "review",
     assignment: "blocker",
+    agent_run: "blocker",
     execution: "blocker",
     feishu: "memory",
     github: "memory",
     memory: "memory",
   };
+  const repairTicket = repairTicketByInboxId.get(item.id);
   return {
     id: item.id,
     ticketId: item.ticket_id,
+    ticketKey: item.ticket_key,
     title: item.title,
     body: item.summary,
     time: eventTime(item.created_at),
     kind: kindBySource[item.source_type] ?? "goal",
+    status: item.status ?? "open",
+    severity: item.severity ?? "medium",
+    sourceType: item.source_type,
+    sourceId: item.source_id,
+    failureReason: item.failure_reason,
+    recommendedAction: item.recommended_action,
+    evidenceRef: item.evidence_ref,
+    resolutionNote: item.resolution_note,
+    repairTicketId: repairTicket?.id,
+    repairTicketKey: repairTicket?.key,
   };
 }
 
@@ -495,6 +508,11 @@ async function main() {
     resources: [],
   });
   const tickets = await readJsonFiles(resolve(ariadneRoot, "tickets"));
+  const repairTicketByInboxId = new Map(
+    tickets
+      .filter((ticket) => ticket.metadata?.generated_from_inbox_item_id)
+      .map((ticket) => [ticket.metadata.generated_from_inbox_item_id, ticket]),
+  );
   const inboxPayload = await readJson(resolve(ariadneRoot, "inbox", "items.json"), { items: [] });
   const githubResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "github"));
   const feishuResults = await readNestedJsonFiles(resolve(ariadneRoot, "integrations", "feishu"));
@@ -638,7 +656,7 @@ async function main() {
         updatedAt: eventTime(releaseEvidence.generated_at),
       },
     ],
-    inbox: [...(inboxPayload.items ?? []).slice(0, 12).map(inboxFromStore), ...realIntegrationCards],
+    inbox: [...(inboxPayload.items ?? []).slice(0, 12).map((item) => inboxFromStore(item, repairTicketByInboxId)), ...realIntegrationCards],
   };
 
   await mkdir(dirname(outputPath), { recursive: true });

@@ -260,10 +260,21 @@ export type SkillInfo = {
 export type InboxItem = {
   id: string;
   ticketId?: string;
+  ticketKey?: string;
   title: string;
   body: string;
   time: string;
   kind: "review" | "blocker" | "memory" | "goal";
+  status?: "open" | "acknowledged" | "resolved" | "snoozed";
+  severity?: "low" | "medium" | "high" | "critical";
+  sourceType?: string;
+  sourceId?: string;
+  failureReason?: string | null;
+  recommendedAction?: string;
+  evidenceRef?: string | null;
+  resolutionNote?: string | null;
+  repairTicketId?: string;
+  repairTicketKey?: string;
 };
 
 export type WorkbenchData = {

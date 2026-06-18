@@ -1159,7 +1159,8 @@ function InboxPage({
             type="button"
             onClick={() => {
               const fallbackTicket = data.tickets[index % data.tickets.length];
-              const ticket = data.tickets.find((candidate) => candidate.id === item.ticketId) ?? fallbackTicket;
+              const targetTicketId = item.repairTicketId ?? item.ticketId;
+              const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
               if (ticket) onTicketSelect(ticket.id);
               onNavigate("issues");
             }}
@@ -1167,6 +1168,16 @@ function InboxPage({
             <span className={`inbox-kind ${item.kind}`}>{item.kind}</span>
             <strong>{item.title}</strong>
             <p>{item.body}</p>
+            <div className="inbox-meta">
+              <span>{item.status ?? "open"}</span>
+              <span>{item.severity ?? "medium"}</span>
+              {item.ticketKey ? <span>{item.ticketKey}</span> : null}
+              {item.failureReason ? <span>{item.failureReason}</span> : null}
+              {item.repairTicketKey ? <span>repair {item.repairTicketKey}</span> : null}
+            </div>
+            {item.recommendedAction ? <p className="inbox-action">{item.recommendedAction}</p> : null}
+            {item.evidenceRef ? <code>{item.evidenceRef}</code> : null}
+            {item.resolutionNote ? <small>{item.resolutionNote}</small> : null}
             <em>{item.time}</em>
           </button>
         ))}

@@ -80,6 +80,11 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     backlog_updates = store.list_backlog_updates()
     backlog_previews = store.list_backlog_previews()
     inbox_items = store.list_inbox_items()
+    repair_ticket_by_inbox_id = {
+        str(ticket.metadata.get("generated_from_inbox_item_id")): ticket
+        for ticket in tickets
+        if ticket.metadata.get("generated_from_inbox_item_id")
+    }
     secret_scan = scan_for_secrets(store.root)
     store_invariants = load_latest_store_invariant_report(store)
     evidence_packet_exists = store.release_evidence_packet_path.exists()
@@ -120,10 +125,18 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
     lines.extend(["", "## Inbox", ""])
     if inbox_items:
         for item in inbox_items[-10:]:
+            repair_ticket = repair_ticket_by_inbox_id.get(item.id)
             lines.append(
-                f"- `{item.severity.value}` `{item.ticket_key or ''}` `{item.source_type}` "
-                f"`{item.failure_reason.value if item.failure_reason else ''}` - {item.summary}"
+                f"- `{item.id}` status=`{item.status.value}` severity=`{item.severity.value}` "
+                f"ticket=`{item.ticket_key or ''}` source=`{item.source_type}` "
+                f"failure=`{item.failure_reason.value if item.failure_reason else ''}` "
+                f"action=`{item.recommended_action}`"
+                f"{f' repair=`{repair_ticket.key}`' if repair_ticket else ''} - {item.summary}"
             )
+            if item.evidence_ref:
+                lines.append(f"  - Evidence: `{item.evidence_ref}`")
+            if item.resolution_note:
+                lines.append(f"  - Resolution: {item.resolution_note}")
     else:
         lines.append("No inbox items. Run `ari inbox refresh` to materialize failure evidence.")
     lines.extend(["", "## Build Teams", ""])

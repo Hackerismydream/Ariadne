@@ -6,11 +6,13 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.board_server import board_serve_command
 from ariadne_ltb.cli import app
+from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import (
     ArtifactType,
     BackendSmokeEvidence,
     FeishuWriteResult,
+    FailureReason,
     GitHubIntegrationResult,
     ReleaseEvidencePacket,
 )
@@ -51,6 +53,29 @@ def test_board_contains_v1_workbench_sections(tmp_path: Path) -> None:
         "Provider Audit Artifacts",
     ]:
         assert heading in board
+
+
+def test_board_shows_inbox_repair_ticket_evidence(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+    item = refresh_inbox(store)[0]
+
+    repair = CliRunner().invoke(app, ["--root", str(tmp_path), "inbox", "create-ticket", item.id])
+    assert repair.exit_code == 0, repair.output
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "export", "board"])
+    board = (tmp_path / ".ariadne" / "board" / "index.md").read_text(encoding="utf-8")
+
+    assert result.exit_code == 0, result.output
+    assert "## Inbox" in board
+    assert f"- `{item.id}` status=`acknowledged` severity=`high`" in board
+    assert "failure=`provider_config_invalid`" in board
+    assert "action=`fix_provider_configuration`" in board
+    assert "repair=`ARI-" in board
+    assert f"- Evidence: `{item.evidence_ref}`" in board
+    assert "- Resolution: repair ticket created:" in board
 
 
 def test_board_shows_github_status_evidence(tmp_path: Path) -> None:

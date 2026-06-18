@@ -15,8 +15,14 @@ from ariadne_ltb.models import (
     BacklogOperationType,
     BacklogPreview,
     BacklogUpdateTrigger,
+    BuildTicket,
     FeishuWriteResult,
+    FailureReason,
+    InboxItem,
+    InboxSeverity,
+    InboxStatus,
     ReleaseEvidencePacket,
+    TicketStatus,
 )
 from ariadne_ltb.storage import AriadneStore
 
@@ -118,6 +124,37 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
             created_at="2026-06-18T00:00:00Z",
         )
     )
+    store.save_inbox_items(
+        [
+            InboxItem(
+                id="inbox_sync",
+                source_type="agent_run",
+                source_id="run_sync",
+                ticket_id=ticket.id,
+                ticket_key=ticket.key,
+                title="ARI-003 LLM agent blocked",
+                summary="schema validation failed",
+                severity=InboxSeverity.HIGH,
+                status=InboxStatus.ACKNOWLEDGED,
+                failure_reason=FailureReason.AGENT_ERROR,
+                evidence_ref=".ariadne/artifacts/ticket/llm_knowledge.json",
+                recommended_action="human_review_required",
+                resolution_note="repair ticket created: ARI-998",
+            )
+        ]
+    )
+    store.save_ticket(
+        BuildTicket(
+            id="ticket_repair_sync",
+            key="ARI-998",
+            title="Repair ARI-003 agent run",
+            description="Repair inbox item.",
+            source_type="inbox_recovery",
+            source_ref=".ariadne/inbox/items.json",
+            status=TicketStatus.PLANNING,
+            metadata={"generated_from_inbox_item_id": "inbox_sync"},
+        )
+    )
 
     output_path = tmp_path / "workbench.json"
     subprocess.run(
@@ -154,3 +191,16 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
     assert data["releaseEvidence"]["realSuccessEvidence"]["codex"]["id"] == "codex_sync"
     assert data["releaseEvidence"]["realFailureEvidence"]["github"]["id"] == "github_blocked"
     assert data["releaseEvidence"]["evidenceRefs"]["product_readiness"].endswith("product_readiness.json")
+    synced_inbox = next(item for item in data["inbox"] if item["id"] == "inbox_sync")
+    assert synced_inbox["status"] == "acknowledged"
+    assert synced_inbox["severity"] == "high"
+    assert synced_inbox["sourceType"] == "agent_run"
+    assert synced_inbox["sourceId"] == "run_sync"
+    assert synced_inbox["ticketKey"] == "ARI-003"
+    assert synced_inbox["kind"] == "blocker"
+    assert synced_inbox["failureReason"] == "agent_error"
+    assert synced_inbox["recommendedAction"] == "human_review_required"
+    assert synced_inbox["evidenceRef"].endswith("llm_knowledge.json")
+    assert synced_inbox["resolutionNote"] == "repair ticket created: ARI-998"
+    assert synced_inbox["repairTicketId"] == "ticket_repair_sync"
+    assert synced_inbox["repairTicketKey"] == "ARI-998"
