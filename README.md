@@ -493,11 +493,16 @@ visible instead of buried in command output:
 ```bash
 ari inbox refresh
 ari inbox list --refresh
+ari inbox recover --output json
 ```
 
 Inbox items are persisted under `.ariadne/inbox/items.json` and include source
 type, ticket key, typed failure reason, severity, evidence ref, and a suggested
 recovery action.
+`ari inbox recover` converts actionable open inbox items into repair Build
+Tickets through the backlog preview/apply path. Use `--preview-only` to write
+repair previews without mutating tickets, and `--include-acknowledged` to verify
+that previously acknowledged failures still point at existing repair tickets.
 
 Ariadne also includes local lexical search over the workbench evidence:
 

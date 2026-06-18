@@ -5424,3 +5424,57 @@ Release evidence path:
 Board path:
 
 - `.ariadne/board/index.md`
+
+## 2026-06-18 11:36 CST Bulk Inbox Recovery Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `recover_inbox_items()` for batch inbox recovery.
+- Added `ari inbox recover` so a supervisor can convert actionable open inbox
+  items into repair Build Tickets through the existing backlog preview/apply
+  path.
+- Added recovery controls:
+  - `--preview-only` writes repair previews without mutating tickets;
+  - `--include-acknowledged` confirms previously acknowledged failures still
+    point at existing repair tickets;
+  - `--no-refresh` uses the current inbox snapshot;
+  - `--limit` caps one supervisor pass.
+- Updated README inbox guidance so future agents see batch recovery as the
+  normal recovery path, not only single-item `create-ticket`.
+- Added deterministic tests for batch creation, idempotent acknowledged-item
+  recovery, preview-only mode, and limit handling.
+
+Why this matters:
+
+- Ariadne already materialized failures into inbox items and could create one
+  repair ticket at a time. That was too manual for the supervisor / overnight
+  workflow.
+- This slice makes feedback-to-ticket recovery operational:
+  inbox failures -> batch recovery -> repair tickets -> backlog update evidence.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_inbox.py`: passed, `8 passed`.
+- `python3.11 -m ariadne_ltb.cli inbox --help`: passed and shows `recover`.
+- `python3.11 -m ariadne_ltb.cli inbox recover --help`: passed and shows batch
+  recovery options.
+
+- `python3.11 -m pytest`: passed, `256 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_ad42d6f0a742`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`

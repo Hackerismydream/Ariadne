@@ -41,7 +41,7 @@ from ariadne_ltb.github_integration import (
     link_ticket_to_github,
     sync_ticket_with_github,
 )
-from ariadne_ltb.inbox import create_repair_ticket_from_inbox, refresh_inbox
+from ariadne_ltb.inbox import create_repair_ticket_from_inbox, recover_inbox_items, refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_search import search_local_evidence
@@ -2132,6 +2132,85 @@ def inbox_create_ticket(
         typer.echo("already exists: true")
     if result.preview_only:
         typer.echo("preview only: true")
+
+
+@inbox_app.command("recover")
+def inbox_recover(
+    priority: Annotated[str, typer.Option("--priority", help="Priority for generated repair tickets.")] = "high",
+    preview_only: Annotated[
+        bool,
+        typer.Option("--preview-only", help="Only write backlog previews; do not apply repair tickets."),
+    ] = False,
+    no_refresh: Annotated[
+        bool,
+        typer.Option("--no-refresh", help="Use existing inbox items without refreshing first."),
+    ] = False,
+    include_acknowledged: Annotated[
+        bool,
+        typer.Option("--include-acknowledged", help="Also process acknowledged items to confirm existing repair tickets."),
+    ] = False,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Maximum number of actionable inbox items to recover."),
+    ] = None,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Create repair Build Tickets for actionable inbox items."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    if limit is not None and limit < 1:
+        raise typer.BadParameter("limit must be positive")
+    store = AriadneStore(state.root)
+    result = recover_inbox_items(
+        store,
+        priority=priority,
+        preview_only=preview_only,
+        refresh=not no_refresh,
+        include_acknowledged=include_acknowledged,
+        limit=limit,
+    )
+    recovered_payload = [
+        {
+            "inbox_item_id": item.inbox_item.id,
+            "inbox_status": item.inbox_item.status.value,
+            "preview_id": item.preview.id if item.preview else None,
+            "update_id": item.update.id if item.update else None,
+            "ticket_id": item.ticket.id if item.ticket else None,
+            "ticket_key": item.ticket.key if item.ticket else None,
+            "already_exists": item.already_exists,
+            "preview_only": item.preview_only,
+        }
+        for item in result.recovered
+    ]
+    payload = {
+        "recovered_count": len(result.recovered),
+        "created_ticket_count": result.created_ticket_count,
+        "existing_ticket_count": result.existing_ticket_count,
+        "preview_count": result.preview_count,
+        "skipped_count": len(result.skipped),
+        "recovered": recovered_payload,
+        "skipped": [
+            {
+                "inbox_item_id": item.id,
+                "status": item.status.value,
+                "ticket_key": item.ticket_key,
+                "failure_reason": item.failure_reason.value if item.failure_reason else None,
+            }
+            for item in result.skipped
+        ],
+    }
+    if output == "json":
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    typer.echo(f"recovered: {payload['recovered_count']}")
+    typer.echo(f"created tickets: {payload['created_ticket_count']}")
+    typer.echo(f"existing tickets: {payload['existing_ticket_count']}")
+    typer.echo(f"previews: {payload['preview_count']}")
+    typer.echo(f"skipped: {payload['skipped_count']}")
+    for item in recovered_payload:
+        ticket = item["ticket_key"] or item["preview_id"] or "none"
+        suffix = " existing" if item["already_exists"] else ""
+        typer.echo(f"{item['inbox_item_id']}\t{item['inbox_status']}\t{ticket}{suffix}")
 
 
 @app.command("search")

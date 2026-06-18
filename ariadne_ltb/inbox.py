@@ -40,6 +40,24 @@ class InboxRepairTicketResult:
     preview_only: bool = False
 
 
+@dataclass(frozen=True)
+class InboxRecoveryBatchResult:
+    recovered: list[InboxRepairTicketResult]
+    skipped: list[InboxItem]
+
+    @property
+    def created_ticket_count(self) -> int:
+        return sum(1 for item in self.recovered if item.ticket and not item.already_exists)
+
+    @property
+    def existing_ticket_count(self) -> int:
+        return sum(1 for item in self.recovered if item.ticket and item.already_exists)
+
+    @property
+    def preview_count(self) -> int:
+        return sum(1 for item in self.recovered if item.preview_only)
+
+
 def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
     """Materialize local action items from failures and blocked integration results."""
 
@@ -72,6 +90,39 @@ def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
     deduped = _preserve_existing_status(store, _dedupe(items))
     store.save_inbox_items(deduped)
     return deduped
+
+
+def recover_inbox_items(
+    store: AriadneStore,
+    priority: str = "high",
+    preview_only: bool = False,
+    refresh: bool = True,
+    include_acknowledged: bool = False,
+    limit: int | None = None,
+) -> InboxRecoveryBatchResult:
+    """Create repair Build Tickets for actionable inbox items."""
+
+    items = refresh_inbox(store) if refresh else store.list_inbox_items()
+    actionable: list[InboxItem] = []
+    skipped: list[InboxItem] = []
+    for item in items:
+        if item.status is InboxStatus.RESOLVED:
+            skipped.append(item)
+            continue
+        if item.status is InboxStatus.ACKNOWLEDGED and not include_acknowledged:
+            skipped.append(item)
+            continue
+        actionable.append(item)
+
+    if limit is not None:
+        skipped.extend(actionable[limit:])
+        actionable = actionable[:limit]
+
+    recovered = [
+        create_repair_ticket_from_inbox(store, item.id, priority=priority, preview_only=preview_only)
+        for item in actionable
+    ]
+    return InboxRecoveryBatchResult(recovered=recovered, skipped=skipped)
 
 
 def create_repair_ticket_from_inbox(

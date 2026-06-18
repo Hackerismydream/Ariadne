@@ -208,6 +208,78 @@ def test_inbox_create_ticket_applies_repair_backlog_update_idempotently(tmp_path
     assert len(store.list_tickets()) == 2
 
 
+def test_inbox_recover_creates_repair_tickets_for_open_items_idempotently(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    tickets = ingest_sources(store, SOURCE_FIXTURES[:2])
+    for ticket in tickets:
+        assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+        store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "inbox", "recover", "--output", "json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["recovered_count"] == 2
+    assert payload["created_ticket_count"] == 2
+    assert payload["existing_ticket_count"] == 0
+    assert payload["preview_count"] == 0
+    assert payload["skipped_count"] == 0
+    assert all(item["inbox_status"] == "acknowledged" for item in payload["recovered"])
+
+    repair_tickets = [
+        ticket for ticket in store.list_tickets() if ticket.metadata.get("generated_from_inbox_item_id")
+    ]
+    assert len(repair_tickets) == 2
+    assert all(store.load_inbox_item(ticket.metadata["generated_from_inbox_item_id"]).status is InboxStatus.ACKNOWLEDGED for ticket in repair_tickets)
+
+    second = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "inbox",
+            "recover",
+            "--include-acknowledged",
+            "--no-refresh",
+            "--output",
+            "json",
+        ],
+    )
+
+    assert second.exit_code == 0, second.output
+    second_payload = json.loads(second.output)
+    assert second_payload["recovered_count"] == 2
+    assert second_payload["created_ticket_count"] == 0
+    assert second_payload["existing_ticket_count"] == 2
+    assert all(item["already_exists"] is True for item in second_payload["recovered"])
+    assert len(store.list_tickets()) == 4
+
+
+def test_inbox_recover_preview_only_respects_limit(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    tickets = ingest_sources(store, SOURCE_FIXTURES[:2])
+    for ticket in tickets:
+        assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+        store.save_assignment(assignment.mark_blocked("quota exceeded", FailureReason.QUOTA_EXCEEDED))
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "recover", "--preview-only", "--limit", "1", "--output", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["recovered_count"] == 1
+    assert payload["preview_count"] == 1
+    assert payload["created_ticket_count"] == 0
+    assert payload["skipped_count"] == 1
+    assert payload["recovered"][0]["preview_only"] is True
+    assert payload["recovered"][0]["ticket_id"] is None
+    assert len(store.list_tickets()) == 2
+    assert len(store.list_backlog_previews()) == 1
+    assert store.list_backlog_previews()[0].trigger_type.value == "inbox_recovery"
+
+
 def test_inbox_create_ticket_preview_only_does_not_mutate_tickets(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
