@@ -1,0 +1,172 @@
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+
+class AriadneDTO(BaseModel):
+    model_config = {"extra": "forbid"}
+
+
+class TargetProjectDTO(AriadneDTO):
+    id: str
+    label: str
+    available: bool
+    disabled_reason: str = ""
+
+
+class RuntimeCapabilityDTO(AriadneDTO):
+    backend_name: str
+    display_name: str
+    available: bool
+    can_assign: bool
+    can_run: bool
+    fallback_only: bool
+    confirm_execution_required: bool
+    external_execution_enabled: bool
+    command_template_set: bool
+    disabled_reasons: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class TicketSummaryDTO(AriadneDTO):
+    id: str
+    key: str
+    title: str
+    status: str
+    source_type: str
+    priority: str
+    assigned_agent_id: str | None = None
+    latest_assignment_id: str | None = None
+    latest_execution_result_id: str | None = None
+    latest_review_verdict: str | None = None
+
+
+class AssignmentDTO(AriadneDTO):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    agent_id: str
+    agent_name: str
+    backend_name: str | None = None
+    status: str
+    target_project_id: str | None = None
+    created_at: str
+    started_at: str | None = None
+    ended_at: str | None = None
+    blocker: str | None = None
+    failure_reason: str | None = None
+
+
+class WorkbenchDTO(AriadneDTO):
+    schema_version: Literal["ariadne.workbench.v1"] = "ariadne.workbench.v1"
+    tickets: list[TicketSummaryDTO]
+    assignments: list[AssignmentDTO]
+    runtime_capabilities: list[RuntimeCapabilityDTO]
+    target_projects: list[TargetProjectDTO]
+
+
+class RegisterTargetProjectInput(AriadneDTO):
+    path: str
+    label: str | None = None
+
+
+class AssignTicketInput(AriadneDTO):
+    assignee_id: str
+    assignee_kind: Literal["agent", "build_team"] = "build_team"
+    backend_name: str | None = None
+    runtime_profile: Literal["auto", "production", "deterministic"] = "production"
+    target_project_id: str
+    idempotency_key: str | None = None
+
+
+class AssignTicketOutput(AriadneDTO):
+    ticket: TicketSummaryDTO
+    assignment: AssignmentDTO
+    confirmation_token: str | None = None
+    route_decision_artifact_path: str | None = None
+    idempotent_replay: bool = False
+
+
+class RunAssignmentInput(AriadneDTO):
+    confirmation_token: str
+    timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
+    idempotency_key: str | None = None
+
+
+class RunAssignmentOutput(AriadneDTO):
+    assignment: AssignmentDTO
+    did_work: bool
+    status: str
+    message: str
+    ticket_run_result: dict[str, Any] | None = None
+    idempotent_replay: bool = False
+
+
+class CreateCommentInput(AriadneDTO):
+    body: str
+    reply_to: str | None = None
+    assignment_id: str | None = None
+    idempotency_key: str | None = None
+
+
+class CommentDTO(AriadneDTO):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    author_type: str
+    author: str
+    kind: str
+    body: str
+    thread_id: str | None = None
+    parent_comment_id: str | None = None
+    created_at: str
+
+
+class TimelineDTO(AriadneDTO):
+    ticket: TicketSummaryDTO
+    comments: list[CommentDTO]
+    runtime_events: list[dict[str, Any]]
+    artifacts: list[dict[str, Any]]
+
+
+class AssignmentEventDTO(AriadneDTO):
+    id: str
+    source: Literal["assignment", "runtime_event", "run_message", "comment", "artifact"]
+    cursor: str
+    timestamp: str
+    assignment_id: str
+    ticket_id: str
+    ticket_key: str
+    stage: str
+    event_type: str
+    actor: str
+    summary: str
+    ref_id: str | None = None
+
+
+class AssignmentEventsDTO(AriadneDTO):
+    assignment: AssignmentDTO
+    events: list[AssignmentEventDTO]
+
+
+class ExecutionEvidenceDTO(AriadneDTO):
+    id: str
+    ticket_id: str
+    backend_name: str
+    dry_run: bool
+    blocked: bool
+    block_reason: str | None = None
+    failure_reason: str | None = None
+    exit_code: int
+    changed_files: list[str] = Field(default_factory=list)
+    test_exit_code: int | None = None
+    warnings: list[str] = Field(default_factory=list)
+    diff_artifact_id: str | None = None
+    execution_log_artifact_id: str | None = None
+
+
+class EvidenceProjectionDTO(AriadneDTO):
+    schema_version: Literal["ariadne.evidence-projection.v1"] = "ariadne.evidence-projection.v1"
+    execution_results: list[ExecutionEvidenceDTO] = Field(default_factory=list)

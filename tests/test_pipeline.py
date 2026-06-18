@@ -35,6 +35,16 @@ def test_demo_pipeline_creates_ticket_runs_and_required_artifacts(tmp_path: Path
     packet = json.loads(Path(packet_path).read_text(encoding="utf-8"))
     assert packet["build_decision"] == "code_task"
     assert packet["evidence"]
+    packet_text = Path(packet_path).read_text(encoding="utf-8")
+    assert "Feishu write plan is dry-run only" not in packet_text
+    assert "gated real write path" in packet_text
+
+    lead_path = next(artifact.path for artifact in artifacts if Path(artifact.path).name == "lead_routing.md")
+    lead_routing = Path(lead_path).read_text(encoding="utf-8")
+    assert "Execution backend remains dry-run only" not in lead_routing
+    assert "No external APIs" not in lead_routing
+    normalized_lead_routing = " ".join(lead_routing.split())
+    assert "Codex and Claude Code are production backends" in normalized_lead_routing
 
     review_path = next(artifact.path for artifact in artifacts if artifact.artifact_type is ArtifactType.REVIEW_REPORT)
     review = json.loads(Path(review_path).read_text(encoding="utf-8"))

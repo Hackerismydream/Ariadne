@@ -39,22 +39,24 @@ class BuildLeadAgent:
 
 Ticket: {context.ticket.key} - {context.ticket.title}
 
-Decision: continue as a scoped Ariadne MVP `code_task`.
+Decision: continue as a scoped Ariadne Agent Workbench `code_task`.
 
 Routing:
 
 - Learning Agent extracts architecture lessons from the source note.
-- Knowledge Agent grounds the work in local ADR and templates.
+- Knowledge Agent grounds the work in local ADR, roadmap, memory, and templates.
 - Repo Agent inspects the current repository structure.
 - Planner Agent creates the Build Packet and coding-agent handoff.
-- Execution backend remains dry-run only.
+- Execution is assigned to a backend by runtime policy: Codex and Claude Code
+  are production backends, while dry-run and fake-codex are offline test paths.
 - Reviewer checks visible state and artifacts conservatively.
-- Feishu Agent creates a dry-run memory write-back plan.
+- Feishu Agent creates a preview plan by default and can hand off to the gated
+  real write path when `FEISHU_ENABLE_WRITE=1` and `--confirm-write` are set.
 
 Safety:
 
-- No external APIs.
-- No real Feishu writes.
+- External LLM calls, coding-agent execution, Feishu writes, and GitHub writes
+  require explicit environment gates plus CLI confirmation.
 - No auto-commit, auto-push, or auto-merge.
 """
         artifact = context.store.write_artifact(
@@ -66,7 +68,7 @@ Safety:
             "Build Lead routing decision",
         )
         return AgentStepResult(
-            output_summary="Routed ticket to the deterministic MVP pipeline.",
+            output_summary="Routed ticket through the ticket-centered Agent Workbench path.",
             artifacts=[artifact],
             ticket_status=TicketStatus.ANALYZING,
         )
@@ -86,9 +88,12 @@ class LearningAgent:
                 confidence=0.95,
             ),
             Evidence(
-                id=stable_id("evidence", context.ticket.id, "dry-run-runtime"),
+                id=stable_id("evidence", context.ticket.id, "gated-runtime"),
                 source_ref=context.ticket.source_ref,
-                quote_or_summary="The MVP should use a deterministic local runtime and dry-run backend.",
+                quote_or_summary=(
+                    "Ariadne should keep deterministic offline fallbacks while treating "
+                    "Codex, Claude Code, and LLM agents as gated production runtimes."
+                ),
                 location="Product decision",
                 confidence=0.9,
             ),
@@ -107,7 +112,7 @@ pattern and specialize it for Learning-to-Build.
 - Build Packet: structured knowledge-to-build object inside the ticket.
 - Agent Run: one visible execution record per role.
 - Artifact: reviewable output, not hidden agent chat.
-- Local Runner: deterministic execution boundary for the MVP.
+- Local Runner: safety-gated execution boundary for real and offline backends.
 """
         artifact = context.store.write_artifact(
             context.ticket.id,
@@ -225,23 +230,24 @@ class PlannerAgent:
             ),
             evidence=evidence,
             project_relevance=(
-                "This directly defines Ariadne v0.1: Build Ticket, Build Packet, "
-                "Agent Run, Artifact, dry-run execution, conservative review, and board export."
+                "This defines Ariadne's local-first workbench kernel: Build Ticket, "
+                "Build Packet, Agent Run, Artifact, gated execution, conservative "
+                "review, memory, and board export."
             ),
             build_decision=BuildDecision.CODE_TASK,
             tasks=[
                 "Implement Pydantic domain models for ProjectSpace, BuildTicket, BuildPacket, AgentRun, Artifact, ReviewReport, FeishuWritePlan, and BuildSkill.",
                 "Implement JSON persistence under `.ariadne/` with artifact files under `.ariadne/artifacts/<ticket_id>/`.",
-                "Implement deterministic local pipeline nodes for Build Lead, Learning, Knowledge, Repo, Planner, Execution Dry Run, Reviewer, and Feishu Plan.",
-                "Expose Typer CLI commands for demo, ticket create/show/run, and static board export.",
-                "Add tests and documentation for the MVP safety boundaries.",
+                "Implement local pipeline nodes for Build Lead, Learning, Knowledge, Repo, Planner, offline execution preview, Reviewer, and Feishu Plan.",
+                "Expose Typer CLI commands for demo, ticket create/show/run, real backend diagnostics, and static board export.",
+                "Add tests and documentation for deterministic fallback and gated real-runtime safety boundaries.",
             ],
             acceptance_criteria=[
                 "`python -m ariadne_ltb.cli demo` creates ARI-001 and runs all eight nodes.",
                 "Every Agent Run reaches a terminal status.",
                 "Build Packet evidence and acceptance criteria are non-empty.",
-                "Dry-run execution artifact states that no code was executed or committed.",
-                "Feishu write plan is dry-run only.",
+                "Offline execution artifact states that no code was executed or committed in this regression path.",
+                "Feishu write plan is a preview artifact and points to the gated real write path.",
                 "`.ariadne/board/index.md` shows ticket status, timeline, artifacts, review verdict, and Feishu summary.",
             ],
             affected_modules=[
@@ -255,13 +261,13 @@ class PlannerAgent:
                 "tests/",
             ],
             risks=[
-                "MVP reviewer cannot verify the final Feishu plan before the Feishu Plan node runs because the required pipeline orders Reviewer before Feishu Plan.",
+                "Offline demo reviewer cannot verify the final Feishu plan before the Feishu Plan node runs because this legacy pipeline orders Reviewer before Feishu Plan.",
                 "Static markdown board is inspectable but not interactive.",
             ],
             assumptions=[
-                "The demo uses deterministic rules instead of LLM calls.",
-                "JSON storage is sufficient for the v0.1 single-project kernel.",
-                "Reviewer treats the Feishu plan as a dry-run contract during the pipeline and the final Feishu Plan node writes the actual dry-run proposal.",
+                "This offline demo uses deterministic rules instead of LLM calls.",
+                "Production planning and review can use DeepSeek through the LLM planner and reviewer.",
+                "Reviewer treats the Feishu plan as a preview contract during this pipeline and the final Feishu Plan node writes the proposal.",
             ],
             confidence=0.9,
         )
@@ -320,7 +326,8 @@ class PlannerAgent:
 
 ## Goal
 
-Implement the Ariadne v0.1 local deterministic Ticket Kernel.
+Exercise the Ariadne local ticket-centered Agent Workbench kernel through the
+offline deterministic regression path.
 
 ## Tasks
 
@@ -332,9 +339,10 @@ Implement the Ariadne v0.1 local deterministic Ticket Kernel.
 
 ## Safety
 
-Execution remains dry-run by default. No external APIs, Feishu writes, coding
-agent execution, commits, pushes, merges, or PR creation are performed by the
-MVP runtime.
+This execution plan is for the offline regression path. Production execution
+uses Codex or Claude Code only when the external execution gate and CLI
+confirmation are present. This path performs no external APIs, Feishu writes,
+coding-agent execution, commits, pushes, merges, or PR creation.
 """
 
     def _codex_handoff(self, packet: BuildPacket) -> str:
@@ -345,7 +353,7 @@ MVP runtime.
 
 ## Goal
 
-Build the Ariadne local deterministic Ticket Kernel.
+Build and verify Ariadne's local ticket-centered Agent Workbench kernel.
 
 ## Context
 
@@ -362,7 +370,7 @@ Insight: {packet.insight}
 - Do not expand scope.
 - Do not call external APIs unless explicitly allowed.
 - Do not auto-commit, auto-push, or auto-merge.
-- Preserve dry-run safety.
+- Preserve safety gates for real execution and external writes.
 
 ## Implementation plan
 
@@ -382,14 +390,16 @@ python -m ariadne_ltb.cli export board
 
 ## Expected output
 
-A local `.ariadne/` workspace containing the demo ticket, terminal agent runs,
-artifacts, review report, Feishu dry-run write plan, and static board export.
+A local `.ariadne/` workspace containing the ticket, terminal agent runs,
+artifacts, review report, Feishu preview plan, and static board export.
 
 ## Known non-goals
 
-- Do not implement real Feishu API writes.
-- Do not require real Codex runtime.
-- Do not build a full web UI in MVP.
+- Do not perform real Feishu writes from this offline demo path; use the gated
+  `ari feishu write --confirm-write` command for real writes.
+- This offline demo path does not invoke Codex directly; production execution
+  belongs in the gated CodexBackend or ClaudeCodeBackend.
+- Do not build a full web UI from this legacy pipeline.
 """
 
 
@@ -527,13 +537,13 @@ class ReviewerAgent:
         if feishu_plan:
             payload = json.loads(context.store.read_artifact_text(feishu_plan))
             if payload.get("dry_run") is True:
-                passed.append("Feishu plan is dry-run")
+                passed.append("Feishu plan is preview-only")
             else:
-                failed.append("Feishu plan is dry-run")
-                required_fixes.append("Ensure Feishu write plan has dry_run=true.")
+                failed.append("Feishu plan is preview-only")
+                required_fixes.append("Ensure Feishu preview plan has dry_run=true until a confirmed real write runs.")
         else:
             warnings.append(
-                "Feishu plan is generated after Reviewer in the required pipeline; FeishuPlanAgent must keep it dry-run."
+                "Feishu plan is generated after Reviewer in the required pipeline; FeishuPlanAgent must keep it preview-only until a confirmed real write runs."
             )
 
         non_terminal_runs = []
@@ -599,7 +609,7 @@ class FeishuPlanAgent:
                 },
                 {
                     "title": "ARI-003 - Feishu API adapter",
-                    "description": "Add approval-gated Feishu write-back with dry-run preview.",
+                    "description": "Add approval-gated Feishu write-back with preview evidence.",
                     "priority": "medium",
                     "due": "unscheduled",
                 },
@@ -610,13 +620,14 @@ class FeishuPlanAgent:
                 f"BuildPacket: {packet_ref}. Review verdict: {review_verdict}."
             ),
             run_summary=(
-                f"Ticket {context.ticket.key} ran the local deterministic pipeline with "
-                f"{len(context.ticket.agent_run_ids)} Agent Runs. External writes remain dry-run."
+                f"Ticket {context.ticket.key} ran the offline deterministic pipeline with "
+                f"{len(context.ticket.agent_run_ids)} Agent Runs. External writes require "
+                "the gated real Feishu or GitHub commands."
             ),
             next_actions=[
                 "Review generated artifacts under `.ariadne/artifacts/`.",
-                "Use the development report next tickets for v0.2 planning.",
-                "Keep Feishu writes dry-run until an approval-gated adapter exists.",
+                "Use generated next tickets and memory records for backlog updates.",
+                "Run `ari feishu write <ticket> --confirm-write` only when `FEISHU_ENABLE_WRITE=1` is intentionally set.",
             ],
         )
         context.store.save_feishu_write_plan(write_plan)
@@ -626,7 +637,7 @@ class FeishuPlanAgent:
             ArtifactType.FEISHU_WRITE_PLAN,
             "feishu_write_plan.json",
             write_plan.model_dump_json(indent=2) + "\n",
-            "Dry-run Feishu write-back plan",
+            "Feishu preview write-back plan",
             metadata={"feishu_write_plan_id": write_plan.id, "dry_run": True},
         )
         if packet:
@@ -636,7 +647,7 @@ class FeishuPlanAgent:
             )
             context.store.save_build_packet(packet)
         return AgentStepResult(
-            output_summary="Created dry-run Feishu write plan.",
+            output_summary="Created Feishu preview write plan.",
             artifacts=[artifact],
             ticket_status=TicketStatus.DONE,
             metadata={"feishu_write_plan_id": write_plan.id},

@@ -55,7 +55,7 @@ is not the root object of the runtime.
 Examples:
 
 - make Ariadne more like a Multica-aligned agent team;
-- turn real Codex execution into the main demo path;
+- turn real Codex and Claude Code execution into production execution paths;
 - improve source intelligence and memory retrieval.
 
 The implementation should not introduce a second BuildGoal-first state machine
@@ -133,8 +133,8 @@ used for diagnostics and recovery.
 `Artifact` is any durable output worth reviewing.
 
 Examples include handoff prompts, planner reports, execution results, review
-reports, Feishu dry-run plans, board exports, route decisions, and next-ticket
-artifacts.
+reports, Feishu preview plans, gated Feishu write results, board exports, route
+decisions, and next-ticket artifacts.
 
 ## ReviewReport
 
@@ -153,10 +153,11 @@ made, and what should be remembered for future planning.
 
 ## FeishuWritePlan
 
-`FeishuWritePlan` is a dry-run write plan for external collaboration systems.
+`FeishuWritePlan` is a preview write plan for external collaboration systems.
 
-It must remain dry-run unless `FEISHU_ENABLE_WRITE=1` and `--confirm-write` are
-both present.
+It must remain preview-only unless `FEISHU_ENABLE_WRITE=1` and
+`--confirm-write` are both present. A confirmed real write is recorded as
+integration evidence, not inferred from the preview plan.
 
 ## NextTickets
 

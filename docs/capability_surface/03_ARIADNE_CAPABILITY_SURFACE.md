@@ -37,7 +37,7 @@ Ariadne 应从 Ticket backlog 开始组织工作。Goal 可以作为方向输入
 ```text
 一篇新博客指出 agent teammate 的关键是 task lifecycle + visible progress。
 一次 Review 发现 board 仍然不是 issue-centric。
-一次 fake-codex 执行失败并产生 blocker。
+一次真实 Codex / Claude Code 执行失败并产生 blocker。
 当前代码库新增了 runtime capability snapshot。
 ```
 
@@ -57,11 +57,13 @@ Ariadne 应从 Ticket backlog 开始组织工作。Goal 可以作为方向输入
 ```bash
 ari ingest examples/sources/*.md
 ari ticket list
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
+ari ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ari ticket comments ARI-003
 ari export board
 ```
+
+测试和离线回归可以使用 `fake-codex`，但产品验收不能以它作为主路径。
 
 ---
 
@@ -147,8 +149,8 @@ LocalDaemonWorker
 产品体验：
 
 ```bash
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
+ari ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
 ari ticket comments ARI-003
 ari export board
 ```
@@ -182,11 +184,11 @@ Reviewer needs_fix -> 创建 Execution retry Assignment
 
 ---
 
-## 6. 真实 Codex Teammate
+## 6. 真实 Codex / Claude Code Teammate
 
-fake-codex 只是稳定 demo backend。
+`fake-codex` 只是测试和离线 fixture backend。
 
-Ariadne 必须把真实 Codex path 做成可验证能力。
+Ariadne 必须把真实 Codex 和 Claude Code path 做成可验证能力。
 
 目标命令：
 
@@ -208,7 +210,7 @@ Memory 写回
 Board 展示
 ```
 
-没有 Codex 或 gate 未开时：
+没有 Codex / Claude Code、CLI 未登录、quota 不足、或 gate 未开时：
 
 ```text
 清晰 blocked
@@ -283,7 +285,8 @@ Target repo
 Allowed paths
 Test commands
 Memory records
-Feishu dry-run targets
+Feishu preview targets
+Feishu / GitHub gated write targets
 ```
 
 ---

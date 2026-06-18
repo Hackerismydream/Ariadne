@@ -5,6 +5,8 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
+from ariadne_ltb.failure import record_assignment_failure
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
     AssignmentStatus,
@@ -14,12 +16,12 @@ from ariadne_ltb.models import (
     DaemonStatus,
     FailureReason,
     TicketAssignment,
-    TicketStatus,
     WorkerHeartbeat,
     utc_now,
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator, TicketRunResult
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.llm import DeepSeekClient
 
 
 @dataclass(frozen=True)
@@ -38,17 +40,25 @@ class LocalDaemonWorker:
         self.store = store
         self.runtime_id = runtime_id
 
-    def run_once(self, confirm_execution: bool = False) -> DaemonRunResult:
+    def run_once(
+        self,
+        confirm_execution: bool = False,
+        agent_runtime: str | None = None,
+        backlog_planner: str | None = None,
+        llm_agent_client: DeepSeekClient | None = None,
+        timeout_seconds: int | None = None,
+        assignment_id: str | None = None,
+    ) -> DaemonRunResult:
         self._heartbeat(DaemonStatus.IDLE, "idle")
-        assignment = self._next_assignment()
+        assignment = self._next_assignment(assignment_id=assignment_id)
         if assignment is None:
             self._heartbeat(DaemonStatus.STOPPED, "stopped")
-            return DaemonRunResult(runtime_id=self.runtime_id, did_work=False)
+            message = f"assignment {assignment_id} is not claimable" if assignment_id else "no work"
+            return DaemonRunResult(runtime_id=self.runtime_id, did_work=False, message=message)
 
         ticket = self.store.load_ticket(assignment.ticket_id)
         self._heartbeat(DaemonStatus.RUNNING, "claiming", assignment=assignment, ticket=ticket)
-        claimed = assignment.mark_claimed(self.runtime_id)
-        self.store.save_assignment(claimed)
+        claimed = assignment
         self.store.add_comment(
             ticket,
             CommentAuthorType.AGENT,
@@ -56,6 +66,7 @@ class LocalDaemonWorker:
             CommentKind.PROGRESS,
             f"{claimed.agent_name}: claimed {ticket.key}.",
             payload_ref=claimed.id,
+            thread_id=claimed.id,
         )
         claim_event = runtime_event(
             ticket,
@@ -65,6 +76,11 @@ class LocalDaemonWorker:
             claimed.agent_name,
             assignment_id=claimed.id,
             payload_ref=claimed.id,
+            metadata={
+                "claimed_by_runtime_id": claimed.claimed_by_runtime_id,
+                "lease_expires_at": claimed.lease_expires_at,
+                "lease_reclaimed_at": claimed.metadata.get("lease_reclaimed_at"),
+            },
         )
         self.store.append_runtime_event(claim_event)
         self._heartbeat(
@@ -94,6 +110,7 @@ class LocalDaemonWorker:
             last_event_id=start_event.id,
         )
         try:
+            target_repo_path = running.metadata.get("target_repo_path")
             result = TicketRunOrchestrator(
                 self.store,
                 runtime_id=self.runtime_id,
@@ -101,45 +118,65 @@ class LocalDaemonWorker:
                 actor_name=running.agent_name,
             ).run_ticket(
                 ticket.key,
-                backend_name=running.backend_name or "fake-codex",
+                backend_name=running.backend_name or PRODUCT_DEFAULT_BACKEND,
+                target_repo_path=target_repo_path,
                 planner=running.planner_name,
+                agent_runtime=agent_runtime or running.agent_runtime,
+                backlog_planner=backlog_planner or running.backlog_planner_name,
+                llm_agent_client=llm_agent_client,
                 confirm_execution=confirm_execution,
                 isolate_worktree=True,
+                timeout_seconds=timeout_seconds or 60,
             )
         except Exception as exc:  # pragma: no cover - defensive, tested through blocked result path
-            blocked = running.mark_failed(str(exc), FailureReason.AGENT_ERROR)
-            self.store.save_assignment(blocked)
-            self._write_blocker(ticket, blocked, str(exc))
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.FAILED,
+                str(exc),
+                FailureReason.AGENT_ERROR,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="execution",
+            )
             self._heartbeat(
                 DaemonStatus.FAILED,
                 "failed",
-                assignment=blocked,
+                assignment=failure.assignment,
                 ticket=ticket,
-                last_error=str(exc),
+                last_event_id=failure.event_id,
+                last_error=failure.assignment.blocker,
             )
             return DaemonRunResult(
                 runtime_id=self.runtime_id,
                 did_work=True,
                 assignment_id=running.id,
                 ticket_key=ticket.key,
-                status=blocked.status.value,
+                status=failure.assignment.status.value,
                 message=str(exc),
             )
 
         execution = self.store.load_execution_result(result.execution_result_id)
         if execution.blocked:
-            blocked = running.mark_blocked(
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.BLOCKED,
                 execution.block_reason or "Execution backend blocked.",
                 execution.failure_reason or FailureReason.UNKNOWN,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="execution",
             )
-            self.store.save_assignment(blocked)
-            self._write_blocker(ticket, blocked, blocked.blocker or "Execution blocked.")
             self._heartbeat(
                 DaemonStatus.BLOCKED,
                 "blocked",
-                assignment=blocked,
+                assignment=failure.assignment,
                 ticket=ticket,
-                last_error=blocked.blocker,
+                last_event_id=failure.event_id,
+                last_error=failure.assignment.blocker,
             )
         elif result.review_verdict == "pass":
             done = running.mark_done(
@@ -157,6 +194,7 @@ class LocalDaemonWorker:
                 CommentKind.PROGRESS,
                 f"{done.agent_name}: assignment done for {ticket.key}.",
                 payload_ref=done.id,
+                thread_id=done.id,
             )
             done_event = runtime_event(
                 ticket,
@@ -176,18 +214,24 @@ class LocalDaemonWorker:
                 last_event_id=done_event.id,
             )
         else:
-            blocked = running.mark_blocked(
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.BLOCKED,
                 f"Reviewer verdict: {result.review_verdict}.",
                 FailureReason.REVIEW_FAILED,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="review",
             )
-            self.store.save_assignment(blocked)
-            self._write_blocker(ticket, blocked, blocked.blocker or "Review blocked.")
             self._heartbeat(
                 DaemonStatus.BLOCKED,
                 "blocked",
-                assignment=blocked,
+                assignment=failure.assignment,
                 ticket=ticket,
-                last_error=blocked.blocker,
+                last_event_id=failure.event_id,
+                last_error=failure.assignment.blocker,
             )
 
         latest = self.store.load_assignment(running.id)
@@ -212,59 +256,27 @@ class LocalDaemonWorker:
         interval_seconds: float = 5.0,
         max_iterations: int | None = None,
         confirm_execution: bool = False,
+        agent_runtime: str | None = None,
+        backlog_planner: str | None = None,
+        timeout_seconds: int | None = None,
     ) -> None:
         iterations = 0
         while max_iterations is None or iterations < max_iterations:
-            self.run_once(confirm_execution=confirm_execution)
+            self.run_once(
+                confirm_execution=confirm_execution,
+                agent_runtime=agent_runtime,
+                backlog_planner=backlog_planner,
+                timeout_seconds=timeout_seconds,
+            )
             iterations += 1
             if max_iterations is not None and iterations >= max_iterations:
                 break
             time.sleep(interval_seconds)
 
-    def _next_assignment(self) -> TicketAssignment | None:
-        open_assignments = [
-            assignment
-            for assignment in self.store.list_open_assignments()
-            if assignment.status is AssignmentStatus.QUEUED
-        ]
-        for assignment in sorted(open_assignments, key=lambda item: item.created_at):
-            ticket = self.store.load_ticket(assignment.ticket_id)
-            if ticket.status is TicketStatus.SUPERSEDED:
-                self.store.save_assignment(
-                    assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
-                )
-                continue
-            return assignment
-        return None
-
-    def _write_blocker(self, ticket: BuildTicket, assignment: TicketAssignment, body: str) -> None:
-        self.store.add_comment(
-            ticket,
-            CommentAuthorType.AGENT,
-            assignment.agent_name,
-            CommentKind.BLOCKER,
-            f"{assignment.agent_name}: blocked - {body}",
-            payload_ref=assignment.id,
-        )
-        blocked_event = runtime_event(
-            ticket,
-            self.runtime_id,
-            "assignment",
-            "blocked",
-            assignment.agent_name,
-            assignment_id=assignment.id,
-            payload_ref=assignment.id,
-            metadata={"blocker": body},
-        )
-        self.store.append_runtime_event(blocked_event)
-        self._heartbeat(
-            DaemonStatus.BLOCKED,
-            "blocked",
-            assignment=assignment,
-            ticket=ticket,
-            last_event_id=blocked_event.id,
-            last_error=body,
-        )
+    def _next_assignment(self, assignment_id: str | None = None) -> TicketAssignment | None:
+        if assignment_id:
+            return self.store.claim_assignment(assignment_id, self.runtime_id)
+        return self.store.claim_next_assignment(self.runtime_id)
 
     def _heartbeat(
         self,

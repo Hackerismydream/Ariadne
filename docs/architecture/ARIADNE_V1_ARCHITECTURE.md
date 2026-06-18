@@ -48,7 +48,7 @@ Knowledge / Feedback / Codebase
   -> Ticket management center
   -> assign to Agent
   -> local Daemon / Runtime
-  -> Codex / Claude / fake-codex
+  -> DeepSeek / Codex / Claude Code
   -> Review / Comments / Board / Memory
   -> update Ticket backlog again
 ```
@@ -150,9 +150,11 @@ Role responsibilities:
   constraints.
 - Planner: creates Build Packets, tasks, acceptance criteria, and handoff
   prompts.
-- Execution: calls Codex, Claude, fake-codex, shell, or dry-run backends.
+- Execution: calls production Codex or Claude Code backends when gates are
+  satisfied; tests and offline fixtures may use `fake-codex`.
 - Reviewer: checks diff, tests, scope, and acceptance criteria.
-- Memory / PM: writes memory, Feishu dry-run plans, and next tickets.
+- Memory / PM: writes memory, Feishu preview plans, and next tickets; real
+  Feishu writes go through the gated Feishu command.
 
 Ariadne's multi-agent design is not role-play. Agents collaborate through
 Tickets, Assignments, Handoffs, Runs, Reviews, Comments, and Artifacts.
@@ -203,11 +205,11 @@ Responsibilities:
 
 Backends:
 
-- `fake-codex`: stable deterministic local demo backend.
-- `codex`: real Codex backend, safety-gated.
-- `claude-code`: Claude Code backend scaffold, safety-gated.
+- `codex`: real Codex production backend, safety-gated.
+- `claude-code`: real Claude Code production backend, safety-gated.
 - `shell`: low-level command backend, requires confirmation.
-- `dry-run`: records without executing.
+- `fake-codex`: deterministic test and offline fixture backend only.
+- `dry-run`: preview, no-credential, or safety fallback only.
 
 Real external execution requires both:
 
@@ -223,7 +225,7 @@ Responsibilities:
 - preserve execution results;
 - generate next iteration entry points;
 - display the full loop;
-- support demos, reviews, and interview explanation;
+- support reviews, release evidence, and offline fixture validation;
 - feed review and memory back into the ticket backlog.
 
 Core objects:
@@ -233,19 +235,20 @@ Core objects:
 - `NextTickets`
 - `BuildBoard`
 - `EvaluationReport`
-- `DemoScript`
+- `ReleaseEvidencePacket`
 
 Capabilities:
 
 - memory write-back;
 - decision log;
-- Feishu dry-run plan;
+- Feishu preview plan;
+- gated real Feishu write evidence;
 - next tickets;
 - board;
 - comments timeline;
 - journal timeline;
 - review report;
-- demo report.
+- release evidence packet.
 
 ## Main Chain
 
@@ -319,8 +322,8 @@ Ariadne v1.0 does not do:
 - WebSocket real-time collaboration;
 - production daemon fleet;
 - automatic commit, push, merge, or PR;
-- default real Feishu writes;
-- default real Codex execution;
+- ungated real Feishu writes;
+- ungated real Codex or Claude Code execution;
 - long-running unattended operation;
 - BuildGoal-first scheduler.
 
@@ -330,6 +333,6 @@ Ariadne v1.0 does:
 - single-user workflow;
 - ticket-centered work management;
 - knowledge and feedback driven backlog updates;
-- optional Codex and Claude execution;
+- production Codex and Claude Code execution when configured and confirmed;
 - review, memory, and next tickets;
 - static or local board presentation.

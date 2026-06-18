@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from hashlib import sha256
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
+
 
 def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def utc_after(seconds: int) -> str:
+    return (
+        (datetime.now(UTC) + timedelta(seconds=seconds))
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def stable_id(prefix: str, *parts: object) -> str:
@@ -46,6 +57,7 @@ class BacklogUpdateTrigger(str, Enum):
     EXECUTION_RESULT = "execution_result"
     MEMORY_GAP = "memory_gap"
     CODEBASE_OBSERVATION = "codebase_observation"
+    INBOX_RECOVERY = "inbox_recovery"
     MANUAL_GOAL = "manual_goal"
 
 
@@ -57,6 +69,23 @@ class TicketChangeType(str, Enum):
     SPLIT = "split"
     CLOSED = "closed"
     SUPERSEDED = "superseded"
+    NO_OP = "no_op"
+
+
+class BacklogOperationType(str, Enum):
+    ADD_TICKET = "add_ticket"
+    UPDATE_TICKET = "update_ticket"
+    DEFER_TICKET = "defer_ticket"
+    SUPERSEDE_TICKET = "supersede_ticket"
+    PROMOTE_TICKET = "promote_ticket"
+    NO_OP = "no_op"
+
+
+class BacklogConflictType(str, Enum):
+    DUPLICATE_OPERATION = "duplicate_operation"
+    STALE_PREVIEW = "stale_preview"
+    SUPERSEDED_TARGET = "superseded_target"
+    CONTRADICTORY_UPDATE = "contradictory_update"
 
 
 class AssignmentStatus(str, Enum):
@@ -104,8 +133,19 @@ class AgentRunLifecycleState(str, Enum):
     TERMINAL = "terminal"
 
 
+class RunMessageType(str, Enum):
+    STATUS = "status"
+    ARTIFACT = "artifact"
+    RESULT = "result"
+    ERROR = "error"
+    TOOL = "tool"
+
+
 class FailureReason(str, Enum):
     AGENT_ERROR = "agent_error"
+    AUTHENTICATION_FAILED = "authentication_failed"
+    QUOTA_EXCEEDED = "quota_exceeded"
+    PROVIDER_CONFIG_INVALID = "provider_config_invalid"
     RUNTIME_OFFLINE = "runtime_offline"
     RUNTIME_RECOVERY = "runtime_recovery"
     TIMEOUT = "timeout"
@@ -121,6 +161,33 @@ class FailureReason(str, Enum):
     RESOURCE_LOCKED = "resource_locked"
     DIRTY_BASE_CHECKOUT = "dirty_base_checkout"
     UNKNOWN = "unknown"
+
+
+class StoreInvariantSeverity(str, Enum):
+    ERROR = "error"
+    WARNING = "warning"
+
+
+class StoreInvariantReason(str, Enum):
+    DUPLICATE_TICKET_KEY = "duplicate_ticket_key"
+    MALFORMED_JSON = "malformed_json"
+    MALFORMED_JSONL = "malformed_jsonl"
+    MODEL_VALIDATION_FAILED = "model_validation_failed"
+    MISSING_TICKET = "missing_ticket"
+    MISSING_BUILD_PACKET = "missing_build_packet"
+    MISSING_AGENT_RUN = "missing_agent_run"
+    MISSING_ARTIFACT_INDEX = "missing_artifact_index"
+    MISSING_ARTIFACT_FILE = "missing_artifact_file"
+    ORPHAN_ARTIFACT = "orphan_artifact"
+    BROKEN_ASSIGNMENT_LINK = "broken_assignment_link"
+    BROKEN_RUN_LINK = "broken_run_link"
+    BROKEN_HANDOFF_LINK = "broken_handoff_link"
+    BROKEN_MEMORY_LINK = "broken_memory_link"
+    BROKEN_REVIEW_LINK = "broken_review_link"
+    INVALID_RUN_LIFECYCLE = "invalid_run_lifecycle"
+    INVALID_ASSIGNMENT_LIFECYCLE = "invalid_assignment_lifecycle"
+    STALE_ASSIGNMENT_LEASE = "stale_assignment_lease"
+    STALE_LOCK = "stale_lock"
 
 
 class SourceType(str, Enum):
@@ -161,9 +228,15 @@ class ArtifactType(str, Enum):
     ROUTE_DECISION = "route_decision"
     RUNTIME_CAPABILITY = "runtime_capability"
     PROJECT_RESOURCES = "project_resources"
+    PERMISSION_PROFILE = "permission_profile"
+    SKILL_BUNDLE = "skill_bundle"
     WORKTREE_ISOLATION = "worktree_isolation"
+    ORCHESTRATOR_RESULT = "orchestrator_result"
     LANDING_EVIDENCE = "landing_evidence"
+    LANDING_GATE_REPORT = "landing_gate_report"
+    STORE_INVARIANT_REPORT = "store_invariant_report"
     PLANNER_ERROR = "planner_error"
+    LLM_AGENT_RESULT = "llm_agent_result"
     BOARD_EXPORT = "board_export"
     DEVELOPMENT_REPORT = "development_report"
 
@@ -205,6 +278,19 @@ class DaemonStatus(str, Enum):
     BLOCKED = "blocked"
     FAILED = "failed"
     STOPPED = "stopped"
+
+
+class InboxSeverity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class InboxStatus(str, Enum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
 
 
 class WorkerHeartbeat(AriadneModel):
@@ -299,6 +385,44 @@ class BacklogUpdate(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
 
 
+class BacklogOperation(AriadneModel):
+    id: str
+    operation_type: BacklogOperationType
+    reason: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    title: str | None = None
+    description: str | None = None
+    source_type: str | None = None
+    source_ref: str | None = None
+    priority: str | None = None
+    status: TicketStatus | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class BacklogConflict(AriadneModel):
+    conflict_type: BacklogConflictType
+    message: str
+    operation_ids: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    resolution_options: list[str] = Field(default_factory=list)
+
+
+class BacklogPreview(AriadneModel):
+    id: str
+    trigger_type: BacklogUpdateTrigger
+    trigger_ref: str
+    idempotency_key: str
+    base_ticket_fingerprint: str
+    operations: list[BacklogOperation] = Field(default_factory=list)
+    conflicts: list[BacklogConflict] = Field(default_factory=list)
+    rationale: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
+    applied_at: str | None = None
+    applied_update_id: str | None = None
+
+
 class ProjectSpace(AriadneModel):
     id: str
     display_name: str
@@ -328,9 +452,29 @@ class AgentProfile(AriadneModel):
     role: str
     backend_name: str | None = None
     planner_name: str = "deterministic"
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     description: str = ""
     capabilities: list[str] = Field(default_factory=list)
     default_confirm_execution: bool = False
+    enabled: bool = True
+    created_at: str = Field(default_factory=utc_now)
+
+
+class BuildTeam(AriadneModel):
+    id: str
+    name: str
+    description: str = ""
+    lead_agent_id: str = "build-lead"
+    implementer_agent_id: str = PRODUCT_DEFAULT_BACKEND
+    reviewer_agent_id: str = "reviewer"
+    memory_agent_id: str = "memory"
+    default_backend_name: str = PRODUCT_DEFAULT_BACKEND
+    planner_name: str = "deterministic"
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
+    skill_refs: list[str] = Field(default_factory=list)
+    resource_policy: str = "local_project_resources"
     enabled: bool = True
     created_at: str = Field(default_factory=utc_now)
 
@@ -343,12 +487,15 @@ class TicketAssignment(AriadneModel):
     agent_name: str
     backend_name: str | None = None
     planner_name: str = "deterministic"
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     status: AssignmentStatus = AssignmentStatus.QUEUED
     priority: str = "medium"
     assigned_by: str = "human"
     claimed_by_runtime_id: str | None = None
     created_at: str = Field(default_factory=utc_now)
     claimed_at: str | None = None
+    lease_expires_at: str | None = None
     started_at: str | None = None
     ended_at: str | None = None
     failure_reason: FailureReason | None = None
@@ -363,11 +510,12 @@ class TicketAssignment(AriadneModel):
     def is_terminal(self) -> bool:
         return self.status.is_terminal
 
-    def mark_claimed(self, runtime_id: str) -> TicketAssignment:
+    def mark_claimed(self, runtime_id: str, lease_seconds: int = 600) -> TicketAssignment:
         assignment = self.model_copy(deep=True)
         assignment.status = AssignmentStatus.CLAIMED
         assignment.claimed_by_runtime_id = runtime_id
         assignment.claimed_at = assignment.claimed_at or utc_now()
+        assignment.lease_expires_at = utc_after(lease_seconds)
         return assignment
 
     def mark_running(self) -> TicketAssignment:
@@ -380,6 +528,7 @@ class TicketAssignment(AriadneModel):
         assignment = self.model_copy(deep=True)
         assignment.status = AssignmentStatus.DONE
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         if metadata:
             assignment.metadata = assignment.metadata | metadata
         return assignment
@@ -394,6 +543,7 @@ class TicketAssignment(AriadneModel):
         assignment.blocker = blocker
         assignment.failure_reason = failure_reason
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         return assignment
 
     def mark_failed(
@@ -406,6 +556,7 @@ class TicketAssignment(AriadneModel):
         assignment.blocker = blocker
         assignment.failure_reason = failure_reason
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         return assignment
 
     def mark_cancelled(
@@ -418,6 +569,7 @@ class TicketAssignment(AriadneModel):
         assignment.blocker = blocker
         assignment.failure_reason = failure_reason
         assignment.ended_at = utc_now()
+        assignment.lease_expires_at = None
         return assignment
 
 
@@ -429,8 +581,16 @@ class TicketComment(AriadneModel):
     author: str
     kind: CommentKind = CommentKind.COMMENT
     body: str
+    parent_comment_id: str | None = None
+    thread_id: str | None = None
     payload_ref: str | None = None
     created_at: str = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def default_thread_id(self) -> TicketComment:
+        if self.thread_id is None:
+            self.thread_id = self.parent_comment_id or self.id
+        return self
 
 
 class RuntimeEvent(AriadneModel):
@@ -646,6 +806,27 @@ class AgentRun(AriadneModel):
         return run
 
 
+class RunMessage(AriadneModel):
+    run_id: str
+    seq: int
+    timestamp: str = Field(default_factory=utc_now)
+    stage: str
+    message_type: RunMessageType = RunMessageType.STATUS
+    content: str
+    artifact_ref: str | None = None
+    tool_name: str | None = None
+    result_ref: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("seq")
+    @classmethod
+    def validate_seq(cls, value: int) -> int:
+        if value < 1:
+            msg = "run message seq must be greater than 0"
+            raise ValueError(msg)
+        return value
+
+
 class Artifact(AriadneModel):
     id: str
     ticket_id: str
@@ -657,50 +838,15 @@ class Artifact(AriadneModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class LandingArtifactRef(AriadneModel):
-    kind: str
-    path: str
-    artifact_id: str | None = None
-    summary: str = ""
-
-
-class LandingTestResult(AriadneModel):
-    command: str
-    exit_code: int | None = None
-    status: str
-    output_artifact_path: str | None = None
-
-
-class LandingEvidence(AriadneModel):
-    id: str
-    ticket_id: str
-    ticket_key: str
-    ticket_title: str
-    ticket_status: TicketStatus
-    backend_name: str
-    planner_name: str
-    branch: str | None = None
-    worktree: str | None = None
-    target_repo_path: str | None = None
-    target_worktree_path: str | None = None
-    changed_files: list[str] = Field(default_factory=list)
-    git_diff_summary: dict[str, Any] = Field(default_factory=dict)
-    test_results: list[LandingTestResult] = Field(default_factory=list)
-    review_verdict: ReviewVerdict | None = None
-    memory_path: str | None = None
-    board_path: str | None = None
-    next_tickets_path: str | None = None
-    gate_inputs: dict[str, Any] = Field(default_factory=dict)
-    linked_artifacts: list[LandingArtifactRef] = Field(default_factory=list)
-    partial: bool = False
-    missing_fields: list[str] = Field(default_factory=list)
-    created_at: str = Field(default_factory=utc_now)
-
-
 class ReviewReport(AriadneModel):
     id: str
     ticket_id: str
     verdict: ReviewVerdict
+    reviewer_mode: str = "deterministic"
+    risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    acceptance_criteria_coverage: dict[str, bool] = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(default_factory=list)
+    next_ticket_suggestions: list[str] = Field(default_factory=list)
     passed_checks: list[str] = Field(default_factory=list)
     failed_checks: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -725,6 +871,10 @@ class ExecutionContext(AriadneModel):
     timeout_seconds: int = 120
     assignment_id: str | None = None
     run_id: str | None = None
+    permission_profile_id: str | None = None
+    permission_profile_path: str | None = None
+    skill_bundle_path: str | None = None
+    provider_skill_dir: str | None = None
 
 
 class ExecutionResult(AriadneModel):
@@ -756,6 +906,30 @@ class ExecutionResult(AriadneModel):
     test_stdout: str = ""
     test_stderr: str = ""
     warnings: list[str] = Field(default_factory=list)
+    handoff_file: str | None = None
+    command_template: str | None = None
+    command_template_env_var: str | None = None
+    provider_session_id: str | None = None
+    provider_failure_kind: str | None = None
+    provider_failure_evidence: str | None = None
+
+
+class ExecutionPermissionProfile(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    backend_name: str
+    target_repo_path: str
+    allowed_paths: list[str] = Field(default_factory=list)
+    env_allowlist: list[str] = Field(default_factory=list)
+    network_policy: str = "disabled_by_default"
+    git_operations_policy: str = "block_commit_push_merge_pr"
+    dangerous_git_operations: list[str] = Field(default_factory=list)
+    external_execution_enabled: bool = False
+    confirm_execution: bool = False
+    command: str
+    test_command: str
+    created_at: str = Field(default_factory=utc_now)
 
 
 class WorktreeIsolation(AriadneModel):
@@ -776,6 +950,29 @@ class WorktreeIsolation(AriadneModel):
     owner_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkdirStatus(AriadneModel):
+    ticket_id: str
+    ticket_key: str
+    worktree_path: str
+    branch_name: str
+    base_repo_path: str
+    active: bool
+    exists: bool
+    dirty: bool
+    git_status: str = ""
+    record_path: str
+
+
+class WorkdirCleanupResult(AriadneModel):
+    ticket_key: str
+    worktree_path: str
+    removed: bool = False
+    skipped: bool = False
+    reason: str = ""
+    dirty: bool = False
+    record_path: str
+
+
 class RuntimeCapability(AriadneModel):
     backend_name: str
     command: str
@@ -783,9 +980,24 @@ class RuntimeCapability(AriadneModel):
     command_path: str | None = None
     external_execution_enabled: bool = False
     command_template_set: bool = False
+    template_env_var: str | None = None
+    safety_gate_env_var: str | None = None
     confirm_execution_required: bool = True
     supports_external_execution: bool = False
     supports_dry_run: bool = False
+    supports_prompt_file: bool = False
+    supports_stdin_prompt: bool = False
+    supports_session_resume: bool = False
+    supports_mcp: bool = False
+    supports_skill_materialization: bool = False
+    supports_model_selection: bool = False
+    supports_reasoning_effort: bool = False
+    supports_timeout: bool = False
+    supports_diff_capture: bool = False
+    supports_test_capture: bool = False
+    supports_git_status_capture: bool = False
+    disabled_reasons: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
     checked_at: str = Field(default_factory=utc_now)
 
 
@@ -827,13 +1039,21 @@ class RouteDecision(AriadneModel):
     ticket_id: str
     ticket_key: str
     planner_name: str
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
     backend_name: str
+    build_team_id: str | None = None
+    build_team_name: str | None = None
+    team_role_agent_ids: dict[str, str] = Field(default_factory=dict)
+    selected_agent_id: str | None = None
+    selected_agent_name: str | None = None
     selected_agent_role: str = "Execution"
     target_repo_path: str
     build_decision: BuildDecision
     reason: str
     external_execution_enabled: bool = False
     confirm_execution: bool = False
+    permission_profile_id: str | None = None
     skill_refs: list[str] = Field(default_factory=list)
     resource_refs: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
@@ -871,6 +1091,183 @@ class FeishuWritePlan(AriadneModel):
         return self
 
 
+class FeishuWriteResult(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    plan_id: str
+    ok: bool
+    blocked: bool = False
+    dry_run: bool = False
+    failure_reason: FailureReason | None = None
+    reason: str | None = None
+    lark_cli_path: str | None = None
+    command: str = ""
+    returncode: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    content_path: str | None = None
+    document_id: str | None = None
+    document_url: str | None = None
+    operation_summary: str = ""
+    created_at: str = Field(default_factory=utc_now)
+
+
+class GitHubIntegrationResult(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    operation: str
+    ok: bool
+    blocked: bool = False
+    failure_reason: FailureReason | None = None
+    reason: str | None = None
+    repo: str | None = None
+    issue_number: int | None = None
+    issue_url: str | None = None
+    pr_number: int | None = None
+    pr_url: str | None = None
+    branch: str | None = None
+    commit_sha: str | None = None
+    remote_url: str | None = None
+    comment_url: str | None = None
+    command_summaries: list[str] = Field(default_factory=list)
+    stdout: str = ""
+    stderr: str = ""
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utc_now)
+
+
+class BackendSmokeEvidence(AriadneModel):
+    id: str
+    backend_name: str
+    ticket_id: str
+    ticket_key: str
+    assignment_id: str
+    assignment_status: str
+    succeeded: bool
+    blocked: bool = False
+    blocker: str | None = None
+    failure_reason: str | None = None
+    execution_result_id: str | None = None
+    exit_code: int | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    test_command: str = ""
+    test_exit_code: int | None = None
+    review_verdict: str | None = None
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
+    handoff_file: str | None = None
+    command_template_env_var: str | None = None
+    command_template_set: bool = False
+    provider_session_id: str | None = None
+    provider_failure_kind: str | None = None
+    board_path: str | None = None
+    memory_path: str | None = None
+    feishu_plan_path: str | None = None
+    next_tickets_path: str | None = None
+    llm_agent_artifact_paths: list[str] = Field(default_factory=list)
+    external_execution_enabled: bool = False
+    confirm_execution: bool = False
+    created_at: str = Field(default_factory=utc_now)
+
+
+class LandingArtifactRef(AriadneModel):
+    kind: str
+    artifact_id: str
+    path: str
+    summary: str = ""
+
+
+class LandingTestResult(AriadneModel):
+    command: str
+    exit_code: int | None = None
+    status: str
+    output_artifact_path: str | None = None
+
+
+class LandingEvidence(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    ticket_title: str
+    ticket_status: TicketStatus
+    backend_name: str
+    planner_name: str
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
+    branch: str | None = None
+    target_repo_path: str
+    worktree_path: str | None = None
+    execution_result_id: str
+    review_report_id: str
+    review_verdict: ReviewVerdict
+    changed_files: list[str] = Field(default_factory=list)
+    git_diff_summary: dict[str, Any] = Field(default_factory=dict)
+    test_results: list[LandingTestResult] = Field(default_factory=list)
+    memory_path: str
+    board_path: str
+    next_tickets_path: str
+    feishu_plan_path: str
+    orchestrator_result_path: str | None = None
+    gate_inputs: dict[str, Any] = Field(default_factory=dict)
+    linked_artifacts: list[LandingArtifactRef] = Field(default_factory=list)
+    partial: bool = False
+    missing_fields: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
+
+
+class LandingGateStatus(str, Enum):
+    READY = "ready"
+    NEEDS_REVIEW = "needs_review"
+    BLOCKED = "blocked"
+
+
+class LandingGateCheckStatus(str, Enum):
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
+
+
+class LandingGateCheck(AriadneModel):
+    name: str
+    status: LandingGateCheckStatus
+    summary: str
+    evidence_ref: str | None = None
+
+
+class LandingGateReport(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    status: LandingGateStatus
+    landing_evidence_id: str | None = None
+    landing_evidence_path: str | None = None
+    checks: list[LandingGateCheck] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    recommended_action: str = "review_landing_gate_report"
+    created_at: str = Field(default_factory=utc_now)
+
+
+class InboxItem(AriadneModel):
+    id: str
+    source_type: str
+    source_id: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    title: str
+    summary: str
+    severity: InboxSeverity = InboxSeverity.MEDIUM
+    status: InboxStatus = InboxStatus.OPEN
+    failure_reason: FailureReason | None = None
+    evidence_ref: str | None = None
+    recommended_action: str = "human_review_required"
+    resolution_note: str | None = None
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+
+
 class BuildSkill(AriadneModel):
     id: str
     name: str
@@ -879,3 +1276,76 @@ class BuildSkill(AriadneModel):
     body_markdown: str
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
+
+
+class BuildSkillMaterialization(AriadneModel):
+    skill_name: str
+    backend_name: str
+    materialization_strategy: str = "local_provider_visible_copy"
+    source_skill_path: str
+    materialized_skill_path: str | None = None
+    provider_skill_dir: str
+    included: bool = True
+    prompt_injection_warning_count: int = 0
+    warning: str | None = None
+    requires_confirmation: bool = False
+    notes: str = (
+        "Local BuildSkill materialization only. Do not write to global Codex or Claude config."
+    )
+
+
+class StoreInvariantIssue(AriadneModel):
+    reason: StoreInvariantReason
+    severity: StoreInvariantSeverity = StoreInvariantSeverity.ERROR
+    path: str
+    message: str
+    entity_type: str | None = None
+    entity_id: str | None = None
+    related_entity_id: str | None = None
+
+
+class StoreInvariantReport(AriadneModel):
+    id: str
+    root_path: str
+    ok: bool
+    error_count: int
+    warning_count: int
+    checked_files: int
+    issues: list[StoreInvariantIssue] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
+
+
+class ReleaseEvidencePacket(AriadneModel):
+    id: str
+    root_path: str
+    generated_at: str = Field(default_factory=utc_now)
+    git_head: str | None = None
+    git_branch: str | None = None
+    ticket_count: int = 0
+    assignment_count: int = 0
+    open_assignment_count: int = 0
+    execution_result_count: int = 0
+    review_report_count: int = 0
+    memory_record_count: int = 0
+    inbox_item_count: int = 0
+    workdir_count: int = 0
+    active_workdir_count: int = 0
+    dirty_workdir_count: int = 0
+    board_path: str | None = None
+    store_invariant_report_path: str | None = None
+    store_invariants_ok: bool = False
+    store_invariant_errors: int = 0
+    store_invariant_warnings: int = 0
+    secret_scan_ok: bool = False
+    secret_finding_count: int = 0
+    runtime_capabilities: list[RuntimeCapability] = Field(default_factory=list)
+    latest_review_verdicts: dict[str, str] = Field(default_factory=dict)
+    product_readiness_status: str | None = None
+    production_acceptance_status: str | None = None
+    run_gate_status: str | None = None
+    product_readiness_checks: dict[str, str] = Field(default_factory=dict)
+    real_success_evidence: dict[str, Any] = Field(default_factory=dict)
+    real_failure_evidence: dict[str, Any] = Field(default_factory=dict)
+    local_success_evidence: dict[str, Any] = Field(default_factory=dict)
+    local_failure_evidence: dict[str, Any] = Field(default_factory=dict)
+    evidence_refs: dict[str, str] = Field(default_factory=dict)

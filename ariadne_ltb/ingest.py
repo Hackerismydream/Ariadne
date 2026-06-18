@@ -19,6 +19,7 @@ from ariadne_ltb.models import (
     utc_now,
 )
 from ariadne_ltb.planner_quality import score_build_packet
+from ariadne_ltb.prompt_guard import prompt_guard_metadata, quote_untrusted_snippet
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -158,6 +159,7 @@ def source_document_from_path(path: Path) -> SourceDocument:
             "headings": extract_headings(content),
             "action_verbs": extract_action_verbs(content),
             "evidence_snippets": extract_evidence_snippets(content),
+            **prompt_guard_metadata(content, str(path)),
         },
     )
 
@@ -278,7 +280,16 @@ def build_packet_from_source(ticket: BuildTicket, source: SourceDocument) -> Bui
     )
     quality = score_build_packet(packet)
     return packet.model_copy(
-        update={"metadata": packet.metadata | {"quality": quality, "planner_mode": "deterministic"}}
+        update={
+            "metadata": packet.metadata
+            | {
+                "quality": quality,
+                "planner_mode": "deterministic",
+                "trust_boundary": source.metadata.get("trust_boundary", "untrusted_external_context"),
+                "prompt_injection_findings": source.metadata.get("prompt_injection_findings", []),
+                "prompt_injection_warning_count": source.metadata.get("prompt_injection_warning_count", 0),
+            }
+        }
     )
 
 
@@ -295,7 +306,7 @@ def evidence_from_source(source: SourceDocument) -> list[Evidence]:
         Evidence(
             id=stable_id("evidence", source.id, index, snippet),
             source_ref=source.path_or_url,
-            quote_or_summary=snippet[:500],
+            quote_or_summary=quote_untrusted_snippet(snippet[:500]),
             location=f"{source.metadata.get('filename', 'source')}#{index}",
             confidence=0.86 if index == 1 else 0.74,
         )

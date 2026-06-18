@@ -1,5 +1,18 @@
 # Ariadne v1.0 Sprint Implementation Plan
 
+Status: superseded
+
+Superseded by:
+
+```text
+docs/goals/2026-06-17-2043-ariadne-production-agent-workbench-goal.md
+docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md
+```
+
+Reason: this sprint plan was useful for the earlier v1.0 MVP, but it is no
+longer the active development goal. The current goal is production-first real
+agent integrations with DeepSeek, Codex, Claude Code, Feishu, and GitHub.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build Ariadne v1.0 as a local-first, ticket-driven Agent teammate workbench covering ARI-007 through ARI-014.

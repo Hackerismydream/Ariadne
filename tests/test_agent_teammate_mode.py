@@ -10,8 +10,10 @@ from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_safety import DirectoryLock, list_locks
+from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.models import (
     AssignmentStatus,
+    ArtifactType,
     CommentKind,
     RuntimeEvent,
 )
@@ -20,6 +22,25 @@ from ariadne_ltb.storage import AriadneStore
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
+
+
+class FakeLLMTransport:
+    def post_json(self, url, payload, headers, timeout_seconds):  # type: ignore[no-untyped-def]
+        return {
+            "model": "deepseek-v4-pro",
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"summary":"daemon role completed","decision":"continue",'
+                            '"evidence":["assignment evidence"],"risks":[],'
+                            '"recommended_actions":["continue daemon product loop"]}'
+                        )
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+        }
 
 
 def test_default_agent_profiles_and_cli_list(tmp_path: Path) -> None:
@@ -37,6 +58,23 @@ def test_default_agent_profiles_and_cli_list(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "fake-codex" in result.output
     assert "claude-code" in result.output
+
+
+def test_default_build_team_and_cli_show(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    teams = store.ensure_default_build_teams()
+    runner = CliRunner()
+
+    listing = runner.invoke(app, ["--root", str(tmp_path), "team", "list"])
+    show = runner.invoke(app, ["--root", str(tmp_path), "team", "show", "build-team"])
+
+    assert {team.id for team in teams} == {"build-team"}
+    assert listing.exit_code == 0, listing.output
+    assert "Ariadne Build Team" in listing.output
+    assert "implementer=codex" in listing.output
+    assert show.exit_code == 0, show.output
+    assert "lead: build-lead" in show.output
+    assert "backend: codex" in show.output
 
 
 def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) -> None:
@@ -63,6 +101,210 @@ def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) ->
     assert any(comment.kind is CommentKind.ASSIGNMENT for comment in comments)
     assert any(event.stage == "assignment" and event.event_type == "queued" for event in events)
     assert all(event.idempotency_key for event in events)
+
+
+def test_ticket_assign_records_runtime_strategy_overrides(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "fake-codex",
+            "--planner",
+            "llm",
+            "--agent-runtime",
+            "llm",
+            "--backlog-planner",
+            "llm",
+        ],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+
+    assert result.exit_code == 0, result.output
+    assert assignment is not None
+    assert assignment.planner_name == "llm"
+    assert assignment.agent_runtime == "llm"
+    assert assignment.backlog_planner_name == "llm"
+    assert "agent runtime: llm" in result.output
+    assert "backlog planner: llm" in result.output
+
+
+def test_ticket_assign_production_runtime_profile_selects_llm_strategy(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "codex",
+            "--runtime-profile",
+            "production",
+        ],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+
+    assert result.exit_code == 0, result.output
+    assert assignment is not None
+    assert assignment.backend_name == "codex"
+    assert assignment.planner_name == "llm"
+    assert assignment.agent_runtime == "llm"
+    assert assignment.backlog_planner_name == "llm"
+    assert "planner: llm" in result.output
+    assert "agent runtime: llm" in result.output
+    assert "backlog planner: llm" in result.output
+
+
+def test_ticket_assign_rejects_unknown_runtime_profile(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "codex",
+            "--runtime-profile",
+            "demo",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "runtime profile must be `auto`, `deterministic`, or" in result.output
+    assert "`production`" in result.output
+
+
+def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "build-team"],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    route_artifacts = [
+        artifact for artifact in artifacts if artifact.artifact_type is ArtifactType.ROUTE_DECISION
+    ]
+    route_json = json.loads(Path(route_artifacts[-1].path).read_text(encoding="utf-8"))
+    comments = store.list_comments(ticket.id)
+    events = store.list_runtime_events_for_ticket(ticket.id)
+    board = (store.board_dir / "index.md")
+
+    assert result.exit_code == 0, result.output
+    assert "Build Team routed: build-team" in result.output
+    assert assignment is not None
+    assert assignment.agent_id == "codex"
+    assert assignment.backend_name == "codex"
+    assert assignment.assigned_by == "Build Lead"
+    assert assignment.metadata["build_team_id"] == "build-team"
+    assert ticket.metadata["assigned_team_id"] == "build-team"
+    assert ticket.metadata["latest_route_decision_artifact_id"] == route_artifacts[-1].id
+    assert route_json["build_team_id"] == "build-team"
+    assert route_json["selected_agent_id"] == "codex"
+    assert route_json["backend_name"] == "codex"
+    assert route_json["agent_runtime"] == "deterministic"
+    assert route_json["backlog_planner_name"] == "deterministic"
+    assert route_json["team_role_agent_ids"]["reviewer"] == "reviewer"
+    assert route_json["team_role_agent_ids"]["memory"] == "memory"
+    assert any(comment.kind is CommentKind.ROUTE for comment in comments)
+    assert any(event.stage == "route" and event.event_type == "succeeded" for event in events)
+
+    from ariadne_ltb.board import export_board
+
+    export_board(store)
+    board_text = board.read_text(encoding="utf-8")
+    assert "## Build Teams" in board_text
+    assert "Build Team: `build-team`" in board_text
+    assert "Selected agent: `codex`" in board_text
+    assert "Agent runtime: `deterministic`" in board_text
+    assert "Backlog planner: `deterministic`" in board_text
+
+
+def test_ticket_assign_to_build_team_production_profile_routes_llm_strategy(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "build-team",
+            "--runtime-profile",
+            "production",
+        ],
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    route_artifacts = [
+        store.load_artifact(artifact_id)
+        for artifact_id in ticket.artifact_ids
+        if store.load_artifact(artifact_id).artifact_type is ArtifactType.ROUTE_DECISION
+    ]
+    route_json = json.loads(Path(route_artifacts[-1].path).read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0, result.output
+    assert assignment is not None
+    assert assignment.planner_name == "llm"
+    assert assignment.agent_runtime == "llm"
+    assert assignment.backlog_planner_name == "llm"
+    assert route_json["planner_name"] == "llm"
+    assert route_json["agent_runtime"] == "llm"
+    assert route_json["backlog_planner_name"] == "llm"
+
+
+def test_daemon_runs_build_team_assignment(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    assign = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "build-team"],
+    )
+    assert assign.exit_code == 0, assign.output
+
+    result = LocalDaemonWorker(store).run_once()
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+
+    assert result.did_work is True
+    assert result.ticket_run_result is not None
+    assert assignment is not None
+    assert assignment.status is AssignmentStatus.BLOCKED
+    assert result.ticket_run_result.backend_name == "codex"
 
 
 def test_human_comment_cli_and_ticket_comments(tmp_path: Path) -> None:
@@ -114,6 +356,91 @@ def test_daemon_run_once_claims_assignment_and_writes_teammate_trace(tmp_path: P
     assert "## Comments" in board
     assert "## Runtime Journal" in board
     assert "## Daemon / Worker" in board
+
+
+def test_daemon_run_once_can_run_assignment_with_llm_agent_runtime(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+    assign = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "fake-codex",
+            "--agent-runtime",
+            "llm",
+        ],
+    )
+    assert assign.exit_code == 0, assign.output
+    client = DeepSeekClient(api_key="test-secret-key", transport=FakeLLMTransport())
+
+    result = LocalDaemonWorker(store, runtime_id="llm-daemon-test").run_once(
+        agent_runtime="llm",
+        llm_agent_client=client,
+    )
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    llm_runs = [
+        store.load_run(run_id)
+        for run_id in ticket.agent_run_ids
+        if store.load_run(run_id).agent_role.startswith("llm:")
+    ]
+
+    assert result.did_work is True
+    assert result.ticket_run_result is not None
+    assert result.ticket_run_result.agent_runtime == "llm"
+    assert len(result.ticket_run_result.llm_agent_artifact_paths) == 3
+    assert assignment is not None
+    assert assignment.status is AssignmentStatus.DONE
+    assert {run.agent_role for run in llm_runs} >= {"llm:build_lead", "llm:knowledge", "llm:memory"}
+
+
+def test_daemon_llm_agent_runtime_blocks_assignment_when_key_missing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    runner = CliRunner()
+    assign = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "fake-codex",
+            "--agent-runtime",
+            "llm",
+        ],
+    )
+    assert assign.exit_code == 0, assign.output
+
+    result = LocalDaemonWorker(store, runtime_id="missing-key-daemon-test").run_once()
+
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    comments = store.list_comments(ticket.id)
+
+    assert result.did_work is True
+    assert assignment is not None
+    assert assignment.status is AssignmentStatus.FAILED
+    assert "DEEPSEEK_API_KEY is required" in (assignment.blocker or "")
+    assert result.ticket_run_result is None
+    assert any(comment.kind is CommentKind.BLOCKER for comment in comments)
 
 
 def test_daemon_run_once_reports_no_work(tmp_path: Path) -> None:

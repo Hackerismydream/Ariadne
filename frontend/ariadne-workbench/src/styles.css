@@ -215,6 +215,11 @@ button {
   background: var(--card);
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .toolbar .primary-action {
   border-color: oklch(0.57 0.18 255);
   background: oklch(0.57 0.18 255);
@@ -226,6 +231,41 @@ button {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.action-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-row button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  background: var(--card);
+}
+
+.action-row button:nth-child(2) {
+  border-color: oklch(0.57 0.18 255);
+  background: oklch(0.57 0.18 255);
+  color: white;
+}
+
+.action-message {
+  border-left: 3px solid oklch(0.57 0.18 255);
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .goal-layout {
@@ -817,8 +857,33 @@ button {
   font-style: normal;
 }
 
+.issue-search-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  background: var(--card);
+}
+
+.issue-search-bar input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 9px 11px;
+  color: var(--foreground);
+}
+
+.issue-search-bar span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
 .issues-layout {
-  height: calc(100vh - 56px);
+  height: calc(100vh - 108px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
 }
@@ -827,7 +892,7 @@ button {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 56px 16px 14px;
+  padding: 16px 16px 14px;
 }
 
 .kanban-column {
@@ -990,6 +1055,89 @@ button {
 
 .panel.nested {
   margin-top: 14px;
+}
+
+.github-panel .link-row,
+.smoke-panel .link-row,
+.check-summary,
+.github-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.github-panel a,
+.smoke-panel code,
+.check-summary span,
+.github-history span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.smoke-panel .link-row code {
+  border-radius: 6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.smoke-files {
+  margin-top: 10px;
+}
+
+.llm-panel,
+.feishu-panel,
+.release-panel {
+  overflow: hidden;
+}
+
+.llm-agent-list {
+  display: grid;
+  gap: 10px;
+}
+
+.llm-agent-row {
+  display: grid;
+  grid-template-columns: 88px 76px 90px minmax(92px, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 12px;
+}
+
+.llm-agent-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.llm-agent-row p,
+.llm-agent-row code {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.llm-agent-row p {
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.llm-agent-row code,
+.feishu-panel .property-grid strong,
+.release-panel .property-grid strong {
+  overflow-wrap: anywhere;
+}
+
+.commit-sha {
+  display: block;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-size: 12px;
 }
 
 .timeline {
@@ -1196,6 +1344,29 @@ button {
   background: var(--card);
 }
 
+.smoke-summary {
+  margin-top: 16px;
+}
+
+.smoke-row {
+  display: grid;
+  grid-template-columns: 110px 86px 92px 78px 82px 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+  font-size: 12px;
+}
+
+.smoke-row:first-of-type {
+  border-top: 0;
+}
+
+.smoke-row code {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+}
+
 .runtime-capability span,
 .resource-row span {
   display: block;
@@ -1264,6 +1435,36 @@ button {
 
 .inbox-list p {
   margin: 0;
+  color: var(--muted-foreground);
+}
+
+.inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-right: 120px;
+}
+
+.inbox-meta span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.inbox-list .inbox-action {
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.inbox-list code {
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.inbox-list small {
   color: var(--muted-foreground);
 }
 

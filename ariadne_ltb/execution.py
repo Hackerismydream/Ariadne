@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ from typing import Protocol
 
 from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
 from ariadne_ltb.models import ExecutionContext, ExecutionResult, FailureReason, stable_id, utc_now
+from ariadne_ltb.permissions import validate_changed_files, validate_execution_context_permissions
+from ariadne_ltb.secret_safety import validate_secret_safety
 
 
 class ExecutionBackend(Protocol):
@@ -72,6 +75,51 @@ def _blocked_result(
     )
 
 
+def _permission_block(
+    context: ExecutionContext,
+    backend_name: str,
+    started: str,
+    repo: Path,
+) -> ExecutionResult | None:
+    validation = validate_execution_context_permissions(context)
+    if validation.valid:
+        secret_validation = validate_secret_safety(
+            context.target_repo_path,
+            command=context.command,
+            allowed_paths=context.allowed_paths,
+        )
+        if secret_validation.valid:
+            return None
+        validation = secret_validation
+    return _blocked_result(
+        context,
+        backend_name,
+        validation.reason,
+        started,
+        repo,
+        failure_reason=validation.failure_reason or FailureReason.SCOPE_VIOLATION,
+    )
+
+
+def _apply_changed_file_policy(
+    result: ExecutionResult,
+    context: ExecutionContext,
+) -> ExecutionResult:
+    validation = validate_changed_files(context.allowed_paths, result.changed_files)
+    if validation.valid:
+        return result
+    warning = validation.reason
+    return result.model_copy(
+        update={
+            "blocked": True,
+            "block_reason": warning,
+            "failure_reason": validation.failure_reason or FailureReason.SCOPE_VIOLATION,
+            "exit_code": result.exit_code if result.exit_code != 0 else 2,
+            "warnings": [*result.warnings, warning],
+        }
+    )
+
+
 class DryRunBackend:
     name = "dry-run"
 
@@ -81,12 +129,12 @@ class DryRunBackend:
     def execute(self, context: ExecutionContext) -> ExecutionResult:
         repo = Path(context.target_repo_path)
         started = utc_now()
+        if blocked := _permission_block(context, self.name, started, repo):
+            return blocked
         return ExecutionResult(
             id=stable_id("execution", context.ticket_id, self.name, started),
             ticket_id=context.ticket_id,
             backend_name=self.name,
-            target_repo_path=context.target_repo_path,
-            target_worktree_path=context.target_worktree_path,
             dry_run=True,
             command=context.command,
             exit_code=0,
@@ -115,6 +163,8 @@ class FakeCodexBackend:
     def execute(self, context: ExecutionContext) -> ExecutionResult:
         repo = Path(context.target_repo_path)
         started = utc_now()
+        if blocked := _permission_block(context, self.name, started, repo):
+            return blocked
         head_before = git_head(repo)
         status_before = git_status(repo)
         validation_reason = self._validate_context(context)
@@ -136,37 +186,46 @@ class FakeCodexBackend:
                 "backend": self.name,
                 "action": "added demo-todo export-json",
                 "changed_files": ["demo_todo/cli.py", "tests/test_cli.py"],
+                "skill_bundle_path": context.skill_bundle_path,
+                "skill_bundle_available": bool(
+                    context.skill_bundle_path and Path(context.skill_bundle_path).exists()
+                ),
+                "provider_skill_dir": context.provider_skill_dir,
+                "provider_skill_dir_available": bool(
+                    context.provider_skill_dir and Path(context.provider_skill_dir).exists()
+                ),
             }
         )
         test_command = context.test_command or f"{self.python_executable} -m pytest"
         test = _run_command(shlex.split(test_command), repo, context.timeout_seconds)
         files = changed_files(repo)
         diff = git_diff(repo)
-        return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name, started),
-            ticket_id=context.ticket_id,
-            backend_name=self.name,
-            target_repo_path=context.target_repo_path,
-            target_worktree_path=context.target_worktree_path,
-            dry_run=False,
-            blocked=False,
-            command=context.command,
-            exit_code=0,
-            stdout=execution_stdout,
-            stderr="",
-            started_at=started,
-            ended_at=utc_now(),
-            git_head_before=head_before,
-            git_head_after=git_head(repo),
-            git_status_before=status_before,
-            git_status_after=git_status(repo),
-            changed_files=files,
-            git_diff=diff,
-            test_command=test_command,
-            test_exit_code=test.returncode,
-            test_stdout=test.stdout,
-            test_stderr=test.stderr,
-            warnings=[] if diff else ["git diff unavailable or empty"],
+        return _apply_changed_file_policy(
+            ExecutionResult(
+                id=stable_id("execution", context.ticket_id, self.name, started),
+                ticket_id=context.ticket_id,
+                backend_name=self.name,
+                dry_run=False,
+                blocked=False,
+                command=context.command,
+                exit_code=0,
+                stdout=execution_stdout,
+                stderr="",
+                started_at=started,
+                ended_at=utc_now(),
+                git_head_before=head_before,
+                git_head_after=git_head(repo),
+                git_status_before=status_before,
+                git_status_after=git_status(repo),
+                changed_files=files,
+                git_diff=diff,
+                test_command=test_command,
+                test_exit_code=test.returncode,
+                test_stdout=test.stdout,
+                test_stderr=test.stderr,
+                warnings=[] if diff else ["git diff unavailable or empty"],
+            ),
+            context,
         )
 
     def _validate_context(self, context: ExecutionContext) -> str | None:
@@ -223,24 +282,16 @@ class ShellBackend:
         repo = Path(context.target_repo_path)
         started = utc_now()
         if not context.confirm_execution:
-            return ExecutionResult(
-                id=stable_id("execution", context.ticket_id, self.name, started),
-                ticket_id=context.ticket_id,
-                backend_name=self.name,
-                target_repo_path=context.target_repo_path,
-                target_worktree_path=context.target_worktree_path,
-                dry_run=False,
-                command=context.command,
-                exit_code=2,
-                stdout="",
-                stderr="ShellBackend requires --confirm-execution.",
-                started_at=started,
-                ended_at=utc_now(),
-                git_head_before=git_head(repo),
-                git_head_after=git_head(repo),
-                git_status_before=git_status(repo),
-                git_status_after=git_status(repo),
+            return _blocked_result(
+                context,
+                self.name,
+                "ShellBackend requires --confirm-execution.",
+                started,
+                repo,
+                failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
             )
+        if blocked := _permission_block(context, self.name, started, repo):
+            return blocked
         result = subprocess.run(
             context.command,
             cwd=repo,
@@ -260,36 +311,41 @@ class ShellBackend:
                 capture_output=True,
                 timeout=context.timeout_seconds,
                 check=False,
-            )
-        return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name, started),
-            ticket_id=context.ticket_id,
-            backend_name=self.name,
-            target_repo_path=context.target_repo_path,
-            target_worktree_path=context.target_worktree_path,
-            dry_run=False,
-            command=context.command,
-            exit_code=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
-            started_at=started,
-            ended_at=utc_now(),
-            git_status_before="",
-            git_status_after=git_status(repo),
-            changed_files=changed_files(repo),
-            git_diff=git_diff(repo),
-            test_command=context.test_command,
-            test_exit_code=test.returncode if test else None,
-            test_stdout=test.stdout if test else "",
-            test_stderr=test.stderr if test else "",
+        )
+        return _apply_changed_file_policy(
+            ExecutionResult(
+                id=stable_id("execution", context.ticket_id, self.name, started),
+                ticket_id=context.ticket_id,
+                backend_name=self.name,
+                dry_run=False,
+                command=context.command,
+                exit_code=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                started_at=started,
+                ended_at=utc_now(),
+                git_status_before="",
+                git_status_after=git_status(repo),
+                changed_files=changed_files(repo),
+                git_diff=git_diff(repo),
+                test_command=context.test_command,
+                test_exit_code=test.returncode if test else None,
+                test_stdout=test.stdout if test else "",
+                test_stderr=test.stderr if test else "",
+            ),
+            context,
         )
 
 
 class CodexBackend(ShellBackend):
     name = "codex"
     template_env_var = "ARIADNE_CODEX_COMMAND_TEMPLATE"
-    default_template = "codex exec --cd {target_repo} --prompt-file {handoff_file}"
+    default_template = "codex exec --cd {target_repo} - < {handoff_file}"
     executable_name = "codex"
+    model_env_var = "ARIADNE_CODEX_MODEL"
+    reasoning_effort_env_var = "ARIADNE_CODEX_REASONING_EFFORT"
+    service_tier_env_var = "ARIADNE_CODEX_SERVICE_TIER"
+    default_service_tier = ""
 
     def is_available(self) -> bool:
         return shutil.which(self.executable_name) is not None
@@ -300,6 +356,8 @@ class CodexBackend(ShellBackend):
         handoff_file = self.write_handoff_file(context)
         prepared = context.model_copy(update={"handoff_file": str(handoff_file)})
         command = self.render_command(prepared)
+        command_template = self.command_template()
+        safe_command = _redact_execution_text(command)
         if os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") != "1":
             return _blocked_result(
                 prepared,
@@ -307,9 +365,9 @@ class CodexBackend(ShellBackend):
                 "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.",
                 started,
                 repo,
-                command=command,
+                command=safe_command,
                 failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
-            )
+            ).model_copy(update=self._evidence_metadata(prepared, command_template))
         if not context.confirm_execution:
             return _blocked_result(
                 prepared,
@@ -317,8 +375,12 @@ class CodexBackend(ShellBackend):
                 "External execution blocked: --confirm-execution is required.",
                 started,
                 repo,
-                command=command,
+                command=safe_command,
                 failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
+            ).model_copy(update=self._evidence_metadata(prepared, command_template))
+        if blocked := _permission_block(prepared, self.name, started, repo):
+            return blocked.model_copy(
+                update={"command": safe_command, **self._evidence_metadata(prepared, command_template)}
             )
         executable = shlex.split(command)[0] if command.strip() else self.executable_name
         if shutil.which(executable) is None:
@@ -328,9 +390,9 @@ class CodexBackend(ShellBackend):
                 f"External execution blocked: `{executable}` command is unavailable.",
                 started,
                 repo,
-                command=command,
+                command=safe_command,
                 failure_reason=FailureReason.COMMAND_UNAVAILABLE,
-            )
+            ).model_copy(update=self._evidence_metadata(prepared, command_template))
 
         before_head = git_head(repo)
         before_status = git_status(repo)
@@ -356,6 +418,11 @@ class CodexBackend(ShellBackend):
                 _timeout_stream(exc.stderr)
                 + f"\nCommand timed out after {context.timeout_seconds} seconds."
             ).strip()
+        failure_reason, provider_failure_kind, provider_failure_evidence = _classify_provider_failure(
+            exit_code,
+            stdout,
+            stderr,
+        )
         test = None
         if context.test_command:
             test = subprocess.run(
@@ -366,46 +433,61 @@ class CodexBackend(ShellBackend):
                 capture_output=True,
                 timeout=context.timeout_seconds,
                 check=False,
-            )
-        return ExecutionResult(
-            id=stable_id("execution", context.ticket_id, self.name, started),
-            ticket_id=context.ticket_id,
-            backend_name=self.name,
-            target_repo_path=context.target_repo_path,
-            target_worktree_path=context.target_worktree_path,
-            dry_run=False,
-            blocked=False,
-            command=command,
-            exit_code=exit_code,
-            stdout=stdout,
-            stderr=stderr,
-            started_at=started,
-            ended_at=utc_now(),
-            git_head_before=before_head,
-            git_head_after=git_head(repo),
-            git_status_before=before_status,
-            git_status_after=git_status(repo),
-            changed_files=changed_files(repo),
-            git_diff=git_diff(repo),
-            test_command=context.test_command,
-            test_exit_code=test.returncode if test else None,
-            test_stdout=test.stdout if test else "",
-            test_stderr=test.stderr if test else "",
-            warnings=["Execution command timed out."] if timed_out else [],
-            failure_reason=FailureReason.TIMEOUT if timed_out else None,
+        )
+        return _apply_changed_file_policy(
+            ExecutionResult(
+                id=stable_id("execution", context.ticket_id, self.name, started),
+                ticket_id=context.ticket_id,
+                backend_name=self.name,
+                dry_run=False,
+                blocked=False,
+                command=safe_command,
+                exit_code=exit_code,
+                stdout=stdout,
+                stderr=stderr,
+                started_at=started,
+                ended_at=utc_now(),
+                git_head_before=before_head,
+                git_head_after=git_head(repo),
+                git_status_before=before_status,
+                git_status_after=git_status(repo),
+                changed_files=changed_files(repo),
+                git_diff=git_diff(repo),
+                test_command=context.test_command,
+                test_exit_code=test.returncode if test else None,
+                test_stdout=test.stdout if test else "",
+                test_stderr=test.stderr if test else "",
+                warnings=["Execution command timed out."] if timed_out else [],
+                failure_reason=FailureReason.TIMEOUT if timed_out else failure_reason,
+                provider_session_id=_extract_provider_session_id(stdout, stderr),
+                provider_failure_kind=provider_failure_kind,
+                provider_failure_evidence=provider_failure_evidence,
+                **self._evidence_metadata(prepared, command_template),
+            ),
+            prepared,
         )
 
     def render_command(self, context: ExecutionContext) -> str:
-        template = os.environ.get(self.template_env_var) or self.default_template
+        template = self.command_template()
         handoff_file = context.handoff_file or str(self._handoff_file_path(context))
         return template.format(
-            target_repo=context.target_repo_path,
-            handoff_file=handoff_file,
+            target_repo=shlex.quote(context.target_repo_path),
+            handoff_file=shlex.quote(handoff_file),
             ticket_id=context.ticket_id,
             ticket_key=context.ticket_key or context.ticket_id,
             assignment_id=context.assignment_id or "",
             run_id=context.run_id or "",
+            model=_quote_optional(os.environ.get(self.model_env_var, "")),
+            reasoning_effort=_quote_optional(os.environ.get(self.reasoning_effort_env_var, "")),
+            effort=_quote_optional(os.environ.get(self.reasoning_effort_env_var, "")),
+            service_tier=_quote_optional(os.environ.get(self.service_tier_env_var, self.default_service_tier)),
+            max_turns=_quote_optional(os.environ.get("ARIADNE_CLAUDE_MAX_TURNS", "")),
+            system_prompt=_quote_optional(os.environ.get("ARIADNE_CLAUDE_SYSTEM_PROMPT", "")),
+            system_prompt_file=_quote_optional(os.environ.get("ARIADNE_CLAUDE_SYSTEM_PROMPT_FILE", "")),
         )
+
+    def command_template(self) -> str:
+        return os.environ.get(self.template_env_var) or self.default_template
 
     def write_handoff_file(self, context: ExecutionContext) -> Path:
         handoff_file = Path(context.handoff_file) if context.handoff_file else self._handoff_file_path(context)
@@ -418,12 +500,22 @@ class CodexBackend(ShellBackend):
         handoffs_dir = target.parent / "handoffs" if target.parent.name == ".ariadne" else target / ".ariadne" / "handoffs"
         return handoffs_dir / f"{context.ticket_key or context.ticket_id}.md"
 
+    def _evidence_metadata(self, context: ExecutionContext, command_template: str) -> dict[str, str]:
+        return {
+            "handoff_file": context.handoff_file or str(self._handoff_file_path(context)),
+            "command_template": _redact_execution_text(command_template),
+            "command_template_env_var": self.template_env_var,
+        }
+
 
 class ClaudeCodeBackend(CodexBackend):
     name = "claude-code"
     template_env_var = "ARIADNE_CLAUDE_COMMAND_TEMPLATE"
-    default_template = "claude --print < {handoff_file}"
+    default_template = "claude --print --output-format json < {handoff_file}"
     executable_name = "claude"
+    model_env_var = "ARIADNE_CLAUDE_MODEL"
+    reasoning_effort_env_var = "ARIADNE_CLAUDE_EFFORT"
+    service_tier_env_var = "ARIADNE_CLAUDE_SERVICE_TIER"
 
     def is_available(self) -> bool:
         return shutil.which(self.executable_name) is not None
@@ -449,3 +541,102 @@ def _timeout_stream(value: str | bytes | None) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
+
+
+def _quote_optional(value: str) -> str:
+    return shlex.quote(value) if value else ""
+
+
+def _classify_provider_failure(
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+) -> tuple[FailureReason | None, str | None, str | None]:
+    if exit_code == 0:
+        return None, None, None
+    text = f"{stdout}\n{stderr}".lower()
+    if any(token in text for token in ["not logged in", "login", "unauthorized", "auth", "api key"]):
+        return (
+            FailureReason.AUTHENTICATION_FAILED,
+            "authentication_failed",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    if any(token in text for token in ["quota", "rate limit", "rate-limit", "usage limit", "billing"]):
+        return (
+            FailureReason.QUOTA_EXCEEDED,
+            "quota_exceeded",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    if any(
+        token in text
+        for token in ["config.toml", "unknown variant", "invalid config", "unsupported service_tier"]
+    ):
+        return (
+            FailureReason.PROVIDER_CONFIG_INVALID,
+            "provider_config_invalid",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    return FailureReason.AGENT_ERROR, "agent_error", _provider_failure_evidence(stdout, stderr)
+
+
+def _provider_failure_evidence(stdout: str, stderr: str) -> str:
+    text = _redact_execution_text((stderr or stdout).strip())
+    return text[-1000:]
+
+
+def _redact_execution_text(text: str) -> str:
+    redacted = re.sub(r"sk-[A-Za-z0-9_-]{8,}", "sk-[REDACTED]", text)
+    redacted = re.sub(r"(Bearer\s+)[A-Za-z0-9._~+/=-]+", r"\1[REDACTED]", redacted)
+    redacted = re.sub(
+        r"(?i)(api[_-]?key|secret|token|password)=([^\s'\"]+)",
+        r"\1=[REDACTED]",
+        redacted,
+    )
+    return redacted
+
+
+def _extract_provider_session_id(stdout: str, stderr: str) -> str | None:
+    for text in [stdout, stderr]:
+        parsed = _extract_session_id_from_json(text)
+        if parsed:
+            return parsed
+        match = re.search(r"(?i)\bsession(?:[_ -]?id)?\b\s*[:=]\s*([A-Za-z0-9_.:-]{6,})", text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _extract_session_id_from_json(text: str) -> str | None:
+    try:
+        value = _session_id_from_mapping(json.loads(text))
+        if value:
+            return value
+    except json.JSONDecodeError:
+        pass
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        value = _session_id_from_mapping(data)
+        if value:
+            return value
+    return None
+
+
+def _session_id_from_mapping(data: object) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    for key in ["session_id", "sessionId", "conversation_id", "conversationId"]:
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+    session = data.get("session")
+    if isinstance(session, dict):
+        value = session.get("id")
+        if isinstance(value, str) and value:
+            return value
+    return None

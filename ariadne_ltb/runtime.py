@@ -11,6 +11,7 @@ from ariadne_ltb.models import (
     AgentRunStatus,
     Artifact,
     BuildTicket,
+    RunMessageType,
     RuntimeCapability,
     TicketStatus,
     stable_id,
@@ -69,6 +70,14 @@ class PipelineEngine:
         ).mark_running()
         context.current_run_id = run.id
         context.store.save_run(run)
+        context.store.reset_run_messages(run.id)
+        context.store.append_run_message(
+            run.id,
+            "start",
+            RunMessageType.STATUS,
+            f"{node.name} started for {context.ticket.key}.",
+            metadata={"agent_role": node.role},
+        )
 
         ticket = context.ticket.with_run(run.id).append_event(
             "agent_run_started",
@@ -88,6 +97,20 @@ class PipelineEngine:
                 error=str(exc),
             )
             context.store.save_run(failed_run)
+            context.store.append_run_message(
+                failed_run.id,
+                "error",
+                RunMessageType.ERROR,
+                f"{node.name} failed: {exc}",
+                metadata={"status": failed_run.status.value},
+            )
+            context.store.append_run_message(
+                failed_run.id,
+                "finish",
+                RunMessageType.RESULT,
+                f"{node.name} failed.",
+                metadata={"status": failed_run.status.value},
+            )
             failed_ticket = context.ticket.with_status(
                 TicketStatus.FAILED,
                 node.name,
@@ -106,6 +129,25 @@ class PipelineEngine:
             update={"artifact_ids": [artifact.id for artifact in result.artifacts]},
         ).mark_finished(AgentRunStatus.SUCCEEDED, result.output_summary)
         context.store.save_run(finished_run)
+        for artifact in result.artifacts:
+            context.store.append_run_message(
+                finished_run.id,
+                "artifact",
+                RunMessageType.ARTIFACT,
+                f"Created {artifact.artifact_type.value}: {artifact.summary}",
+                artifact_ref=artifact.id,
+                metadata={"path": artifact.path},
+            )
+        context.store.append_run_message(
+            finished_run.id,
+            "finish",
+            RunMessageType.RESULT,
+            result.output_summary,
+            metadata={
+                "status": finished_run.status.value,
+                "artifact_ids": [artifact.id for artifact in result.artifacts],
+            },
+        )
 
         ticket = context.ticket.with_artifacts(result.artifacts).append_event(
             "agent_run_finished",
@@ -133,6 +175,8 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
     codex_path = shutil.which("codex")
     claude_path = shutil.which("claude")
     external_enabled = os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1"
+    codex_template_set = bool(os.environ.get("ARIADNE_CODEX_COMMAND_TEMPLATE"))
+    claude_template_set = bool(os.environ.get("ARIADNE_CLAUDE_COMMAND_TEMPLATE"))
     return [
         RuntimeCapability(
             backend_name="fake-codex",
@@ -144,39 +188,14 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             confirm_execution_required=False,
             supports_external_execution=False,
             supports_dry_run=False,
-        ),
-        RuntimeCapability(
-            backend_name="shell",
-            command="shell",
-            command_path=None,
-            available=True,
-            external_execution_enabled=external_enabled,
-            command_template_set=False,
-            confirm_execution_required=True,
-            supports_external_execution=True,
-            supports_dry_run=False,
-        ),
-        RuntimeCapability(
-            backend_name="codex",
-            command="codex",
-            command_path=codex_path,
-            available=codex_path is not None,
-            external_execution_enabled=external_enabled,
-            command_template_set=bool(os.environ.get("ARIADNE_CODEX_COMMAND_TEMPLATE")),
-            confirm_execution_required=True,
-            supports_external_execution=True,
-            supports_dry_run=False,
-        ),
-        RuntimeCapability(
-            backend_name="claude-code",
-            command="claude",
-            command_path=claude_path,
-            available=claude_path is not None,
-            external_execution_enabled=external_enabled,
-            command_template_set=bool(os.environ.get("ARIADNE_CLAUDE_COMMAND_TEMPLATE")),
-            confirm_execution_required=True,
-            supports_external_execution=True,
-            supports_dry_run=False,
+            supports_skill_materialization=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            notes=[
+                "Deterministic local simulator for the demo target project.",
+                "Validates handoff content and allowed paths before patching.",
+            ],
         ),
         RuntimeCapability(
             backend_name="dry-run",
@@ -188,5 +207,94 @@ def collect_runtime_capabilities() -> list[RuntimeCapability]:
             confirm_execution_required=False,
             supports_external_execution=False,
             supports_dry_run=True,
+            supports_git_status_capture=True,
+            notes=["No target files are changed."],
+        ),
+        RuntimeCapability(
+            backend_name="shell",
+            command="shell",
+            command_path=None,
+            available=True,
+            external_execution_enabled=external_enabled,
+            command_template_set=False,
+            safety_gate_env_var="ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+            supports_timeout=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            disabled_reasons=[] if external_enabled else ["ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset"],
+            notes=["Runs explicit shell commands only after confirmation."],
+        ),
+        RuntimeCapability(
+            backend_name="codex",
+            command="codex",
+            command_path=codex_path,
+            available=codex_path is not None,
+            external_execution_enabled=external_enabled,
+            command_template_set=codex_template_set,
+            template_env_var="ARIADNE_CODEX_COMMAND_TEMPLATE",
+            safety_gate_env_var="ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+            supports_prompt_file=False,
+            supports_stdin_prompt=True,
+            supports_skill_materialization=True,
+            supports_model_selection=True,
+            supports_reasoning_effort=True,
+            supports_timeout=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            disabled_reasons=[
+                reason
+                for reason in [
+                    None if codex_path else "codex command is missing",
+                    None if external_enabled else "ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset",
+                ]
+                if reason
+            ],
+            notes=[
+                "Writes a handoff file under the target repo .ariadne/handoffs directory.",
+                "Default template reads the handoff from stdin because this local Codex CLI does not advertise --prompt-file.",
+                "Service tier is left to Codex config/provider default unless an explicit command template overrides it.",
+            ],
+        ),
+        RuntimeCapability(
+            backend_name="claude-code",
+            command="claude",
+            command_path=claude_path,
+            available=claude_path is not None,
+            external_execution_enabled=external_enabled,
+            command_template_set=claude_template_set,
+            template_env_var="ARIADNE_CLAUDE_COMMAND_TEMPLATE",
+            safety_gate_env_var="ARIADNE_ENABLE_EXTERNAL_EXECUTION",
+            confirm_execution_required=True,
+            supports_external_execution=True,
+            supports_dry_run=False,
+            supports_stdin_prompt=True,
+            supports_session_resume=True,
+            supports_skill_materialization=True,
+            supports_model_selection=True,
+            supports_reasoning_effort=True,
+            supports_timeout=True,
+            supports_diff_capture=True,
+            supports_test_capture=True,
+            supports_git_status_capture=True,
+            disabled_reasons=[
+                reason
+                for reason in [
+                    None if claude_path else "claude command is missing",
+                    None if external_enabled else "ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset",
+                ]
+                if reason
+            ],
+            notes=[
+                "Writes a handoff file and passes it through the configured Claude command template.",
+                "Default template: claude --print --output-format json < {handoff_file}.",
+            ],
         ),
     ]

@@ -87,9 +87,23 @@ def prepare_isolated_worktree(
             )
         )
 
-    record_path = store.worktree_record_path(ticket.key)
+    assignment_suffix = _assignment_suffix(assignment_id)
+    isolation_key = (
+        f"{branch_binding.worktree_dir_name}-{assignment_suffix}"
+        if assignment_suffix
+        else branch_binding.worktree_dir_name
+    )
+    record_path = (
+        store.worktree_record_path(ticket.key, isolation_key=isolation_key)
+        if assignment_suffix
+        else store.worktree_record_path(ticket.key)
+    )
     if record_path.exists():
-        existing = store.load_worktree_isolation(ticket.key)
+        existing = (
+            store.load_worktree_isolation(ticket.key, isolation_key=isolation_key)
+            if assignment_suffix
+            else store.load_worktree_isolation(ticket.key)
+        )
         if existing.active:
             return WorktreeIsolationResult(
                 block=WorktreeBlock(
@@ -99,7 +113,7 @@ def prepare_isolated_worktree(
                 )
             )
 
-    worktree_path = store.worktree_path(branch_binding.worktree_dir_name)
+    worktree_path = store.worktree_path(isolation_key)
     if worktree_path.exists():
         return WorktreeIsolationResult(
             block=WorktreeBlock(
@@ -110,7 +124,17 @@ def prepare_isolated_worktree(
 
     base_sha = _git_stdout(base_repo, "rev-parse", "HEAD")
     base_branch = _current_branch(base_repo)
-    branch_name = branch_binding.branch_name
+    branch_name = (
+        f"{branch_binding.branch_name}-{assignment_suffix}"
+        if assignment_suffix
+        else branch_binding.branch_name
+    )
+    try:
+        _validate_branch_name(branch_name)
+    except ValueError as exc:
+        return WorktreeIsolationResult(
+            block=WorktreeBlock(str(exc), FailureReason.INVALID_RESOURCE)
+        )
     if _branch_exists(base_repo, branch_name):
         return WorktreeIsolationResult(
             block=WorktreeBlock(
@@ -168,6 +192,12 @@ def _current_branch(repo: Path) -> str:
 def _branch_exists(repo: Path, branch_name: str) -> bool:
     result = run_git(repo, "show-ref", "--verify", "--quiet", f"refs/heads/{branch_name}")
     return result.returncode == 0
+
+
+def _assignment_suffix(assignment_id: str | None) -> str:
+    if not assignment_id:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "", assignment_id.lower())[-12:]
 
 
 def _ticket_key_component(ticket_key: str) -> str:

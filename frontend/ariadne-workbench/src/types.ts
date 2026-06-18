@@ -22,7 +22,113 @@ export type AriadneTicket = {
   reviewVerdict: "pass" | "needs_fix" | "blocked" | "pending";
   memoryPath?: string;
   nextTicketsPath?: string;
+  github?: GitHubTicketEvidence;
+  backendSmoke?: BackendSmokeEvidence;
+  llmAgents?: LLMAgentEvidence[];
+  feishu?: FeishuTicketEvidence;
+  releaseEvidence?: ReleaseEvidenceSummary;
   acceptance: string[];
+};
+
+export type BackendSmokeEvidence = {
+  id: string;
+  backendName: string;
+  ticketId: string;
+  ticketKey: string;
+  assignmentId: string;
+  assignmentStatus: string;
+  succeeded: boolean;
+  blocked: boolean;
+  blocker?: string | null;
+  executionResultId?: string | null;
+  exitCode?: number | null;
+  changedFiles: string[];
+  testExitCode?: number | null;
+  reviewVerdict?: string | null;
+  handoffFile?: string | null;
+  boardPath?: string | null;
+  memoryPath?: string | null;
+  feishuPlanPath?: string | null;
+  nextTicketsPath?: string | null;
+  agentRuntime: string;
+  backlogPlannerName: string;
+  externalExecutionEnabled: boolean;
+  confirmExecution: boolean;
+  createdAt: string;
+};
+
+export type GitHubTicketEvidence = {
+  operation: string;
+  ok: boolean;
+  blocked: boolean;
+  repo?: string | null;
+  issueNumber?: number | null;
+  issueUrl?: string | null;
+  prNumber?: number | null;
+  prUrl?: string | null;
+  branch?: string | null;
+  commitSha?: string | null;
+  commentUrl?: string | null;
+  checksStatus?: string | null;
+  checkCounts?: {
+    pass: number;
+    pending: number;
+    fail: number;
+    total: number;
+  };
+  reviewDecision?: string | null;
+  mergeable?: string | null;
+  baseBranch?: string | null;
+  history: Array<{
+    operation: string;
+    ok: boolean;
+    blocked: boolean;
+    createdAt: string;
+  }>;
+};
+
+export type LLMAgentEvidence = {
+  id: string;
+  role: string;
+  provider: string;
+  model: string;
+  succeeded: boolean;
+  summary?: string | null;
+  decision?: string | null;
+  totalTokens?: number | null;
+  path: string;
+  createdAt: string;
+};
+
+export type FeishuTicketEvidence = {
+  id: string;
+  ok: boolean;
+  blocked: boolean;
+  dryRun: boolean;
+  documentUrl?: string | null;
+  documentId?: string | null;
+  operationSummary?: string | null;
+  reason?: string | null;
+  returncode?: number | null;
+  path: string;
+  createdAt: string;
+};
+
+export type ReleaseEvidenceSummary = {
+  id?: string;
+  productionAcceptanceStatus?: string;
+  productReadinessStatus?: string;
+  runGateStatus?: string;
+  productReadinessChecks?: Record<string, string>;
+  realSuccessEvidence?: Record<string, unknown>;
+  realFailureEvidence?: Record<string, unknown>;
+  evidenceRefs?: Record<string, string>;
+  ticketCount?: number;
+  executionResultCount?: number;
+  reviewReportCount?: number;
+  inboxItemCount?: number;
+  packetPath?: string;
+  generatedAt?: string;
 };
 
 export type TimelineEvent = {
@@ -65,6 +171,10 @@ export type RuntimeInfo = {
   confirmExecutionRequired?: boolean;
   supportsExternalExecution?: boolean;
   supportsDryRun?: boolean;
+  canAssign?: boolean;
+  canRun?: boolean;
+  fallbackOnly?: boolean;
+  disabledReasons?: string[];
   checkedAt?: string;
 };
 
@@ -72,7 +182,22 @@ export type ProjectResource = {
   id: string;
   label: string;
   resourceType: string;
+  available?: boolean;
+  disabledReason?: string;
   localPath?: string;
+};
+
+export type AssignmentSummary = {
+  id: string;
+  ticketId: string;
+  ticketKey: string;
+  agentId: string;
+  agentName: string;
+  backendName?: string | null;
+  status: string;
+  targetProjectId?: string | null;
+  blocker?: string | null;
+  failureReason?: string | null;
 };
 
 export type SourceDocument = {
@@ -99,7 +224,7 @@ export type KnowledgeCard = {
   primary: boolean;
 };
 
-export type BacklogChangeKind = "added" | "updated" | "deferred" | "rejected" | "superseded";
+export type BacklogChangeKind = "added" | "updated" | "deferred" | "rejected" | "superseded" | "no_op";
 
 export type BacklogChange = {
   id: string;
@@ -111,6 +236,13 @@ export type BacklogChange = {
   priority: "P1" | "P2" | "P3";
   suggestedOwnerAgent: string;
   buildDecision: KnowledgeCard["buildDecision"];
+  previewId?: string;
+  previewStatus?: "preview_only" | "applied" | "blocked";
+  triggerType?: string;
+  operationType?: string;
+  appliedUpdateId?: string | null;
+  conflictCount?: number;
+  evidenceRefs?: string[];
 };
 
 export type TraceStep = {
@@ -129,8 +261,12 @@ export type BacklogMutationPreview = {
   updated: number;
   deferred: number;
   rejected: number;
+  noOp?: number;
   unsafe: number;
   lastPreviewAt: string;
+  previewId?: string;
+  triggerType?: string;
+  appliedUpdateId?: string | null;
 };
 
 export type SkillInfo = {
@@ -143,10 +279,21 @@ export type SkillInfo = {
 export type InboxItem = {
   id: string;
   ticketId?: string;
+  ticketKey?: string;
   title: string;
   body: string;
   time: string;
   kind: "review" | "blocker" | "memory" | "goal";
+  status?: "open" | "acknowledged" | "resolved" | "snoozed";
+  severity?: "low" | "medium" | "high" | "critical";
+  sourceType?: string;
+  sourceId?: string;
+  failureReason?: string | null;
+  recommendedAction?: string;
+  evidenceRef?: string | null;
+  resolutionNote?: string | null;
+  repairTicketId?: string;
+  repairTicketKey?: string;
 };
 
 export type WorkbenchData = {
@@ -159,7 +306,10 @@ export type WorkbenchData = {
   backlogMutationPreview: BacklogMutationPreview;
   agents: AgentRole[];
   runtimes: RuntimeInfo[];
+  assignments?: AssignmentSummary[];
   projectResources?: ProjectResource[];
+  backendSmokeEvidence?: BackendSmokeEvidence[];
+  releaseEvidence?: ReleaseEvidenceSummary;
   skills: SkillInfo[];
   inbox: InboxItem[];
 };

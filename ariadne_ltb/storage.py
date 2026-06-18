@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import fcntl
 import json
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+from typing import Iterator
 from typing import TypeVar
+from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.models import (
     AgentRun,
     AgentHandoff,
@@ -13,21 +20,32 @@ from ariadne_ltb.models import (
     Artifact,
     ArtifactType,
     AssignmentStatus,
+    BacklogPreview,
     BacklogUpdate,
+    BackendSmokeEvidence,
     BuildPacket,
+    BuildTeam,
     BuildTicket,
     CommentAuthorType,
     CommentKind,
     ExecutionResult,
+    FeishuWriteResult,
     FeishuWritePlan,
+    GitHubIntegrationResult,
+    InboxItem,
+    InboxStatus,
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
+    ReleaseEvidencePacket,
     ReviewReport,
     RuntimeEvent,
+    RunMessage,
+    RunMessageType,
     RuntimeCapability,
     SourceDocument,
     TicketAssignment,
+    TicketStatus,
     TicketComment,
     WorkerHeartbeat,
     WorktreeIsolation,
@@ -45,7 +63,9 @@ class AriadneStore:
         self.project_space_path = self.base / "project_space.json"
         self.agents_dir = self.base / "agents"
         self.agent_profiles_path = self.agents_dir / "profiles.json"
+        self.build_teams_path = self.agents_dir / "teams.json"
         self.assignments_dir = self.base / "assignments"
+        self.assignment_claim_lock_path = self.assignments_dir / ".claim.lock"
         self.comments_dir = self.base / "comments"
         self.journal_dir = self.base / "journal"
         self.journal_path = self.journal_dir / "events.jsonl"
@@ -57,6 +77,7 @@ class AriadneStore:
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
         self.sources_dir = self.base / "sources"
+        self.skill_materializations_dir = self.base / "skills"
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
         self.project_dir = self.base / "project"
@@ -65,12 +86,22 @@ class AriadneStore:
         self.worktrees_dir = self.base / "worktrees"
         self.worktree_records_dir = self.worktrees_dir / "records"
         self.backlog_dir = self.base / "backlog"
+        self.backlog_previews_dir = self.backlog_dir / "previews"
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
+        self.inbox_dir = self.base / "inbox"
+        self.inbox_items_path = self.inbox_dir / "items.json"
+        self.evidence_dir = self.base / "evidence"
+        self.backend_smoke_evidence_dir = self.evidence_dir / "backend_smoke"
+        self.release_evidence_packet_path = self.evidence_dir / "release_evidence_packet.json"
         self.reviews_dir = self.base / "reviews"
         self.feishu_plans_dir = self.base / "feishu_plans"
+        self.integrations_dir = self.base / "integrations"
+        self.feishu_integrations_dir = self.integrations_dir / "feishu"
+        self.github_integrations_dir = self.integrations_dir / "github"
         self.artifacts_dir = self.base / "artifacts"
         self.artifact_index_dir = self.base / "artifact_index"
         self.board_dir = self.base / "board"
+        self.doctor_dir = self.base / "doctor"
         self._ensure_layout()
 
     def _ensure_layout(self) -> None:
@@ -86,6 +117,7 @@ class AriadneStore:
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
+            self.skill_materializations_dir,
             self.build_packets_dir,
             self.execution_results_dir,
             self.memory_dir,
@@ -98,11 +130,19 @@ class AriadneStore:
             self.worktrees_dir,
             self.worktree_records_dir,
             self.backlog_dir,
+            self.backlog_previews_dir,
+            self.inbox_dir,
+            self.evidence_dir,
+            self.backend_smoke_evidence_dir,
             self.reviews_dir,
             self.feishu_plans_dir,
+            self.integrations_dir,
+            self.feishu_integrations_dir,
+            self.github_integrations_dir,
             self.artifacts_dir,
             self.artifact_index_dir,
             self.board_dir,
+            self.doctor_dir,
         ]:
             directory.mkdir(parents=True, exist_ok=True)
 
@@ -163,6 +203,47 @@ class AriadneStore:
         msg = f"unknown agent profile: {agent_id_or_name}"
         raise FileNotFoundError(msg)
 
+    def save_build_teams(self, teams: list[BuildTeam]) -> None:
+        self.build_teams_path.write_text(
+            json.dumps(
+                {"teams": [team.model_dump(mode="json") for team in teams]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def load_build_teams(self) -> list[BuildTeam]:
+        if not self.build_teams_path.exists():
+            return []
+        data = json.loads(self.build_teams_path.read_text(encoding="utf-8"))
+        return [BuildTeam.model_validate(item) for item in data.get("teams", [])]
+
+    def ensure_default_build_teams(self) -> list[BuildTeam]:
+        teams = self.load_build_teams()
+        existing = {team.id: team for team in teams}
+        defaults = _default_build_teams()
+        changed = False
+        for team in defaults:
+            if team.id not in existing:
+                existing[team.id] = team
+                changed = True
+        merged = sorted(existing.values(), key=lambda team: team.id)
+        if changed or not teams:
+            self.save_build_teams(merged)
+        return merged
+
+    def resolve_build_team(self, team_id_or_name: str) -> BuildTeam:
+        normalized = team_id_or_name.lower()
+        for team in self.ensure_default_build_teams():
+            if team.id.lower() == normalized or team.name.lower() == normalized:
+                if not team.enabled:
+                    msg = f"build team is disabled: {team_id_or_name}"
+                    raise ValueError(msg)
+                return team
+        msg = f"unknown build team: {team_id_or_name}"
+        raise FileNotFoundError(msg)
+
     def save_ticket(self, ticket: BuildTicket) -> None:
         self._write_model(self.tickets_dir / f"{ticket.id}.json", ticket)
 
@@ -192,16 +273,21 @@ class AriadneStore:
         ticket: BuildTicket,
         agent: AgentProfile,
         backend_name: str | None = None,
+        planner_name: str | None = None,
+        agent_runtime: str | None = None,
+        backlog_planner_name: str | None = None,
         assigned_by: str = "human",
     ) -> TicketAssignment:
         assignment = TicketAssignment(
-            id=stable_id("assignment", ticket.id, agent.id, utc_now()),
+            id=stable_id("assignment", ticket.id, agent.id, utc_now(), uuid4().hex),
             ticket_id=ticket.id,
             ticket_key=ticket.key,
             agent_id=agent.id,
             agent_name=agent.name,
             backend_name=backend_name or agent.backend_name,
-            planner_name=agent.planner_name,
+            planner_name=planner_name or agent.planner_name,
+            agent_runtime=agent_runtime or agent.agent_runtime,
+            backlog_planner_name=backlog_planner_name or agent.backlog_planner_name,
             priority=ticket.priority,
             assigned_by=assigned_by,
         )
@@ -214,6 +300,7 @@ class AriadneStore:
             author="Ariadne",
             kind=CommentKind.ASSIGNMENT,
             body=f"Assignment created: {ticket.key} -> {agent.name}.",
+            thread_id=assignment.id,
             payload_ref=assignment.id,
         )
         self.append_comment(comment)
@@ -278,6 +365,90 @@ class AriadneStore:
             }
         ]
 
+    def claim_next_assignment(
+        self,
+        runtime_id: str,
+        lease_seconds: int = 600,
+    ) -> TicketAssignment | None:
+        with self._assignment_claim_lock():
+            for assignment in sorted(self.list_assignments(), key=lambda item: item.created_at):
+                claimed = self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+                if claimed is not None:
+                    return claimed
+        return None
+
+    def claim_assignment(
+        self,
+        assignment_id: str,
+        runtime_id: str,
+        lease_seconds: int = 600,
+    ) -> TicketAssignment | None:
+        with self._assignment_claim_lock():
+            try:
+                assignment = self.load_assignment(assignment_id)
+            except FileNotFoundError:
+                return None
+            return self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+
+    def _claim_assignment_locked(
+        self,
+        assignment: TicketAssignment,
+        runtime_id: str,
+        lease_seconds: int,
+    ) -> TicketAssignment | None:
+        if not self._claimable_assignment(assignment):
+            return None
+        try:
+            ticket = self.load_ticket(assignment.ticket_id)
+        except FileNotFoundError:
+            return None
+        if ticket.status is TicketStatus.SUPERSEDED:
+            self.save_assignment(
+                assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
+            )
+            return None
+        metadata = assignment.metadata
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            metadata = metadata | {
+                "lease_reclaimed_at": utc_now(),
+                "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
+                "lease_reclaimed_from_status": assignment.status.value,
+            }
+        claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
+        claimed = claimed.model_copy(
+            deep=True,
+            update={
+                "started_at": None,
+                "ended_at": None,
+                "blocker": None,
+                "failure_reason": None,
+                "metadata": metadata,
+            },
+        )
+        self.save_assignment(claimed)
+        return claimed
+
+    @contextmanager
+    def _assignment_claim_lock(self) -> Iterator[None]:
+        self.assignment_claim_lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.assignment_claim_lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                handle.seek(0)
+                handle.truncate()
+                handle.write(json.dumps({"pid": __import__("os").getpid(), "locked_at": utc_now()}))
+                handle.flush()
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def _claimable_assignment(self, assignment: TicketAssignment) -> bool:
+        if assignment.status is AssignmentStatus.QUEUED:
+            return True
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            return is_assignment_lease_expired(assignment)
+        return False
+
     def find_latest_assignment_for_ticket(self, ticket_id: str) -> TicketAssignment | None:
         assignments = self.list_assignments_for_ticket(ticket_id)
         if not assignments:
@@ -297,29 +468,83 @@ class AriadneStore:
         kind: CommentKind,
         body: str,
         payload_ref: str | None = None,
+        parent_comment_id: str | None = None,
+        thread_id: str | None = None,
     ) -> TicketComment:
+        parent = self.find_comment(ticket.id, parent_comment_id) if parent_comment_id else None
+        if parent_comment_id and parent is None:
+            msg = f"parent comment not found: {parent_comment_id}"
+            raise ValueError(msg)
+        if parent is not None and thread_id is not None and thread_id != parent.thread_id:
+            msg = f"thread_id does not match parent thread: {thread_id}"
+            raise ValueError(msg)
+        created_at = utc_now()
         comment = TicketComment(
-            id=stable_id("comment", ticket.id, author, kind.value, body, utc_now()),
+            id=stable_id("comment", ticket.id, author, kind.value, body, created_at),
             ticket_id=ticket.id,
             ticket_key=ticket.key,
             author_type=author_type,
             author=author,
             kind=kind,
             body=body,
+            parent_comment_id=parent_comment_id,
+            thread_id=parent.thread_id if parent else thread_id,
             payload_ref=payload_ref,
+            created_at=created_at,
         )
         self.append_comment(comment)
         return comment
 
-    def list_comments(self, ticket_id: str) -> list[TicketComment]:
+    def list_comments(
+        self,
+        ticket_id: str,
+        since: str | None = None,
+        tail: int | None = None,
+    ) -> list[TicketComment]:
         path = self.comments_dir / f"{ticket_id}.jsonl"
         if not path.exists():
             return []
-        return [
+        comments = [
             TicketComment.model_validate_json(line)
             for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
+        if since is not None:
+            comments = [comment for comment in comments if comment.created_at > since]
+        if tail is not None:
+            comments = comments[-tail:]
+        return comments
+
+    def find_comment(self, ticket_id: str, comment_id: str | None) -> TicketComment | None:
+        if comment_id is None:
+            return None
+        for comment in self.list_comments(ticket_id):
+            if comment.id == comment_id:
+                return comment
+        return None
+
+    def list_comment_roots(self, ticket_id: str) -> list[TicketComment]:
+        return [comment for comment in self.list_comments(ticket_id) if comment.parent_comment_id is None]
+
+    def list_comment_thread(self, ticket_id: str, thread_id_or_comment_id: str) -> list[TicketComment]:
+        comments = self.list_comments(ticket_id)
+        thread_id = thread_id_or_comment_id
+        for comment in comments:
+            if comment.id == thread_id_or_comment_id:
+                thread_id = comment.thread_id or comment.id
+                break
+        return [comment for comment in comments if comment.thread_id == thread_id]
+
+    def list_recent_comment_threads(self, ticket_id: str, limit: int = 5) -> list[list[TicketComment]]:
+        grouped: dict[str, list[TicketComment]] = {}
+        for comment in self.list_comments(ticket_id):
+            grouped.setdefault(comment.thread_id or comment.id, []).append(comment)
+        threads = sorted(
+            grouped.values(),
+            key=lambda thread: thread[-1].created_at if thread else "",
+            reverse=True,
+        )
+        return threads[:limit]
 
     def append_runtime_event(self, event: RuntimeEvent) -> None:
         with self.journal_path.open("a", encoding="utf-8") as handle:
@@ -338,10 +563,13 @@ class AriadneStore:
         )
 
     def list_worker_heartbeats(self) -> list[WorkerHeartbeat]:
-        return [
-            self._read_model(path, WorkerHeartbeat)
-            for path in sorted(self.daemon_heartbeats_dir.glob("*.json"))
-        ]
+        heartbeats: list[WorkerHeartbeat] = []
+        for path in sorted(self.daemon_heartbeats_dir.glob("*.json")):
+            try:
+                heartbeats.append(self._read_model(path, WorkerHeartbeat))
+            except (ValidationError, OSError):
+                continue
+        return heartbeats
 
     def save_handoff(self, handoff: AgentHandoff) -> None:
         self._write_model(self.handoffs_dir / f"{handoff.id}.json", handoff)
@@ -387,6 +615,25 @@ class AriadneStore:
         with self.backlog_updates_path.open("a", encoding="utf-8") as handle:
             handle.write(update.model_dump_json(exclude_none=False) + "\n")
 
+    def save_backlog_preview(self, preview: BacklogPreview) -> Path:
+        path = self.backlog_previews_dir / f"{preview.id}.json"
+        self._write_model(path, preview)
+        return path
+
+    def load_backlog_preview(self, preview_id: str) -> BacklogPreview:
+        return self._read_model(self.backlog_previews_dir / f"{preview_id}.json", BacklogPreview)
+
+    def list_backlog_previews(self) -> list[BacklogPreview]:
+        if not self.backlog_previews_dir.exists():
+            return []
+        previews: list[BacklogPreview] = []
+        for path in sorted(self.backlog_previews_dir.glob("*.json")):
+            try:
+                previews.append(self._read_model(path, BacklogPreview))
+            except (json.JSONDecodeError, ValidationError):
+                continue
+        return sorted(previews, key=lambda preview: preview.created_at)
+
     def list_backlog_updates(self) -> list[BacklogUpdate]:
         if not self.backlog_updates_path.exists():
             return []
@@ -416,11 +663,90 @@ class AriadneStore:
     def load_run(self, run_id: str) -> AgentRun:
         return self._read_model(self.runs_dir / f"{run_id}.json", AgentRun)
 
+    def list_runs(self) -> list[AgentRun]:
+        return [
+            self._read_model(path, AgentRun)
+            for path in sorted(self.runs_dir.glob("*.json"))
+        ]
+
+    def run_messages_path(self, run_id: str) -> Path:
+        return self.runs_dir / run_id / "messages.jsonl"
+
+    def _run_messages_lock_path(self, run_id: str) -> Path:
+        return self.runs_dir / run_id / ".messages.lock"
+
+    @contextmanager
+    def _run_messages_lock(self, run_id: str) -> Iterator[None]:
+        lock_path = self._run_messages_lock_path(run_id)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+    def reset_run_messages(self, run_id: str) -> None:
+        with self._run_messages_lock(run_id):
+            path = self.run_messages_path(run_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("", encoding="utf-8")
+
+    def append_run_message(
+        self,
+        run_id: str,
+        stage: str,
+        message_type: RunMessageType,
+        content: str,
+        artifact_ref: str | None = None,
+        tool_name: str | None = None,
+        result_ref: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> RunMessage:
+        with self._run_messages_lock(run_id):
+            messages = self.list_run_messages(run_id)
+            next_seq = (messages[-1].seq + 1) if messages else 1
+            message = RunMessage(
+                run_id=run_id,
+                seq=next_seq,
+                stage=stage,
+                message_type=message_type,
+                content=content,
+                artifact_ref=artifact_ref,
+                tool_name=tool_name,
+                result_ref=result_ref,
+                metadata=metadata or {},
+            )
+            path = self.run_messages_path(run_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(message.model_dump_json(exclude_none=False) + "\n")
+            return message
+
+    def list_run_messages(self, run_id: str, since: int | None = None) -> list[RunMessage]:
+        path = self.run_messages_path(run_id)
+        if not path.exists():
+            return []
+        messages = [
+            RunMessage.model_validate_json(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if since is None:
+            return messages
+        return [message for message in messages if message.seq > since]
+
     def save_build_packet(self, packet: BuildPacket) -> None:
         self._write_model(self.build_packets_dir / f"{packet.id}.json", packet)
 
     def load_build_packet(self, packet_id: str) -> BuildPacket:
         return self._read_model(self.build_packets_dir / f"{packet_id}.json", BuildPacket)
+
+    def list_build_packets(self) -> list[BuildPacket]:
+        return [
+            self._read_model(path, BuildPacket)
+            for path in sorted(self.build_packets_dir.glob("*.json"))
+        ]
 
     def save_source_document(self, source: SourceDocument) -> None:
         self._write_model(self.sources_dir / f"{source.id}.json", source)
@@ -440,11 +766,24 @@ class AriadneStore:
     def load_execution_result(self, result_id: str) -> ExecutionResult:
         return self._read_model(self.execution_results_dir / f"{result_id}.json", ExecutionResult)
 
+    def list_execution_results(self) -> list[ExecutionResult]:
+        return [
+            self._read_model(path, ExecutionResult)
+            for path in sorted(self.execution_results_dir.glob("*.json"))
+        ]
+
     def save_memory_record(self, record: MemoryRecord) -> None:
         self._write_model(self.memory_dir / "tickets" / f"{record.ticket_id}.json", record)
 
     def load_memory_record(self, ticket_id: str) -> MemoryRecord:
         return self._read_model(self.memory_dir / "tickets" / f"{ticket_id}.json", MemoryRecord)
+
+    def list_memory_records(self) -> list[MemoryRecord]:
+        records = [
+            self._read_model(path, MemoryRecord)
+            for path in sorted((self.memory_dir / "tickets").glob("*.json"))
+        ]
+        return sorted(records, key=lambda record: record.created_at)
 
     def save_review_report(self, review_report: ReviewReport) -> None:
         self._write_model(self.reviews_dir / f"{review_report.id}.json", review_report)
@@ -452,11 +791,113 @@ class AriadneStore:
     def load_review_report(self, review_report_id: str) -> ReviewReport:
         return self._read_model(self.reviews_dir / f"{review_report_id}.json", ReviewReport)
 
+    def list_review_reports(self) -> list[ReviewReport]:
+        return [
+            self._read_model(path, ReviewReport)
+            for path in sorted(self.reviews_dir.glob("*.json"))
+        ]
+
     def save_feishu_write_plan(self, write_plan: FeishuWritePlan) -> None:
         self._write_model(self.feishu_plans_dir / f"{write_plan.id}.json", write_plan)
 
     def load_feishu_write_plan(self, write_plan_id: str) -> FeishuWritePlan:
         return self._read_model(self.feishu_plans_dir / f"{write_plan_id}.json", FeishuWritePlan)
+
+    def save_feishu_write_result(self, result: FeishuWriteResult) -> Path:
+        path = self.feishu_integrations_dir / result.ticket_key / f"{result.id}.json"
+        self._write_model(path, result)
+        return path
+
+    def list_feishu_write_results(self, ticket_key: str | None = None) -> list[FeishuWriteResult]:
+        base = self.feishu_integrations_dir / ticket_key if ticket_key else self.feishu_integrations_dir
+        paths = sorted(base.glob("*.json")) if ticket_key else sorted(base.glob("*/*.json"))
+        return sorted(
+            [self._read_model(path, FeishuWriteResult) for path in paths],
+            key=lambda result: result.created_at,
+        )
+
+    def save_github_integration_result(self, result: GitHubIntegrationResult) -> Path:
+        path = self.github_integrations_dir / result.ticket_key / f"{result.id}.json"
+        self._write_model(path, result)
+        return path
+
+    def list_github_integration_results(
+        self,
+        ticket_key: str | None = None,
+    ) -> list[GitHubIntegrationResult]:
+        base = self.github_integrations_dir / ticket_key if ticket_key else self.github_integrations_dir
+        paths = sorted(base.glob("*.json")) if ticket_key else sorted(base.glob("*/*.json"))
+        return sorted(
+            [self._read_model(path, GitHubIntegrationResult) for path in paths],
+            key=lambda result: (result.created_at, _github_operation_order(result.operation)),
+        )
+
+    def save_backend_smoke_evidence(self, evidence: BackendSmokeEvidence) -> Path:
+        path = self.backend_smoke_evidence_dir / evidence.backend_name / f"{evidence.id}.json"
+        self._write_model(path, evidence)
+        return path
+
+    def list_backend_smoke_evidence(
+        self,
+        backend_name: str | None = None,
+    ) -> list[BackendSmokeEvidence]:
+        base = self.backend_smoke_evidence_dir / backend_name if backend_name else self.backend_smoke_evidence_dir
+        paths = sorted(base.glob("*.json")) if backend_name else sorted(base.glob("*/*.json"))
+        return sorted(
+            [self._read_model(path, BackendSmokeEvidence) for path in paths],
+            key=lambda evidence: evidence.created_at,
+        )
+
+    def save_inbox_items(self, items: list[InboxItem]) -> Path:
+        self.inbox_items_path.write_text(
+            json.dumps(
+                {"items": [item.model_dump(mode="json", exclude_none=False) for item in items]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return self.inbox_items_path
+
+    def list_inbox_items(self) -> list[InboxItem]:
+        if not self.inbox_items_path.exists():
+            return []
+        data = json.loads(self.inbox_items_path.read_text(encoding="utf-8"))
+        return [InboxItem.model_validate(item) for item in data.get("items", [])]
+
+    def load_inbox_item(self, item_id: str) -> InboxItem:
+        for item in self.list_inbox_items():
+            if item.id == item_id:
+                return item
+        msg = f"inbox item not found: {item_id}"
+        raise FileNotFoundError(msg)
+
+    def update_inbox_item_status(
+        self,
+        item_id: str,
+        status: InboxStatus,
+        note: str | None = None,
+    ) -> InboxItem:
+        items = self.list_inbox_items()
+        updated_items: list[InboxItem] = []
+        updated_item: InboxItem | None = None
+        for item in items:
+            if item.id == item_id:
+                updated_item = item.model_copy(
+                    update={
+                        "status": status,
+                        "resolution_note": note if note is not None else item.resolution_note,
+                        "updated_at": utc_now(),
+                    }
+                )
+                updated_items.append(updated_item)
+            else:
+                updated_items.append(item)
+        if updated_item is None:
+            msg = f"inbox item not found: {item_id}"
+            raise FileNotFoundError(msg)
+        self.save_inbox_items(updated_items)
+        return updated_item
 
     def save_project_resources(self, resources: list[ProjectResource]) -> Path:
         path = self.project_dir / "resources.json"
@@ -537,10 +978,12 @@ class AriadneStore:
         return self._read_model(self.artifact_index_dir / f"{artifact_id}.json", Artifact)
 
     def list_artifacts_for_ticket(self, ticket_id: str) -> list[Artifact]:
-        artifacts = [
-            self.load_artifact(path.stem)
-            for path in sorted(self.artifact_index_dir.glob("*.json"))
-        ]
+        artifacts: list[Artifact] = []
+        for path in sorted(self.artifact_index_dir.glob("*.json")):
+            try:
+                artifacts.append(self.load_artifact(path.stem))
+            except (ValidationError, OSError, json.JSONDecodeError):
+                continue
         return [artifact for artifact in artifacts if artifact.ticket_id == ticket_id]
 
     def read_artifact_text(self, artifact: Artifact) -> str:
@@ -549,19 +992,36 @@ class AriadneStore:
     def read_artifact_json(self, artifact: Artifact) -> dict:
         return json.loads(self.read_artifact_text(artifact))
 
-    def worktree_record_path(self, ticket_key: str) -> Path:
-        return self.worktree_records_dir / f"{ticket_key.lower()}.json"
+    def worktree_record_path(self, ticket_key: str, isolation_key: str | None = None) -> Path:
+        key = isolation_key or ticket_key
+        return self.worktree_records_dir / f"{key.lower()}.json"
 
-    def worktree_path(self, ticket_key: str) -> Path:
-        return self.worktrees_dir / ticket_key.lower()
+    def worktree_path(self, ticket_key: str, isolation_key: str | None = None) -> Path:
+        key = isolation_key or ticket_key
+        return self.worktrees_dir / key.lower()
 
     def save_worktree_isolation(self, record: WorktreeIsolation) -> Path:
         path = Path(record.record_path)
         self._write_model(path, record)
         return path
 
-    def load_worktree_isolation(self, ticket_key: str) -> WorktreeIsolation:
-        return self._read_model(self.worktree_record_path(ticket_key), WorktreeIsolation)
+    def load_worktree_isolation(
+        self, ticket_key: str, isolation_key: str | None = None
+    ) -> WorktreeIsolation:
+        return self._read_model(
+            self.worktree_record_path(ticket_key, isolation_key=isolation_key),
+            WorktreeIsolation,
+        )
+
+    def list_worktree_isolations(self) -> list[WorktreeIsolation]:
+        return [
+            self._read_model(path, WorktreeIsolation)
+            for path in sorted(self.worktree_records_dir.glob("*.json"))
+        ]
+
+    def save_release_evidence_packet(self, packet: ReleaseEvidencePacket) -> Path:
+        self._write_model(self.release_evidence_packet_path, packet)
+        return self.release_evidence_packet_path
 
     def resolve_active_worktree(self, ticket_id_or_key: str) -> WorktreeIsolation | None:
         ticket = self.resolve_ticket(ticket_id_or_key)
@@ -622,7 +1082,45 @@ def _default_agent_profiles() -> list[AgentProfile]:
             id="memory",
             name="Memory",
             role="memory",
-            description="Writes local memory and Feishu dry-run plans.",
-            capabilities=["memory", "feishu_dry_run", "next_tickets"],
+            description="Writes local memory and Feishu preview plans.",
+            capabilities=["memory", "feishu_preview", "next_tickets"],
         ),
     ]
+
+
+def _default_build_teams() -> list[BuildTeam]:
+    return [
+        BuildTeam(
+            id="build-team",
+            name="Ariadne Build Team",
+            description=(
+                "Local Build Lead routing team: route ticket to implementer, "
+                "then review, memory, and backlog update through the standard runtime loop."
+            ),
+            lead_agent_id="build-lead",
+            implementer_agent_id=PRODUCT_DEFAULT_BACKEND,
+            reviewer_agent_id="reviewer",
+            memory_agent_id="memory",
+            default_backend_name=PRODUCT_DEFAULT_BACKEND,
+            planner_name="deterministic",
+            skill_refs=["codex-handoff", "review-diff", "feishu-write-plan"],
+            resource_policy="local_project_resources",
+        )
+    ]
+
+
+def is_assignment_lease_expired(assignment: TicketAssignment, now: datetime | None = None) -> bool:
+    if assignment.lease_expires_at is None:
+        return assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}
+    try:
+        expires_at = datetime.fromisoformat(assignment.lease_expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return (now or datetime.now(UTC)) >= expires_at
+
+
+def _github_operation_order(operation: str) -> int:
+    return {"link": 0, "create_issue": 1, "create_pr": 2, "sync": 3, "status": 4}.get(
+        operation,
+        5,
+    )

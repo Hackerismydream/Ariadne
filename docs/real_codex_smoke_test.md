@@ -37,37 +37,75 @@ Run backend diagnostics first:
 
 ```bash
 uv run ari backend doctor
+uv run ari backend diagnose codex
 ```
 
 Fallback:
 
 ```bash
 python3.11 -m ariadne_ltb.cli backend doctor
+python3.11 -m ariadne_ltb.cli backend diagnose codex
 ```
 
 The doctor reports backend command availability and environment gate state. It
 only prints `set` or `unset` for secrets such as `DEEPSEEK_API_KEY`; it never
 prints secret values.
 
+The Codex diagnosis reports whether the local `codex exec --help` advertises
+`--prompt-file`, recommends a compatible command template, and checks
+`service_tier` without printing secrets.
+
+## Run The Main Codex Demo
+
+`ari demo codex` remains available as a compatibility shortcut. Without both
+safety gates it records a blocked result through the normal loop. With both
+gates it runs through `TicketRunOrchestrator` and `CodexBackend`.
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+uv run ari demo codex --confirm-execution --timeout-seconds 180
+```
+
+Fallback:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
+python3.11 -m ariadne_ltb.cli demo codex --confirm-execution --timeout-seconds 180
+```
+
 ## Run The Smoke Test
 
+`ari backend smoke-test codex` is the preferred Codex smoke path. It uses the
+same assignment-centered product flow as normal work:
+
+```text
+source fixtures -> ticket -> assignment -> local daemon -> CodexBackend
+  -> review -> memory -> board
+```
+
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}' \
 uv run ari backend smoke-test codex --confirm-execution
 ```
 
-Some Codex CLI versions do not support `--prompt-file` and instead read prompts
-from stdin. For those versions, use:
+The smoke-test command defaults to the production runtime profile. That means
+Codex/Claude execution is paired with DeepSeek-backed upstream agent and backlog
+planner roles when the required credentials are present. Use
+`--runtime-profile deterministic` only for controlled local regression fixtures
+or automated tests.
+
+The current local Codex CLI reads prompts from stdin and does not advertise
+`--prompt-file`, so Ariadne's default Codex template is:
 
 ```bash
-ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} - < {handoff_file}' \
-uv run ari backend smoke-test codex --confirm-execution
+codex exec --cd {target_repo} - < {handoff_file}
 ```
 
-For a short deterministic smoke task, you can also lower reasoning effort in the
-template:
+Some older Codex CLI versions may support `--prompt-file`; `ari backend
+diagnose codex` reports the local capability and recommended template.
+
+For a short deterministic smoke task, you can override the template and lower
+reasoning effort if your Codex CLI/provider supports that config key:
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
@@ -79,12 +117,12 @@ Fallback:
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ARIADNE_CODEX_COMMAND_TEMPLATE='codex exec --cd {target_repo} --prompt-file {handoff_file}' \
 python3.11 -m ariadne_ltb.cli backend smoke-test codex --confirm-execution
 ```
 
 The command uses `TicketRunOrchestrator`; it does not duplicate the product
-pipeline.
+pipeline. It reaches the orchestrator through `LocalDaemonWorker` so the smoke
+also verifies assignment claiming, runtime heartbeat, and assignment status.
 
 ## Inspect Outputs
 
@@ -97,10 +135,16 @@ uv run ari export board
 Key outputs:
 
 - `.ariadne/board/index.md`
+- `.ariadne/evidence/backend_smoke/<backend>/<evidence_id>.json`
 - `.ariadne/memory/tickets/<ticket_id>.md`
 - `.ariadne/feishu_plans/<plan_id>.json`
 - `.ariadne/artifacts/<ticket_id>/next_tickets.json`
 - `.ariadne/handoffs/<ticket_key>.md`
+
+The backend smoke evidence is the product-level proof consumed by
+`ari doctor product` and `ari evidence packet`. It records the assignment,
+execution result, exit code, changed files, test result, review verdict, board,
+memory, Feishu dry-run plan, next tickets, and whether the smoke run succeeded.
 
 ## Interpreting Blocked Results
 
@@ -110,6 +154,8 @@ Key outputs:
   `ari backend doctor`.
 - Config error `unknown variant priority`: update `~/.codex/config.toml` so
   `service_tier` is `fast` or another value supported by your account.
+- Provider error `Unsupported service_tier: flex`: this account/provider path
+  rejected `flex`; use `fast` for the real Codex smoke path.
 - Non-zero Codex exit: inspect the execution result, review report, board, and
   target repo diff. Ariadne records the failed run instead of hiding it.
 

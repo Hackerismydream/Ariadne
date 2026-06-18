@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -14,7 +15,17 @@ from ariadne_ltb.execution import (
 )
 from ariadne_ltb.full_demo import run_full_demo
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import AgentRun, ArtifactType, BuildDecision, ReviewVerdict, TicketStatus, stable_id
+from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
+from ariadne_ltb.llm import DeepSeekClient
+from ariadne_ltb.models import (
+    AgentRun,
+    ArtifactType,
+    BacklogUpdateTrigger,
+    BuildDecision,
+    ReviewVerdict,
+    TicketStatus,
+    stable_id,
+)
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.planner import DeterministicPlanner, LLMPlanner
 from ariadne_ltb.storage import AriadneStore
@@ -23,6 +34,25 @@ from ariadne_ltb.target_project import ensure_demo_target_project
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
+
+
+class FakeLLMTransport:
+    def post_json(self, url, payload, headers, timeout_seconds):  # type: ignore[no-untyped-def]
+        return {
+            "model": "deepseek-v4-pro",
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"summary":"role completed","decision":"continue",'
+                            '"evidence":["ticket evidence"],"risks":[],'
+                            '"recommended_actions":["continue product loop"]}'
+                        )
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+        }
 
 
 def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
@@ -45,6 +75,71 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert result.board_path and Path(result.board_path).exists()
     assert ArtifactType.CODEX_HANDOFF in artifact_types
     assert ArtifactType.NEXT_TICKETS in artifact_types
+    assert ArtifactType.ORCHESTRATOR_RESULT in artifact_types
+    assert ArtifactType.LANDING_EVIDENCE in artifact_types
+    assert ArtifactType.PERMISSION_PROFILE in artifact_types
+    assert result.orchestrator_result_path
+    assert result.landing_evidence_json_path
+    assert result.landing_evidence_md_path
+    assert Path(result.landing_evidence_json_path).exists()
+    assert Path(result.landing_evidence_md_path).exists()
+    manifest = json.loads(Path(result.orchestrator_result_path).read_text(encoding="utf-8"))
+    assert manifest["ticket_key"] == "ARI-003"
+    assert manifest["backend_name"] == "fake-codex"
+    assert manifest["execution_result_id"] == result.execution_result_id
+    assert manifest["review_verdict"] == "pass"
+    assert manifest["board_path"] == result.board_path
+    assert manifest["permission_profile_id"]
+    assert manifest["artifacts"]["next_tickets_path"] == result.next_tickets_path
+    assert manifest["artifacts"]["permission_profile_path"].endswith("execution_permission_profile.json")
+    landing = json.loads(Path(result.landing_evidence_json_path).read_text(encoding="utf-8"))
+    assert landing["ticket_key"] == "ARI-003"
+    assert landing["review_verdict"] == "pass"
+    assert landing["partial"] is False
+    assert landing["execution_result_id"] == result.execution_result_id
+    assert landing["orchestrator_result_path"] == result.orchestrator_result_path
+    assert landing["git_diff_summary"]["files_changed"] >= 1
+    gate_report, gate_artifact = evaluate_landing_gate_for_ticket(store, ticket)
+    ticket = store.load_ticket(result.ticket_id)
+    assert gate_report.status.value == "ready"
+    assert gate_report.landing_evidence_path == result.landing_evidence_json_path
+    assert gate_artifact.artifact_type is ArtifactType.LANDING_GATE_REPORT
+    assert ticket.metadata["landing_gate_status"] == "ready"
+    assert Path(ticket.metadata["landing_gate_report_path"]).exists()
+
+    handoff_path = store.load_artifact(result.handoff_artifact_id).path
+    handoff = Path(handoff_path).read_text(encoding="utf-8")
+    assert "## Execution Permission Profile" in handoff
+    assert "Git operations policy" in handoff
+
+
+def test_orchestrator_runs_llm_role_agents_inside_ticket_loop(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    client = DeepSeekClient(api_key="test-secret-key", transport=FakeLLMTransport())
+
+    result = TicketRunOrchestrator(store).run_ticket(
+        "ARI-003",
+        backend_name="fake-codex",
+        agent_runtime="llm",
+        llm_agent_client=client,
+    )
+
+    assert result.review_verdict == "pass"
+    assert result.agent_runtime == "llm"
+    assert len(result.llm_agent_artifact_paths) == 3
+    assert all(Path(path).exists() for path in result.llm_agent_artifact_paths)
+    ticket = store.load_ticket(result.ticket_id)
+    llm_runs = [store.load_run(run_id) for run_id in ticket.agent_run_ids if store.load_run(run_id).agent_role.startswith("llm:")]
+    assert {run.agent_role for run in llm_runs} >= {"llm:build_lead", "llm:knowledge", "llm:memory"}
+    assert all(run.is_terminal for run in llm_runs)
+    manifest = json.loads(Path(result.orchestrator_result_path).read_text(encoding="utf-8"))
+    assert manifest["agent_runtime"] == "llm"
+    assert manifest["artifacts"]["llm_agent_artifact_paths"] == result.llm_agent_artifact_paths
 
 
 def test_demo_full_uses_ticket_run_orchestrator(monkeypatch, tmp_path: Path) -> None:
@@ -76,11 +171,65 @@ def test_cli_ticket_run_completes_review_memory_next_tickets_and_board(tmp_path:
     )
     assert run_result.exit_code == 0, run_result.output
     assert "reviewer verdict: pass" in run_result.output
+    assert "backlog previews:" in run_result.output
     assert (tmp_path / ".ariadne" / "board" / "index.md").exists()
     assert (tmp_path / ".ariadne" / "memory" / "decision_log.md").exists()
 
     next_tickets = list((tmp_path / ".ariadne" / "artifacts").glob("*/next_tickets.json"))
     assert next_tickets
+
+
+def test_cli_ticket_run_real_codex_deterministic_profile_records_blocked_evidence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+    runner = CliRunner()
+    ingest_result = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "ingest", *[str(path) for path in SOURCE_FIXTURES]],
+    )
+    assert ingest_result.exit_code == 0, ingest_result.output
+
+    run_result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "run",
+            "ARI-003",
+            "--runtime-profile",
+            "deterministic",
+        ],
+    )
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "backend used: codex" in run_result.output
+    assert (tmp_path / ".ariadne" / "board" / "index.md").exists()
+    store = AriadneStore(tmp_path)
+    ticket = store.resolve_ticket("ARI-003")
+    execution = store.load_execution_result(ticket.metadata["execution_result_id"])
+    previews = store.list_backlog_previews()
+    execution_previews = [
+        preview for preview in previews if preview.trigger_type is BacklogUpdateTrigger.EXECUTION_RESULT
+    ]
+    repair_tickets = [
+        item
+        for item in store.list_tickets()
+        if item.metadata.get("execution_result_id") == execution.id
+    ]
+    assert execution.backend_name == "codex"
+    assert execution.blocked is True
+    assert "ARIADNE_ENABLE_EXTERNAL_EXECUTION" in (execution.block_reason or "")
+    assert execution_previews
+    assert execution_previews[0].applied_update_id
+    assert repair_tickets
+    assert any(
+        update.trigger_ref == execution_previews[0].id
+        for update in store.list_backlog_updates_for_ticket(ticket.id)
+        if update.trigger_type is BacklogUpdateTrigger.EXECUTION_RESULT
+    )
 
 
 def test_orchestrator_supersedes_stale_non_terminal_execution_run(tmp_path: Path) -> None:
@@ -236,6 +385,27 @@ def test_board_includes_loop_trace_after_export(tmp_path: Path) -> None:
     assert "Source -> Ticket -> Packet -> Handoff -> Backend -> Diff -> Tests -> Review -> Memory -> Feishu Plan -> Next Tickets" in board
     assert "next_tickets.json" in board
     assert "feishu_write_plan.json" in board
+
+
+def test_board_links_provider_audit_artifacts(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    TicketRunOrchestrator(store).run_ticket("ARI-003", backend_name="fake-codex")
+
+    board_path = export_board(store)
+    board = board_path.read_text(encoding="utf-8")
+
+    assert "### Provider Audit Artifacts" in board
+    assert "orchestrator_result.json" in board
+    assert "execution_log.json" in board
+    assert "git_diff.patch" in board
+    assert "test_output.json" in board
+    assert "execution_permission_profile.json" in board
+    assert "### Execution Permission Profile" in board
+    assert "block_commit_push_merge_pr" in board
+    assert "- Backend: `fake-codex`" in board
+    assert "- Review verdict: `pass`" in board
+    assert "- External execution enabled: `false`" in board
 
 
 def test_env_and_workspace_outputs_are_gitignored() -> None:

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from ariadne_ltb.backlog import downgrade_ticket, record_noop_backlog_update
 from ariadne_ltb.board import export_board
 from ariadne_ltb.cli import app
 from ariadne_ltb.daemon import LocalDaemonWorker
@@ -63,6 +64,7 @@ def test_cli_backlog_update_and_history_show_rationale(tmp_path: Path) -> None:
     assert history.exit_code == 0, history.output
     assert "source_ingest" in history.output
     assert "rationale:" in history.output
+    assert "changes=created:" in history.output
 
 
 def test_cli_backlog_update_accepts_glob_expanded_paths_after_from_source(
@@ -225,6 +227,94 @@ def test_orchestrator_refuses_superseded_ticket(tmp_path: Path) -> None:
     else:  # pragma: no cover - assertion clarity
         raise AssertionError("orchestrator should refuse superseded ticket")
     assert store.resolve_ticket(ticket.key).status is TicketStatus.SUPERSEDED
+
+
+def test_ticket_run_generates_feedback_backlog_updates_and_followups(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+
+    result = TicketRunOrchestrator(store).run_ticket("ARI-003", backend_name="fake-codex")
+    updates = store.list_backlog_updates_for_ticket(result.ticket_id)
+    previews = store.list_backlog_previews()
+    preview_ids = {preview.id for preview in previews}
+    applied_preview_update_ids = {preview.applied_update_id for preview in previews}
+    applied_preview_refs = {preview.applied_update_id: preview.id for preview in previews}
+    triggers = {update.trigger_type for update in updates}
+    changes = [change for update in updates for change in update.ticket_changes]
+    followups = [
+        ticket
+        for ticket in store.list_tickets()
+        if ticket.metadata.get("generated_from_ticket_id") == result.ticket_id
+    ]
+    board = export_board(store).read_text(encoding="utf-8")
+
+    assert BacklogUpdateTrigger.EXECUTION_RESULT in triggers
+    assert BacklogUpdateTrigger.REVIEW_FEEDBACK in triggers
+    assert BacklogUpdateTrigger.MEMORY_GAP in triggers
+    assert BacklogUpdateTrigger.CODEBASE_OBSERVATION in triggers
+    assert TicketChangeType.CLOSED in {change.change_type for change in changes}
+    feedback_triggers = {
+        BacklogUpdateTrigger.EXECUTION_RESULT,
+        BacklogUpdateTrigger.REVIEW_FEEDBACK,
+        BacklogUpdateTrigger.MEMORY_GAP,
+        BacklogUpdateTrigger.CODEBASE_OBSERVATION,
+    }
+    assert feedback_triggers <= {
+        preview.trigger_type for preview in previews
+    }
+    assert all(preview.applied_update_id for preview in previews)
+    assert result.backlog_preview_ids
+    assert set(result.backlog_preview_ids) <= preview_ids
+    preview_applied_updates = [
+        update
+        for update in updates
+        if update.trigger_type in feedback_triggers
+    ]
+    assert {update.id for update in preview_applied_updates} <= applied_preview_update_ids
+    assert all(update.trigger_ref == applied_preview_refs[update.id] for update in preview_applied_updates)
+    assert followups
+    assert any(ticket.build_packet_id for ticket in followups)
+    assert result.backlog_update_ids
+    assert "memory_gap" in board
+    assert "codebase_observation" in board
+    assert "Changes `" in board
+
+
+def test_daemon_run_once_generates_feedback_backlog_updates(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, SOURCE_FIXTURES)[2]
+    store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+
+    result = LocalDaemonWorker(store).run_once()
+    updates = store.list_backlog_updates_for_ticket(ticket.id)
+
+    assert result.did_work is True
+    assert result.ticket_run_result is not None
+    assert result.ticket_run_result.backlog_preview_ids
+    assert result.ticket_run_result.backlog_update_ids
+    assert any(update.trigger_type is BacklogUpdateTrigger.MEMORY_GAP for update in updates)
+    assert any(update.created_ticket_ids for update in updates)
+
+
+def test_backlog_engine_records_downgrade_and_noop_decisions(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[0]])[0]
+
+    downgrade = downgrade_ticket(store, ticket, "Not urgent after review feedback.", new_priority="low")
+    noop = record_noop_backlog_update(
+        store,
+        store.load_ticket(ticket.id),
+        BacklogUpdateTrigger.CODEBASE_OBSERVATION,
+        "Codebase observation was already covered by existing tickets.",
+        ["repo_status"],
+    )
+    board = export_board(store).read_text(encoding="utf-8")
+
+    assert downgrade.ticket_changes[0].change_type is TicketChangeType.DOWNGRADED
+    assert store.load_ticket(ticket.id).priority == "low"
+    assert noop.ticket_changes[0].change_type is TicketChangeType.NO_OP
+    assert "downgraded:1" in board
+    assert "no_op:1" in board
 
 
 def test_backlog_history_and_board_ignore_invalid_jsonl_lines(tmp_path: Path) -> None:

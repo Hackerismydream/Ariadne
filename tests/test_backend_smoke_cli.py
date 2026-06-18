@@ -2,11 +2,28 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+import json
 
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
-from ariadne_ltb.execution import CodexBackend, ExecutionContext
+from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, ExecutionContext, ShellBackend
+from ariadne_ltb.models import FailureReason
+from ariadne_ltb.target_project import ensure_demo_target_project
+
+
+def test_backend_smoke_test_help_defaults_to_production_runtime() -> None:
+    result = CliRunner().invoke(app, ["backend", "smoke-test", "--help"])
+    compact_output = " ".join(result.output.split())
+
+    assert result.exit_code == 0, result.output
+    assert "Defaults to" in compact_output
+    assert "production so real backend smoke uses" in compact_output
+    assert "[default: production]" in result.output
+    assert "auto|deterministic|llm upstream agent" in compact_output
+    assert "runtime for the daemon pass" in compact_output
+    assert "auto|deterministic|llm feedback backlog" in compact_output
+    assert "planner for the daemon pass" in compact_output
 
 
 def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Path) -> None:
@@ -24,6 +41,7 @@ def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Pat
     assert "ARIADNE_ENABLE_EXTERNAL_EXECUTION: unset" in result.output
     assert "ARIADNE_CODEX_COMMAND_TEMPLATE: set" in result.output
     assert "DEEPSEEK_API_KEY: set" in result.output
+    assert "secret scan:" in result.output
     assert "do-not-print" not in result.output
 
 
@@ -70,6 +88,196 @@ def test_codex_smoke_test_blocks_when_codex_missing(
 
     assert result.exit_code == 2
     assert "codex command is not available" in result.output
+
+
+def test_claude_code_smoke_test_blocks_when_claude_missing(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setattr(ClaudeCodeBackend, "is_available", lambda self: False)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["--root", str(tmp_path), "backend", "smoke-test", "claude-code", "--confirm-execution"],
+    )
+
+    assert result.exit_code == 2
+    assert "claude command is not available" in result.output
+
+
+def test_backend_smoke_test_runs_codex_through_assignment_daemon_path(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    patcher = tmp_path / "patch_demo.py"
+    patcher.write_text(
+        '''
+from pathlib import Path
+
+cli = Path("demo_todo/cli.py")
+text = cli.read_text(encoding="utf-8")
+if "export-json" not in text:
+    text = text.replace(
+        '    subcommands.add_parser("list")\\n',
+        '    subcommands.add_parser("list")\\n'
+        '    subcommands.add_parser("export-json")\\n',
+    )
+    text = text.replace(
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n',
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n'
+        '    if args.command == "export-json":\\n'
+        '        import json\\n'
+        '        print(json.dumps(load_tasks()))\\n'
+        '        return 0\\n',
+    )
+cli.write_text(text, encoding="utf-8")
+
+test = Path("tests/test_cli.py")
+test_text = test.read_text(encoding="utf-8")
+if "test_export_json_command" not in test_text:
+    test.write_text(
+        test_text
+        + '\\n\\ndef test_export_json_command(tmp_path, monkeypatch) -> None:\\n'
+        + '    monkeypatch.chdir(tmp_path)\\n'
+        + '    add = run_cli("add", "ship")\\n'
+        + '    exported = run_cli("export-json")\\n'
+        + '    assert add.returncode == 0\\n'
+        + '    assert exported.returncode == 0\\n'
+        + '    assert "ship" in exported.stdout\\n',
+        encoding="utf-8",
+    )
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("ARIADNE_CODEX_COMMAND_TEMPLATE", f"python3.11 {patcher}")
+    monkeypatch.setattr(CodexBackend, "is_available", lambda self: True)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "backend",
+            "smoke-test",
+            "codex",
+            "--confirm-execution",
+            "--runtime-profile",
+            "deterministic",
+            "--timeout-seconds",
+            "30",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "backend: codex" in result.output
+    assert "assignment status: done" in result.output
+    assert "review verdict: pass" in result.output
+    assert "agent runtime: deterministic" in result.output
+    assert "changed files: demo_todo/cli.py, tests/test_cli.py" in result.output
+    assert "smoke evidence:" in result.output
+    evidence_files = list((tmp_path / ".ariadne" / "evidence" / "backend_smoke" / "codex").glob("*.json"))
+    assert len(evidence_files) == 1
+    evidence = json.loads(evidence_files[0].read_text(encoding="utf-8"))
+    assert evidence["backend_name"] == "codex"
+    assert evidence["assignment_status"] == "done"
+    assert evidence["succeeded"] is True
+    assert evidence["exit_code"] == 0
+    assert evidence["test_exit_code"] == 0
+    assert evidence["review_verdict"] == "pass"
+    assert evidence["changed_files"] == ["demo_todo/cli.py", "tests/test_cli.py"]
+
+
+def test_backend_smoke_test_claims_its_created_assignment_when_queue_has_old_work(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    patcher = tmp_path / "patch_demo.py"
+    patcher.write_text(
+        '''
+from pathlib import Path
+
+cli = Path("demo_todo/cli.py")
+text = cli.read_text(encoding="utf-8")
+if "export-json" not in text:
+    text = text.replace(
+        '    subcommands.add_parser("list")\\n',
+        '    subcommands.add_parser("list")\\n'
+        '    subcommands.add_parser("export-json")\\n',
+    )
+    text = text.replace(
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n',
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n'
+        '    if args.command == "export-json":\\n'
+        '        import json\\n'
+        '        print(json.dumps(load_tasks()))\\n'
+        '        return 0\\n',
+    )
+cli.write_text(text, encoding="utf-8")
+
+test = Path("tests/test_cli.py")
+test_text = test.read_text(encoding="utf-8")
+if "test_export_json_command" not in test_text:
+    test.write_text(
+        test_text
+        + '\\n\\ndef test_export_json_command(tmp_path, monkeypatch) -> None:\\n'
+        + '    monkeypatch.chdir(tmp_path)\\n'
+        + '    add = run_cli("add", "ship")\\n'
+        + '    exported = run_cli("export-json")\\n'
+        + '    assert add.returncode == 0\\n'
+        + '    assert exported.returncode == 0\\n'
+        + '    assert "ship" in exported.stdout\\n',
+        encoding="utf-8",
+    )
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("ARIADNE_CODEX_COMMAND_TEMPLATE", f"python3.11 {patcher}")
+    monkeypatch.setattr(CodexBackend, "is_available", lambda self: True)
+    root = Path(__file__).resolve().parents[1]
+    sources = sorted((root / "examples" / "sources").glob("*.md"))
+    runner = CliRunner()
+    ingest = runner.invoke(app, ["--root", str(tmp_path), "ingest", *[str(path) for path in sources]])
+    stale = runner.invoke(app, ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "fake-codex"])
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "backend",
+            "smoke-test",
+            "codex",
+            "--confirm-execution",
+            "--runtime-profile",
+            "deterministic",
+            "--timeout-seconds",
+            "30",
+        ],
+    )
+
+    assert ingest.exit_code == 0, ingest.output
+    assert stale.exit_code == 0, stale.output
+    assert result.exit_code == 0, result.output
+    assert "backend: codex" in result.output
+    assert "assignment status: done" in result.output
+    assert "backend: fake-codex" not in result.output
 
 
 def test_existing_fake_codex_ticket_run_still_passes(tmp_path: Path) -> None:
@@ -125,3 +333,74 @@ def test_codex_backend_timeout_returns_execution_result(
     assert result.exit_code == 124
     assert result.blocked is False
     assert "timed out after 1 seconds" in result.stderr
+
+
+def test_shell_backend_requires_confirmation_as_blocked_result(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+
+    result = ShellBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_shell",
+            ticket_key="ARI-SHELL",
+            build_packet_id="packet_shell",
+            target_repo_path=str(target),
+            handoff_prompt="Run shell command.",
+            backend_name="shell",
+            allowed_paths=[],
+            command="echo unsafe",
+            test_command="",
+            confirm_execution=False,
+        )
+    )
+
+    assert result.blocked is True
+    assert result.failure_reason is FailureReason.EXTERNAL_EXECUTION_BLOCKED
+    assert "--confirm-execution" in (result.block_reason or "")
+
+
+def test_shell_backend_blocks_dangerous_git_operation_when_confirmed(tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+
+    result = ShellBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_shell",
+            ticket_key="ARI-SHELL",
+            build_packet_id="packet_shell",
+            target_repo_path=str(target),
+            handoff_prompt="Do not run dangerous git operations.",
+            backend_name="shell",
+            allowed_paths=["."],
+            command="git push origin main",
+            test_command="",
+            confirm_execution=True,
+        )
+    )
+
+    assert result.blocked is True
+    assert result.failure_reason is FailureReason.SCOPE_VIOLATION
+    assert "dangerous git operation" in (result.block_reason or "")
+
+
+def test_shell_backend_blocks_changed_files_outside_allowed_paths(tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+
+    result = ShellBackend().execute(
+        ExecutionContext(
+            ticket_id="ticket_shell",
+            ticket_key="ARI-SHELL",
+            build_packet_id="packet_shell",
+            target_repo_path=str(target),
+            handoff_prompt="Write outside the allowed module.",
+            backend_name="shell",
+            allowed_paths=["demo_todo/cli.py"],
+            command="python3.11 -c 'from pathlib import Path; Path(\"outside.txt\").write_text(\"x\")'",
+            test_command="",
+            confirm_execution=True,
+        )
+    )
+
+    assert result.blocked is True
+    assert result.failure_reason is FailureReason.SCOPE_VIOLATION
+    assert "outside allowed paths" in (result.block_reason or "")
+    assert "outside.txt" in result.changed_files
