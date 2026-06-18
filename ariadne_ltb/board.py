@@ -903,6 +903,27 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     else:
         lines.append("No landing evidence packet found.")
 
+    landing_gate = _latest_json_artifact(store, artifacts, ArtifactType.LANDING_GATE_REPORT)
+    lines.extend(["", "### Landing Gate", ""])
+    if landing_gate:
+        lines.append(f"- Path: `{ticket.metadata.get('landing_gate_report_path', 'missing')}`")
+        lines.append(f"- Status: `{landing_gate.get('status', 'missing')}`")
+        lines.append(f"- Recommended action: `{landing_gate.get('recommended_action', 'missing')}`")
+        blockers = landing_gate.get("blockers", [])
+        warnings = landing_gate.get("warnings", [])
+        lines.append(f"- Blockers: `{len(blockers)}`")
+        lines.append(f"- Warnings: `{len(warnings)}`")
+        checks = landing_gate.get("checks", [])
+        if checks:
+            lines.append("- Checks:")
+            for check in checks:
+                lines.append(
+                    f"  - `{check.get('name', 'unknown')}` "
+                    f"`{check.get('status', 'missing')}` - {check.get('summary', '')}"
+                )
+    else:
+        lines.append("No landing gate report found. Run `ari landing gate <ticket>`.")
+
     lines.extend(["", "### Event Log", ""])
     for event in ticket.event_log:
         lines.append(
@@ -919,6 +940,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             "memory_written",
             "next_tickets_generated",
             "landing_evidence_written",
+            "landing_gate_evaluated",
             "board_exported",
         }:
             lines.append(

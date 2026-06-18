@@ -49,6 +49,7 @@ from ariadne_ltb.inbox import (
 )
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
+from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
 from ariadne_ltb.local_search import search_local_evidence
 from ariadne_ltb.llm import DeepSeekClient, LLMClientError, llm_doctor_status, load_local_env
 from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
@@ -105,6 +106,7 @@ inbox_app = typer.Typer(help="Local inbox for failures, blockers, and integratio
 evidence_app = typer.Typer(help="Release evidence packet commands.")
 workdir_app = typer.Typer(help="Generated workdir and isolated worktree commands.")
 supervisor_app = typer.Typer(help="Local supervisor recovery and dispatch commands.")
+landing_app = typer.Typer(help="Landing evidence and local gate commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
@@ -126,6 +128,7 @@ app.add_typer(inbox_app, name="inbox")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(workdir_app, name="workdir")
 app.add_typer(supervisor_app, name="supervisor")
+app.add_typer(landing_app, name="landing")
 
 
 class CliState:
@@ -1609,6 +1612,37 @@ def ticket_run(
     if result.worktree_path:
         typer.echo(f"worktree: {result.worktree_path}")
     typer.echo(f"board: {result.board_path}")
+
+
+@landing_app.command("gate")
+def landing_gate(
+    ticket_id: str,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+    require_ready: Annotated[
+        bool,
+        typer.Option("--require-ready", help="Exit non-zero unless the landing gate is ready."),
+    ] = False,
+) -> None:
+    """Evaluate local landing evidence without merging or writing to remotes."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    store = AriadneStore(state.root)
+    ticket = store.resolve_ticket(ticket_id)
+    report, artifact = evaluate_landing_gate_for_ticket(store, ticket)
+    payload = report.model_dump(mode="json") | {"report_path": artifact.path}
+    if output == "json":
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        typer.echo(f"ticket: {report.ticket_key}")
+        typer.echo(f"landing gate: {report.status.value}")
+        typer.echo(f"report: {artifact.path}")
+        if report.landing_evidence_path:
+            typer.echo(f"landing evidence: {report.landing_evidence_path}")
+        for check in report.checks:
+            typer.echo(f"{check.name}\t{check.status.value}\t{check.summary}")
+        typer.echo(f"recommended: {report.recommended_action}")
+    if require_ready and report.status.value != "ready":
+        raise typer.Exit(2)
 
 
 @ticket_app.command("execute")

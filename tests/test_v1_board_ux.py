@@ -28,6 +28,8 @@ def test_board_contains_v1_workbench_sections(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
     TicketRunOrchestrator(store).run_ticket("ARI-003", backend_name="fake-codex")
+    gate = CliRunner().invoke(app, ["--root", str(tmp_path), "landing", "gate", "ARI-003"])
+    assert gate.exit_code == 0, gate.output
 
     result = CliRunner().invoke(app, ["--root", str(tmp_path), "export", "board"])
     board = (tmp_path / ".ariadne" / "board" / "index.md").read_text(encoding="utf-8")
@@ -52,10 +54,14 @@ def test_board_contains_v1_workbench_sections(tmp_path: Path) -> None:
         "Execution Permission Profile",
         "Provider Audit Artifacts",
         "Landing Evidence",
+        "Landing Gate",
     ]:
         assert heading in board
     assert "landing_evidence.json" in board
     assert "- Partial: `false`" in board
+    assert "landing_gate_report.json" in board
+    assert "- Status: `ready`" in board
+    assert "`landing_gate_evaluated`" in board
 
 
 def test_board_shows_inbox_repair_ticket_evidence(tmp_path: Path) -> None:

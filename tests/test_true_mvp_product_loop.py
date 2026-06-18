@@ -15,6 +15,7 @@ from ariadne_ltb.execution import (
 )
 from ariadne_ltb.full_demo import run_full_demo
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
 from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.models import (
     AgentRun,
@@ -98,6 +99,13 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert landing["execution_result_id"] == result.execution_result_id
     assert landing["orchestrator_result_path"] == result.orchestrator_result_path
     assert landing["git_diff_summary"]["files_changed"] >= 1
+    gate_report, gate_artifact = evaluate_landing_gate_for_ticket(store, ticket)
+    ticket = store.load_ticket(result.ticket_id)
+    assert gate_report.status.value == "ready"
+    assert gate_report.landing_evidence_path == result.landing_evidence_json_path
+    assert gate_artifact.artifact_type is ArtifactType.LANDING_GATE_REPORT
+    assert ticket.metadata["landing_gate_status"] == "ready"
+    assert Path(ticket.metadata["landing_gate_report_path"]).exists()
 
     handoff_path = store.load_artifact(result.handoff_artifact_id).path
     handoff = Path(handoff_path).read_text(encoding="utf-8")

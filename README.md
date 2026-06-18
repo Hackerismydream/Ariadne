@@ -70,6 +70,17 @@ execution log, diff, changed files, tests, review, memory, Feishu plan, next
 tickets, and orchestrator result. It is the local evidence input for later
 review and merge-gating work.
 
+Evaluate that packet with the local landing gate before a human or confirmed
+merge workflow treats the ticket as landable:
+
+```bash
+ari landing gate ARI-003
+ari landing gate ARI-003 --require-ready
+```
+
+The gate writes `landing_gate_report.json`, updates the ticket progress events,
+and performs no git merge, push, pull request, or remote write.
+
 For recovery-oriented automation, run one bounded supervisor pass:
 
 ```bash

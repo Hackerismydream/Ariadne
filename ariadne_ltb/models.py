@@ -233,6 +233,7 @@ class ArtifactType(str, Enum):
     WORKTREE_ISOLATION = "worktree_isolation"
     ORCHESTRATOR_RESULT = "orchestrator_result"
     LANDING_EVIDENCE = "landing_evidence"
+    LANDING_GATE_REPORT = "landing_gate_report"
     STORE_INVARIANT_REPORT = "store_invariant_report"
     PLANNER_ERROR = "planner_error"
     LLM_AGENT_RESULT = "llm_agent_result"
@@ -1207,6 +1208,39 @@ class LandingEvidence(AriadneModel):
     linked_artifacts: list[LandingArtifactRef] = Field(default_factory=list)
     partial: bool = False
     missing_fields: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utc_now)
+
+
+class LandingGateStatus(str, Enum):
+    READY = "ready"
+    NEEDS_REVIEW = "needs_review"
+    BLOCKED = "blocked"
+
+
+class LandingGateCheckStatus(str, Enum):
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
+
+
+class LandingGateCheck(AriadneModel):
+    name: str
+    status: LandingGateCheckStatus
+    summary: str
+    evidence_ref: str | None = None
+
+
+class LandingGateReport(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    status: LandingGateStatus
+    landing_evidence_id: str | None = None
+    landing_evidence_path: str | None = None
+    checks: list[LandingGateCheck] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    recommended_action: str = "review_landing_gate_report"
     created_at: str = Field(default_factory=utc_now)
 
 

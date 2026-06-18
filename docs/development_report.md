@@ -5085,6 +5085,65 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 12:26 CST Landing Gate Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added a local `LandingGateReport` domain model and `landing_gate_report`
+  artifact type.
+- Added `ariadne_ltb/landing_gate.py` to evaluate completed ticket landing
+  evidence as `ready`, `needs_review`, or `blocked`.
+- Added `ari landing gate <ticket>` with `--output json` and `--require-ready`.
+- Updated the board to show Landing Gate status, report path, checks, blockers,
+  warnings, and `landing_gate_evaluated` progress events.
+- Updated README with the landing gate command and its non-destructive safety
+  boundary.
+- Added tests for:
+  - ready gate after a ticket run;
+  - blocked gate when landing evidence is missing;
+  - table output;
+  - board visibility.
+
+Why this matters:
+
+- Landing evidence proved that a ticket run produced artifacts. The new landing
+  gate turns that evidence into an explicit local decision input for future
+  human or confirmed merge-gate workflows.
+- The gate is deliberately read-only with respect to git and remotes. It does
+  not merge, push, create pull requests, or write external systems.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_landing_gate.py
+  tests/test_true_mvp_product_loop.py::test_orchestrator_runs_reusable_full_loop
+  tests/test_v1_board_ux.py::test_board_contains_v1_workbench_sections`:
+  passed, `5 passed`.
+- `python3.11 -m ruff check ariadne_ltb/landing_gate.py
+  ariadne_ltb/models.py ariadne_ltb/cli.py ariadne_ltb/board.py
+  tests/test_landing_gate.py tests/test_true_mvp_product_loop.py
+  tests/test_v1_board_ux.py`: passed.
+- `python3.11 -m pytest`: passed, `266 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_0e8ee0293153`.
+- `python3.11 -m ariadne_ltb.cli landing gate ARI-003 --output json
+  --require-ready`: passed; report status was `ready`.
+
+Landing gate report path:
+
+- `.ariadne/artifacts/ticket_88fbff51677a/landing_gate_report.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 12:42 CST Ticket Landing Evidence Slice
 
 Branch: `codex/ariadne-production-frontend-integration`
