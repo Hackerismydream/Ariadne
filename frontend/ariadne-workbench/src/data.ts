@@ -591,12 +591,15 @@ function adaptRuntime(runtime: ApiWorkbench["runtime_capabilities"][number]): Ru
     machine: "local-mac",
     backend: runtime.backend_name,
     status: runtime.available ? "online" : "offline",
-    version: runtime.command_template_set ? "template configured" : "default template",
+    version: runtime.display_name || (runtime.command_template_set ? "template configured" : "default template"),
     cost7d: "local",
     externalExecutionEnabled: runtime.external_execution_enabled,
     commandTemplateSet: runtime.command_template_set,
     confirmExecutionRequired: runtime.confirm_execution_required,
     supportsExternalExecution: true,
+    canAssign: runtime.can_assign,
+    canRun: runtime.can_run,
+    fallbackOnly: runtime.fallback_only,
     disabledReasons: runtime.disabled_reasons,
   };
 }

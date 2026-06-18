@@ -212,17 +212,24 @@ def api_serve(
 
     from ariadne_ltb.interfaces.http.app import create_app
 
+    if host == "0.0.0.0":
+        typer.echo("WARNING: binding Ariadne local API to 0.0.0.0 exposes it beyond localhost.")
     uvicorn.run(create_app(root=state.root), host=host, port=port, log_level="info")
 
 
 @target_project_app.command("register")
 def target_project_register(
     path: Annotated[Path, typer.Argument(help="Absolute path to a local target repository.")],
+    target_project_id: Annotated[str | None, typer.Option("--id", help="Stable target project id.")] = None,
     label: Annotated[str | None, typer.Option("--label", help="Display label for the target.")] = None,
 ) -> None:
     """Register a local target repository for product API and daemon runs."""
     try:
-        target = TargetProjectRegistry(AriadneStore(state.root)).register(path, label)
+        target = TargetProjectRegistry(AriadneStore(state.root)).register(
+            path,
+            label,
+            target_project_id=target_project_id,
+        )
     except Exception as exc:
         typer.echo(str(exc))
         raise typer.Exit(2) from exc

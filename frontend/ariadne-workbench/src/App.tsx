@@ -16,8 +16,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadWorkbenchData, workbenchData, type WorkbenchDataSource } from "./data";
-import { assignTicket, runAssignment } from "./shared/api/client";
+import { addTicketComment } from "./features/add-ticket-comment/api";
+import { assignTicket } from "./features/assign-ticket/api";
+import { runAssignment } from "./features/run-assignment/api";
+import { getAssignmentEvents } from "./features/watch-run-events/api";
+import { selectableProductionRuntimes } from "./entities/runtime/lib";
 import { idempotencyKey } from "./shared/lib/idempotency";
+import type { AssignmentEvent } from "./shared/api/types";
 import type {
   AriadneTicket,
   BackendSmokeEvidence,
@@ -110,15 +115,22 @@ export function App() {
   const [selectedRuntime, setSelectedRuntime] = useState(workbenchData.runtimes[0]?.backend ?? "fake-codex");
   const selectedTicket = data.tickets.find((ticket) => ticket.id === selectedTicketId) ?? data.tickets[0];
 
-  async function refreshWorkbenchData() {
+  async function refreshWorkbenchData(preferredTicketRef?: string) {
     const result = await loadWorkbenchData();
     setData(result.data);
     setDataSource(result.source);
     setReadOnly(result.readOnly);
     const route = parseHashRoute();
+    const preferredTicket = findTicketByRef(result.data.tickets, preferredTicketRef);
     const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
     if (route.page) setPage(route.page);
-    if (routeTicket) {
+    if (preferredTicket) {
+      setPage("issues");
+      setSelectedTicketId(preferredTicket.id);
+      if (globalThis.location?.hash !== issueHash(preferredTicket)) {
+        globalThis.history?.replaceState(null, "", issueHash(preferredTicket));
+      }
+    } else if (routeTicket) {
       setPage("issues");
       setSelectedTicketId(routeTicket.id);
     } else {
@@ -281,7 +293,7 @@ function PageFrame({
   onNavigate: (page: PageKey) => void;
   onRuntimeSelect: (backend: string) => void;
   onTicketSelect: (ticketId: string) => void;
-  onRefresh: () => Promise<void>;
+  onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
   if (page === "goal") return <GoalPage data={data} onTicketSelect={onTicketSelect} />;
   if (page === "knowledge") return <KnowledgePage data={data} />;
@@ -639,7 +651,7 @@ function IssuesPage({
   readOnly: boolean;
   selectedRuntime: string;
   selectedTicket: AriadneTicket;
-  onRefresh: () => Promise<void>;
+  onRefresh: (preferredTicketRef?: string) => Promise<void>;
   onTicketSelect: (ticketId: string) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -774,15 +786,18 @@ function TicketInspector({
   readOnly: boolean;
   selectedRuntime: string;
   ticket: AriadneTicket;
-  onRefresh: () => Promise<void>;
+  onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
   const [actionState, setActionState] = useState<"idle" | "assigning" | "running">("idle");
   const [actionMessage, setActionMessage] = useState("");
+  const [confirmationTokens, setConfirmationTokens] = useState<Record<string, string>>({});
+  const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentState, setCommentState] = useState<"idle" | "posting">("idle");
   const targetProject = data.projectResources?.find((resource) => resource.available) ?? data.projectResources?.[0];
   const latestAssignment = data.assignments?.find((assignment) => assignment.ticketId === ticket.id || assignment.ticketKey === ticket.key);
-  const productRuntime = isProductRuntime(selectedRuntime)
-    ? selectedRuntime
-    : data.runtimes.find((runtime) => isProductRuntime(runtime.backend))?.backend;
+  const productRuntime = selectableProductionRuntimes(data.runtimes).find((runtime) => runtime.backend === selectedRuntime)
+    ?? selectableProductionRuntimes(data.runtimes)[0];
   const mutationReady = dataSource === "api" && !readOnly && Boolean(targetProject?.available) && Boolean(productRuntime);
 
   async function assignSelectedTicket() {
@@ -790,18 +805,22 @@ function TicketInspector({
     setActionState("assigning");
     setActionMessage("");
     try {
-      await assignTicket(ticket.key, {
-        assignee_id: "build-team",
-        assignee_kind: "build_team",
-        backend_name: productRuntime as "codex" | "claude-code",
-        planner_name: "llm",
-        agent_runtime: "llm",
-        backlog_planner_name: "llm",
+      const assigned = await assignTicket(ticket.key, {
+        assignee_id: productRuntime.backend,
+        assignee_kind: "agent",
+        backend_name: productRuntime.backend as "codex" | "claude-code",
+        runtime_profile: "production",
         target_project_id: targetProject.id,
         idempotency_key: idempotencyKey(`assign-${ticket.key}`),
-      });
-      setActionMessage("已创建 assignment。");
-      await onRefresh();
+      }) as { assignment?: { id?: string }; confirmation_token?: string };
+      if (assigned.assignment?.id && assigned.confirmation_token) {
+        setConfirmationTokens((current) => ({
+          ...current,
+          [assigned.assignment!.id!]: assigned.confirmation_token!,
+        }));
+      }
+      setActionMessage("已创建 assignment 和一次性执行确认 token。");
+      await onRefresh(ticket.key);
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "assignment failed");
     } finally {
@@ -817,32 +836,67 @@ function TicketInspector({
       let assignmentId = latestAssignment?.id;
       if (!assignmentId) {
         const assigned = await assignTicket(ticket.key, {
-          assignee_id: "build-team",
-          assignee_kind: "build_team",
-          backend_name: productRuntime as "codex" | "claude-code",
-          planner_name: "llm",
-          agent_runtime: "llm",
-          backlog_planner_name: "llm",
+          assignee_id: productRuntime.backend,
+          assignee_kind: "agent",
+          backend_name: productRuntime.backend as "codex" | "claude-code",
+          runtime_profile: "production",
           target_project_id: targetProject.id,
           idempotency_key: idempotencyKey(`assign-${ticket.key}`),
-        }) as { assignment?: { id?: string } };
+        }) as { assignment?: { id?: string }; confirmation_token?: string };
         assignmentId = assigned.assignment?.id;
+        if (assignmentId && assigned.confirmation_token) {
+          setConfirmationTokens((current) => ({ ...current, [assignmentId!]: assigned.confirmation_token! }));
+        }
       }
       if (!assignmentId) throw new Error("assignment id missing");
+      const token = confirmationTokens[assignmentId];
+      if (!token) throw new Error("confirmation token missing; assign the ticket again before running");
       await runAssignment(assignmentId, {
-        confirm_execution: false,
-        runtime_id: "web",
-        agent_runtime: "llm",
-        backlog_planner: "llm",
+        confirmation_token: token,
         timeout_seconds: 120,
         idempotency_key: idempotencyKey(`run-${ticket.key}`),
       });
       setActionMessage("已触发本地 run；如果门禁或凭证缺失，会在 timeline/evidence 中显示 blocked。");
-      await onRefresh();
+      await onRefresh(ticket.key);
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "run failed");
     } finally {
       setActionState("idle");
+    }
+  }
+
+  async function watchAssignmentEvents() {
+    if (!latestAssignment?.id) {
+      setActionMessage("没有 assignment 可观察。");
+      return;
+    }
+    try {
+      const response = await getAssignmentEvents(latestAssignment.id);
+      setAssignmentEvents(response.events);
+      setActionMessage(`已读取 ${response.events.length} 条 assignment events。`);
+      await onRefresh(ticket.key);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "watch failed");
+    }
+  }
+
+  async function postComment() {
+    const body = commentDraft.trim();
+    if (!body) return;
+    setCommentState("posting");
+    try {
+      await addTicketComment(ticket.key, {
+        body,
+        assignment_id: latestAssignment?.id,
+        idempotency_key: idempotencyKey(`comment-${ticket.key}`),
+      });
+      setCommentDraft("");
+      setActionMessage("评论已写入 ticket timeline。");
+      await onRefresh(ticket.key);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "comment failed");
+    } finally {
+      setCommentState("idle");
     }
   }
 
@@ -868,7 +922,7 @@ function TicketInspector({
         <h3>Agent control</h3>
         <p className="muted">
           {mutationReady
-            ? `API mode · target ${targetProject?.label} · backend ${productRuntime}`
+            ? `API mode · target ${targetProject?.label} · backend ${productRuntime?.backend}`
             : "只读模式或缺少可用 target/runtime。先启动 ari api serve 并注册 target project。"}
         </p>
         <div className="action-row">
@@ -878,11 +932,33 @@ function TicketInspector({
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
             {actionState === "running" ? "Running..." : "Run"}
           </button>
-          <button disabled={dataSource !== "api"} type="button" onClick={() => void onRefresh()}>
+          <button disabled={dataSource !== "api" || !latestAssignment?.id} type="button" onClick={() => void watchAssignmentEvents()}>
             Watch
           </button>
         </div>
         <p className="muted">latest assignment: {latestAssignment?.id ?? "missing"}</p>
+        <div className="comment-row">
+          <input
+            aria-label="Add ticket comment"
+            disabled={!mutationReady || commentState !== "idle"}
+            placeholder="Add a ticket comment..."
+            value={commentDraft}
+            onChange={(event) => setCommentDraft(event.target.value)}
+          />
+          <button disabled={!mutationReady || commentState !== "idle" || !commentDraft.trim()} type="button" onClick={() => void postComment()}>
+            {commentState === "posting" ? "Posting..." : "Comment"}
+          </button>
+        </div>
+        {assignmentEvents.length ? (
+          <div className="event-list">
+            {assignmentEvents.map((event) => (
+              <p key={event.id}>
+                <strong>{event.stage}</strong>
+                <span>{event.summary}</span>
+              </p>
+            ))}
+          </div>
+        ) : null}
         {actionMessage ? <p className="action-message">{actionMessage}</p> : null}
       </section>
       <GitHubEvidencePanel ticket={ticket} />
@@ -1362,7 +1438,7 @@ function AgentDock({
   }, [compactDefault]);
 
   const selected = runtimes.find((runtime) => runtime.backend === selectedRuntime) ?? runtimes[0];
-  const selectableRuntimes = runtimes.filter((runtime) => isProductRuntime(runtime.backend));
+  const selectableRuntimes = selectableProductionRuntimes(runtimes);
   const runtimeOptions = selectableRuntimes.length ? selectableRuntimes : runtimes;
   const disabledReason = selected?.supportsExternalExecution && !selected.externalExecutionEnabled
     ? "外部执行未开启，只生成安全的本地 handoff 预览。"

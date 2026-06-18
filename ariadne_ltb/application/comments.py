@@ -20,10 +20,12 @@ class CommentService:
         comment = self.store.add_comment(
             ticket,
             CommentAuthorType.HUMAN,
-            payload.author,
+            "human",
             CommentKind.COMMENT,
             payload.body,
+            payload_ref=payload.assignment_id,
             parent_comment_id=payload.reply_to,
+            thread_id=payload.assignment_id,
         )
         self.idempotency.set(
             payload.idempotency_key,

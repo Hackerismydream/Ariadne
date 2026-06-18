@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from ariadne_ltb.application.dtos import RuntimeCapabilityDTO
-from ariadne_ltb.application.mappers import runtime_capability_dto
-from ariadne_ltb.domain.runtime_policy import product_runtime_capabilities
+from ariadne_ltb.domain.runtime_policy import browser_safe_runtime_capability
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
 
@@ -14,5 +13,12 @@ class RuntimeStatusService:
     def snapshot(self, include_internal: bool = False) -> list[RuntimeCapabilityDTO]:
         capabilities = collect_runtime_capabilities()
         self.store.save_runtime_capabilities(capabilities)
-        exposed = capabilities if include_internal else product_runtime_capabilities(capabilities)
-        return [runtime_capability_dto(capability) for capability in exposed]
+        exposed = [
+            capability
+            for capability in capabilities
+            if include_internal or capability.backend_name != "shell"
+        ]
+        return [
+            RuntimeCapabilityDTO.model_validate(browser_safe_runtime_capability(capability))
+            for capability in exposed
+        ]

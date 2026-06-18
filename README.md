@@ -501,18 +501,25 @@ redacted.
 ## Workbench Frontend
 
 The local workbench frontend lives under `frontend/ariadne-workbench/`. It is a
-read-only React/Vite frontend that adapts Multica's issue-agent-runtime UI shape
-to Ariadne's ticket-centered product loop. It does not call Multica APIs and it
-does not mutate Ariadne state.
+React/Vite frontend for Ariadne's local API control plane. In API mode it can
+assign tickets to product coding agents, trigger a local run, watch assignment
+events, and add human comments back into the ticket timeline. It does not call
+Multica APIs, and browser mutations are constrained to stable ids, enums,
+idempotency keys, bounded timeouts, comment bodies, and server-issued
+confirmation tokens.
 
-Generate a local data snapshot from `.ariadne/` and run the frontend:
+Run it against the local API:
 
 ```bash
+python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766
 cd frontend/ariadne-workbench
 npm install
-npm run sync:data
 npm run dev
 ```
+
+`npm run sync:data` still exists for offline snapshot regression. When the API
+is unavailable, the frontend falls back to read-only static data and disables
+product mutations.
 
 Build static assets:
 
