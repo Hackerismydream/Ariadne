@@ -139,6 +139,7 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     integration = integration_doctor_snapshot(store, repo_root)
     release_packet = _release_packet_snapshot(store)
     real_evidence = _real_evidence_snapshot(store)
+    local_evidence = _local_evidence_snapshot(store)
     checks = [
         _product_check(
             "deepseek_llm",
@@ -201,6 +202,11 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             release_packet["has_integration_refs"],
             "Release evidence packet references integration doctor, Feishu, and GitHub evidence.",
             "Run `ari evidence packet` with the current release evidence implementation.",
+        ),
+        _product_landing_gate_check(
+            local_evidence["landing_gate"],
+            "At least one completed ticket has a ready landing gate report.",
+            "Run `ari landing gate <ticket>` after a ticket run, then regenerate release evidence.",
         ),
         _product_evidence_check(
             "real_llm_agent_evidence",
@@ -305,6 +311,12 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             "claude_code": real_evidence["claude_code"]["latest_failure"],
             "feishu": real_evidence["feishu"]["latest_failure"],
             "github": real_evidence["github"]["latest_failure"],
+        },
+        "local_success_evidence": {
+            "landing_gate": local_evidence["landing_gate"]["success"],
+        },
+        "local_failure_evidence": {
+            "landing_gate": local_evidence["landing_gate"]["latest_failure"],
         },
         "next_actions": [
             check["next_action"]
@@ -484,6 +496,40 @@ def _product_evidence_check(
     }
 
 
+def _product_landing_gate_check(
+    evidence: dict[str, Any],
+    ready_summary: str,
+    next_action: str,
+) -> dict[str, Any]:
+    if evidence["success"]:
+        return {
+            "name": "landing_gate_evidence",
+            "status": "ready",
+            "summary": ready_summary,
+            "next_action": "",
+        }
+    if evidence["latest_failure"]:
+        return {
+            "name": "landing_gate_evidence",
+            "status": "blocked",
+            "summary": evidence["latest_failure"].get("reason") or next_action,
+            "next_action": next_action,
+        }
+    if evidence["latest_warning"]:
+        return {
+            "name": "landing_gate_evidence",
+            "status": "action_required",
+            "summary": evidence["latest_warning"].get("reason") or next_action,
+            "next_action": next_action,
+        }
+    return {
+        "name": "landing_gate_evidence",
+        "status": "action_required",
+        "summary": next_action,
+        "next_action": next_action,
+    }
+
+
 def _product_github_operation_check(
     name: str,
     evidence: dict[str, Any],
@@ -527,7 +573,13 @@ def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
             "error": "release evidence packet is not valid JSON",
         }
     refs = data.get("evidence_refs") if isinstance(data.get("evidence_refs"), dict) else {}
-    required_refs = {"integration_doctor", "runtime_capabilities", "feishu_integrations", "github_integrations"}
+    required_refs = {
+        "integration_doctor",
+        "runtime_capabilities",
+        "feishu_integrations",
+        "github_integrations",
+        "landing_gate_reports",
+    }
     return {
         "exists": True,
         "path": str(path),
@@ -552,6 +604,82 @@ def _real_evidence_snapshot(store: AriadneStore) -> dict[str, Any]:
         ),
         "feishu": _feishu_evidence(feishu_results),
         "github": _github_evidence(github_results),
+    }
+
+
+def _local_evidence_snapshot(store: AriadneStore) -> dict[str, Any]:
+    return {
+        "landing_gate": _landing_gate_evidence(store),
+    }
+
+
+def _landing_gate_evidence(store: AriadneStore) -> dict[str, Any]:
+    artifacts = [
+        artifact
+        for artifact in _list_artifacts(store)
+        if artifact.artifact_type.value == "landing_gate_report"
+    ]
+    reports = [_landing_gate_report_summary(artifact) for artifact in artifacts]
+    reports = [report for report in reports if report]
+    ready = [report for report in reports if report.get("status") == "ready"]
+    warnings = [report for report in reports if report.get("status") == "needs_review"]
+    failures = [report for report in reports if report.get("status") == "blocked"]
+    counts = {
+        "ready": len(ready),
+        "needs_review": len(warnings),
+        "blocked": len(failures),
+        "total": len(reports),
+    }
+    latest_ready = _latest_dict_by_time(ready)
+    latest_warning = _latest_dict_by_time(warnings)
+    latest_failure = _latest_dict_by_time(failures)
+    if latest_failure:
+        latest_failure = latest_failure | {
+            "reason": latest_failure.get("reason") or "Landing gate report is blocked."
+        }
+    if latest_warning:
+        latest_warning = latest_warning | {
+            "reason": latest_warning.get("reason") or "Landing gate report needs review."
+        }
+    success = None
+    if latest_ready:
+        success = latest_ready | {"counts": counts}
+    return {
+        "success": success,
+        "latest_failure": latest_failure,
+        "latest_warning": latest_warning,
+        "counts": counts,
+    }
+
+
+def _landing_gate_report_summary(artifact: Any) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(Path(artifact.path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "id": artifact.id,
+            "ticket_id": artifact.ticket_id,
+            "artifact_type": artifact.artifact_type.value,
+            "status": "blocked",
+            "path": artifact.path,
+            "reason": "Landing gate report could not be read.",
+            "created_at": artifact.created_at,
+        }
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
+    return {
+        "id": payload.get("id") or artifact.metadata.get("landing_gate_report_id") or artifact.id,
+        "ticket_id": payload.get("ticket_id") or artifact.ticket_id,
+        "ticket_key": payload.get("ticket_key"),
+        "artifact_type": artifact.artifact_type.value,
+        "status": payload.get("status") or artifact.metadata.get("status") or "unknown",
+        "path": artifact.path,
+        "landing_evidence_id": payload.get("landing_evidence_id"),
+        "blocker_count": len(blockers),
+        "warning_count": len(warnings),
+        "reason": blockers[0] if blockers else warnings[0] if warnings else "",
+        "recommended_action": payload.get("recommended_action"),
+        "created_at": payload.get("created_at") or artifact.created_at,
     }
 
 
@@ -787,6 +915,12 @@ def _latest_llm_success(successes: list[dict[str, Any] | None]) -> dict[str, Any
     if not present:
         return None
     return sorted(present, key=lambda item: item.get("created_at") or "")[-1]
+
+
+def _latest_dict_by_time(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not items:
+        return None
+    return sorted(items, key=lambda item: item.get("created_at") or "")[-1]
 
 
 def _execution_evidence(results: list[Any], backend_name: str) -> dict[str, Any]:

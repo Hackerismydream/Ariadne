@@ -157,9 +157,18 @@ def test_board_shows_production_acceptance_evidence(tmp_path: Path) -> None:
             production_acceptance_status="ready",
             run_gate_status="action_required",
             product_readiness_checks={
+                "landing_gate_evidence": "ready",
                 "real_codex_execution_evidence": "ready",
                 "real_claude_execution_evidence": "ready",
                 "real_feishu_write_evidence": "ready",
+            },
+            local_success_evidence={
+                "landing_gate": {
+                    "id": "landing_gate_board",
+                    "status": "ready",
+                    "ticket_key": "ARI-003",
+                    "path": ".ariadne/artifacts/ticket_ari_003/landing_gate_report.json",
+                },
             },
             real_success_evidence={
                 "codex": {
@@ -188,7 +197,10 @@ def test_board_shows_production_acceptance_evidence(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "## Production Acceptance Evidence" in board
     assert "- Production acceptance: `ready`" in board
+    assert "| `landing_gate_evidence` | `ready` |  |" in board
     assert "| `real_codex_execution_evidence` | `ready` |  |" in board
+    assert "### Local Gate Evidence" in board
+    assert "`landing_gate`: id=`landing_gate_board`; status=`ready`; ticket_key=`ARI-003`" in board
     assert "`codex`: id=`backend_smoke_codex`; source=`backend_smoke`; ticket_key=`ARI-003`" in board
     assert "`github`: issue_url=`https://github.com/Hackerismydream/Ariadne/issues/8`" in board
 

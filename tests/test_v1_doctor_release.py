@@ -39,6 +39,7 @@ def _seed_release_packet(root: Path) -> None:
                     "runtime_capabilities": str(root / ".ariadne" / "runtimes" / "capability_snapshot.json"),
                     "feishu_integrations": str(root / ".ariadne" / "integrations" / "feishu"),
                     "github_integrations": str(root / ".ariadne" / "integrations" / "github"),
+                    "landing_gate_reports": str(root / ".ariadne" / "artifact_index"),
                 },
             }
         )
@@ -235,6 +236,43 @@ def _seed_llm_agent_product_evidence(store: AriadneStore) -> None:
         )
 
 
+def _seed_ready_landing_gate_evidence(store: AriadneStore) -> None:
+    store.write_artifact(
+        "ticket_ari_003",
+        "run_landing_gate_success",
+        ArtifactType.LANDING_GATE_REPORT,
+        "landing_gate_report.json",
+        json.dumps(
+            {
+                "id": "landing_gate_success",
+                "ticket_id": "ticket_ari_003",
+                "ticket_key": "ARI-003",
+                "status": "ready",
+                "landing_evidence_id": "landing_evidence_success",
+                "landing_evidence_path": ".ariadne/artifacts/ticket_ari_003/landing_evidence.json",
+                "checks": [
+                    {
+                        "name": "review_passed",
+                        "status": "pass",
+                        "summary": "Review verdict: pass.",
+                    }
+                ],
+                "blockers": [],
+                "warnings": [],
+                "recommended_action": "ready_for_human_or_confirmed_merge_gate",
+                "created_at": "2026-06-18T00:00:00Z",
+            }
+        )
+        + "\n",
+        "Landing gate report: ready",
+        metadata={
+            "landing_gate_report_id": "landing_gate_success",
+            "status": "ready",
+            "landing_evidence_id": "landing_evidence_success",
+        },
+    )
+
+
 def test_doctor_secrets_does_not_print_secret_values(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
     monkeypatch.setenv("FEISHU_APP_SECRET", "do-not-leak-feishu")
@@ -424,6 +462,7 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
                     ),
                     "feishu_integrations": str(tmp_path / ".ariadne" / "integrations" / "feishu"),
                     "github_integrations": str(tmp_path / ".ariadne" / "integrations" / "github"),
+                    "landing_gate_reports": str(tmp_path / ".ariadne" / "artifact_index"),
                 },
             }
         )
@@ -497,6 +536,7 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     assert statuses["real_github_comment_evidence"] == "action_required"
     assert statuses["real_github_status_evidence"] == "action_required"
     assert statuses["real_llm_agent_evidence"] == "action_required"
+    assert statuses["landing_gate_evidence"] == "action_required"
     assert "do-not-leak" not in snapshot_path.read_text(encoding="utf-8")
 
     required = CliRunner().invoke(
@@ -604,6 +644,7 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     )
     _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
+    _seed_ready_landing_gate_evidence(store)
 
     def fake_which(command: str) -> str | None:
         return {
@@ -656,7 +697,9 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     assert statuses["real_github_pr_evidence"] == "ready"
     assert statuses["real_github_comment_evidence"] == "ready"
     assert statuses["real_github_status_evidence"] == "ready"
+    assert statuses["landing_gate_evidence"] == "ready"
     assert snapshot["real_success_evidence"]["codex"]["id"] == "backend_smoke_codex_success"
+    assert snapshot["local_success_evidence"]["landing_gate"]["id"] == "landing_gate_success"
     assert snapshot["real_success_evidence"]["codex"]["source"] == "backend_smoke"
     assert snapshot["real_success_evidence"]["claude_code"]["id"] == "backend_smoke_claude_success"
     assert snapshot["real_success_evidence"]["llm_agents"]["operations"] == {
@@ -844,6 +887,7 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
     )
     _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
+    _seed_ready_landing_gate_evidence(store)
 
     def fake_which(command: str) -> str | None:
         return {

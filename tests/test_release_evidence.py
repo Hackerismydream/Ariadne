@@ -15,6 +15,7 @@ from ariadne_ltb.storage import AriadneStore
 from test_v1_doctor_release import (
     _seed_full_github_product_evidence,
     _seed_llm_agent_product_evidence,
+    _seed_ready_landing_gate_evidence,
     _seed_release_packet,
 )
 
@@ -43,6 +44,7 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert "backend_smoke_evidence" in packet.evidence_refs
     assert "feishu_integrations" in packet.evidence_refs
     assert "github_integrations" in packet.evidence_refs
+    assert "landing_gate_reports" in packet.evidence_refs
     assert "product_readiness" in packet.evidence_refs
     assert Path(packet.evidence_refs["integration_doctor"]).exists()
     assert Path(packet.evidence_refs["runtime_capabilities"]).exists()
@@ -53,18 +55,22 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert "real_codex_execution_evidence" in packet.product_readiness_checks
     assert "real_llm_agent_evidence" in packet.product_readiness_checks
     assert "real_feishu_write_evidence" in packet.product_readiness_checks
+    assert "landing_gate_evidence" in packet.product_readiness_checks
     assert "llm_agents" in packet.real_success_evidence
     assert "codex" in packet.real_success_evidence
     assert "github" in packet.real_failure_evidence
+    assert "landing_gate" in packet.local_failure_evidence
     persisted = json.loads(path.read_text(encoding="utf-8"))
     assert persisted["id"] == packet.id
     assert persisted["evidence_refs"]["integration_doctor"].endswith("integrations.json")
     assert persisted["evidence_refs"]["product_readiness"].endswith("product_readiness.json")
     assert persisted["evidence_refs"]["backend_smoke_evidence"].endswith("backend_smoke")
+    assert persisted["evidence_refs"]["landing_gate_reports"].endswith("artifact_index")
     assert persisted["production_acceptance_status"] in {"ready", "action_required", "blocked"}
     assert persisted["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_github_write_evidence" in persisted["product_readiness_checks"]
     assert "real_llm_agent_evidence" in persisted["product_readiness_checks"]
+    assert "landing_gate_evidence" in persisted["product_readiness_checks"]
 
 
 def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> None:
@@ -88,6 +94,7 @@ def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> Non
     assert payload["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_codex_execution_evidence" in payload["product_readiness_checks"]
     assert "real_llm_agent_evidence" in payload["product_readiness_checks"]
+    assert "landing_gate_evidence" in payload["product_readiness_checks"]
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
     assert (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").exists()
     assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()
@@ -163,6 +170,7 @@ def test_evidence_packet_requirement_flags_separate_acceptance_and_run_gates(
     )
     _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
+    _seed_ready_landing_gate_evidence(store)
 
     def fake_which(command: str) -> str | None:
         return {

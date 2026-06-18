@@ -5085,6 +5085,63 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 12:55 CST Landing Gate Release Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added local success/failure evidence fields to `ReleaseEvidencePacket`.
+- `ari doctor product` now checks `landing_gate_evidence` from persisted
+  `landing_gate_report` artifacts.
+- `ari evidence packet` now persists landing gate success/failure evidence and
+  references the artifact index as `landing_gate_reports`.
+- Board production acceptance output now shows Local Gate Evidence separately
+  from real external integration success evidence.
+- README now states that release evidence and product doctor require a ready
+  landing gate before treating work as acceptance-ready.
+
+Why this matters:
+
+- Previous landing gate work produced a useful ticket-local artifact, but
+  release evidence did not consume it.
+- This slice makes the local gate part of the production acceptance surface:
+  a run must produce both artifacts and a ready landing decision before the
+  release packet can claim readiness.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_release_evidence.py
+  tests/test_v1_doctor_release.py::test_doctor_product_reports_acceptance_readiness_without_external_writes
+  tests/test_v1_doctor_release.py::test_doctor_product_marks_real_success_evidence_ready
+  tests/test_v1_doctor_release.py::test_doctor_product_separates_acceptance_from_unset_run_gates
+  tests/test_v1_board_ux.py::test_board_shows_production_acceptance_evidence`:
+  passed, `8 passed`.
+- `python3.11 -m ruff check ariadne_ltb/doctor.py ariadne_ltb/evidence.py
+  ariadne_ltb/models.py ariadne_ltb/board.py tests/test_release_evidence.py
+  tests/test_v1_doctor_release.py tests/test_v1_board_ux.py`: passed.
+- `python3.11 -m pytest`: passed, `266 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `python3.11 -m ariadne_ltb.cli evidence packet --output json`: passed and
+  included `landing_gate_evidence=ready`, local gate status `ready`, and
+  `landing_gate_reports` pointing at `.ariadne/artifact_index`.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_0494bb4ddfc0`, then synced and built
+  `frontend/ariadne-workbench`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 12:26 CST Landing Gate Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

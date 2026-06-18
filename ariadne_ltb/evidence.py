@@ -54,6 +54,7 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
             "backend_smoke_evidence": str(store.backend_smoke_evidence_dir),
             "feishu_integrations": str(store.feishu_integrations_dir),
             "github_integrations": str(store.github_integrations_dir),
+            "landing_gate_reports": str(store.artifact_index_dir),
             "product_readiness": str(store.doctor_dir / "product_readiness.json"),
             "release_packet": str(store.release_evidence_packet_path),
         },
@@ -71,6 +72,8 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
             },
             "real_success_evidence": product_readiness["real_success_evidence"],
             "real_failure_evidence": product_readiness["real_failure_evidence"],
+            "local_success_evidence": product_readiness["local_success_evidence"],
+            "local_failure_evidence": product_readiness["local_failure_evidence"],
         },
     )
     path = store.save_release_evidence_packet(packet)

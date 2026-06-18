@@ -1340,4 +1340,6 @@ class ReleaseEvidencePacket(AriadneModel):
     product_readiness_checks: dict[str, str] = Field(default_factory=dict)
     real_success_evidence: dict[str, Any] = Field(default_factory=dict)
     real_failure_evidence: dict[str, Any] = Field(default_factory=dict)
+    local_success_evidence: dict[str, Any] = Field(default_factory=dict)
+    local_failure_evidence: dict[str, Any] = Field(default_factory=dict)
     evidence_refs: dict[str, str] = Field(default_factory=dict)

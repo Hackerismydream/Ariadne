@@ -81,6 +81,11 @@ ari landing gate ARI-003 --require-ready
 The gate writes `landing_gate_report.json`, updates the ticket progress events,
 and performs no git merge, push, pull request, or remote write.
 
+`ari evidence packet` and `ari doctor product` include this landing gate as a
+local production-readiness check. A release packet without a ready landing gate
+will tell you to run `ari landing gate <ticket>` before treating the work as
+acceptance-ready.
+
 For recovery-oriented automation, run one bounded supervisor pass:
 
 ```bash

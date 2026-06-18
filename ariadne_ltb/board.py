@@ -330,12 +330,26 @@ def _production_acceptance_lines(store: AriadneStore) -> list[str]:
 
     success = evidence.get("real_success_evidence") or {}
     failure = evidence.get("real_failure_evidence") or {}
+    local_success = evidence.get("local_success_evidence") or {}
+    local_failure = evidence.get("local_failure_evidence") or {}
     lines.extend(["", "### Real Success Evidence", ""])
     if success:
         for name in sorted(success):
             lines.append(f"- `{name}`: {_summarize_evidence_value(success.get(name))}")
     else:
         lines.append("No real success evidence recorded yet.")
+
+    lines.extend(["", "### Local Gate Evidence", ""])
+    if local_success:
+        for name in sorted(local_success):
+            lines.append(f"- `{name}`: {_summarize_evidence_value(local_success.get(name))}")
+    else:
+        lines.append("No local gate success evidence recorded yet.")
+    if local_failure and any(value for value in local_failure.values()):
+        for name in sorted(local_failure):
+            value = local_failure.get(name)
+            if value:
+                lines.append(f"- `{name}` failure: {_summarize_evidence_value(value)}")
 
     lines.extend(["", "### Latest Failure Evidence", ""])
     if failure and any(value for value in failure.values()):
@@ -358,10 +372,12 @@ def _summarize_evidence_value(value: object) -> str:
     for key in [
         "id",
         "source",
+        "status",
         "backend",
         "backend_name",
         "ticket_key",
         "execution_result_id",
+        "path",
         "document_url",
         "issue_url",
         "pr_url",
