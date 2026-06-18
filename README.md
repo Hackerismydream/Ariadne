@@ -64,6 +64,36 @@ In this mode, a human assigns a Build Ticket to an Agent teammate, the local
 daemon claims one assignment, the Agent runs the ticket through Ariadne's full
 loop, writes comments and journal events, and updates the board.
 
+## Local API Control Plane
+
+Ariadne now exposes the same local Agent Workbench loop through a FastAPI
+control plane for the frontend. The API is local-only by default and uses the
+same store, assignment queue, daemon, and orchestrator as the CLI.
+
+```bash
+python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766
+```
+
+Register an explicit target repository before browser-triggered runs:
+
+```bash
+python3.11 -m ariadne_ltb.cli target-project register /absolute/path/to/repo --label "Target repo"
+python3.11 -m ariadne_ltb.cli target-project list
+```
+
+Then run the frontend:
+
+```bash
+cd frontend/ariadne-workbench
+npm run dev
+```
+
+The browser product path reads `/api/workbench` first and falls back to a
+read-only static snapshot or fixture data only when the API is unavailable.
+Browser actions can create assignments, trigger one local daemon run, watch
+state refreshes, and add comments. They do not send raw shell commands or local
+filesystem paths; target paths stay server-side in `.ariadne/project/resources.json`.
+
 Each completed ticket run also writes a landing evidence packet under the
 ticket artifact directory. The packet has JSON and Markdown forms and links the
 execution log, diff, changed files, tests, review, memory, Feishu plan, next

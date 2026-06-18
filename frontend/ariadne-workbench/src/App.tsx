@@ -15,7 +15,9 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { loadWorkbenchData, workbenchData } from "./data";
+import { loadWorkbenchData, workbenchData, type WorkbenchDataSource } from "./data";
+import { assignTicket, runAssignment } from "./shared/api/client";
+import { idempotencyKey } from "./shared/lib/idempotency";
 import type {
   AriadneTicket,
   BackendSmokeEvidence,
@@ -100,12 +102,34 @@ export function App() {
   const initialRoute = parseHashRoute();
   const [page, setPage] = useState<PageKey>(initialRoute.page ?? "knowledge");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
-  const [dataSource, setDataSource] = useState<"local" | "fixture">("fixture");
+  const [dataSource, setDataSource] = useState<WorkbenchDataSource>("fixture");
+  const [readOnly, setReadOnly] = useState(true);
   const [selectedTicketId, setSelectedTicketId] = useState(
     findTicketByRef(workbenchData.tickets, initialRoute.ticketRef)?.id ?? workbenchData.tickets[0]?.id ?? "",
   );
   const [selectedRuntime, setSelectedRuntime] = useState(workbenchData.runtimes[0]?.backend ?? "fake-codex");
   const selectedTicket = data.tickets.find((ticket) => ticket.id === selectedTicketId) ?? data.tickets[0];
+
+  async function refreshWorkbenchData() {
+    const result = await loadWorkbenchData();
+    setData(result.data);
+    setDataSource(result.source);
+    setReadOnly(result.readOnly);
+    const route = parseHashRoute();
+    const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
+    if (route.page) setPage(route.page);
+    if (routeTicket) {
+      setPage("issues");
+      setSelectedTicketId(routeTicket.id);
+    } else {
+      setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
+    }
+    setSelectedRuntime((current) => {
+      const productRuntime = result.data.runtimes.find((runtime) => runtime.backend === current && isProductRuntime(runtime.backend))
+        ?? result.data.runtimes.find((runtime) => isProductRuntime(runtime.backend));
+      return productRuntime?.backend ?? current;
+    });
+  }
 
   function navigate(nextPage: PageKey) {
     setPage(nextPage);
@@ -126,20 +150,8 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
-    loadWorkbenchData().then((result) => {
+    refreshWorkbenchData().then(() => {
       if (!mounted) return;
-      setData(result.data);
-      setDataSource(result.source);
-      const route = parseHashRoute();
-      const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
-      if (route.page) setPage(route.page);
-      if (routeTicket) {
-        setPage("issues");
-        setSelectedTicketId(routeTicket.id);
-      } else {
-        setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
-      }
-      setSelectedRuntime((current) => result.data.runtimes.some((runtime) => runtime.backend === current) ? current : result.data.runtimes[0]?.backend ?? "fake-codex");
     });
     return () => {
       mounted = false;
@@ -167,12 +179,14 @@ export function App() {
         <PageFrame
           data={data}
           dataSource={dataSource}
+          readOnly={readOnly}
           page={page}
           selectedRuntime={selectedRuntime}
           selectedTicket={selectedTicket}
           onNavigate={navigate}
           onRuntimeSelect={setSelectedRuntime}
           onTicketSelect={selectTicket}
+          onRefresh={refreshWorkbenchData}
         />
       </main>
       {page === "knowledge" ? null : (
@@ -186,6 +200,10 @@ export function App() {
       )}
     </div>
   );
+}
+
+function isProductRuntime(backend: string) {
+  return backend === "codex" || backend === "claude-code";
 }
 
 function Sidebar({
@@ -251,19 +269,35 @@ function PageFrame({
   onNavigate,
   onRuntimeSelect,
   onTicketSelect,
+  onRefresh,
+  readOnly,
 }: {
   data: WorkbenchData;
-  dataSource: "local" | "fixture";
+  dataSource: WorkbenchDataSource;
+  readOnly: boolean;
   page: PageKey;
   selectedRuntime: string;
   selectedTicket: AriadneTicket;
   onNavigate: (page: PageKey) => void;
   onRuntimeSelect: (backend: string) => void;
   onTicketSelect: (ticketId: string) => void;
+  onRefresh: () => Promise<void>;
 }) {
   if (page === "goal") return <GoalPage data={data} onTicketSelect={onTicketSelect} />;
   if (page === "knowledge") return <KnowledgePage data={data} />;
-  if (page === "issues") return <IssuesPage data={data} selectedTicket={selectedTicket} onTicketSelect={onTicketSelect} />;
+  if (page === "issues") {
+    return (
+      <IssuesPage
+        data={data}
+        dataSource={dataSource}
+        readOnly={readOnly}
+        selectedRuntime={selectedRuntime}
+        selectedTicket={selectedTicket}
+        onRefresh={onRefresh}
+        onTicketSelect={onTicketSelect}
+      />
+    );
+  }
   if (page === "agents") return <AgentsPage data={data} />;
   if (page === "runtimes") {
     return (
@@ -593,11 +627,19 @@ function previewStatusLabel(status: WorkbenchData["backlogMutationPreview"]["sta
 
 function IssuesPage({
   data,
+  dataSource,
+  readOnly,
+  selectedRuntime,
   selectedTicket,
+  onRefresh,
   onTicketSelect,
 }: {
   data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  readOnly: boolean;
+  selectedRuntime: string;
   selectedTicket: AriadneTicket;
+  onRefresh: () => Promise<void>;
   onTicketSelect: (ticketId: string) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -683,7 +725,14 @@ function IssuesPage({
             </section>
           ))}
         </div>
-        <TicketInspector ticket={selectedTicket} />
+        <TicketInspector
+          data={data}
+          dataSource={dataSource}
+          readOnly={readOnly}
+          selectedRuntime={selectedRuntime}
+          ticket={selectedTicket}
+          onRefresh={onRefresh}
+        />
       </div>
     </section>
   );
@@ -712,7 +761,91 @@ function TicketCard({
   );
 }
 
-function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
+function TicketInspector({
+  data,
+  dataSource,
+  readOnly,
+  selectedRuntime,
+  ticket,
+  onRefresh,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  readOnly: boolean;
+  selectedRuntime: string;
+  ticket: AriadneTicket;
+  onRefresh: () => Promise<void>;
+}) {
+  const [actionState, setActionState] = useState<"idle" | "assigning" | "running">("idle");
+  const [actionMessage, setActionMessage] = useState("");
+  const targetProject = data.projectResources?.find((resource) => resource.available) ?? data.projectResources?.[0];
+  const latestAssignment = data.assignments?.find((assignment) => assignment.ticketId === ticket.id || assignment.ticketKey === ticket.key);
+  const productRuntime = isProductRuntime(selectedRuntime)
+    ? selectedRuntime
+    : data.runtimes.find((runtime) => isProductRuntime(runtime.backend))?.backend;
+  const mutationReady = dataSource === "api" && !readOnly && Boolean(targetProject?.available) && Boolean(productRuntime);
+
+  async function assignSelectedTicket() {
+    if (!targetProject || !productRuntime) return;
+    setActionState("assigning");
+    setActionMessage("");
+    try {
+      await assignTicket(ticket.key, {
+        assignee_id: "build-team",
+        assignee_kind: "build_team",
+        backend_name: productRuntime as "codex" | "claude-code",
+        planner_name: "llm",
+        agent_runtime: "llm",
+        backlog_planner_name: "llm",
+        target_project_id: targetProject.id,
+        idempotency_key: idempotencyKey(`assign-${ticket.key}`),
+      });
+      setActionMessage("已创建 assignment。");
+      await onRefresh();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "assignment failed");
+    } finally {
+      setActionState("idle");
+    }
+  }
+
+  async function runSelectedAssignment() {
+    if (!targetProject || !productRuntime) return;
+    setActionState("running");
+    setActionMessage("");
+    try {
+      let assignmentId = latestAssignment?.id;
+      if (!assignmentId) {
+        const assigned = await assignTicket(ticket.key, {
+          assignee_id: "build-team",
+          assignee_kind: "build_team",
+          backend_name: productRuntime as "codex" | "claude-code",
+          planner_name: "llm",
+          agent_runtime: "llm",
+          backlog_planner_name: "llm",
+          target_project_id: targetProject.id,
+          idempotency_key: idempotencyKey(`assign-${ticket.key}`),
+        }) as { assignment?: { id?: string } };
+        assignmentId = assigned.assignment?.id;
+      }
+      if (!assignmentId) throw new Error("assignment id missing");
+      await runAssignment(assignmentId, {
+        confirm_execution: false,
+        runtime_id: "web",
+        agent_runtime: "llm",
+        backlog_planner: "llm",
+        timeout_seconds: 120,
+        idempotency_key: idempotencyKey(`run-${ticket.key}`),
+      });
+      setActionMessage("已触发本地 run；如果门禁或凭证缺失，会在 timeline/evidence 中显示 blocked。");
+      await onRefresh();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "run failed");
+    } finally {
+      setActionState("idle");
+    }
+  }
+
   return (
     <aside className="inspector">
       <section className="inspector-header">
@@ -731,6 +864,27 @@ function TicketInspector({ ticket }: { ticket: AriadneTicket }) {
           ["Next tickets", ticket.nextTicketsPath ?? "missing"],
         ]}
       />
+      <section className="panel nested action-panel">
+        <h3>Agent control</h3>
+        <p className="muted">
+          {mutationReady
+            ? `API mode · target ${targetProject?.label} · backend ${productRuntime}`
+            : "只读模式或缺少可用 target/runtime。先启动 ari api serve 并注册 target project。"}
+        </p>
+        <div className="action-row">
+          <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={assignSelectedTicket}>
+            {actionState === "assigning" ? "Assigning..." : "Assign"}
+          </button>
+          <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
+            {actionState === "running" ? "Running..." : "Run"}
+          </button>
+          <button disabled={dataSource !== "api"} type="button" onClick={() => void onRefresh()}>
+            Watch
+          </button>
+        </div>
+        <p className="muted">latest assignment: {latestAssignment?.id ?? "missing"}</p>
+        {actionMessage ? <p className="action-message">{actionMessage}</p> : null}
+      </section>
       <GitHubEvidencePanel ticket={ticket} />
       <BackendSmokePanel smoke={ticket.backendSmoke} />
       <LLMAgentEvidencePanel agents={ticket.llmAgents ?? []} />
@@ -983,7 +1137,7 @@ function RuntimesPage({
   onRuntimeSelect,
 }: {
   data: WorkbenchData;
-  dataSource: "local" | "fixture";
+  dataSource: WorkbenchDataSource;
   selectedRuntime: string;
   onRuntimeSelect: (backend: string) => void;
 }) {
@@ -994,7 +1148,7 @@ function RuntimesPage({
         icon={<Monitor size={17} />}
         title="运行时"
         count={data.runtimes.length}
-        description={dataSource === "local" ? "已接入本地 .ariadne runtime snapshot。" : "使用内置 fixture，运行 sync-local-data 可读取本地状态。"}
+        description={dataSource === "api" ? "已接入本地 FastAPI control plane。" : dataSource === "snapshot" ? "使用本地静态 snapshot，只读。" : "使用内置 fixture，只读。"}
         action={<button className="outline-button" type="button">刷新快照</button>}
       />
       <div className="runtime-layout">
@@ -1043,7 +1197,7 @@ function RuntimesPage({
                 <div className="resource-row" key={resource.id}>
                   <strong>{resource.label}</strong>
                   <span>{resource.resourceType}</span>
-                  <code>{resource.localPath ?? "no local path"}</code>
+                  <code>{resource.available ? "available" : resource.disabledReason ?? "unavailable"}</code>
                 </div>
               ))}
             </section>
@@ -1208,6 +1362,8 @@ function AgentDock({
   }, [compactDefault]);
 
   const selected = runtimes.find((runtime) => runtime.backend === selectedRuntime) ?? runtimes[0];
+  const selectableRuntimes = runtimes.filter((runtime) => isProductRuntime(runtime.backend));
+  const runtimeOptions = selectableRuntimes.length ? selectableRuntimes : runtimes;
   const disabledReason = selected?.supportsExternalExecution && !selected.externalExecutionEnabled
     ? "外部执行未开启，只生成安全的本地 handoff 预览。"
     : "当前运行时可用于本地只读编排预览。";
@@ -1245,7 +1401,7 @@ function AgentDock({
         <div className="agent-runtime-line">
           <span>Runtime</span>
           <select value={selectedRuntime} onChange={(event) => onRuntimeSelect(event.target.value)}>
-            {runtimes.map((runtime) => (
+            {runtimeOptions.map((runtime) => (
               <option key={runtime.backend} value={runtime.backend}>
                 {runtime.backend}
               </option>

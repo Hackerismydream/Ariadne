@@ -6,6 +6,14 @@ workbench that adapts Multica's issue-agent-runtime UI pattern for Ariadne's
 
 ## Run
 
+Start the local API control plane from the repository root:
+
+```bash
+python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766
+```
+
+Then start the frontend:
+
 ```bash
 npm install
 npm run dev
@@ -58,9 +66,10 @@ The script syncs local `.ariadne/` data into the ignored
 
 ## Boundaries
 
-- This frontend does not depend on Multica runtime, auth, or backend APIs.
-- It does not mutate Ariadne core domain models.
-- It starts with typed local seed data and is ready for a future Ariadne data
-  adapter.
+- The product path is API-first through Ariadne's local FastAPI control plane.
+- Browser actions call assignment/run/comment APIs; they do not send raw shell
+  commands or local filesystem paths.
+- If the API is unavailable, the frontend falls back to a generated static
+  snapshot and then fixture data. Those fallback modes are read-only.
 - Multica screenshots and source files are used only as design and interaction
   references.

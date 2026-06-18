@@ -110,6 +110,7 @@ class LocalDaemonWorker:
             last_event_id=start_event.id,
         )
         try:
+            target_repo_path = running.metadata.get("target_repo_path")
             result = TicketRunOrchestrator(
                 self.store,
                 runtime_id=self.runtime_id,
@@ -118,6 +119,7 @@ class LocalDaemonWorker:
             ).run_ticket(
                 ticket.key,
                 backend_name=running.backend_name or PRODUCT_DEFAULT_BACKEND,
+                target_repo_path=target_repo_path,
                 planner=running.planner_name,
                 agent_runtime=agent_runtime or running.agent_runtime,
                 backlog_planner=backlog_planner or running.backlog_planner_name,

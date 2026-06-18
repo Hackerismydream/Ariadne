@@ -1,4 +1,6 @@
-import type { WorkbenchData } from "./types";
+import { getWorkbench } from "./shared/api/client";
+import type { ApiWorkbench } from "./shared/api/types";
+import type { AriadneTicket, RuntimeInfo, TicketStatus, WorkbenchData } from "./types";
 
 export const workbenchData: WorkbenchData = {
   goal: {
@@ -479,11 +481,19 @@ export const workbenchData: WorkbenchData = {
   ],
 };
 
-export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source: "local" | "fixture" }> {
+export type WorkbenchDataSource = "api" | "snapshot" | "fixture";
+
+export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source: WorkbenchDataSource; readOnly: boolean }> {
+  try {
+    const apiData = await getWorkbench();
+    return { data: adaptApiWorkbench(apiData), source: "api", readOnly: false };
+  } catch {
+    // Fall through to the generated static snapshot.
+  }
   try {
     const response = await fetch("/web_data/workbench.json", { cache: "no-store" });
     if (!response.ok) {
-      return { data: workbenchData, source: "fixture" };
+      return { data: workbenchData, source: "fixture", readOnly: true };
     }
     const localData = (await response.json()) as Partial<WorkbenchData>;
     return {
@@ -503,9 +513,90 @@ export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source
         backlogMutationPreview: localData.backlogMutationPreview ?? workbenchData.backlogMutationPreview,
         projectResources: localData.projectResources ?? workbenchData.projectResources,
       },
-      source: "local",
+      source: "snapshot",
+      readOnly: true,
     };
   } catch {
-    return { data: workbenchData, source: "fixture" };
+    return { data: workbenchData, source: "fixture", readOnly: true };
   }
+}
+
+function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
+  return {
+    ...workbenchData,
+    tickets: apiData.tickets.map((ticket) => adaptTicket(ticket, apiData)),
+    assignments: apiData.assignments.map((assignment) => ({
+      id: assignment.id,
+      ticketId: assignment.ticket_id,
+      ticketKey: assignment.ticket_key,
+      agentId: assignment.agent_id,
+      agentName: assignment.agent_name,
+      backendName: assignment.backend_name,
+      status: assignment.status,
+      targetProjectId: assignment.target_project_id,
+      blocker: assignment.blocker,
+      failureReason: assignment.failure_reason,
+    })),
+    runtimes: apiData.runtime_capabilities.map(adaptRuntime),
+    projectResources: apiData.target_projects.map((project) => ({
+      id: project.id,
+      label: project.label,
+      resourceType: "local_directory",
+      available: project.available,
+      disabledReason: project.disabled_reason,
+    })),
+  };
+}
+
+function adaptTicket(ticket: ApiWorkbench["tickets"][number], apiData: ApiWorkbench): AriadneTicket {
+  const fixture = workbenchData.tickets.find((item) => item.key === ticket.key);
+  const assignment = apiData.assignments.find((item) => item.id === ticket.latest_assignment_id)
+    ?? apiData.assignments.find((item) => item.ticket_id === ticket.id);
+  return {
+    ...(fixture ?? workbenchData.tickets[0]),
+    id: ticket.id,
+    key: ticket.key,
+    title: ticket.title,
+    summary: fixture?.summary ?? `${ticket.source_type} source ticket managed by Ariadne.`,
+    status: adaptTicketStatus(ticket.status),
+    priority: ticket.priority === "high" || ticket.priority === "low" ? ticket.priority : "medium",
+    owner: assignment?.agent_name ?? ticket.assigned_agent_id ?? "Build Lead",
+    source: ticket.source_type,
+    decision: fixture?.decision ?? "code_task",
+    reviewVerdict: ticket.latest_review_verdict === "pass"
+      ? "pass"
+      : ticket.latest_review_verdict === "needs_fix"
+        ? "needs_fix"
+        : ticket.status === "blocked"
+          ? "blocked"
+          : "pending",
+    progress: fixture?.progress ?? [],
+    changedFiles: fixture?.changedFiles ?? [],
+    acceptance: fixture?.acceptance ?? ["Ticket can be assigned to a product runtime.", "Run progress is visible in Ariadne."],
+  };
+}
+
+function adaptTicketStatus(status: string): TicketStatus {
+  if (status === "ready_for_execution" || status === "waiting_approval") return "ready";
+  if (status === "coding") return "running";
+  if (status === "done") return "done";
+  if (status === "reviewing") return "reviewing";
+  if (status === "blocked" || status === "failed" || status === "cancelled") return "blocked";
+  if (status === "planning" || status === "analyzing") return "planning";
+  return "inbox";
+}
+
+function adaptRuntime(runtime: ApiWorkbench["runtime_capabilities"][number]): RuntimeInfo {
+  return {
+    machine: "local-mac",
+    backend: runtime.backend_name,
+    status: runtime.available ? "online" : "offline",
+    version: runtime.command_template_set ? "template configured" : "default template",
+    cost7d: "local",
+    externalExecutionEnabled: runtime.external_execution_enabled,
+    commandTemplateSet: runtime.command_template_set,
+    confirmExecutionRequired: runtime.confirm_execution_required,
+    supportsExternalExecution: true,
+    disabledReasons: runtime.disabled_reasons,
+  };
 }

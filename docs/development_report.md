@@ -5323,6 +5323,98 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 16:04 CST Local API Agent Control Plane Slice
+
+Branch: `main`
+
+Implemented:
+
+- Added a FastAPI local control plane under `ariadne_ltb/interfaces/http/`.
+- Added application services under `ariadne_ltb/application/` for:
+  - target project registry;
+  - runtime capability projection;
+  - workbench projection;
+  - ticket assignment;
+  - assignment execution through `LocalDaemonWorker`;
+  - comments, timelines, and run messages.
+- Added browser-safe DTOs that redact local target repository paths and do not
+  expose command templates, command paths, or secret values.
+- Added `ari api serve` for the local API server.
+- Added `ari target-project register/list` so product runs require an explicit
+  registered target repository instead of falling back through the browser to a
+  fixture target.
+- Updated daemon execution so assignments carrying `target_repo_path` run
+  against that registered target, still using the existing isolated worktree
+  behavior.
+- Updated the frontend to be API-first:
+  - `/api/workbench` first;
+  - generated snapshot second;
+  - fixture data third;
+  - snapshot and fixture modes are read-only.
+- Added frontend API client/types/idempotency helpers.
+- Added Ticket Inspector controls for Assign, Run, and Watch in API mode.
+- Added Vite proxy for `/api -> http://127.0.0.1:8766`.
+- Updated root README and frontend README for the new control-plane path.
+
+Files changed:
+
+- `pyproject.toml`
+- `ariadne_ltb/application/*`
+- `ariadne_ltb/domain/runtime_policy.py`
+- `ariadne_ltb/interfaces/http/*`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/daemon.py`
+- `frontend/ariadne-workbench/src/App.tsx`
+- `frontend/ariadne-workbench/src/data.ts`
+- `frontend/ariadne-workbench/src/types.ts`
+- `frontend/ariadne-workbench/src/shared/api/*`
+- `frontend/ariadne-workbench/src/shared/lib/idempotency.ts`
+- `frontend/ariadne-workbench/src/styles.css`
+- `frontend/ariadne-workbench/vite.config.ts`
+- `frontend/ariadne-workbench/README.md`
+- `tests/test_local_control_plane.py`
+- `README.md`
+- `docs/development_report.md`
+
+Verification:
+
+- `python3.11 -m pip install -e '.[dev]'`: passed.
+- `python3.11 -m pytest tests/test_local_control_plane.py -q`: passed, `5 passed`.
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+- `python3.11 -m pytest -q`: passed, `285 passed`.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: command passed; Codex and
+  Claude commands were found, DeepSeek key was reported as set, external
+  execution was unset, and the local `.env` finding was redacted.
+- `python3.11 -m ariadne_ltb.cli api serve --help`: passed.
+- `python3.11 -m ariadne_ltb.cli target-project list`: passed.
+- Started `python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766`,
+  verified `GET /health` and `GET /api/workbench` returned `200`, then stopped
+  the server.
+
+Known limitations:
+
+- The new HTTP run endpoint is synchronous for the local MVP. It reuses the
+  daemon and existing store, but it is not yet a background job API or WebSocket
+  stream.
+- Browser actions currently cover assign, run, and refresh/watch. Fine-grained
+  run-message streaming and richer comments UI are still thin.
+- The frontend adapter maps API DTOs into the existing dashboard data shape
+  instead of completing a full Feature-Sliced Design refactor.
+- `backend doctor` still reports the local `.env` as a redacted secret finding;
+  this is expected while credentials live locally, but it blocks a clean secret
+  scan.
+
+Next recommended Build Tickets:
+
+- Add async job tracking for API-triggered assignment runs.
+- Add run-message polling or SSE/WebSocket streaming for live progress.
+- Add frontend target-project registration UI.
+- Move frontend API features into FSD-style slices once the contract settles.
+
 ## 2026-06-18 12:55 CST Landing Gate Release Evidence Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

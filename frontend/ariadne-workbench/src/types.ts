@@ -171,6 +171,7 @@ export type RuntimeInfo = {
   confirmExecutionRequired?: boolean;
   supportsExternalExecution?: boolean;
   supportsDryRun?: boolean;
+  disabledReasons?: string[];
   checkedAt?: string;
 };
 
@@ -178,7 +179,22 @@ export type ProjectResource = {
   id: string;
   label: string;
   resourceType: string;
+  available?: boolean;
+  disabledReason?: string;
   localPath?: string;
+};
+
+export type AssignmentSummary = {
+  id: string;
+  ticketId: string;
+  ticketKey: string;
+  agentId: string;
+  agentName: string;
+  backendName?: string | null;
+  status: string;
+  targetProjectId?: string | null;
+  blocker?: string | null;
+  failureReason?: string | null;
 };
 
 export type SourceDocument = {
@@ -287,6 +303,7 @@ export type WorkbenchData = {
   backlogMutationPreview: BacklogMutationPreview;
   agents: AgentRole[];
   runtimes: RuntimeInfo[];
+  assignments?: AssignmentSummary[];
   projectResources?: ProjectResource[];
   backendSmokeEvidence?: BackendSmokeEvidence[];
   releaseEvidence?: ReleaseEvidenceSummary;

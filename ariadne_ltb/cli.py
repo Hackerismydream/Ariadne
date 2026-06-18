@@ -49,6 +49,7 @@ from ariadne_ltb.inbox import (
     refresh_inbox,
 )
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
 from ariadne_ltb.local_search import search_local_evidence
@@ -108,6 +109,8 @@ evidence_app = typer.Typer(help="Release evidence packet commands.")
 workdir_app = typer.Typer(help="Generated workdir and isolated worktree commands.")
 supervisor_app = typer.Typer(help="Local supervisor recovery and dispatch commands.")
 landing_app = typer.Typer(help="Landing evidence and local gate commands.")
+api_app = typer.Typer(help="Local API control plane commands.")
+target_project_app = typer.Typer(help="Target project registry commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
@@ -130,6 +133,8 @@ app.add_typer(evidence_app, name="evidence")
 app.add_typer(workdir_app, name="workdir")
 app.add_typer(supervisor_app, name="supervisor")
 app.add_typer(landing_app, name="landing")
+app.add_typer(api_app, name="api")
+app.add_typer(target_project_app, name="target-project")
 
 
 class CliState:
@@ -195,6 +200,49 @@ def _print_full_demo_result(result: FullDemoResult) -> None:
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+
+
+@api_app.command("serve")
+def api_serve(
+    host: Annotated[str, typer.Option("--host", help="Bind host for the local API.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port for the local API.")] = 8766,
+) -> None:
+    """Serve the local FastAPI control plane for the Ariadne workbench."""
+    import uvicorn
+
+    from ariadne_ltb.interfaces.http.app import create_app
+
+    uvicorn.run(create_app(root=state.root), host=host, port=port, log_level="info")
+
+
+@target_project_app.command("register")
+def target_project_register(
+    path: Annotated[Path, typer.Argument(help="Absolute path to a local target repository.")],
+    label: Annotated[str | None, typer.Option("--label", help="Display label for the target.")] = None,
+) -> None:
+    """Register a local target repository for product API and daemon runs."""
+    try:
+        target = TargetProjectRegistry(AriadneStore(state.root)).register(path, label)
+    except Exception as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(2) from exc
+    typer.echo(f"target project: {target.id}")
+    typer.echo(f"label: {target.label}")
+    typer.echo(f"available: {str(target.available).lower()}")
+
+
+@target_project_app.command("list")
+def target_project_list() -> None:
+    """List registered target projects without exposing local filesystem paths."""
+    targets = TargetProjectRegistry(AriadneStore(state.root)).list()
+    if not targets:
+        typer.echo("No target projects.")
+        return
+    for target in targets:
+        typer.echo(
+            f"{target.id}\t{target.label}\tavailable={str(target.available).lower()}\t"
+            f"{target.disabled_reason}"
+        )
 
 
 @app.command()
