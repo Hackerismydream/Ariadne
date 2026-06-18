@@ -43,7 +43,7 @@ and memory.
 **Files:**
 - Modify: none unless integration is selected.
 
-- [ ] **Step 1: Confirm current branches**
+- [x] **Step 1: Confirm current branches**
 
 Run:
 
@@ -56,7 +56,16 @@ Expected:
 
 - Core and frontend worktrees are clean before integration or new feature work.
 
-- [ ] **Step 2: Decide if existing frontend branch should be integrated**
+Current decision as of 2026-06-18 12:40 CST:
+
+- Active branch is `codex/ariadne-production-frontend-integration`.
+- The active branch already contains the local workbench frontend and passes
+  `scripts/verify_v1.sh`.
+- Do not merge the older standalone frontend lane wholesale unless a future
+  diff review proves it contains unique frontend work without stale core
+  changes.
+
+- [x] **Step 2: Decide if existing frontend branch should be integrated**
 
 Integrate when:
 
@@ -71,7 +80,10 @@ Defer when:
 - integration conflicts would delay DeepSeek, Codex, Claude Code, Feishu, or
   GitHub product paths.
 
-- [ ] **Step 3: If integrating, create integration branch**
+- [x] **Step 3: If integrating, create integration branch**
+
+No new integration branch is required for the current slice because the active
+branch is already the production/frontend integration branch.
 
 Run:
 

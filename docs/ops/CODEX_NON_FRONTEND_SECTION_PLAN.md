@@ -61,7 +61,7 @@ This section owns:
   doctor, and safety gates;
 - handoff generation, skill materialization, route decisions, and permission
   profiles;
-- reviewer, verifier, memory write-back, Feishu dry-run plans, and next-ticket
+- reviewer, verifier, memory write-back, Feishu preview plans, and next-ticket
   generation;
 - static board data and board export;
 - CLI product paths and machine-readable outputs consumed by other sections;

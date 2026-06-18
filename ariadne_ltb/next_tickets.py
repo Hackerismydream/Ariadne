@@ -114,13 +114,13 @@ def _suggestions(
 
     suggestions.append(
         {
-            "title": "Expand Feishu dry-run plan into docs plus tasks",
-            "reason": f"{ticket.key} produced a dry-run Feishu plan but real write remains gated.",
+            "title": "Promote Feishu preview plan into gated docs plus tasks",
+            "reason": f"{ticket.key} produced a Feishu preview plan and real write remains gated.",
             "source": "source_type",
             "priority": "low",
             "suggested_build_decision": "experiment",
             "acceptance_criteria": [
-                "Dry-run plan separates document body and task payloads.",
+                "Preview plan separates document body and task payloads.",
                 "Real write path stays gated by FEISHU_ENABLE_WRITE and --confirm-write.",
             ],
             "affected_modules": ["ariadne_ltb/feishu.py", "ariadne_ltb/memory.py"],

@@ -1035,8 +1035,8 @@ def _default_agent_profiles() -> list[AgentProfile]:
             id="memory",
             name="Memory",
             role="memory",
-            description="Writes local memory and Feishu dry-run plans.",
-            capabilities=["memory", "feishu_dry_run", "next_tickets"],
+            description="Writes local memory and Feishu preview plans.",
+            capabilities=["memory", "feishu_preview", "next_tickets"],
         ),
     ]
 

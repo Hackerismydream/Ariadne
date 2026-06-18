@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ariadne_ltb.display_text import normalize_legacy_product_text
 from ariadne_ltb.local_safety import list_locks
 from ariadne_ltb.models import (
     ArtifactType,
@@ -131,7 +132,8 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
                 f"ticket=`{item.ticket_key or ''}` source=`{item.source_type}` "
                 f"failure=`{item.failure_reason.value if item.failure_reason else ''}` "
                 f"action=`{item.recommended_action}`"
-                f"{f' repair=`{repair_ticket.key}`' if repair_ticket else ''} - {item.summary}"
+                f"{f' repair=`{repair_ticket.key}`' if repair_ticket else ''} - "
+                f"{normalize_legacy_product_text(item.summary)}"
             )
             if item.evidence_ref:
                 lines.append(f"  - Evidence: `{item.evidence_ref}`")
@@ -180,7 +182,9 @@ def _workbench_summary_sections(store: AriadneStore, tickets: list[BuildTicket])
             latest = thread[-1]
             lines.append(
                 f"- `{ticket_key}` thread=`{root.thread_id}` comments={len(thread)} "
-                f"latest=`{latest.created_at}` root={root.body} latest={latest.body}"
+                f"latest=`{latest.created_at}` "
+                f"root={normalize_legacy_product_text(root.body)} "
+                f"latest={normalize_legacy_product_text(latest.body)}"
             )
     else:
         lines.append("No comments yet.")
@@ -516,7 +520,8 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             parent = comment.parent_comment_id or ""
             lines.append(
                 f"- `{comment.created_at}` `{comment.kind.value}` "
-                f"thread=`{comment.thread_id}` parent=`{parent}` {comment.author}: {comment.body}"
+                f"thread=`{comment.thread_id}` parent=`{parent}` {comment.author}: "
+                f"{normalize_legacy_product_text(comment.body)}"
             )
     else:
         lines.append("No comments yet.")
@@ -535,7 +540,8 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             root = thread_comments[0]
             latest = thread_comments[-1]
             lines.append(
-                f"| `{root.thread_id}` | {len(thread_comments)} | {root.body} | "
+                f"| `{root.thread_id}` | {len(thread_comments)} | "
+                f"{normalize_legacy_product_text(root.body)} | "
                 f"`{latest.created_at}` | `{latest.kind.value}` |"
             )
     else:
@@ -781,13 +787,14 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             f"| {run.started_at or ''} | {run.agent_name} | {run.agent_role} | "
             f"{run.attempt} | {run.backend_name or ''} | {run.status.value} | "
             f"`{messages_path}` | "
-            f"{run.output_summary or ''} |"
+            f"{normalize_legacy_product_text(run.output_summary or '')} |"
         )
 
     lines.extend(["", "### Artifacts", ""])
     for artifact in artifacts:
         lines.append(
-            f"- `{artifact.artifact_type.value}`: `{artifact.path}` - {artifact.summary}"
+            f"- `{artifact.artifact_type.value}`: `{artifact.path}` - "
+            f"{normalize_legacy_product_text(artifact.summary)}"
         )
 
     review = _latest_json_artifact(store, artifacts, ArtifactType.REVIEW_REPORT)
@@ -822,7 +829,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     if feishu:
         lines.append(f"- Dry-run: `{str(feishu.get('dry_run')).lower()}`")
         lines.append(f"- Path: `{_latest_artifact_path(artifacts, ArtifactType.FEISHU_WRITE_PLAN)}`")
-        lines.append(f"- Run summary: {feishu.get('run_summary', '')}")
+        lines.append(f"- Run summary: {normalize_legacy_product_text(feishu.get('run_summary', ''))}")
         lines.append("- Proposed tasks:")
         for task in feishu.get("proposed_tasks", []):
             lines.append(f"  - {task.get('title', 'Untitled')}")
@@ -943,7 +950,8 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines.extend(["", "### Event Log", ""])
     for event in ticket.event_log:
         lines.append(
-            f"- `{event.timestamp}` {event.actor}: {event.event_type} - {event.summary}"
+            f"- `{event.timestamp}` {event.actor}: {event.event_type} - "
+            f"{normalize_legacy_product_text(event.summary)}"
         )
     lines.extend(["", "### Progress Events", ""])
     for event in ticket.event_log:
@@ -960,7 +968,8 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
             "board_exported",
         }:
             lines.append(
-                f"- `{event.timestamp}` `{event.event_type}` {event.summary}"
+                f"- `{event.timestamp}` `{event.event_type}` "
+                f"{normalize_legacy_product_text(event.summary)}"
             )
     lines.append("")
     return lines

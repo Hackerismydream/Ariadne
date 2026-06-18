@@ -37,6 +37,39 @@ recorded real integration evidence for DeepSeek LLM agents, CodexBackend,
 ClaudeCodeBackend, Feishu, and GitHub. Do not claim real execution succeeded
 unless an evidence artifact records that actual run.
 
+## 2026-06-18 12:40 CST Feishu Preview Evidence Wording Cleanup
+
+This slice continues the Production Cut Cleanup by removing remaining
+user-visible `Feishu dry-run plan` wording from runtime evidence. The underlying
+`dry_run=true` field remains because it is the safety flag that proves a real
+Feishu write has not been performed yet.
+
+Implemented files:
+
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/memory.py`
+- `ariadne_ltb/next_tickets.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/agents.py`
+- `ariadne_ltb/demo.py`
+- `ariadne_ltb/display_text.py`
+- `docs/demo/ARIADNE_V1_DEMO_SCRIPT.md`
+- `docs/superpowers/plans/2026-06-17-2043-ariadne-production-agent-workbench-execution-plan.md`
+- `tests/test_display_text.py`
+
+Behavior change:
+
+- Runtime comments, run messages, artifact summaries, memory decision log, and
+  generated next-ticket suggestions now call Feishu output a preview plan.
+- CLI comments and board export normalize legacy `Feishu dry-run plan` text at
+  render time, so old local JSONL evidence stays auditable without continuing
+  to present demo-era wording to the user.
+- The Feishu plan remains preview-only unless `FEISHU_ENABLE_WRITE=1` and
+  `--confirm-write` are both supplied.
+- Phase 0 branch decision is now recorded: continue on
+  `codex/ariadne-production-frontend-integration`; do not wholesale-merge the
+  older standalone frontend lane without a fresh diff review.
+
 ## Implemented files
 
 Core product loop:

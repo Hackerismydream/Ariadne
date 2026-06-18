@@ -537,13 +537,13 @@ class ReviewerAgent:
         if feishu_plan:
             payload = json.loads(context.store.read_artifact_text(feishu_plan))
             if payload.get("dry_run") is True:
-                passed.append("Feishu plan is dry-run")
+                passed.append("Feishu plan is preview-only")
             else:
-                failed.append("Feishu plan is dry-run")
-                required_fixes.append("Ensure Feishu write plan has dry_run=true.")
+                failed.append("Feishu plan is preview-only")
+                required_fixes.append("Ensure Feishu preview plan has dry_run=true until a confirmed real write runs.")
         else:
             warnings.append(
-                "Feishu plan is generated after Reviewer in the required pipeline; FeishuPlanAgent must keep it dry-run."
+                "Feishu plan is generated after Reviewer in the required pipeline; FeishuPlanAgent must keep it preview-only until a confirmed real write runs."
             )
 
         non_terminal_runs = []
@@ -609,7 +609,7 @@ class FeishuPlanAgent:
                 },
                 {
                     "title": "ARI-003 - Feishu API adapter",
-                    "description": "Add approval-gated Feishu write-back with dry-run preview.",
+                    "description": "Add approval-gated Feishu write-back with preview evidence.",
                     "priority": "medium",
                     "due": "unscheduled",
                 },
@@ -637,7 +637,7 @@ class FeishuPlanAgent:
             ArtifactType.FEISHU_WRITE_PLAN,
             "feishu_write_plan.json",
             write_plan.model_dump_json(indent=2) + "\n",
-            "Dry-run Feishu write-back plan",
+            "Feishu preview write-back plan",
             metadata={"feishu_write_plan_id": write_plan.id, "dry_run": True},
         )
         if packet:
@@ -647,7 +647,7 @@ class FeishuPlanAgent:
             )
             context.store.save_build_packet(packet)
         return AgentStepResult(
-            output_summary="Created dry-run Feishu write plan.",
+            output_summary="Created Feishu preview write plan.",
             artifacts=[artifact],
             ticket_status=TicketStatus.DONE,
             metadata={"feishu_write_plan_id": write_plan.id},

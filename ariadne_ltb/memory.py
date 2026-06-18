@@ -157,10 +157,10 @@ def generate_feishu_plan(
             }
         ],
         proposed_tasks=[
-            {"title": "Review Ariadne 1.0 demo board", "priority": "medium", "due": "unscheduled"}
+            {"title": "Review Ariadne v1.0 board evidence", "priority": "medium", "due": "unscheduled"}
         ],
         decision_log_entry=(
-            f"{ticket.key}: Feishu write remains dry-run. Required credentials for real write: "
+            f"{ticket.key}: Feishu write is currently preview-only. Required credentials for real write: "
             "FEISHU_APP_ID, FEISHU_APP_SECRET, FEISHU_FOLDER_TOKEN, FEISHU_ENABLE_WRITE=1."
         ),
         run_summary=(

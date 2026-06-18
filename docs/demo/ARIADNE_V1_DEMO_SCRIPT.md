@@ -21,7 +21,7 @@ ari board serve
 
 `ari ticket assign ARI-003 --to fake-codex` creates a queued assignment for the local Agent teammate.
 
-`ari daemon run-once` claims the assignment, writes heartbeat and progress events, runs planner, backend, reviewer, memory, Feishu dry-run, next tickets, and board export.
+`ari daemon run-once` claims the assignment, writes heartbeat and progress events, runs planner, backend, reviewer, memory, Feishu preview planning, next tickets, and board export.
 
 `ari ticket comments ARI-003` shows assignment, handoff, progress, review, memory, and blocker comments.
 

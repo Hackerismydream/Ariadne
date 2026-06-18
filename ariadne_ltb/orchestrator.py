@@ -603,7 +603,7 @@ class TicketRunOrchestrator:
             memory_run.id,
             "feishu_plan",
             RunMessageType.ARTIFACT,
-            "Wrote Feishu dry-run plan.",
+            "Wrote Feishu preview plan.",
             artifact_ref=feishu_artifact.id,
             result_ref=feishu_plan.id,
             metadata={"path": feishu_artifact.path, "feishu_plan_path": str(feishu_path)},
@@ -611,7 +611,7 @@ class TicketRunOrchestrator:
         ticket = self.store.load_ticket(ticket.id).append_event(
             "memory_written",
             "Memory / Feishu",
-            "Wrote local memory and Feishu dry-run plan.",
+            "Wrote local memory and Feishu preview plan.",
             payload_ref=memory_artifact.id,
         )
         self.store.save_ticket(ticket)
@@ -619,7 +619,7 @@ class TicketRunOrchestrator:
             ticket,
             "memory",
             "succeeded",
-            "Memory wrote decision log and Feishu dry-run plan.",
+            "Memory wrote decision log and Feishu preview plan.",
             payload_ref=memory_artifact.id,
             kind=CommentKind.MEMORY,
         )
@@ -833,7 +833,7 @@ class TicketRunOrchestrator:
             self.store,
             memory_run,
             AgentRunStatus.SUCCEEDED,
-            "Wrote local memory, Feishu dry-run plan, next ticket suggestions, and backlog updates.",
+            "Wrote local memory, Feishu preview plan, next ticket suggestions, and backlog updates.",
             [
                 memory_artifact.id,
                 feishu_artifact.id,
@@ -1534,7 +1534,7 @@ def _write_feishu_artifact(
         ArtifactType.FEISHU_WRITE_PLAN,
         "feishu_write_plan.json",
         plan.model_dump_json(indent=2) + "\n",
-        "Feishu dry-run write plan",
+        "Feishu preview write plan",
         metadata={"feishu_write_plan_id": plan.id, "path": str(path), "dry_run": True},
     )
 

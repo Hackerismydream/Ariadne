@@ -24,6 +24,7 @@ from ariadne_ltb.backlog import (
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
 from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND, PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.demo import create_demo_ticket, default_source_path, ensure_project_space, run_demo
+from ariadne_ltb.display_text import normalize_legacy_product_text
 from ariadne_ltb.evidence import generate_release_evidence_packet
 from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, backend_for_name
 from ariadne_ltb.feishu import create_lark_doc_from_plan
@@ -1397,7 +1398,7 @@ def ticket_comments(
             latest = thread_comments[-1]
             typer.echo(
                 f"thread {index}: {root.thread_id}\tcomments={len(thread_comments)}\t"
-                f"latest={latest.created_at}\troot={root.body}"
+                f"latest={latest.created_at}\troot={normalize_legacy_product_text(root.body)}"
             )
         return
     else:
@@ -1419,7 +1420,7 @@ def _format_comment(comment: TicketComment) -> str:
         f"{comment.created_at}\t{comment.kind.value}\t"
         f"{comment.author_type.value}:{comment.author}\t"
         f"id={comment.id}\tthread={comment.thread_id}\tparent={parent}\t"
-        f"{comment.body}"
+        f"{normalize_legacy_product_text(comment.body)}"
     )
 
 
