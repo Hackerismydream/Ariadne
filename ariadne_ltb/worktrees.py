@@ -47,9 +47,10 @@ def prepare_isolated_worktree(
             )
         )
 
-    record_path = store.worktree_record_path(ticket.key)
+    isolation_key = _isolation_key(ticket, assignment_id)
+    record_path = store.worktree_record_path(ticket.key, isolation_key=isolation_key)
     if record_path.exists():
-        existing = store.load_worktree_isolation(ticket.key)
+        existing = store.load_worktree_isolation(ticket.key, isolation_key=isolation_key)
         if existing.active:
             return WorktreeIsolationResult(
                 block=WorktreeBlock(
@@ -59,7 +60,7 @@ def prepare_isolated_worktree(
                 )
             )
 
-    worktree_path = store.worktree_path(ticket.key)
+    worktree_path = store.worktree_path(ticket.key, isolation_key=isolation_key)
     if worktree_path.exists():
         return WorktreeIsolationResult(
             block=WorktreeBlock(
@@ -70,7 +71,7 @@ def prepare_isolated_worktree(
 
     base_sha = _git_stdout(base_repo, "rev-parse", "HEAD")
     base_branch = _current_branch(base_repo)
-    branch_name = _branch_name(ticket)
+    branch_name = _branch_name(ticket, isolation_key)
     if _branch_exists(base_repo, branch_name):
         return WorktreeIsolationResult(
             block=WorktreeBlock(
@@ -123,10 +124,17 @@ def _branch_exists(repo: Path, branch_name: str) -> bool:
     return result.returncode == 0
 
 
-def _branch_name(ticket: BuildTicket) -> str:
+def _isolation_key(ticket: BuildTicket, assignment_id: str | None) -> str:
     key = re.sub(r"[^a-z0-9._-]+", "-", ticket.key.lower()).strip("-")
+    if not assignment_id:
+        return key
+    assignment_key = re.sub(r"[^a-z0-9]+", "", assignment_id.lower())[-12:]
+    return f"{key}-{assignment_key}"
+
+
+def _branch_name(ticket: BuildTicket, isolation_key: str) -> str:
     ticket_id = re.sub(r"[^a-z0-9]+", "", ticket.id.lower())[:8]
-    return f"ariadne/{key}-{ticket_id}"
+    return f"ariadne/{isolation_key}-{ticket_id}"
 
 
 def _git_stdout(repo: Path, *args: str) -> str:

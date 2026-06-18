@@ -101,6 +101,31 @@ def test_daemon_assignment_runs_ticket_in_isolated_worktree(tmp_path: Path) -> N
     assert git_status(target) == ""
 
 
+def test_daemon_assignments_get_distinct_isolated_worktrees(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    ticket = store.resolve_ticket("ARI-003")
+    agent = store.resolve_agent_profile("fake-codex")
+    first = store.create_assignment(ticket, agent)
+
+    first_result = LocalDaemonWorker(store).run_once(assignment_id=first.id)
+
+    second_ticket = store.load_ticket(ticket.id)
+    second = store.create_assignment(second_ticket, agent)
+    second_result = LocalDaemonWorker(store).run_once(assignment_id=second.id)
+    records = store.list_worktree_isolations()
+    paths = {record.worktree_path for record in records}
+
+    assert first_result.status == "done"
+    assert second_result.status == "done"
+    assert len(records) == 2
+    assert len(paths) == 2
+    assert all(Path(path).exists() for path in paths)
+    assert all(record.owner_metadata["assignment_id"] in {first.id, second.id} for record in records)
+    assert git_status(target) == ""
+
+
 def test_isolate_worktree_blocks_when_ticket_already_has_active_worktree(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)

@@ -37,6 +37,94 @@ recorded real integration evidence for DeepSeek LLM agents, CodexBackend,
 ClaudeCodeBackend, Feishu, and GitHub. Do not claim real execution succeeded
 unless an evidence artifact records that actual run.
 
+## 2026-06-18 13:21 CST Production Codex Smoke Repeatability Fix
+
+This slice continues Production Cut Cleanup by proving the production backend
+smoke path uses the real CodexBackend instead of stale offline queue state.
+
+Implemented files:
+
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/daemon.py`
+- `ariadne_ltb/storage.py`
+- `ariadne_ltb/worktrees.py`
+- `scripts/verify_v1.sh`
+- `tests/test_backend_smoke_cli.py`
+- `tests/test_worktree_isolation.py`
+
+Behavior changes:
+
+- Assignment ids now include a per-create nonce. Consecutive assignments for
+  the same ticket and agent can no longer collide within the same second.
+- `ari daemon run-once --assignment-id <id>` can claim a specific queued
+  assignment instead of whichever older assignment is first in the queue.
+- `ari backend smoke-test codex` now tells the daemon to claim the assignment it
+  just created, so an older queued offline assignment cannot be claimed by
+  mistake.
+- Daemon assignment runs now get assignment-scoped isolated worktrees. Manual
+  direct `--isolate-worktree` runs keep the older per-ticket active-worktree
+  lock, but queue/daemon runs no longer block each other merely because the same
+  ticket key has older isolated worktree evidence.
+- `scripts/verify_v1.sh` now runs production readiness before offline
+  deterministic regression and labels the offline section as non-acceptance.
+
+Real Codex smoke evidence:
+
+- First run after production-default cleanup failed because the smoke command
+  created a Codex assignment but the daemon claimed an older queued
+  `fake-codex` assignment. Evidence:
+  `.ariadne/evidence/backend_smoke/codex/backend_smoke_f5fb3695a5ed.json`.
+- Second run claimed the intended Codex assignment but blocked on an older
+  per-ticket isolated worktree for `ARI-003`. Evidence:
+  `.ariadne/evidence/backend_smoke/codex/backend_smoke_718bec78c61e.json`.
+- After the assignment-claim and assignment-scoped worktree fixes, the real
+  gated Codex smoke succeeded with `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and
+  `--confirm-execution`. Evidence:
+  `.ariadne/evidence/backend_smoke/codex/backend_smoke_1301d2c3a1ce.json`.
+- A later final production evidence refresh also succeeded after
+  `scripts/verify_v1.sh` completed its offline non-acceptance section.
+  Evidence:
+  `.ariadne/evidence/backend_smoke/codex/backend_smoke_58cedab8a48a.json`.
+
+Recorded successful result:
+
+- Backend: `codex`.
+- Assignment: `assignment_cdadafd08bb1`, status `done`.
+- Execution result: `execution_72a7167d5887`.
+- Exit code: `0`.
+- Changed files: `demo_todo/cli.py`, `tests/test_cli.py`.
+- Test exit code: `0`.
+- Review verdict: `pass`.
+- Board: `.ariadne/board/index.md`.
+- Memory: `.ariadne/memory/tickets/ticket_88fbff51677a.md`.
+- Feishu preview plan:
+  `.ariadne/feishu_plans/feishu_29dd0aa83de3.json`.
+- Next tickets:
+  `.ariadne/artifacts/ticket_88fbff51677a/next_tickets.json`.
+- Landing gate: `ready` with external execution gate confirmed.
+
+Verification results:
+
+- `python3.11 -m pytest`: passed, 280 tests.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed as offline regression
+  fixture only.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; DeepSeek key is
+  reported as set, values are redacted, local ignored `.env` is reported as a
+  blocked secret-scan finding.
+- `scripts/verify_v1.sh`: passed. It now runs production readiness before
+  offline deterministic regression, and the offline section is explicitly
+  labelled non-acceptance.
+
+Safety boundaries:
+
+- Real Codex execution still requires both
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and `--confirm-execution`.
+- The smoke did not commit, push, merge, or create a PR.
+- Local `.env` credentials are intentionally ignored by git and are not
+  included in committed files.
+
 ## 2026-06-18 12:40 CST Feishu Preview Evidence Wording Cleanup
 
 This slice continues the Production Cut Cleanup by removing remaining

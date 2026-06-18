@@ -976,6 +976,7 @@ def backend_smoke_test(
         agent_runtime=selected_agent_runtime,
         backlog_planner=selected_backlog_planner,
         timeout_seconds=timeout_seconds,
+        assignment_id=assignment.id,
     )
     final_assignment = store.load_assignment(assignment.id)
     result = daemon_result.ticket_run_result
@@ -1796,6 +1797,13 @@ def _format_acceptance_coverage(review: ReviewReport) -> str:
 @daemon_app.command("run-once")
 def daemon_run_once(
     runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
+    assignment_id: Annotated[
+        str | None,
+        typer.Option(
+            "--assignment-id",
+            help="Claim this specific assignment instead of the oldest queued assignment.",
+        ),
+    ] = None,
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
     timeout_seconds: Annotated[
         int | None,
@@ -1828,9 +1836,10 @@ def daemon_run_once(
         agent_runtime=selected_agent_runtime,
         backlog_planner=selected_backlog_planner,
         timeout_seconds=timeout_seconds,
+        assignment_id=assignment_id,
     )
     if not result.did_work:
-        typer.echo("no work")
+        typer.echo(result.message or "no work")
         return
     typer.echo(f"Assignment claimed: {result.assignment_id}")
     typer.echo(f"running ticket: {result.ticket_key}")

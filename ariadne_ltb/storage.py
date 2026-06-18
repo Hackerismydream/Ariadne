@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from typing import Iterator
 from typing import TypeVar
+from uuid import uuid4
 
 from pydantic import BaseModel, ValidationError
 
@@ -278,7 +279,7 @@ class AriadneStore:
         assigned_by: str = "human",
     ) -> TicketAssignment:
         assignment = TicketAssignment(
-            id=stable_id("assignment", ticket.id, agent.id, utc_now()),
+            id=stable_id("assignment", ticket.id, agent.id, utc_now(), uuid4().hex),
             ticket_id=ticket.id,
             ticket_key=ticket.key,
             agent_id=agent.id,
@@ -371,38 +372,61 @@ class AriadneStore:
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
             for assignment in sorted(self.list_assignments(), key=lambda item: item.created_at):
-                if not self._claimable_assignment(assignment):
-                    continue
-                try:
-                    ticket = self.load_ticket(assignment.ticket_id)
-                except FileNotFoundError:
-                    continue
-                if ticket.status is TicketStatus.SUPERSEDED:
-                    self.save_assignment(
-                        assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
-                    )
-                    continue
-                metadata = assignment.metadata
-                if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
-                    metadata = metadata | {
-                        "lease_reclaimed_at": utc_now(),
-                        "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
-                        "lease_reclaimed_from_status": assignment.status.value,
-                    }
-                claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
-                claimed = claimed.model_copy(
-                    deep=True,
-                    update={
-                        "started_at": None,
-                        "ended_at": None,
-                        "blocker": None,
-                        "failure_reason": None,
-                        "metadata": metadata,
-                    },
-                )
-                self.save_assignment(claimed)
-                return claimed
+                claimed = self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+                if claimed is not None:
+                    return claimed
         return None
+
+    def claim_assignment(
+        self,
+        assignment_id: str,
+        runtime_id: str,
+        lease_seconds: int = 600,
+    ) -> TicketAssignment | None:
+        with self._assignment_claim_lock():
+            try:
+                assignment = self.load_assignment(assignment_id)
+            except FileNotFoundError:
+                return None
+            return self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+
+    def _claim_assignment_locked(
+        self,
+        assignment: TicketAssignment,
+        runtime_id: str,
+        lease_seconds: int,
+    ) -> TicketAssignment | None:
+        if not self._claimable_assignment(assignment):
+            return None
+        try:
+            ticket = self.load_ticket(assignment.ticket_id)
+        except FileNotFoundError:
+            return None
+        if ticket.status is TicketStatus.SUPERSEDED:
+            self.save_assignment(
+                assignment.mark_cancelled("Ticket is superseded and cannot be claimed.")
+            )
+            return None
+        metadata = assignment.metadata
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            metadata = metadata | {
+                "lease_reclaimed_at": utc_now(),
+                "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
+                "lease_reclaimed_from_status": assignment.status.value,
+            }
+        claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
+        claimed = claimed.model_copy(
+            deep=True,
+            update={
+                "started_at": None,
+                "ended_at": None,
+                "blocker": None,
+                "failure_reason": None,
+                "metadata": metadata,
+            },
+        )
+        self.save_assignment(claimed)
+        return claimed
 
     @contextmanager
     def _assignment_claim_lock(self) -> Iterator[None]:
@@ -966,19 +990,26 @@ class AriadneStore:
     def read_artifact_json(self, artifact: Artifact) -> dict:
         return json.loads(self.read_artifact_text(artifact))
 
-    def worktree_record_path(self, ticket_key: str) -> Path:
-        return self.worktree_records_dir / f"{ticket_key.lower()}.json"
+    def worktree_record_path(self, ticket_key: str, isolation_key: str | None = None) -> Path:
+        key = isolation_key or ticket_key
+        return self.worktree_records_dir / f"{key.lower()}.json"
 
-    def worktree_path(self, ticket_key: str) -> Path:
-        return self.worktrees_dir / ticket_key.lower()
+    def worktree_path(self, ticket_key: str, isolation_key: str | None = None) -> Path:
+        key = isolation_key or ticket_key
+        return self.worktrees_dir / key.lower()
 
     def save_worktree_isolation(self, record: WorktreeIsolation) -> Path:
         path = Path(record.record_path)
         self._write_model(path, record)
         return path
 
-    def load_worktree_isolation(self, ticket_key: str) -> WorktreeIsolation:
-        return self._read_model(self.worktree_record_path(ticket_key), WorktreeIsolation)
+    def load_worktree_isolation(
+        self, ticket_key: str, isolation_key: str | None = None
+    ) -> WorktreeIsolation:
+        return self._read_model(
+            self.worktree_record_path(ticket_key, isolation_key=isolation_key),
+            WorktreeIsolation,
+        )
 
     def list_worktree_isolations(self) -> list[WorktreeIsolation]:
         return [

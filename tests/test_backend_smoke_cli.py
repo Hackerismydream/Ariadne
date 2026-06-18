@@ -197,6 +197,89 @@ if "test_export_json_command" not in test_text:
     assert evidence["changed_files"] == ["demo_todo/cli.py", "tests/test_cli.py"]
 
 
+def test_backend_smoke_test_claims_its_created_assignment_when_queue_has_old_work(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    patcher = tmp_path / "patch_demo.py"
+    patcher.write_text(
+        '''
+from pathlib import Path
+
+cli = Path("demo_todo/cli.py")
+text = cli.read_text(encoding="utf-8")
+if "export-json" not in text:
+    text = text.replace(
+        '    subcommands.add_parser("list")\\n',
+        '    subcommands.add_parser("list")\\n'
+        '    subcommands.add_parser("export-json")\\n',
+    )
+    text = text.replace(
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n',
+        '    if args.command == "list":\\n'
+        '        for task in load_tasks():\\n'
+        '            print(task)\\n'
+        '        return 0\\n'
+        '    if args.command == "export-json":\\n'
+        '        import json\\n'
+        '        print(json.dumps(load_tasks()))\\n'
+        '        return 0\\n',
+    )
+cli.write_text(text, encoding="utf-8")
+
+test = Path("tests/test_cli.py")
+test_text = test.read_text(encoding="utf-8")
+if "test_export_json_command" not in test_text:
+    test.write_text(
+        test_text
+        + '\\n\\ndef test_export_json_command(tmp_path, monkeypatch) -> None:\\n'
+        + '    monkeypatch.chdir(tmp_path)\\n'
+        + '    add = run_cli("add", "ship")\\n'
+        + '    exported = run_cli("export-json")\\n'
+        + '    assert add.returncode == 0\\n'
+        + '    assert exported.returncode == 0\\n'
+        + '    assert "ship" in exported.stdout\\n',
+        encoding="utf-8",
+    )
+''',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv("ARIADNE_CODEX_COMMAND_TEMPLATE", f"python3.11 {patcher}")
+    monkeypatch.setattr(CodexBackend, "is_available", lambda self: True)
+    root = Path(__file__).resolve().parents[1]
+    sources = sorted((root / "examples" / "sources").glob("*.md"))
+    runner = CliRunner()
+    ingest = runner.invoke(app, ["--root", str(tmp_path), "ingest", *[str(path) for path in sources]])
+    stale = runner.invoke(app, ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "fake-codex"])
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "backend",
+            "smoke-test",
+            "codex",
+            "--confirm-execution",
+            "--runtime-profile",
+            "deterministic",
+            "--timeout-seconds",
+            "30",
+        ],
+    )
+
+    assert ingest.exit_code == 0, ingest.output
+    assert stale.exit_code == 0, stale.output
+    assert result.exit_code == 0, result.output
+    assert "backend: codex" in result.output
+    assert "assignment status: done" in result.output
+    assert "backend: fake-codex" not in result.output
+
+
 def test_existing_fake_codex_ticket_run_still_passes(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     sources = sorted((root / "examples" / "sources").glob("*.md"))

@@ -9,23 +9,6 @@ section "Static checks"
 python3.11 -m pytest
 python3.11 -m ruff check .
 
-section "Offline deterministic verification"
-echo "This section validates fixtures and deterministic regression only; it is not product acceptance."
-python3.11 -m ariadne_ltb.cli demo full
-python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
-python3.11 -m ariadne_ltb.cli ticket list
-python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
-python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
-python3.11 -m ariadne_ltb.cli daemon run-once
-python3.11 -m ariadne_ltb.cli landing gate ARI-003 --require-ready
-python3.11 -m ariadne_ltb.cli ticket comments ARI-003
-python3.11 -m ariadne_ltb.cli runtime journal
-python3.11 -m ariadne_ltb.cli runtime recover
-python3.11 -m ariadne_ltb.cli daemon status
-python3.11 -m ariadne_ltb.cli workdir list
-python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
-python3.11 -m ariadne_ltb.cli export board
-
 section "Production readiness verification"
 python3.11 -m ariadne_ltb.cli backend doctor
 python3.11 -m ariadne_ltb.cli doctor integrations
@@ -35,6 +18,25 @@ python3.11 -m ariadne_ltb.cli doctor store
 python3.11 -m ariadne_ltb.cli doctor v1
 python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready
 scripts/verify_workbench.sh
+
+section "Offline deterministic verification (non-acceptance)"
+echo "This section validates fixtures and deterministic regression only; it is not product acceptance."
+python3.11 -m ariadne_ltb.cli demo full
+python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
+python3.11 -m ariadne_ltb.cli ticket list
+python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
+assignment_output="$(python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex)"
+printf '%s\n' "$assignment_output"
+assignment_id="$(printf '%s\n' "$assignment_output" | awk '/^Assignment created:/ {print $3}')"
+python3.11 -m ariadne_ltb.cli daemon run-once --assignment-id "$assignment_id"
+python3.11 -m ariadne_ltb.cli landing gate ARI-003 --require-ready
+python3.11 -m ariadne_ltb.cli ticket comments ARI-003
+python3.11 -m ariadne_ltb.cli runtime journal
+python3.11 -m ariadne_ltb.cli runtime recover
+python3.11 -m ariadne_ltb.cli daemon status
+python3.11 -m ariadne_ltb.cli workdir list
+python3.11 -m ariadne_ltb.cli workdir cleanup --confirm-cleanup --force-dirty
+python3.11 -m ariadne_ltb.cli export board
 
 section "Optional real smoke verification"
 if [[ "${ARIADNE_RUN_REAL_SMOKE:-0}" != "1" ]]; then

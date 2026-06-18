@@ -47,12 +47,14 @@ class LocalDaemonWorker:
         backlog_planner: str | None = None,
         llm_agent_client: DeepSeekClient | None = None,
         timeout_seconds: int | None = None,
+        assignment_id: str | None = None,
     ) -> DaemonRunResult:
         self._heartbeat(DaemonStatus.IDLE, "idle")
-        assignment = self._next_assignment()
+        assignment = self._next_assignment(assignment_id=assignment_id)
         if assignment is None:
             self._heartbeat(DaemonStatus.STOPPED, "stopped")
-            return DaemonRunResult(runtime_id=self.runtime_id, did_work=False)
+            message = f"assignment {assignment_id} is not claimable" if assignment_id else "no work"
+            return DaemonRunResult(runtime_id=self.runtime_id, did_work=False, message=message)
 
         ticket = self.store.load_ticket(assignment.ticket_id)
         self._heartbeat(DaemonStatus.RUNNING, "claiming", assignment=assignment, ticket=ticket)
@@ -269,7 +271,9 @@ class LocalDaemonWorker:
                 break
             time.sleep(interval_seconds)
 
-    def _next_assignment(self) -> TicketAssignment | None:
+    def _next_assignment(self, assignment_id: str | None = None) -> TicketAssignment | None:
+        if assignment_id:
+            return self.store.claim_assignment(assignment_id, self.runtime_id)
         return self.store.claim_next_assignment(self.runtime_id)
 
     def _heartbeat(
