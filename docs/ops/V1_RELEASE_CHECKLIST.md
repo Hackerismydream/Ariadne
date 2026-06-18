@@ -6,6 +6,9 @@
 - [ ] `python3.11 -m ruff check .`
 - [ ] `scripts/verify_v1.sh`
 - [ ] `python3.11 -m ariadne_ltb.cli doctor v1`
+- [ ] Confirm `scripts/verify_v1.sh` prints separate sections for static
+      checks, offline deterministic verification, production readiness
+      verification, and optional real smoke verification.
 
 ## Product Path
 
@@ -22,17 +25,19 @@
 - [ ] `ari runtime journal`
 - [ ] `ari runtime recover`
 - [ ] `ari export board`
+- [ ] `ari landing gate ARI-003 --require-ready`
 - [ ] `ari evidence packet --require-acceptance-ready`
 - [ ] `ari board serve`
 
-## Deterministic Regression Path
+## Offline Regression Fixture
 
 - [ ] `ari ingest examples/sources/*.md`
 - [ ] `ari ticket assign ARI-003 --to fake-codex`
 - [ ] `ari daemon run-once`
 - [ ] `ari export board`
-- [ ] Confirm this path is treated as offline regression evidence only, not
-      production acceptance.
+- [ ] `python3.11 -m ariadne_ltb.cli demo full`
+- [ ] Confirm `fake-codex`, `dry-run`, and `demo full` are treated as offline
+      regression evidence only, not production acceptance.
 
 ## Safety Gates
 
@@ -47,8 +52,8 @@
 
 - Local single-worker runtime.
 - JSON/JSONL persistence.
-- No production Web UI.
-- No Postgres, WebSocket, auth, or permissions system.
+- Local workbench frontend only; no hosted multi-user WebSocket/auth system.
+- No Postgres-backed hosted service.
 - Real Codex depends on local CLI availability.
 - `fake-codex` remains for tests and offline fallback, not product acceptance.
 - Feishu writes require an explicit real-write gate and confirmation.

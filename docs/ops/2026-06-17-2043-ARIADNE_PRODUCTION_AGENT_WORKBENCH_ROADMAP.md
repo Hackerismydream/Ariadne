@@ -53,6 +53,10 @@ Demo backends are test tools, not the product destination.
 offline local development. It must not define product acceptance for production
 agent capability.
 
+`ari demo full` remains allowed only as an offline regression fixture and
+fixture validation command. It must not appear in production acceptance
+evidence except as offline fallback evidence.
+
 Dry-run remains allowed only as a safety preview or fallback. It must not be
 treated as the final state for Feishu, GitHub, Codex, Claude Code, or upstream
 LLM agent runtime integration.
@@ -182,6 +186,7 @@ ari review run ARI-003 --reviewer llm
 FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
 ari github sync ARI-003 --confirm-write
 ari export board
+ari landing gate ARI-003 --require-ready
 ari evidence packet --require-acceptance-ready
 ```
 

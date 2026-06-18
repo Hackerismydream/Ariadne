@@ -22,6 +22,7 @@ real product path first
 fake-codex only for tests
 dry-run only for preview
 real integration failures are product evidence
+demo full only for offline regression fixtures
 ```
 
 Do not commit credentials. The DeepSeek key supplied by the user must be placed

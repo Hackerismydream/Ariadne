@@ -997,7 +997,7 @@ def _provider_audit_artifact_lines(store: AriadneStore, artifacts: list) -> list
         artifacts_payload = manifest.get("artifacts", {})
         for label, key in [
             ("Memory", "memory_path"),
-            ("Feishu dry-run", "feishu_plan_path"),
+            ("Feishu preview", "feishu_plan_path"),
             ("Next tickets", "next_tickets_path"),
             ("Board", "board_path"),
         ]:

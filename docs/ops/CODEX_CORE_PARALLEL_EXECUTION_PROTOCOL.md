@@ -44,7 +44,8 @@ This section owns everything except frontend implementation:
 - store, JSON/JSONL persistence, migrations, and doctors;
 - ticket, assignment, daemon, run, and runtime orchestration;
 - execution backends and provider capability reporting;
-- planner, memory, review, Feishu dry-run, route decisions, next tickets;
+- planner, memory, review, Feishu preview/write flow, route decisions, next
+  tickets;
 - CLI product paths;
 - board data and static board export;
 - safety gates, prompt-injection checks, secret checks, target path validation;
@@ -270,12 +271,6 @@ For each core slice:
 6. Run full verification:
 
 ```bash
-python3.11 -m pytest
-python3.11 -m ruff check .
-python3.11 -m ariadne_ltb.cli demo full
-python3.11 -m ariadne_ltb.cli export board
-python3.11 -m ariadne_ltb.cli backend doctor
-python3.11 -m ariadne_ltb.cli doctor store
 scripts/verify_v1.sh
 ```
 

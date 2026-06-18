@@ -20,13 +20,13 @@ def _latest_result(root: Path) -> dict:
     return json.loads(result_paths[-1].read_text(encoding="utf-8"))
 
 
-def test_feishu_plan_command_shows_existing_dry_run_plan(tmp_path: Path) -> None:
+def test_feishu_plan_command_shows_existing_preview_plan(tmp_path: Path) -> None:
     _seed_ticket_with_feishu_plan(tmp_path)
 
     result = CliRunner().invoke(app, ["--root", str(tmp_path), "feishu", "plan", "ARI-003"])
 
     assert result.exit_code == 0, result.output
-    assert "Feishu dry-run plan for ARI-003" in result.output
+    assert "Feishu preview plan for ARI-003" in result.output
     assert "dry_run: true" in result.output
 
 

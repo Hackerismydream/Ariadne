@@ -48,7 +48,20 @@ def test_assign_to_codex_blocks_without_gate_and_no_fake_fallback(tmp_path: Path
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
     runner = CliRunner()
-    assign = runner.invoke(app, ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "codex"])
+    assign = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "codex",
+            "--runtime-profile",
+            "deterministic",
+        ],
+    )
     run = runner.invoke(app, ["--root", str(tmp_path), "daemon", "run-once"])
 
     ticket = store.resolve_ticket("ARI-003")

@@ -1,4 +1,4 @@
-# Ariadne v1.0 Human Demo Script
+# Ariadne v1.0 Human Product Walkthrough
 
 ## Production Path
 
@@ -19,9 +19,10 @@ ari evidence packet --require-acceptance-ready
 ari board serve
 ```
 
-## Deterministic Fallback
+## Offline Regression Fixture
 
-Use this only when demonstrating the offline regression loop:
+Use this only when validating deterministic fixtures; it is not product
+acceptance evidence:
 
 ```bash
 ari ingest examples/sources/*.md
@@ -34,9 +35,9 @@ ari export board
 
 Ariadne turns external knowledge into Build Tickets, assigns a Ticket to an Agent teammate, lets a local daemon claim the work, captures execution and review evidence, writes memory, generates next tickets, and shows the whole process on a local board.
 
-The production demo uses real, gated Codex / DeepSeek / Feishu / GitHub evidence
-when those credentials and confirmations are available. The fake-codex path is
-only the deterministic fallback for local regression.
+The production walkthrough uses real, gated Codex / DeepSeek / Feishu / GitHub
+evidence when those credentials and confirmations are available. The fake-codex
+path is only the deterministic fallback for local regression.
 
 ## What To Point At
 

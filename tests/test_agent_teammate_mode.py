@@ -193,7 +193,8 @@ def test_ticket_assign_rejects_unknown_runtime_profile(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 2, result.output
-    assert "runtime profile must be `deterministic` or `production`" in result.output
+    assert "runtime profile must be `auto`, `deterministic`, or" in result.output
+    assert "`production`" in result.output
 
 
 def test_ticket_assign_to_build_team_routes_before_assignment(tmp_path: Path) -> None:

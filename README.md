@@ -108,16 +108,6 @@ separately from current run gates: the product can be acceptance-ready while
 `ARIADNE_ENABLE_EXTERNAL_EXECUTION` and `FEISHU_ENABLE_WRITE` remain unset until
 a confirmed real run.
 
-The deterministic offline fallback remains available for tests and local
-regression checks:
-
-```bash
-ari ingest examples/sources/*.md
-ari ticket list
-ari ticket run ARI-003 --backend fake-codex
-ari export board
-```
-
 Fallback:
 
 ```bash
@@ -183,12 +173,12 @@ For deterministic regression tests or offline local development, use
 `ari ticket assign <ticket> --to fake-codex`. That path is intentionally not
 the production acceptance path.
 
-## Demo
+## Offline Regression Fixture
 
-`ari demo full` remains available, but it is now a wrapper around the reusable
-`TicketRunOrchestrator`. It ensures the demo target project exists, ingests the
-fixture sources, selects the code-task ticket, and calls the same full-loop path
-as `ari ticket run`.
+`ari demo full` remains available only as an offline regression fixture and
+fixture validation command. It is not the product path and it is not production
+acceptance evidence. The product path is the ticket/assignment/daemon loop with
+production runtime profiles and gated real backends.
 
 ```bash
 python3.11 -m ariadne_ltb.cli demo full
@@ -197,15 +187,16 @@ python3.11 -m ariadne_ltb.cli export board
 
 ## Planning
 
-Default planning is deterministic and requires no credentials:
+Offline fixture planning is deterministic and requires no credentials:
 
 ```bash
 ari ticket plan ARI-003 --planner deterministic
 ```
 
-Planning can optionally cite prior local memory records. This stays local and
-deterministic; it uses keyword search over `.ariadne/memory/tickets/*.json`, not
-a vector database or network service:
+Production runtime profiles use the LLM planner/agent runtime/backlog planner.
+Planning can optionally cite prior local memory records. Memory search stays
+local and deterministic; it uses keyword search over
+`.ariadne/memory/tickets/*.json`, not a vector database or network service:
 
 ```bash
 ari memory search "planner memory retrieval"
@@ -289,13 +280,15 @@ Tests use fake transports and do not require network access or a DeepSeek key.
 
 ## Execution Backends
 
-- `fake-codex`: deterministic local simulator. It only patches the demo target
-  when the handoff mentions `export-json` and allowed paths include
-  `demo_todo/cli.py` and `tests/test_cli.py`.
-- `dry-run`: records an execution result without changing files.
-- `shell`: low-level command backend, requires `--confirm-execution`.
 - `codex`: gated Codex CLI production backend.
 - `claude-code`: gated Claude Code production backend.
+- `shell`: low-level confirmed command backend for local debugging.
+- `fake-codex`: deterministic local simulator for automated tests, offline
+  regression fixtures, and explicit debug runs only. It only patches the
+  fixture target when the handoff mentions `export-json` and allowed paths
+  include `demo_todo/cli.py` and `tests/test_cli.py`.
+- `dry-run`: preview/safety/no-credential fallback that records an execution
+  result without changing files. It is not production execution evidence.
 
 Real external execution requires both:
 
@@ -323,8 +316,10 @@ Supported placeholders are `{target_repo}`, `{handoff_file}`, `{ticket_id}`,
 
 ## Real Backend Smoke Tests
 
-The default demo uses `FakeCodexBackend`. Real `CodexBackend` and
-`ClaudeCodeBackend` execution is optional, local, safety-gated, and never
+Product backend smoke tests use real `CodexBackend` and `ClaudeCodeBackend`
+when local credentials, CLI login, and safety gates are present. Offline
+fixtures may use `FakeCodexBackend`, but those runs do not satisfy production
+acceptance. Real backend execution is local, safety-gated, and never
 auto-commits.
 
 Run diagnostics:
@@ -456,18 +451,19 @@ gaps, and the ARI-015 through ARI-025 roadmap.
 
 ## Feishu
 
-The default loop writes a Feishu dry-run plan. Real writes use `lark-cli`,
-persist an integration result under `.ariadne/integrations/feishu/<ticket>/`,
-and require both:
+Ticket runs write a Feishu preview plan. Real writes use `lark-cli`, persist an
+integration result under `.ariadne/integrations/feishu/<ticket>/`, and require
+both:
 
 ```bash
 python3.11 -m ariadne_ltb.cli feishu plan ARI-003
 FEISHU_ENABLE_WRITE=1 python3.11 -m ariadne_ltb.cli feishu write ARI-003 --confirm-write
 ```
 
-No Feishu credentials are required for tests or the default demo. Missing
-confirmation, disabled writes, missing `lark-cli`, login failures, and provider
-errors are recorded as blocked/failed write results with secrets redacted.
+No Feishu credentials are required for tests or offline regression fixtures.
+Missing confirmation, disabled writes, missing `lark-cli`, login failures, and
+provider errors are recorded as blocked/failed write results with secrets
+redacted.
 
 ## Workbench Frontend
 
@@ -598,22 +594,28 @@ workdirs are skipped unless `--force-dirty` is explicitly supplied.
 - No auto-commit, auto-push, auto-merge, or PR creation from Ariadne runtime.
 - No network is required for tests.
 - External execution is blocked unless explicitly enabled and confirmed.
-- Feishu writes are dry-run unless explicitly enabled and confirmed.
+- Feishu writes remain preview-only unless explicitly enabled and confirmed.
 - `.env`, `.env.*`, `*.secret`, `secrets/`, and `.ariadne/` are gitignored.
 
 ## Verification
 
 ```bash
-pytest
-ruff check .
-python3.11 -m ariadne_ltb.cli demo full
-python3.11 -m ariadne_ltb.cli export board
+python3.11 -m pytest
+python3.11 -m ruff check .
+scripts/verify_v1.sh
 ```
+
+`scripts/verify_v1.sh` is split into static checks, offline deterministic
+verification, production readiness verification, and optional real smoke
+verification. The offline section validates fixtures only; product acceptance is
+gated by `ari doctor product --require-acceptance-ready` and real integration
+evidence.
 
 ## v1.0 Limitations
 
 - Local single-worker runtime, not a production multi-worker scheduler.
 - JSON/JSONL persistence, not Postgres or a hosted database.
-- No production Web UI, WebSocket layer, auth, or permissions system.
+- Local workbench frontend, not a hosted multi-user WebSocket/auth system.
 - Real Codex execution depends on the local Codex CLI and remains default-off.
-- Feishu real writes are default-off; the product writes dry-run plans by default.
+- Feishu real writes are default-off; ticket runs write preview plans until a
+  real write is explicitly enabled and confirmed.

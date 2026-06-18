@@ -151,18 +151,18 @@ def configure(
 
 @app.command()
 def demo(
-    mode: Annotated[str, typer.Argument(help="Demo mode: `kernel`, `full`, or `codex`.")] = "kernel",
-    backend: Annotated[str, typer.Option("--backend", help="Execution backend.")] = OFFLINE_TEST_BACKEND,
+    mode: Annotated[str, typer.Argument(help="Offline fixture mode: `kernel`, `full`, or `codex`.")] = "kernel",
+    backend: Annotated[str, typer.Option("--backend", help="Offline fixture backend.")] = OFFLINE_TEST_BACKEND,
     confirm_execution: Annotated[
         bool,
-        typer.Option("--confirm-execution", help="Allow non-dry-run external execution backends."),
+        typer.Option("--confirm-execution", help="Allow gated external execution for the codex fixture mode."),
     ] = False,
     timeout_seconds: Annotated[
         int,
         typer.Option("--timeout-seconds", help="Maximum seconds for external backend commands."),
     ] = 60,
 ) -> None:
-    """Run the Ariadne demo pipeline."""
+    """Run offline regression fixtures; not the product path."""
     if mode in {"full", "codex"}:
         selected_backend = "codex" if mode == "codex" else backend
         result = run_full_demo(
@@ -715,6 +715,14 @@ def _yes_no(value: bool) -> str:
     return "yes" if value else "no"
 
 
+def _runtime_profile_for_backend(runtime_profile: str, backend_name: str | None) -> str:
+    if runtime_profile == "auto":
+        return "production" if backend_name in {"codex", "claude-code"} else "deterministic"
+    if runtime_profile in {"deterministic", "production"}:
+        return runtime_profile
+    raise typer.BadParameter("runtime profile must be `auto`, `deterministic`, or `production`")
+
+
 def _runtime_profile_values(
     runtime_profile: str,
     planner: str | None,
@@ -1003,7 +1011,7 @@ def backend_smoke_test(
     typer.echo(f"backlog planner: {result.backlog_planner_name}")
     typer.echo(f"board: {result.board_path}")
     typer.echo(f"memory: {result.memory_path}")
-    typer.echo(f"feishu dry-run plan: {result.feishu_plan_path}")
+    typer.echo(f"feishu preview plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
     typer.echo(f"smoke evidence: {smoke_path}")
     typer.echo(f"smoke succeeded: {smoke_evidence.succeeded}")
@@ -1232,37 +1240,41 @@ def ticket_assign(
     ticket_id: str,
     agent_id: Annotated[str, typer.Option("--to", help="Agent profile id or name.")],
     backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
-    planner: Annotated[str | None, typer.Option("--planner", help="Override planner name.")] = None,
+    planner: Annotated[
+        str | None,
+        typer.Option("--planner", help="Override planner name; auto production defaults to llm."),
+    ] = None,
     runtime_profile: Annotated[
         str,
         typer.Option(
             "--runtime-profile",
-            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+            help="auto|deterministic|production. auto uses production for Codex/Claude and deterministic for offline fallback.",
         ),
-    ] = "deterministic",
+    ] = "auto",
     agent_runtime: Annotated[
         str | None,
-        typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm."),
+        typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm; auto production defaults to llm."),
     ] = None,
     backlog_planner: Annotated[
         str | None,
-        typer.Option("--backlog-planner", help="Override feedback backlog planner: deterministic|llm."),
+        typer.Option("--backlog-planner", help="Override feedback backlog planner: deterministic|llm; auto production defaults to llm."),
     ] = None,
 ) -> None:
     """Assign a Build Ticket to a local Agent teammate."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
-    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
-        runtime_profile,
-        planner,
-        agent_runtime,
-        backlog_planner,
-    )
     try:
         team = store.resolve_build_team(agent_id)
     except FileNotFoundError:
         team = None
     if team is not None:
+        selected_profile = _runtime_profile_for_backend(runtime_profile, backend)
+        selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+            selected_profile,
+            planner,
+            agent_runtime,
+            backlog_planner,
+        )
         routed = route_ticket_to_build_team(
             store,
             ticket,
@@ -1283,6 +1295,14 @@ def ticket_assign(
         typer.echo(f"route decision: {routed.route_artifact.path}")
         return
     agent = store.resolve_agent_profile(agent_id)
+    effective_backend = backend or agent.backend_name
+    selected_profile = _runtime_profile_for_backend(runtime_profile, effective_backend)
+    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        selected_profile,
+        planner,
+        agent_runtime,
+        backlog_planner,
+    )
     assignment = store.create_assignment(
         ticket,
         agent,
@@ -1515,7 +1535,10 @@ def run_messages(
 @ticket_app.command("plan")
 def ticket_plan(
     ticket_id: str,
-    planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    planner: Annotated[
+        str,
+        typer.Option("--planner", help="deterministic|llm; auto production promotes deterministic to llm."),
+    ] = "deterministic",
     use_memory: Annotated[
         bool,
         typer.Option("--use-memory", help="Cite local memory records in the Build Packet."),
@@ -1537,10 +1560,16 @@ def ticket_plan(
 @ticket_app.command("run")
 def ticket_run(
     ticket_id: str,
-    backend: Annotated[str, typer.Option("--backend", help="dry-run|fake-codex|shell|codex|claude-code")] = PRODUCT_DEFAULT_BACKEND,
+    backend: Annotated[
+        str,
+        typer.Option(
+            "--backend",
+            help="codex|claude-code|shell|fake-codex|dry-run. fake-codex and dry-run are offline fallback only.",
+        ),
+    ] = PRODUCT_DEFAULT_BACKEND,
     target_repo_path: Annotated[
         Path | None,
-        typer.Option("--target-repo-path", help="Target repository path. Defaults to demo target."),
+        typer.Option("--target-repo-path", help="Target repository path. Defaults to the local fixture target."),
     ] = None,
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
     planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
@@ -1548,19 +1577,22 @@ def ticket_run(
         str,
         typer.Option(
             "--runtime-profile",
-            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+            help="auto|deterministic|production. auto uses production for Codex/Claude and deterministic for offline fallback.",
         ),
-    ] = "deterministic",
+    ] = "auto",
     agent_runtime: Annotated[
         str,
         typer.Option(
             "--agent-runtime",
-            help="deterministic|llm for Build Lead/Knowledge/Memory upstream agents.",
+            help="deterministic|llm for Build Lead/Knowledge/Memory; auto production promotes deterministic to llm.",
         ),
     ] = "deterministic",
     backlog_planner: Annotated[
         str,
-        typer.Option("--backlog-planner", help="deterministic|llm for feedback-to-ticket updates."),
+        typer.Option(
+            "--backlog-planner",
+            help="deterministic|llm for feedback-to-ticket updates; auto production promotes deterministic to llm.",
+        ),
     ] = "deterministic",
     use_memory: Annotated[
         bool,
@@ -1573,8 +1605,9 @@ def ticket_run(
     ] = False,
 ) -> None:
     """Run a Build Ticket through the full Ariadne product loop."""
+    selected_profile = _runtime_profile_for_backend(runtime_profile, backend)
     selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
-        runtime_profile,
+        selected_profile,
         planner,
         agent_runtime,
         backlog_planner,
@@ -1648,11 +1681,14 @@ def landing_gate(
 @ticket_app.command("execute")
 def ticket_execute(
     ticket_id: str,
-    backend: Annotated[str, typer.Option("--backend", help="dry-run|fake-codex|shell|codex")] = "dry-run",
+    backend: Annotated[
+        str,
+        typer.Option("--backend", help="Debug backend: codex|shell|fake-codex|dry-run."),
+    ] = "dry-run",
     command: Annotated[str, typer.Option("--command", help="Command for shell/codex backends.")] = "",
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
 ) -> None:
-    """Execute a ticket against the demo target project."""
+    """Run a low-level debug execution against the fixture target project."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
     if not ticket.build_packet_id:
@@ -2737,7 +2773,7 @@ def memory_export(ticket_id: str) -> None:
     record, path = write_memory_record(store, ticket, packet, execution, review)
     plan, feishu_path = generate_feishu_plan(store, ticket, packet, execution, review)
     typer.echo(f"memory record: {record.id} {path}")
-    typer.echo(f"feishu dry-run plan: {plan.id} {feishu_path}")
+    typer.echo(f"feishu preview plan: {plan.id} {feishu_path}")
 
 
 @memory_app.command("search")
@@ -2767,11 +2803,11 @@ def memory_search(
 
 @feishu_app.command("plan")
 def feishu_plan(ticket_id: str) -> None:
-    """Show the Feishu dry-run write plan for a ticket."""
+    """Show the Feishu preview write plan for a ticket."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
     plan = _load_feishu_plan_for_ticket(store, ticket.id, ticket.key)
-    typer.echo(f"Feishu dry-run plan for {ticket.key}: {plan.id}")
+    typer.echo(f"Feishu preview plan for {ticket.key}: {plan.id}")
     typer.echo("dry_run: true")
     typer.echo(f"run_summary: {plan.run_summary}")
     if plan.proposed_docs:
@@ -3020,11 +3056,11 @@ def memory_sync(
     ticket = store.resolve_ticket(ticket_id)
     plan_id = ticket.metadata.get("feishu_write_plan_id")
     if not plan_id:
-        typer.echo(f"No Feishu plan found for {ticket.key}; run `ari demo full` or `ari memory export` first.")
+        typer.echo(f"No Feishu plan found for {ticket.key}; run `ari ticket run {ticket.key}` or `ari memory export` first.")
         return
     plan = store.load_feishu_write_plan(plan_id)
     if dry_run:
-        typer.echo(f"Feishu dry-run plan for {ticket.key}: {plan.id}")
+        typer.echo(f"Feishu preview plan for {ticket.key}: {plan.id}")
         typer.echo(plan.run_summary)
         return
     result = create_lark_doc_from_plan(

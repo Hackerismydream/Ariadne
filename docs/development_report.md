@@ -1,5 +1,42 @@
 # Ariadne True MVP Development Report
 
+## Current Production Cut Status (2026-06-18 12:29 CST)
+
+This report contains historical implementation entries below. Current Ariadne
+development must treat those older demo-first entries as archival evidence, not
+as the product path.
+
+Current product path:
+
+```bash
+ari doctor integrations
+ari doctor product --require-acceptance-ready
+ari ingest examples/sources/*.md --planner llm
+ari ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+ari review run ARI-003 --reviewer llm
+FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
+ari github sync ARI-003 --confirm-write
+ari export board
+ari evidence packet --require-acceptance-ready
+```
+
+`fake-codex`, `dry-run`, and `ari demo full` are retained only for automated
+tests, offline deterministic regression fixtures, explicit debug commands, and
+no-credential blocked/preview paths. They do not satisfy production acceptance.
+
+`scripts/verify_v1.sh` is now split into:
+
+- static checks;
+- offline deterministic verification;
+- production readiness verification;
+- optional real smoke verification.
+
+Production acceptance is based on product doctor/evidence packet readiness and
+recorded real integration evidence for DeepSeek LLM agents, CodexBackend,
+ClaudeCodeBackend, Feishu, and GitHub. Do not claim real execution succeeded
+unless an evidence artifact records that actual run.
+
 ## Implemented files
 
 Core product loop:

@@ -959,4 +959,6 @@ def test_verify_v1_script_exists_and_is_executable() -> None:
     assert script.exists()
     assert text.startswith("#!/usr/bin/env bash")
     assert "doctor product --require-acceptance-ready" in text
-    assert "Deterministic regression loop only" in text
+    assert "Offline deterministic verification" in text
+    assert "Production readiness verification" in text
+    assert "Optional real smoke verification" in text

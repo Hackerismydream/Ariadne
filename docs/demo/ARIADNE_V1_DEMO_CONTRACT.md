@@ -1,8 +1,10 @@
-# Ariadne v1.0 Demo Contract
+# Ariadne v1.0 Walkthrough And Offline Fixture Contract
 
-This document freezes the demos Ariadne v1.0 should support and explain.
+This document freezes the product walkthroughs and offline regression fixtures
+Ariadne v1.0 should support and explain. Offline fixture runs are not
+production acceptance evidence.
 
-## Demo 1: Stable Local Loop
+## Offline Fixture 1: Stable Local Loop
 
 Command path:
 
@@ -38,10 +40,11 @@ What this proves:
 - Memory writes back the decision;
 - Board shows the full process.
 
-This is the default deterministic demo. It must not require Codex, Claude,
-DeepSeek, Feishu credentials, GitHub tokens, or network access.
+This is the deterministic offline regression fixture. It must not require
+Codex, Claude, DeepSeek, Feishu credentials, GitHub tokens, or network access,
+and it must not be treated as product acceptance.
 
-## Demo 2: Real Codex Path
+## Product Walkthrough 2: Real Codex Path
 
 Command path:
 
@@ -74,7 +77,7 @@ Safety boundaries:
 - Ariadne must not fallback to fake-codex;
 - Ariadne must not auto-commit, auto-push, auto-merge, or create PRs.
 
-## Demo 3: Project Self-Bootstrap
+## Product Walkthrough 3: Project Self-Bootstrap
 
 Input review note:
 
@@ -102,15 +105,16 @@ What this proves:
 - the loop is ticket-centered, not only a backend execution demo;
 - next tickets are first-class artifacts, not notes buried in a report.
 
-## Demo Explanation Script
+## Product Explanation Script
 
 Short explanation:
 
 ```text
 Ariadne is a local-first Ticket-centered Agent Workbench. Knowledge, feedback,
 codebase context, memory, and optional goals update Build Tickets. Ariadne then
-assigns tickets to agent teammates, runs a local daemon, calls a coding backend,
-reviews the result, writes memory, and exports the board.
+assigns tickets to agent teammates, runs a local daemon, calls a production
+coding backend when gates are satisfied, reviews the result, writes memory, and
+exports the board.
 ```
 
 Multica comparison:

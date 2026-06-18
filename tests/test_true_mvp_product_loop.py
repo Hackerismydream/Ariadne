@@ -179,7 +179,7 @@ def test_cli_ticket_run_completes_review_memory_next_tickets_and_board(tmp_path:
     assert next_tickets
 
 
-def test_cli_ticket_run_defaults_to_real_codex_and_records_blocked_evidence(
+def test_cli_ticket_run_real_codex_deterministic_profile_records_blocked_evidence(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -191,7 +191,18 @@ def test_cli_ticket_run_defaults_to_real_codex_and_records_blocked_evidence(
     )
     assert ingest_result.exit_code == 0, ingest_result.output
 
-    run_result = runner.invoke(app, ["--root", str(tmp_path), "ticket", "run", "ARI-003"])
+    run_result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "run",
+            "ARI-003",
+            "--runtime-profile",
+            "deterministic",
+        ],
+    )
 
     assert run_result.exit_code == 0, run_result.output
     assert "backend used: codex" in run_result.output
