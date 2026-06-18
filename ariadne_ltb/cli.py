@@ -111,6 +111,7 @@ supervisor_app = typer.Typer(help="Local supervisor recovery and dispatch comman
 landing_app = typer.Typer(help="Landing evidence and local gate commands.")
 api_app = typer.Typer(help="Local API control plane commands.")
 target_project_app = typer.Typer(help="Target project registry commands.")
+workbench_app = typer.Typer(help="Local browser workbench commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
@@ -135,6 +136,7 @@ app.add_typer(supervisor_app, name="supervisor")
 app.add_typer(landing_app, name="landing")
 app.add_typer(api_app, name="api")
 app.add_typer(target_project_app, name="target-project")
+app.add_typer(workbench_app, name="workbench")
 
 
 class CliState:
@@ -215,6 +217,36 @@ def api_serve(
     if host == "0.0.0.0":
         typer.echo("WARNING: binding Ariadne local API to 0.0.0.0 exposes it beyond localhost.")
     uvicorn.run(create_app(root=state.root), host=host, port=port, log_level="info")
+
+
+@workbench_app.command("serve")
+def workbench_serve(
+    host: Annotated[str, typer.Option("--host", help="Bind host for the local workbench.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port for the local workbench.")] = 8766,
+    frontend_dist: Annotated[
+        Path | None,
+        typer.Option("--frontend-dist", help="Path to frontend/ariadne-workbench/dist."),
+    ] = None,
+) -> None:
+    """Serve the local Ariadne browser workbench, API, and WebSocket control plane."""
+    import uvicorn
+
+    from ariadne_ltb.interfaces.http.app import create_app, default_frontend_dist
+
+    dist = frontend_dist or default_frontend_dist()
+    if not dist.exists():
+        typer.echo(f"Workbench frontend dist does not exist: {dist}")
+        typer.echo("Run: cd frontend/ariadne-workbench && npm run build")
+        raise typer.Exit(2)
+    if host == "0.0.0.0":
+        typer.echo("WARNING: binding Ariadne local workbench to 0.0.0.0 exposes it beyond localhost.")
+    typer.echo(f"Serving Ariadne Workbench at http://{host}:{port}/")
+    uvicorn.run(
+        create_app(root=state.root, serve_workbench=True, frontend_dist=dist),
+        host=host,
+        port=port,
+        log_level="info",
+    )
 
 
 @target_project_app.command("register")

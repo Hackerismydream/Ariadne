@@ -12,6 +12,7 @@ export type AriadneTicket = {
   key: string;
   title: string;
   summary: string;
+  latestAssignmentId?: string | null;
   status: TicketStatus;
   priority: "high" | "medium" | "low";
   owner: string;
@@ -196,6 +197,7 @@ export type AssignmentSummary = {
   backendName?: string | null;
   status: string;
   targetProjectId?: string | null;
+  createdAt?: string | null;
   blocker?: string | null;
   failureReason?: string | null;
 };

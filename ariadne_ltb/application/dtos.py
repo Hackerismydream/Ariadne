@@ -151,6 +151,14 @@ class AssignmentEventsDTO(AriadneDTO):
     events: list[AssignmentEventDTO]
 
 
+class AssignmentEventStreamDTO(AriadneDTO):
+    schema_version: Literal["ariadne.assignment-events.v1"] = "ariadne.assignment-events.v1"
+    assignment: AssignmentDTO
+    events: list[AssignmentEventDTO]
+    cursor: str | None = None
+    heartbeat: bool = False
+
+
 class ExecutionEvidenceDTO(AriadneDTO):
     id: str
     ticket_id: str

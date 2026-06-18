@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header
+import asyncio
+
+from fastapi import APIRouter, Depends, Header, WebSocket, WebSocketDisconnect
 
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.comments import CommentService
@@ -8,14 +10,11 @@ from ariadne_ltb.application.dtos import (
     AssignTicketInput,
     CreateCommentInput,
     RegisterTargetProjectInput,
-    RunAssignmentOutput,
     RunAssignmentInput,
 )
-from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
-from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.run_assignment import RunAssignmentService
-from ariadne_ltb.application.run_events import RunEventService
+from ariadne_ltb.application.run_events import AssignmentEventCache, RunEventService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.workbench_projection import WorkbenchProjectionService
@@ -77,25 +76,12 @@ def assign_ticket(
 def run_assignment(
     assignment_id: str,
     payload: RunAssignmentInput,
-    background_tasks: BackgroundTasks,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     store: AriadneStore = Depends(get_store),
 ) -> dict:
     if idempotency_key and not payload.idempotency_key:
         payload = payload.model_copy(update={"idempotency_key": idempotency_key})
-    assignment = store.load_assignment(assignment_id)
-    ConfirmationTokenService(store).verify(assignment, payload.confirmation_token)
-    background_tasks.add_task(
-        RunAssignmentService(store).run,
-        assignment_id,
-        payload.model_copy(update={"idempotency_key": None}),
-    )
-    return RunAssignmentOutput(
-        assignment=assignment_dto(assignment),
-        did_work=False,
-        status=assignment.status.value,
-        message="run accepted; watch assignment events for progress",
-    ).model_dump(mode="json")
+    return RunAssignmentService(store).run(assignment_id, payload).model_dump(mode="json")
 
 
 @router.get("/api/assignments/{assignment_id}/events")
@@ -105,6 +91,33 @@ def assignment_events(
     store: AriadneStore = Depends(get_store),
 ) -> dict:
     return RunEventService(store).assignment_events(assignment_id, since=since).model_dump(mode="json")
+
+
+@router.websocket("/ws/assignments/{assignment_id}")
+async def assignment_event_stream(
+    websocket: WebSocket,
+    assignment_id: str,
+) -> None:
+    await websocket.accept()
+    store = AriadneStore(websocket.app.state.root)
+    cache = AssignmentEventCache()
+    service = RunEventService(store, cache=cache)
+    cursor = websocket.query_params.get("since")
+    try:
+        batch = service.assignment_event_stream_batch(assignment_id, since=cursor)
+        await websocket.send_json(batch.model_dump(mode="json"))
+        cursor = batch.cursor
+        while True:
+            await asyncio.sleep(1)
+            batch = service.assignment_event_stream_batch(assignment_id, since=cursor)
+            if batch.events:
+                await websocket.send_json(batch.model_dump(mode="json"))
+                cursor = batch.cursor
+            else:
+                heartbeat = service.heartbeat(assignment_id, since=cursor)
+                await websocket.send_json(heartbeat.model_dump(mode="json"))
+    except WebSocketDisconnect:
+        return
 
 
 @router.get("/api/tickets/{ticket_id_or_key}/timeline")

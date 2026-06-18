@@ -6,6 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 API_TYPES = ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "types.ts"
 APP = ROOT / "frontend" / "ariadne-workbench" / "src" / "App.tsx"
+DATA = ROOT / "frontend" / "ariadne-workbench" / "src" / "data.ts"
+AGENT_CONTROL = ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "agent-control" / "model.ts"
 RUNTIME_LIB = ROOT / "frontend" / "ariadne-workbench" / "src" / "entities" / "runtime" / "lib.ts"
 
 
@@ -41,6 +43,7 @@ def test_frontend_has_planned_feature_and_entity_modules() -> None:
         "features/run-assignment/api.ts",
         "features/watch-run-events/api.ts",
         "features/add-ticket-comment/api.ts",
+        "features/agent-control/model.ts",
     ]
     for relative in required:
         assert (ROOT / "frontend" / "ariadne-workbench" / "src" / relative).exists()
@@ -54,18 +57,18 @@ def test_frontend_runtime_filter_excludes_fallback_backends() -> None:
 
 
 def test_frontend_wires_assign_run_watch_comment() -> None:
-    text = APP.read_text(encoding="utf-8")
+    text = AGENT_CONTROL.read_text(encoding="utf-8")
 
     assert "assignTicket(" in text
     assert "runAssignment(" in text
     assert "getAssignmentEvents(" in text
+    assert "openAssignmentEventsSocket(" in text
     assert "addTicketComment(" in text
     assert "readOnly" in text
 
 
 def test_frontend_product_assign_uses_selected_backend_agent_not_build_team() -> None:
-    text = APP.read_text(encoding="utf-8")
-    inspector_block = text.split("function TicketInspector", 1)[1]
+    inspector_block = AGENT_CONTROL.read_text(encoding="utf-8")
 
     assert 'assignee_kind: "agent"' in inspector_block
     assert "assignee_id: productRuntime.backend" in inspector_block
@@ -74,10 +77,11 @@ def test_frontend_product_assign_uses_selected_backend_agent_not_build_team() ->
 
 def test_frontend_mutations_refresh_the_current_ticket() -> None:
     text = APP.read_text(encoding="utf-8")
+    control = AGENT_CONTROL.read_text(encoding="utf-8")
 
     assert "async function refreshWorkbenchData(preferredTicketRef?: string)" in text
     assert "const preferredTicket = findTicketByRef(result.data.tickets, preferredTicketRef)" in text
-    assert "await onRefresh(ticket.key)" in text
+    assert "await onRefresh(ticket.key)" in control
 
 
 def test_frontend_assignment_events_show_recent_progress() -> None:
@@ -86,3 +90,21 @@ def test_frontend_assignment_events_show_recent_progress() -> None:
     assert "assignmentEvents.map((event)" in text
     assert "assignmentEvents.slice(-12)" not in text
     assert "assignmentEvents.slice(0, 6)" not in text
+
+
+def test_frontend_uses_latest_assignment_for_ticket_actions() -> None:
+    text = APP.read_text(encoding="utf-8")
+    inspector_block = text.split("function TicketInspector", 1)[1].split("return (", 1)[0]
+
+    assert "ticket.latestAssignmentId" in inspector_block
+    assert "assignment.id === ticket.latestAssignmentId" in inspector_block
+    assert "createdAt" in inspector_block
+
+
+def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
+    text = DATA.read_text(encoding="utf-8")
+    disconnected_block = text.split("if (!offlineFallbackEnabled())", 1)[1].split("try {", 1)[0]
+
+    assert 'source: "disconnected"' in disconnected_block
+    assert 'source: "fixture"' not in disconnected_block
+    assert "offlineFallbackEnabled" in text

@@ -3,10 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-import pytest
 
-from ariadne_ltb.application.dtos import RunAssignmentInput
-from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.interfaces.http.app import create_app
@@ -20,7 +17,6 @@ SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
 
 def test_control_plane_api_supports_frontend_assign_run_watch_comment_flow(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
@@ -56,12 +52,6 @@ def test_control_plane_api_supports_frontend_assign_run_watch_comment_flow(
     assert assigned.status_code == 200, assigned.text
     assignment_id = assigned.json()["assignment"]["id"]
     token = assigned.json()["confirmation_token"]
-
-    def _record_run(self: RunAssignmentService, assignment_id: str, payload: RunAssignmentInput) -> None:
-        assignment = self.store.load_assignment(assignment_id)
-        self.store.save_assignment(assignment.mark_running())
-
-    monkeypatch.setattr(RunAssignmentService, "run", _record_run)
 
     watched = client.get(f"/api/assignments/{assignment_id}/events")
     assert watched.status_code == 200, watched.text

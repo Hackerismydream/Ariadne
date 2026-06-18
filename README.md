@@ -74,6 +74,17 @@ same store, assignment queue, daemon, and orchestrator as the CLI.
 python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766
 ```
 
+For the browser product entrypoint, build the frontend once and serve the
+Workbench, API, and WebSocket control plane from one local origin:
+
+```bash
+cd frontend/ariadne-workbench
+npm install
+npm run build
+cd ../..
+python3.11 -m ariadne_ltb.cli workbench serve --host 127.0.0.1 --port 8766
+```
+
 Register an explicit target repository before browser-triggered runs:
 
 ```bash
@@ -81,18 +92,20 @@ python3.11 -m ariadne_ltb.cli target-project register /absolute/path/to/repo --l
 python3.11 -m ariadne_ltb.cli target-project list
 ```
 
-Then run the frontend:
+For development hot reload, run the frontend separately:
 
 ```bash
 cd frontend/ariadne-workbench
 npm run dev
 ```
 
-The browser product path reads `/api/workbench` first and falls back to a
-read-only static snapshot or fixture data only when the API is unavailable.
-Browser actions can create assignments, trigger one local daemon run, watch
-state refreshes, and add comments. They do not send raw shell commands or local
-filesystem paths; target paths stay server-side in `.ariadne/project/resources.json`.
+The browser product path is API-only. If `/api/workbench` is unavailable, the
+UI shows a disconnected read-only state instead of silently treating snapshot
+or fixture data as product evidence. Browser actions can create assignments,
+dispatch a run request for the local daemon/runtime to claim, watch WebSocket
+assignment events, and add comments. They do not send raw shell commands or
+local filesystem paths; target paths stay server-side in
+`.ariadne/project/resources.json`.
 
 Each completed ticket run also writes a landing evidence packet under the
 ticket artifact directory. The packet has JSON and Markdown forms and links the
@@ -508,18 +521,27 @@ Multica APIs, and browser mutations are constrained to stable ids, enums,
 idempotency keys, bounded timeouts, comment bodies, and server-issued
 confirmation tokens.
 
-Run it against the local API:
+Run the product Workbench:
+
+```bash
+cd frontend/ariadne-workbench
+npm install
+npm run build
+cd ../..
+python3.11 -m ariadne_ltb.cli workbench serve --host 127.0.0.1 --port 8766
+```
+
+For frontend development, keep the API on `127.0.0.1:8766` and use Vite:
 
 ```bash
 python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766
 cd frontend/ariadne-workbench
-npm install
 npm run dev
 ```
 
-`npm run sync:data` still exists for offline snapshot regression. When the API
-is unavailable, the frontend falls back to read-only static data and disables
-product mutations.
+`npm run sync:data` still exists for explicit offline snapshot regression. Use
+`?offline=1` or `VITE_ARIADNE_OFFLINE_FIXTURE=1` to view snapshot/fixture data.
+Those modes are read-only and are not product-path evidence.
 
 Build static assets:
 
@@ -527,7 +549,7 @@ Build static assets:
 npm run build
 ```
 
-Verify the workbench against the current local `.ariadne/` snapshot:
+Verify the workbench frontend build and offline snapshot regression:
 
 ```bash
 scripts/verify_workbench.sh

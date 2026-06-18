@@ -48,3 +48,56 @@ def test_assignment_events_include_assignment_and_threaded_comment(tmp_path: Pat
     assert any(event.source == "assignment" for event in events)
     assert any(event.source == "comment" and event.summary == "please show progress" for event in events)
     assert "confirmation_token" not in "".join(event.model_dump_json() for event in events)
+
+
+def test_assignment_events_exclude_other_assignment_threads(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    project = TargetProjectRegistry(store).register(target, "Demo Target")
+    first = AssignTicketService(store).assign(
+        "ARI-003",
+        AssignTicketInput(
+            assignee_id="build-team",
+            assignee_kind="build_team",
+            backend_name="fake-codex",
+            runtime_profile="deterministic",
+            target_project_id=project.id,
+            idempotency_key="assign-timeline-first",
+        ),
+        source="test",
+    )
+    second = AssignTicketService(store).assign(
+        "ARI-003",
+        AssignTicketInput(
+            assignee_id="build-team",
+            assignee_kind="build_team",
+            backend_name="fake-codex",
+            runtime_profile="deterministic",
+            target_project_id=project.id,
+            idempotency_key="assign-timeline-second",
+        ),
+        source="test",
+    )
+    CommentService(store).add_human_comment(
+        "ARI-003",
+        CreateCommentInput(
+            body="old assignment progress",
+            assignment_id=first.assignment.id,
+            idempotency_key="comment-timeline-first",
+        ),
+    )
+    CommentService(store).add_human_comment(
+        "ARI-003",
+        CreateCommentInput(
+            body="current assignment progress",
+            assignment_id=second.assignment.id,
+            idempotency_key="comment-timeline-second",
+        ),
+    )
+
+    events = RunEventService(store).assignment_events(second.assignment.id).events
+    summaries = [event.summary for event in events]
+
+    assert "current assignment progress" in summaries
+    assert "old assignment progress" not in summaries

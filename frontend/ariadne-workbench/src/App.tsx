@@ -16,13 +16,12 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadWorkbenchData, workbenchData, type WorkbenchDataSource } from "./data";
-import { addTicketComment } from "./features/add-ticket-comment/api";
-import { assignTicket } from "./features/assign-ticket/api";
-import { runAssignment } from "./features/run-assignment/api";
-import { getAssignmentEvents } from "./features/watch-run-events/api";
+import { addTicketCommentButtonLabel } from "./features/add-ticket-comment/ui";
+import { assignTicketButtonLabel } from "./features/assign-ticket/ui";
+import { runAssignmentButtonLabel } from "./features/run-assignment/ui";
+import { watchRunEventsButtonLabel } from "./features/watch-run-events/ui";
+import { useTicketAgentControl } from "./features/agent-control/model";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
-import { idempotencyKey } from "./shared/lib/idempotency";
-import type { AssignmentEvent } from "./shared/api/types";
 import type {
   AriadneTicket,
   BackendSmokeEvidence,
@@ -209,7 +208,7 @@ export function App() {
   const initialRoute = parseHashRoute();
   const [page, setPage] = useState<PageKey>(initialRoute.page ?? "knowledge");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
-  const [dataSource, setDataSource] = useState<WorkbenchDataSource>("fixture");
+  const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
   const [selectedTicketId, setSelectedTicketId] = useState(
     findTicketByRef(workbenchData.tickets, initialRoute.ticketRef)?.id ?? workbenchData.tickets[0]?.id ?? "",
@@ -872,117 +871,35 @@ function TicketInspector({
   ticket: AriadneTicket;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  const [actionState, setActionState] = useState<"idle" | "assigning" | "running">("idle");
-  const [actionMessage, setActionMessage] = useState("");
-  const [confirmationTokens, setConfirmationTokens] = useState<Record<string, string>>({});
-  const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [commentState, setCommentState] = useState<"idle" | "posting">("idle");
   const targetProject = data.projectResources?.find((resource) => resource.available) ?? data.projectResources?.[0];
-  const latestAssignment = data.assignments?.find((assignment) => assignment.ticketId === ticket.id || assignment.ticketKey === ticket.key);
+  const ticketAssignments = data.assignments?.filter((assignment) =>
+    assignment.ticketId === ticket.id || assignment.ticketKey === ticket.key,
+  ) ?? [];
+  const latestAssignment = ticketAssignments.find((assignment) => assignment.id === ticket.latestAssignmentId)
+    ?? [...ticketAssignments].sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""))[0];
   const productRuntime = selectableProductionRuntimes(data.runtimes).find((runtime) => runtime.backend === selectedRuntime)
     ?? selectableProductionRuntimes(data.runtimes)[0];
-  const mutationReady = dataSource === "api" && !readOnly && Boolean(targetProject?.available) && Boolean(productRuntime);
-
-  async function assignSelectedTicket() {
-    if (!targetProject || !productRuntime) return;
-    setActionState("assigning");
-    setActionMessage("");
-    try {
-      const assigned = await assignTicket(ticket.key, {
-        assignee_id: productRuntime.backend,
-        assignee_kind: "agent",
-        backend_name: productRuntime.backend as "codex" | "claude-code",
-        runtime_profile: "production",
-        target_project_id: targetProject.id,
-        idempotency_key: idempotencyKey(`assign-${ticket.key}`),
-      }) as { assignment?: { id?: string }; confirmation_token?: string };
-      if (assigned.assignment?.id && assigned.confirmation_token) {
-        setConfirmationTokens((current) => ({
-          ...current,
-          [assigned.assignment!.id!]: assigned.confirmation_token!,
-        }));
-      }
-      setActionMessage("已创建 assignment 和一次性执行确认 token。");
-      await onRefresh(ticket.key);
-    } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "分配失败");
-    } finally {
-      setActionState("idle");
-    }
-  }
-
-  async function runSelectedAssignment() {
-    if (!targetProject || !productRuntime) return;
-    setActionState("running");
-    setActionMessage("");
-    try {
-      let assignmentId = latestAssignment?.id;
-      if (!assignmentId) {
-        const assigned = await assignTicket(ticket.key, {
-          assignee_id: productRuntime.backend,
-          assignee_kind: "agent",
-          backend_name: productRuntime.backend as "codex" | "claude-code",
-          runtime_profile: "production",
-          target_project_id: targetProject.id,
-          idempotency_key: idempotencyKey(`assign-${ticket.key}`),
-        }) as { assignment?: { id?: string }; confirmation_token?: string };
-        assignmentId = assigned.assignment?.id;
-        if (assignmentId && assigned.confirmation_token) {
-          setConfirmationTokens((current) => ({ ...current, [assignmentId!]: assigned.confirmation_token! }));
-        }
-      }
-      if (!assignmentId) throw new Error("缺少 assignment id");
-      const token = confirmationTokens[assignmentId];
-      if (!token) throw new Error("缺少执行确认 token；请先重新分配任务再运行");
-      await runAssignment(assignmentId, {
-        confirmation_token: token,
-        timeout_seconds: 120,
-        idempotency_key: idempotencyKey(`run-${ticket.key}`),
-      });
-      setActionMessage("已触发本地运行；如果门禁或凭证缺失，会在时间线和证据中显示阻塞。");
-      await onRefresh(ticket.key);
-    } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "运行失败");
-    } finally {
-      setActionState("idle");
-    }
-  }
-
-  async function watchAssignmentEvents() {
-    if (!latestAssignment?.id) {
-      setActionMessage("没有 assignment 可观察。");
-      return;
-    }
-    try {
-      const response = await getAssignmentEvents(latestAssignment.id);
-      setAssignmentEvents(response.events);
-      setActionMessage(`已读取 ${response.events.length} 条 assignment events。`);
-      await onRefresh(ticket.key);
-    } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "查看事件失败");
-    }
-  }
-
-  async function postComment() {
-    const body = commentDraft.trim();
-    if (!body) return;
-    setCommentState("posting");
-    try {
-      await addTicketComment(ticket.key, {
-        body,
-        assignment_id: latestAssignment?.id,
-        idempotency_key: idempotencyKey(`comment-${ticket.key}`),
-      });
-      setCommentDraft("");
-      setActionMessage("评论已写入 ticket timeline。");
-      await onRefresh(ticket.key);
-    } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "评论失败");
-    } finally {
-      setCommentState("idle");
-    }
-  }
+  const {
+    actionMessage,
+    actionState,
+    assignmentEvents,
+    assignSelectedTicket,
+    commentDraft,
+    commentState,
+    mutationReady,
+    postComment,
+    runSelectedAssignment,
+    setCommentDraft,
+    watchAssignmentEvents,
+  } = useTicketAgentControl({
+    dataSource,
+    latestAssignment,
+    onRefresh,
+    productRuntime,
+    readOnly,
+    targetProject,
+    ticket,
+  });
 
   return (
     <aside className="inspector">
@@ -1007,17 +924,17 @@ function TicketInspector({
         <p className="muted">
           {mutationReady
             ? `API 模式 · 目标 ${targetProject?.label} · 后端 ${productRuntime?.backend}`
-            : "只读模式或缺少可用目标/运行时。先启动 ari api serve 并注册目标项目。"}
+            : "未连接产品 API，或缺少可用目标/运行时。先启动 ari workbench serve 并注册目标项目。"}
         </p>
         <div className="action-row">
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={assignSelectedTicket}>
-            {actionState === "assigning" ? "分配中..." : "分配"}
+            {assignTicketButtonLabel(actionState)}
           </button>
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
-            {actionState === "running" ? "运行中..." : "运行"}
+            {runAssignmentButtonLabel(actionState)}
           </button>
           <button disabled={dataSource !== "api" || !latestAssignment?.id} type="button" onClick={() => void watchAssignmentEvents()}>
-            查看事件
+            {watchRunEventsButtonLabel(assignmentEvents.length ? "watching" : "idle")}
           </button>
         </div>
         <p className="muted">最近 assignment：{fallbackText(latestAssignment?.id)}</p>
@@ -1030,7 +947,7 @@ function TicketInspector({
             onChange={(event) => setCommentDraft(event.target.value)}
           />
           <button disabled={!mutationReady || commentState !== "idle" || !commentDraft.trim()} type="button" onClick={() => void postComment()}>
-            {commentState === "posting" ? "发送中..." : "评论"}
+            {addTicketCommentButtonLabel(commentState)}
           </button>
         </div>
         {assignmentEvents.length ? (
@@ -1308,7 +1225,7 @@ function RuntimesPage({
         icon={<Monitor size={17} />}
         title="运行时"
         count={data.runtimes.length}
-        description={dataSource === "api" ? "已接入本地 FastAPI 控制平面。" : dataSource === "snapshot" ? "使用本地静态快照，只读。" : "使用内置数据，只读。"}
+        description={dataSource === "api" ? "已接入本地 FastAPI 控制平面。" : dataSource === "snapshot" ? "使用本地静态快照，只读。" : dataSource === "fixture" ? "显式离线 fixture 模式，只读。" : "未连接本地 API，只读。"}
         action={<button className="outline-button" type="button">刷新快照</button>}
       />
       <div className="runtime-layout">

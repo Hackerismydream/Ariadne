@@ -27,6 +27,7 @@ export type ApiAssignmentSummary = {
   backend_name?: string | null;
   status: string;
   target_project_id?: string | null;
+  created_at?: string | null;
   blocker?: string | null;
   failure_reason?: string | null;
 };
@@ -87,4 +88,12 @@ export type AssignmentEvent = {
   actor: string;
   summary: string;
   ref_id?: string | null;
+};
+
+export type AssignmentEventStream = {
+  schema_version: "ariadne.assignment-events.v1";
+  assignment: ApiAssignmentSummary;
+  events: AssignmentEvent[];
+  cursor?: string | null;
+  heartbeat: boolean;
 };

@@ -1,6 +1,7 @@
 import type {
   AddTicketCommentRequest,
   AssignmentEvent,
+  AssignmentEventStream,
   ApiWorkbench,
   AssignTicketRequest,
   RunAssignmentRequest,
@@ -52,6 +53,27 @@ export function getAssignmentEvents(assignmentId: string, since?: string) {
   return requestJson<{ events: AssignmentEvent[] }>(
     `/api/assignments/${encodeURIComponent(assignmentId)}/events${query}`,
   );
+}
+
+export function assignmentEventsWebSocketUrl(assignmentId: string, since?: string) {
+  const protocol = globalThis.location?.protocol === "https:" ? "wss:" : "ws:";
+  const host = globalThis.location?.host || "127.0.0.1:8766";
+  const query = since ? `?since=${encodeURIComponent(since)}` : "";
+  return `${protocol}//${host}/ws/assignments/${encodeURIComponent(assignmentId)}${query}`;
+}
+
+export function openAssignmentEventsSocket(
+  assignmentId: string,
+  onBatch: (batch: AssignmentEventStream) => void,
+  onError?: (error: Event) => void,
+  since?: string,
+) {
+  const socket = new WebSocket(assignmentEventsWebSocketUrl(assignmentId, since));
+  socket.addEventListener("message", (event) => {
+    onBatch(JSON.parse(event.data) as AssignmentEventStream);
+  });
+  if (onError) socket.addEventListener("error", onError);
+  return socket;
 }
 
 export function addTicketComment(ticketIdOrKey: string, payload: AddTicketCommentRequest) {

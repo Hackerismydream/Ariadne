@@ -481,14 +481,16 @@ export const workbenchData: WorkbenchData = {
   ],
 };
 
-export type WorkbenchDataSource = "api" | "snapshot" | "fixture";
+export type WorkbenchDataSource = "api" | "snapshot" | "fixture" | "disconnected";
 
 export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source: WorkbenchDataSource; readOnly: boolean }> {
   try {
     const apiData = await getWorkbench();
     return { data: adaptApiWorkbench(apiData), source: "api", readOnly: false };
   } catch {
-    // Fall through to the generated static snapshot.
+    if (!offlineFallbackEnabled()) {
+      return { data: workbenchData, source: "disconnected", readOnly: true };
+    }
   }
   try {
     const response = await fetch("/web_data/workbench.json", { cache: "no-store" });
@@ -521,6 +523,11 @@ export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source
   }
 }
 
+function offlineFallbackEnabled() {
+  const params = new URLSearchParams(globalThis.location?.search ?? "");
+  return params.get("offline") === "1" || import.meta.env.VITE_ARIADNE_OFFLINE_FIXTURE === "1";
+}
+
 function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
   return {
     ...workbenchData,
@@ -534,6 +541,7 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       backendName: assignment.backend_name,
       status: assignment.status,
       targetProjectId: assignment.target_project_id,
+      createdAt: assignment.created_at,
       blocker: assignment.blocker,
       failureReason: assignment.failure_reason,
     })),
@@ -557,6 +565,7 @@ function adaptTicket(ticket: ApiWorkbench["tickets"][number], apiData: ApiWorkbe
     id: ticket.id,
     key: ticket.key,
     title: ticket.title,
+    latestAssignmentId: ticket.latest_assignment_id,
     summary: fixture?.summary ?? `由 Ariadne 管理的 ${ticket.source_type} 来源任务。`,
     status: adaptTicketStatus(ticket.status),
     priority: ticket.priority === "high" || ticket.priority === "low" ? ticket.priority : "medium",

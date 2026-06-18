@@ -9,6 +9,7 @@ from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.dtos import AssignTicketInput, RunAssignmentInput
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
+from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.cli import app
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.interfaces.http.app import create_app
@@ -108,11 +109,21 @@ def test_service_test_source_can_run_fallback_backend_against_registered_target(
         ),
     )
 
-    assert run_payload.did_work is True
-    assert run_payload.assignment.status == "done"
-    assert run_payload.ticket_run_result["review_verdict"] == "pass"
-    worktree_path = Path(run_payload.ticket_run_result["worktree_path"])
-    execution_id = run_payload.ticket_run_result["execution_result_id"]
+    assert run_payload.did_work is False
+    assert run_payload.assignment.status == "queued"
+    assert run_payload.ticket_run_result is None
+    daemon_result = LocalDaemonWorker(store, runtime_id="test-daemon").run_once(
+        confirm_execution=True,
+        assignment_id=assignment_id,
+    )
+    assert daemon_result.did_work is True
+    assert daemon_result.status == "done"
+    assert daemon_result.ticket_run_result is not None
+    assert daemon_result.ticket_run_result.review_verdict == "pass"
+    final_assignment = store.load_assignment(assignment_id)
+    assert final_assignment.status.value == "done"
+    worktree_path = Path(daemon_result.ticket_run_result.worktree_path or "")
+    execution_id = daemon_result.ticket_run_result.execution_result_id
     execution = store.load_execution_result(execution_id)
     assert execution.test_exit_code == 0
     assert str(worktree_path).startswith(str(tmp_path / ".ariadne" / "worktrees"))

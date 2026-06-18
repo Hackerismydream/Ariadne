@@ -6242,3 +6242,53 @@ Next recommended Build Tickets:
 - Add browser-visible evidence panel backed by `/api/evidence`.
 - Add a production smoke path that runs Codex/Claude only when gates and login
   are ready, and records the result as release evidence.
+
+## 2026-06-18 Local API Agent Control Plane Product Cut
+
+Branch: `codex/local-api-agent-control-plane-product-cut`
+
+Implemented in this branch:
+
+- Added a WebSocket assignment event stream target: `/ws/assignments/{assignment_id}`.
+- Changed browser product run semantics from embedded API execution to daemon/runtime ownership: `/api/assignments/{id}/run` now records a dispatch request and waits for `ari daemon start` / `ari daemon run-once` to claim the queued assignment.
+- Added lightweight assignment event cursor/cache support in the application event service so WebSocket connections do not reparsed unchanged event files on every tick.
+- Added `ari workbench serve` as the browser product entrypoint. It serves the FastAPI API, WebSocket control plane, and built React frontend from one local origin.
+- Moved browser agent control behavior into `frontend/ariadne-workbench/src/features/agent-control/model.ts` instead of continuing to put assign/run/watch/comment logic directly in `App.tsx`.
+- Changed frontend product data loading to API-only. If `/api/workbench` is unavailable, product mode shows a disconnected read-only state. Static snapshot and fixture data now require explicit offline mode.
+
+Current boundaries:
+
+- Product browser actions use `codex` / `claude-code` production backends only.
+- `fake-codex` and snapshot fixture paths remain available for deterministic tests and explicit offline regression only.
+- Real Codex/Claude execution remains safety-gated by the existing external execution gates.
+- This is still local-first and single-user. It is not a hosted authenticated multi-workspace service.
+
+Verification plan:
+
+- `pytest`
+- `ruff check .`
+- `cd frontend/ariadne-workbench && npm run typecheck && npm run build`
+- `python3.11 -m ariadne_ltb.cli workbench serve --host 127.0.0.1 --port 8766`
+- Codex browser acceptance: open the local Workbench, assign a ticket, dispatch run, start/confirm daemon claim path, observe WebSocket events, add comment, and confirm review/memory/next-ticket evidence is visible.
+
+Verification results:
+
+- `python3.11 -m pytest`: passed, `331 passed`.
+- `ruff check .`: passed.
+- `cd frontend/ariadne-workbench && npm run build`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed as offline regression fixture.
+- `python3.11 -m ariadne_ltb.cli export board`: passed and wrote `.ariadne/board/index.md`.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude commands were found, external execution was unset, and the DeepSeek key was reported as set without printing its value.
+- Codex in-app browser acceptance passed against `ari workbench serve`:
+  - page loaded in API mode with Chinese UI;
+  - ARI-003 assignment used the ticket `latest_assignment_id` instead of stale assignment ordering;
+  - clicking `分配` created a new Codex assignment;
+  - clicking `运行` wrote `dispatch: requested` without exposing the confirmation token;
+  - `ari daemon run-once --assignment-id ... --confirm-execution --runtime-profile production` claimed the assignment and produced LLM agent artifacts, board, review, memory, Feishu plan, landing evidence, and next-ticket artifacts;
+  - the final assignment was blocked because the generated local target project checkout was dirty, not because real Codex execution succeeded;
+  - the browser event stream showed the current assignment thread after filtering out stale ticket-level history.
+
+Browser-found fixes:
+
+- Frontend assignment selection now prioritizes `ticket.latestAssignmentId`; this prevents stale assignment/token mismatches when a ticket has many historical assignments.
+- Assignment event streams now exclude unrelated ticket-level runtime events, comments, and run messages so the control panel follows the current assignment instead of replaying old ticket history.
