@@ -7,7 +7,12 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.llm import DeepSeekClient, LLMClientError, load_local_env
+from ariadne_ltb.llm import (
+    DEEPSEEK_CACHEABLE_SYSTEM_PROMPT,
+    DeepSeekClient,
+    LLMClientError,
+    load_local_env,
+)
 from ariadne_ltb.models import ReviewVerdict
 from ariadne_ltb.planner import LLMPlanner
 from ariadne_ltb.storage import AriadneStore
@@ -69,7 +74,8 @@ def test_deepseek_client_uses_official_chat_json_payload(monkeypatch) -> None:
     assert transport.payload["model"] == "deepseek-v4-pro"
     assert transport.payload["response_format"] == {"type": "json_object"}
     assert transport.payload["stream"] is False
-    assert transport.payload["messages"][0]["content"] == "You are an Ariadne production agent. Return only valid JSON."
+    assert transport.payload["messages"][0]["content"] == DEEPSEEK_CACHEABLE_SYSTEM_PROMPT
+    assert "demo-only" in transport.payload["messages"][0]["content"]
     assert "Requested schema: ariadne_test" in transport.payload["messages"][1]["content"]
     assert transport.headers["Authorization"] == "Bearer test-secret-key"
     assert transport.timeout_seconds == 12
@@ -87,6 +93,7 @@ def test_deepseek_request_keeps_cacheable_system_prefix_stable(monkeypatch) -> N
     second = client.build_request("Second prompt.", "ariadne_second")
 
     assert first.messages[0].content == second.messages[0].content
+    assert first.messages[0].content == DEEPSEEK_CACHEABLE_SYSTEM_PROMPT
     assert "ariadne_first" not in first.messages[0].content
     assert "ariadne_second" not in second.messages[0].content
     assert "Requested schema: ariadne_first" in first.messages[1].content
