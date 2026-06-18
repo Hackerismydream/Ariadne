@@ -81,8 +81,8 @@ Ariadne remains local-first in v1.x:
 - JSON / JSONL persistence;
 - single-user local workbench;
 - static board or simple local board server;
-- dry-run Feishu by default;
-- safety-gated external execution;
+- Feishu preview plans plus gated real writes;
+- safety-gated Codex, Claude Code, Feishu, and GitHub external operations;
 - no automatic commit, push, merge, or PR creation.
 
 ## Why Multica Is The Fixed Benchmark
@@ -140,9 +140,10 @@ Current Ariadne already covers a useful local vertical slice:
 | Build Ticket | `BuildTicket` is the visible work carrier |
 | Build Packet | structured source-to-build packet with evidence, tasks, acceptance criteria, risks, and quality metadata |
 | Agent teammate | agent profiles, assignments, comments, runtime journal, board visibility |
-| Ticket execution loop | planner, handoff, backend execution, tests, review, memory, Feishu dry-run, next tickets, board |
-| FakeCodex backend | deterministic safe simulator for local demo |
-| Real backend scaffolds | gated Codex and Claude Code adapters with command templates |
+| Ticket execution loop | planner, handoff, backend execution, tests, review, memory, Feishu preview/write evidence, next tickets, board |
+| DeepSeek upstream runtime | production planner, reviewer, and non-coding agent runtime when configured |
+| Offline fallback backend | `fake-codex` deterministic simulator for tests and offline fixtures only |
+| Real backend adapters | gated Codex and Claude Code adapters with command templates and evidence capture |
 | Safety gate | external execution requires environment gate and explicit confirmation |
 | Runtime | local daemon run-once/start, heartbeat, directory lock, recovery hints |
 | Review and memory | conservative review, memory write-back, next ticket artifacts |
@@ -158,7 +159,7 @@ These gaps define the v1.x roadmap:
 | Automated feedback-to-ticket updates | Review, execution, and memory gaps should generate ticket deltas without manual supersede commands | ARI-017 |
 | Knowledge / feedback to ticket planning | Differentiates Ariadne from systems that only execute existing issues | ARI-017 |
 | Build Team / Squad routing | Makes multi-agent positioning real | ARI-017 |
-| Real Codex teammate as main demo | Proves Ariadne is not only fake-codex | ARI-018 |
+| Real Codex and Claude teammates | Proves Ariadne can orchestrate production coding runtimes | ARI-018 |
 | Provider capability matrix | Makes backend differences explicit and inspectable | ARI-019 |
 | Skill materialization | Turns skills into execution method payloads | ARI-020 |
 | Project resource boundaries | Gives agents scoped, typed context and safer execution | ARI-021 |
@@ -174,7 +175,7 @@ These gaps define the v1.x roadmap:
 | P0 | ARI-015 | Architecture freeze correction with Multica mapping | This document set |
 | P0 | ARI-016 | Ticket backlog update loop | Implemented |
 | P0 | ARI-017 | Knowledge / feedback to ticket multi-agent flow | Next implementation candidate |
-| P0 | ARI-018 | Real Codex teammate main demo | Next implementation candidate |
+| P0 | ARI-018 | Real Codex and Claude teammate production paths | Next implementation candidate |
 | P0 | ARI-019 | Provider capability matrix | Next implementation candidate |
 | P1 | ARI-020 | Skill materialization | Planned |
 | P1 | ARI-021 | Project resource boundaries | Planned |
@@ -184,15 +185,20 @@ These gaps define the v1.x roadmap:
 | P2 | ARI-025 | Workbench board productization | Planned |
 
 Implementation should proceed in small, reviewable slices. Each slice must keep
-the existing true MVP path working:
+the production path moving toward real integrations:
 
 ```bash
-ari ingest examples/sources/*.md
+ari ingest examples/sources/*.md --planner llm
 ari ticket list
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
+ari ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+ari review run ARI-003 --reviewer llm
 ari export board
+ari evidence packet --require-acceptance-ready
 ```
+
+The no-credential `fake-codex` loop is still required for automated tests and
+offline regression fixtures, but it is not production acceptance evidence.
 
 ## Ticket-Centered vs Issue-Driven
 
@@ -231,7 +237,8 @@ The product mechanism is the agent workbench:
 - Research and Knowledge agents gather context.
 - Project Context agent reads the current repo.
 - Planner creates or updates tickets and packets.
-- Execution agent calls Codex, Claude, fake-codex, or another backend.
+- Execution agent calls Codex or Claude Code in the production path; tests and
+  offline fixtures may call `fake-codex`.
 - Reviewer checks the result conservatively.
 - Memory records the decision and generates next tickets.
 

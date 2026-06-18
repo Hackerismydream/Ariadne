@@ -70,6 +70,38 @@ Behavior change:
   `codex/ariadne-production-frontend-integration`; do not wholesale-merge the
   older standalone frontend lane without a fresh diff review.
 
+## 2026-06-18 13:20 CST Production Cut Documentation Guard
+
+This slice continues Production Cut Cleanup by removing demo-first product
+language from current architecture and capability-surface documents. Historical
+or superseded plans may still mention older commands for auditability, but
+current product documents now point at DeepSeek-backed planning/review,
+production Codex/Claude Code execution, gated Feishu writes, GitHub sync, and
+release evidence.
+
+Implemented files:
+
+- `docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md`
+- `docs/architecture/ARIADNE_V1_ARCHITECTURE.md`
+- `docs/architecture/ARIADNE_V1_RUNTIME_FLOW.md`
+- `docs/architecture/ARIADNE_V1_OBJECT_MODEL.md`
+- `docs/capability_surface/00_START_HERE.md`
+- `docs/capability_surface/03_ARIADNE_CAPABILITY_SURFACE.md`
+- `docs/capability_surface/05_PRIORITY_ROADMAP.md`
+- `docs/capability_surface/ARIADNE_CAPABILITY_SURFACE.md`
+- `docs/demo/ARIADNE_V1_DEMO_SCRIPT.md`
+- `tests/test_v1_docs.py`
+
+Behavior and policy:
+
+- Current product paths no longer use `fake-codex`, `demo full`, or Feishu
+  dry-run wording.
+- `fake-codex` remains documented only as automated-test, offline fixture, or
+  debug fallback infrastructure.
+- `demo full` remains documented only as an offline regression fixture.
+- Added tests that fail if active product docs reintroduce demo-first product
+  path wording.
+
 ## Implemented files
 
 Core product loop:

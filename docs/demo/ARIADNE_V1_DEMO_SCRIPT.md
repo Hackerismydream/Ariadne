@@ -1,4 +1,8 @@
-# Ariadne v1.0 Demo Script
+# Ariadne v1.0 Offline Regression Fixture Script
+
+This script validates deterministic local fixtures. It is not the production
+product path and it is not acceptance evidence for real Codex, Claude Code,
+DeepSeek, Feishu, or GitHub integrations.
 
 ## Path
 
@@ -31,6 +35,6 @@ ari board serve
 
 `ari board serve` serves the local read-only board with Python's standard HTTP server.
 
-## Demo Message
+## Fixture Message
 
 Ariadne v1.0 is a local workbench that turns external knowledge into executable Build Tickets, assigns those tickets to Agent teammates, supervises the local daemon loop, captures execution evidence, reviews outcomes, writes memory, and makes the full process inspectable on a local board.

@@ -25,7 +25,7 @@ Knowledge / Feedback / Codebase
   -> Ticket management center
   -> assign to Agent
   -> local Daemon / Runtime
-  -> Codex / Claude / fake-codex
+  -> DeepSeek / Codex / Claude Code
   -> Review / Comments / Board / Memory
   -> update Ticket backlog again
 ```
@@ -41,7 +41,7 @@ flowchart TB
   Backlog --> Work["Ticket management center"]
   Work --> Team["Agent teammate layer"]
   Team --> Runtime["Local daemon / runtime"]
-  Runtime --> Backend["Codex / Claude / fake-codex / shell"]
+  Runtime --> Backend["Codex / Claude Code / DeepSeek agents"]
   Backend --> Review["Review / comments / memory"]
   Review --> Board["Board and artifacts"]
   Review --> Backlog
@@ -110,28 +110,56 @@ CLI-driven, and safety-gated for real external execution.
 ## Current Product Path
 
 ```bash
-ari ingest examples/sources/*.md
+ari llm doctor
+ari backend diagnose codex
+ari backend diagnose claude-code
+ari ingest examples/sources/*.md --planner llm
 ari ticket list
-ari ticket assign ARI-003 --to fake-codex
-ari daemon run-once
+ari ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+ari review run ARI-003 --reviewer llm
+FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
+ari github sync ARI-003 --confirm-write
 ari ticket comments ARI-003
 ari export board
+ari evidence packet --require-acceptance-ready
 ```
 
 Fallback:
 
 ```bash
-python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
+python3.11 -m ariadne_ltb.cli llm doctor
+python3.11 -m ariadne_ltb.cli backend diagnose codex
+python3.11 -m ariadne_ltb.cli backend diagnose claude-code
+python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md --planner llm
 python3.11 -m ariadne_ltb.cli ticket list
-python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to fake-codex
-python3.11 -m ariadne_ltb.cli daemon run-once
+python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli daemon run-once --confirm-execution
+python3.11 -m ariadne_ltb.cli review run ARI-003 --reviewer llm
+FEISHU_ENABLE_WRITE=1 python3.11 -m ariadne_ltb.cli feishu write ARI-003 --confirm-write
+python3.11 -m ariadne_ltb.cli github sync ARI-003 --confirm-write
 python3.11 -m ariadne_ltb.cli ticket comments ARI-003
 python3.11 -m ariadne_ltb.cli export board
+python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready
 ```
 
 `ticket run` remains a direct full-loop path. Agent Teammate Mode is the normal
 Multica-style local path because it makes assignment, daemon claim, progress,
 comments, and runtime state visible.
+
+## Offline Regression Fixture
+
+The deterministic no-credential fixture remains:
+
+```bash
+ari ticket assign ARI-003 --to fake-codex
+ari daemon run-once
+ari demo full
+```
+
+This path is for automated tests, local fixture validation, and debugging. It
+does not satisfy production acceptance and must not be presented as the product
+path.
 
 ## Development Rule
 

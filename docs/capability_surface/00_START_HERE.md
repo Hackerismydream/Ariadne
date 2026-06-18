@@ -33,7 +33,7 @@ Ariadne 是 ticket-centered local agent workbench：
 Knowledge / Feedback / Codebase / Optional Goal
   -> update Ticket backlog
   -> Assign Ticket to Agent
-  -> Codex / Claude / fake-codex executes
+  -> Codex / Claude / DeepSeek-backed agents execute
   -> Review / Comments / Memory / Board
   -> update Ticket backlog again
 ```
@@ -80,5 +80,6 @@ ops/CODEX_IMPLEMENTATION_RULES.md
 2. 不要推翻现有 Python 本地优先架构。
 3. 不要把全部能力堆成一个大而散的 sprint。
 4. 先固定 ticket-centered 能力面，再分批实现。
-5. 优先补最能体现大厂 Agent 开发能力的部分：Ticket backlog update loop、多 Agent 协作、真实 Codex teammate、provider capability matrix、memory retrieval、review/eval。
+5. 优先补最能体现大厂 Agent 开发能力的部分：Ticket backlog update loop、多 Agent 协作、真实 Codex / Claude teammate、DeepSeek-backed planning/review、provider capability matrix、memory retrieval、review/eval。
 6. 不要实现 BuildGoal-first 根流程；Goal 只能作为 ticket 更新的方向输入。
+7. `fake-codex` 只能作为自动化测试、离线回归 fixture、显式 debug fallback；不能作为产品主线。

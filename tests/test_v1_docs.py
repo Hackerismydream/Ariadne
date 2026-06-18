@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -104,3 +105,51 @@ def test_active_docs_do_not_reintroduce_goal_first_commands() -> None:
         text = path.read_text(encoding="utf-8").lower()
         assert "ari goal " not in text, path
         assert "goal-driven" not in text, path
+
+
+def test_active_docs_do_not_reintroduce_demo_first_product_path() -> None:
+    active_docs = [
+        ROOT / "docs" / "architecture" / "ARIADNE_TICKET_CENTERED_ARCHITECTURE.md",
+        ROOT / "docs" / "architecture" / "ARIADNE_V1_ARCHITECTURE.md",
+        ROOT / "docs" / "architecture" / "ARIADNE_V1_RUNTIME_FLOW.md",
+        ROOT / "docs" / "architecture" / "ARIADNE_V1_OBJECT_MODEL.md",
+        ROOT / "docs" / "capability_surface" / "00_START_HERE.md",
+        ROOT / "docs" / "capability_surface" / "03_ARIADNE_CAPABILITY_SURFACE.md",
+        ROOT / "docs" / "capability_surface" / "05_PRIORITY_ROADMAP.md",
+        ROOT / "docs" / "capability_surface" / "ARIADNE_CAPABILITY_SURFACE.md",
+    ]
+    banned_phrases = [
+        "Feishu dry-run",
+        "dry-run Feishu",
+        "stable deterministic local demo backend",
+        "main demo",
+        "demo backend",
+        "Feishu Dry Run",
+    ]
+
+    for path in active_docs:
+        text = path.read_text(encoding="utf-8")
+        for phrase in banned_phrases:
+            assert phrase not in text, f"{phrase!r} leaked into {path}"
+
+
+def test_current_product_path_sections_do_not_use_offline_backend() -> None:
+    paths = [
+        ROOT / "docs" / "architecture" / "ARIADNE_TICKET_CENTERED_ARCHITECTURE.md",
+        ROOT / "docs" / "architecture" / "ARIADNE_V1_RUNTIME_FLOW.md",
+    ]
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        match = re.search(
+            r"## Current(?: v1\.0)? Product Path(?P<section>.*?)(?:\n## |\Z)",
+            text,
+            re.S,
+        )
+        assert match, path
+        section = match.group("section")
+        assert "fake-codex" not in section, path
+        assert "demo full" not in section, path
+        assert "--backend fake-codex" not in section, path
+        assert "--to codex" in section, path
+        assert "--runtime-profile production" in section, path
