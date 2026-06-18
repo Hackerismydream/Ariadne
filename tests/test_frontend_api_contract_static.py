@@ -61,6 +61,9 @@ def test_frontend_wires_assign_run_watch_comment() -> None:
 
     assert "assignTicket(" in text
     assert "runAssignment(" in text
+    assert "runAssignmentNow(" in text
+    assert "startDaemon(" in text
+    assert "stopDaemon(" in text
     assert "getAssignmentEvents(" in text
     assert "openAssignmentEventsSocket(" in text
     assert "addTicketComment(" in text
@@ -99,6 +102,22 @@ def test_frontend_uses_latest_assignment_for_ticket_actions() -> None:
     assert "ticket.latestAssignmentId" in inspector_block
     assert "assignment.id === ticket.latestAssignmentId" in inspector_block
     assert "createdAt" in inspector_block
+
+
+def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
+    api_types = API_TYPES.read_text(encoding="utf-8")
+    app = APP.read_text(encoding="utf-8")
+    data = DATA.read_text(encoding="utf-8")
+
+    assert "export type ApiDaemonStatus" in api_types
+    assert "export type ApiTicketEvidenceBundle" in api_types
+    assert "daemon_status: ApiDaemonStatus" in api_types
+    assert "TicketExecutionEvidence" in app
+    assert "ExecutionEvidencePanel" in app
+    assert "data.daemonStatus" in app
+    assert "立即 claim 并运行" in app
+    assert "adaptTicketEvidence" in data
+    assert "daemonStatus:" in data
 
 
 def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:

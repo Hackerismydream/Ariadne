@@ -30,6 +30,39 @@ class RuntimeCapabilityDTO(AriadneDTO):
     notes: list[str] = Field(default_factory=list)
 
 
+class TicketEvidenceBundleDTO(AriadneDTO):
+    assignment_id: str | None = None
+    assignment_status: str | None = None
+    assignment_blocker: str | None = None
+    assignment_failure_reason: str | None = None
+    execution_result_id: str | None = None
+    backend_name: str | None = None
+    dry_run: bool | None = None
+    blocked: bool | None = None
+    block_reason: str | None = None
+    failure_reason: str | None = None
+    command: str | None = None
+    exit_code: int | None = None
+    stdout_excerpt: str = ""
+    stderr_excerpt: str = ""
+    changed_files: list[str] = Field(default_factory=list)
+    diff_artifact_id: str | None = None
+    diff_artifact_path: str | None = None
+    execution_log_artifact_id: str | None = None
+    execution_log_artifact_path: str | None = None
+    handoff_file: str | None = None
+    test_command: str = ""
+    test_exit_code: int | None = None
+    test_stdout_excerpt: str = ""
+    test_stderr_excerpt: str = ""
+    review_report_id: str | None = None
+    review_verdict: str | None = None
+    memory_path: str | None = None
+    feishu_plan_path: str | None = None
+    next_tickets_path: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
 class TicketSummaryDTO(AriadneDTO):
     id: str
     key: str
@@ -47,6 +80,7 @@ class TicketSummaryDTO(AriadneDTO):
     affected_modules: list[str] = Field(default_factory=list)
     source_ref: str | None = None
     target_project_id: str | None = None
+    evidence: TicketEvidenceBundleDTO | None = None
 
 
 class AssignmentDTO(AriadneDTO):
@@ -63,6 +97,24 @@ class AssignmentDTO(AriadneDTO):
     ended_at: str | None = None
     blocker: str | None = None
     failure_reason: str | None = None
+
+
+class DaemonStatusDTO(AriadneDTO):
+    runtime_id: str = "workbench-local"
+    status: str = "unknown"
+    background_running: bool = False
+    stale: bool | None = None
+    current_assignment_id: str | None = None
+    current_ticket_key: str | None = None
+    current_stage: str | None = None
+    heartbeat_at: str | None = None
+    last_event_id: str | None = None
+    last_error: str | None = None
+    open_assignment_count: int = 0
+    claimable_assignment_count: int = 0
+    running_assignment_count: int = 0
+    blocked_assignment_count: int = 0
+    last_message: str = ""
 
 
 class ProjectGoalDTO(AriadneDTO):
@@ -175,6 +227,7 @@ class WorkbenchDTO(AriadneDTO):
     skills: list[BuildSkillDTO] = Field(default_factory=list)
     inbox: list[InboxItemDTO] = Field(default_factory=list)
     backlog_previews: list[BacklogPreviewDTO] = Field(default_factory=list)
+    daemon_status: DaemonStatusDTO = Field(default_factory=DaemonStatusDTO)
 
 
 class RegisterTargetProjectInput(AriadneDTO):
@@ -245,6 +298,22 @@ class RunAssignmentOutput(AriadneDTO):
     message: str
     ticket_run_result: dict[str, Any] | None = None
     idempotent_replay: bool = False
+
+
+class DaemonStartInput(AriadneDTO):
+    runtime_id: str = "workbench-local"
+    interval_seconds: float = Field(default=2.0, ge=0.2, le=60.0)
+    max_iterations: int | None = Field(default=None, ge=1, le=10_000)
+    timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
+
+
+class DaemonControlOutput(AriadneDTO):
+    daemon: DaemonStatusDTO
+    did_work: bool = False
+    assignment: AssignmentDTO | None = None
+    status: str = "no_work"
+    message: str = ""
+    ticket_run_result: dict[str, Any] | None = None
 
 
 class CreateCommentInput(AriadneDTO):

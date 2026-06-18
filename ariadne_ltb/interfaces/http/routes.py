@@ -11,10 +11,12 @@ from ariadne_ltb.application.dtos import (
     CreateCommentInput,
     CreateProjectGoalInput,
     CreateSourceInput,
+    DaemonStartInput,
     IssueFactoryPreviewInput,
     RegisterTargetProjectInput,
     RunAssignmentInput,
 )
+from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
 from ariadne_ltb.application.issue_factory import IssueFactoryService
 from ariadne_ltb.application.mappers import source_document_dto
@@ -51,6 +53,24 @@ def runtime_status(
 ) -> dict:
     capabilities = RuntimeStatusService(store).snapshot(include_internal)
     return {"capabilities": [capability.model_dump(mode="json") for capability in capabilities]}
+
+
+@router.get("/api/daemon/status")
+def daemon_status(store: AriadneStore = Depends(get_store)) -> dict:
+    return DaemonControlService(store).status().model_dump(mode="json")
+
+
+@router.post("/api/daemon/start")
+def daemon_start(
+    payload: DaemonStartInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return DaemonControlService(store).start(payload).model_dump(mode="json")
+
+
+@router.post("/api/daemon/stop")
+def daemon_stop(store: AriadneStore = Depends(get_store)) -> dict:
+    return DaemonControlService(store).stop().model_dump(mode="json")
 
 
 @router.get("/api/target-projects")
@@ -132,6 +152,18 @@ def run_assignment(
     if idempotency_key and not payload.idempotency_key:
         payload = payload.model_copy(update={"idempotency_key": idempotency_key})
     return RunAssignmentService(store).run(assignment_id, payload).model_dump(mode="json")
+
+
+@router.post("/api/assignments/{assignment_id}/run-now")
+def run_assignment_now(
+    assignment_id: str,
+    payload: RunAssignmentInput,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    if idempotency_key and not payload.idempotency_key:
+        payload = payload.model_copy(update={"idempotency_key": idempotency_key})
+    return DaemonControlService(store).run_now(assignment_id, payload).model_dump(mode="json")
 
 
 @router.get("/api/assignments/{assignment_id}/events")

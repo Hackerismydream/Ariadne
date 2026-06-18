@@ -36,6 +36,7 @@ import type {
   LLMAgentEvidence,
   ReleaseEvidenceSummary,
   RuntimeInfo,
+  TicketExecutionEvidence,
   TicketStatus,
   TimelineEvent,
   WorkbenchData,
@@ -139,11 +140,15 @@ function statusLabel(status: string) {
     pending: "待处理",
     planning: "规划中",
     preview_only: "仅预览",
+    queued: "排队中",
     ready: "待执行",
     reviewing: "审核中",
     review: "审核",
     resolved: "已解决",
     running: "运行中",
+    claimed: "已领取",
+    stopped: "已停止",
+    unknown: "未知",
     snoozed: "已稍后处理",
   };
   return labels[status] ?? status;
@@ -1121,10 +1126,13 @@ function TicketInspector({
     assignSelectedTicket,
     commentDraft,
     commentState,
+    daemonActionState,
     mutationReady,
     postComment,
     runSelectedAssignment,
     setCommentDraft,
+    startLocalDaemon,
+    stopLocalDaemon,
     watchAssignmentEvents,
   } = useTicketAgentControl({
     dataSource,
@@ -1161,12 +1169,24 @@ function TicketInspector({
             ? `API 模式 · 目标 ${targetProject?.label} · 后端 ${productRuntime?.backend}`
             : "未连接产品 API，或缺少可用目标/运行时。先启动 ari workbench serve 并注册目标项目。"}
         </p>
+        <div className="daemon-strip">
+          <strong>本地运行时：{statusLabel(data.daemonStatus.status)}</strong>
+          <span>{data.daemonStatus.backgroundRunning ? "后台循环运行中" : "后台循环未运行"}</span>
+          <span>可领取 {data.daemonStatus.claimableAssignmentCount}</span>
+          <span>{data.daemonStatus.currentTicketKey ?? "无当前任务"}</span>
+        </div>
         <div className="action-row">
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={assignSelectedTicket}>
             {assignTicketButtonLabel(actionState)}
           </button>
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
-            {runAssignmentButtonLabel(actionState)}
+            {actionState === "running" ? runAssignmentButtonLabel(actionState) : "立即 claim 并运行"}
+          </button>
+          <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void startLocalDaemon()}>
+            {daemonActionState === "starting" ? "启动中..." : "启动本地运行时"}
+          </button>
+          <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void stopLocalDaemon()}>
+            {daemonActionState === "stopping" ? "停止中..." : "停止本地运行时"}
           </button>
           <button disabled={dataSource !== "api" || !latestAssignment?.id} type="button" onClick={() => void watchAssignmentEvents()}>
             {watchRunEventsButtonLabel(assignmentEvents.length ? "watching" : "idle")}
@@ -1198,6 +1218,7 @@ function TicketInspector({
         {actionMessage ? <p className="action-message">{actionMessage}</p> : null}
       </section>
       <GitHubEvidencePanel ticket={ticket} />
+      <ExecutionEvidencePanel evidence={ticket.executionEvidence} />
       <BackendSmokePanel smoke={ticket.backendSmoke} />
       <LLMAgentEvidencePanel agents={ticket.llmAgents ?? []} />
       <FeishuEvidencePanel feishu={ticket.feishu} />
@@ -1217,6 +1238,62 @@ function TicketInspector({
         </div>
       </section>
     </aside>
+  );
+}
+
+function ExecutionEvidencePanel({ evidence }: { evidence?: TicketExecutionEvidence }) {
+  if (!evidence) {
+    return (
+      <section className="panel nested">
+        <h3>执行证据</h3>
+        <p className="muted">还没有 execution / diff / tests / review 回流。</p>
+      </section>
+    );
+  }
+  return (
+    <section className="panel nested execution-evidence-panel">
+      <h3>执行证据</h3>
+      <PropertyGrid
+        rows={[
+          ["Assignment", fallbackText(evidence.assignmentId)],
+          ["状态", statusLabel(evidence.assignmentStatus ?? "unknown")],
+          ["后端", fallbackText(evidence.backendName)],
+          ["执行结果", fallbackText(evidence.executionResultId)],
+          ["阻塞", evidence.blocked ? fallbackText(evidence.blockReason, "已阻塞") : "否"],
+          ["失败类型", fallbackText(evidence.failureReason ?? evidence.assignmentFailureReason)],
+          ["退出码", String(evidence.exitCode ?? "未记录")],
+          ["测试命令", fallbackText(evidence.testCommand)],
+          ["测试退出码", String(evidence.testExitCode ?? "未记录")],
+          ["评审", statusLabel(evidence.reviewVerdict ?? "pending")],
+          ["Handoff", fallbackText(evidence.handoffFile)],
+          ["Diff", fallbackText(evidence.diffArtifactPath)],
+          ["日志", fallbackText(evidence.executionLogArtifactPath)],
+          ["Memory", fallbackText(evidence.memoryPath)],
+          ["Feishu Plan", fallbackText(evidence.feishuPlanPath)],
+          ["Next Tickets", fallbackText(evidence.nextTicketsPath)],
+        ]}
+      />
+      {evidence.assignmentBlocker ? <p className="muted">{evidence.assignmentBlocker}</p> : null}
+      {evidence.command ? <code className="wide-code">{evidence.command}</code> : null}
+      {evidence.changedFiles.length ? (
+        <div className="file-list">
+          {evidence.changedFiles.map((file) => <code key={file}>{file}</code>)}
+        </div>
+      ) : null}
+      {evidence.stdoutExcerpt || evidence.stderrExcerpt || evidence.testStdoutExcerpt || evidence.testStderrExcerpt ? (
+        <div className="log-grid">
+          {evidence.stdoutExcerpt ? <pre>stdout{`\n${evidence.stdoutExcerpt}`}</pre> : null}
+          {evidence.stderrExcerpt ? <pre>stderr{`\n${evidence.stderrExcerpt}`}</pre> : null}
+          {evidence.testStdoutExcerpt ? <pre>test stdout{`\n${evidence.testStdoutExcerpt}`}</pre> : null}
+          {evidence.testStderrExcerpt ? <pre>test stderr{`\n${evidence.testStderrExcerpt}`}</pre> : null}
+        </div>
+      ) : null}
+      {evidence.warnings.length ? (
+        <div className="check-summary">
+          {evidence.warnings.map((warning) => <span key={warning}>{warning}</span>)}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -1491,6 +1568,32 @@ function RuntimesPage({
         <section className="runtime-detail">
           <h2>local-mac <span>在线</span></h2>
           <p>{data.runtimes.length} 个运行时 · 当前选择 {currentRuntime?.backend ?? "未记录"} · 本地 daemon</p>
+          <section className="runtime-capability daemon-runtime-status">
+            <div>
+              <span>Daemon</span>
+              <strong>{statusLabel(data.daemonStatus.status)}</strong>
+            </div>
+            <div>
+              <span>后台循环</span>
+              <strong>{data.daemonStatus.backgroundRunning ? "运行中" : "未运行"}</strong>
+            </div>
+            <div>
+              <span>当前任务</span>
+              <strong>{data.daemonStatus.currentTicketKey ?? "无"}</strong>
+            </div>
+            <div>
+              <span>阶段</span>
+              <strong>{data.daemonStatus.currentStage ?? "未记录"}</strong>
+            </div>
+            <div>
+              <span>可领取</span>
+              <strong>{data.daemonStatus.claimableAssignmentCount}</strong>
+            </div>
+            <div>
+              <span>心跳</span>
+              <strong>{data.daemonStatus.heartbeatAt ?? "未记录"}</strong>
+            </div>
+          </section>
           {currentRuntime ? <RuntimeCapability runtime={currentRuntime} /> : null}
           <div className="runtime-table">
             {data.runtimes.map((runtime) => (

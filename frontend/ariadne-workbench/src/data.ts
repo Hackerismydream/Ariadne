@@ -1,6 +1,6 @@
 import { getWorkbench } from "./shared/api/client";
 import type { ApiBacklogOperation, ApiBacklogPreview, ApiSourceDocument, ApiWorkbench } from "./shared/api/types";
-import type { AriadneTicket, RuntimeInfo, TicketStatus, WorkbenchData } from "./types";
+import type { AriadneTicket, RuntimeInfo, TicketExecutionEvidence, TicketStatus, WorkbenchData } from "./types";
 
 export const workbenchData: WorkbenchData = {
   goal: {
@@ -467,6 +467,23 @@ export const workbenchData: WorkbenchData = {
     { machine: "local-mac", backend: "claude-code", status: "online", version: "claude-code", cost7d: "$0.00" },
     { machine: "local-mac", backend: "fake-codex", status: "online", version: "deterministic", cost7d: "$0.00" },
   ],
+  daemonStatus: {
+    runtimeId: "fixture",
+    status: "offline",
+    backgroundRunning: false,
+    stale: null,
+    currentAssignmentId: null,
+    currentTicketKey: null,
+    currentStage: null,
+    heartbeatAt: null,
+    lastEventId: null,
+    lastError: null,
+    openAssignmentCount: 0,
+    claimableAssignmentCount: 0,
+    runningAssignmentCount: 0,
+    blockedAssignmentCount: 0,
+    lastMessage: "离线 fixture 不启动本地 daemon。",
+  },
   skills: [
     { name: "ariadne-multica-reference-lens", description: "把 Multica 作为架构参考，但不复制后端代码。", usedBy: ["Codex", "Reviewer"], updatedAt: "13 小时前" },
     { name: "ariadne-review-diff", description: "按任务验收和安全边界评审分支 diff。", usedBy: ["Reviewer", "Verifier"], updatedAt: "13 小时前" },
@@ -564,6 +581,23 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       blocker: assignment.blocker,
       failureReason: assignment.failure_reason,
     })),
+    daemonStatus: {
+      runtimeId: apiData.daemon_status.runtime_id,
+      status: apiData.daemon_status.status,
+      backgroundRunning: apiData.daemon_status.background_running,
+      stale: apiData.daemon_status.stale,
+      currentAssignmentId: apiData.daemon_status.current_assignment_id,
+      currentTicketKey: apiData.daemon_status.current_ticket_key,
+      currentStage: apiData.daemon_status.current_stage,
+      heartbeatAt: apiData.daemon_status.heartbeat_at,
+      lastEventId: apiData.daemon_status.last_event_id,
+      lastError: apiData.daemon_status.last_error,
+      openAssignmentCount: apiData.daemon_status.open_assignment_count,
+      claimableAssignmentCount: apiData.daemon_status.claimable_assignment_count,
+      runningAssignmentCount: apiData.daemon_status.running_assignment_count,
+      blockedAssignmentCount: apiData.daemon_status.blocked_assignment_count,
+      lastMessage: apiData.daemon_status.last_message,
+    },
     runtimes: apiData.runtime_capabilities.map(adaptRuntime),
     projectResources: apiData.target_projects.map((project) => ({
       id: project.id,
@@ -613,6 +647,7 @@ function adaptTicket(ticket: ApiWorkbench["tickets"][number], apiData: ApiWorkbe
       kind: item.status,
       body: item.blocker ? `${item.status}: ${item.blocker}` : `Assignment ${item.status} via ${item.backend_name ?? "runtime"}`,
     }));
+  const evidence = ticket.evidence ? adaptTicketEvidence(ticket.evidence) : undefined;
   return {
     id: ticket.id,
     key: ticket.key,
@@ -633,10 +668,46 @@ function adaptTicket(ticket: ApiWorkbench["tickets"][number], apiData: ApiWorkbe
           ? "blocked"
           : "pending",
     progress,
-    changedFiles: ticket.affected_modules ?? [],
+    changedFiles: evidence?.changedFiles?.length ? evidence.changedFiles : ticket.affected_modules ?? [],
+    memoryPath: evidence?.memoryPath ?? undefined,
+    nextTicketsPath: evidence?.nextTicketsPath ?? undefined,
+    executionEvidence: evidence,
     acceptance: ticket.acceptance_criteria?.length
       ? ticket.acceptance_criteria
       : ["任务可以分配给生产运行时。", "运行进度在 Ariadne 中可见。"],
+  };
+}
+
+function adaptTicketEvidence(evidence: NonNullable<ApiWorkbench["tickets"][number]["evidence"]>): TicketExecutionEvidence {
+  return {
+    assignmentId: evidence.assignment_id,
+    assignmentStatus: evidence.assignment_status,
+    assignmentBlocker: evidence.assignment_blocker,
+    assignmentFailureReason: evidence.assignment_failure_reason,
+    executionResultId: evidence.execution_result_id,
+    backendName: evidence.backend_name,
+    dryRun: evidence.dry_run,
+    blocked: evidence.blocked,
+    blockReason: evidence.block_reason,
+    failureReason: evidence.failure_reason,
+    command: evidence.command,
+    exitCode: evidence.exit_code,
+    stdoutExcerpt: evidence.stdout_excerpt,
+    stderrExcerpt: evidence.stderr_excerpt,
+    changedFiles: evidence.changed_files,
+    diffArtifactPath: evidence.diff_artifact_path,
+    executionLogArtifactPath: evidence.execution_log_artifact_path,
+    handoffFile: evidence.handoff_file,
+    testCommand: evidence.test_command,
+    testExitCode: evidence.test_exit_code,
+    testStdoutExcerpt: evidence.test_stdout_excerpt,
+    testStderrExcerpt: evidence.test_stderr_excerpt,
+    reviewReportId: evidence.review_report_id,
+    reviewVerdict: evidence.review_verdict,
+    memoryPath: evidence.memory_path,
+    feishuPlanPath: evidence.feishu_plan_path,
+    nextTicketsPath: evidence.next_tickets_path,
+    warnings: evidence.warnings,
   };
 }
 

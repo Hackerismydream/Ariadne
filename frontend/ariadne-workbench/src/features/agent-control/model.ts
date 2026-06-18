@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { addTicketComment } from "../add-ticket-comment/api";
 import { assignTicket } from "../assign-ticket/api";
 import { runAssignment } from "../run-assignment/api";
-import { getAssignmentEvents, openAssignmentEventsSocket } from "../../shared/api/client";
+import {
+  getAssignmentEvents,
+  openAssignmentEventsSocket,
+  runAssignmentNow,
+  startDaemon,
+  stopDaemon,
+} from "../../shared/api/client";
 import type { AssignmentEvent } from "../../shared/api/types";
 import { idempotencyKey } from "../../shared/lib/idempotency";
 import type { WorkbenchDataSource } from "../../data";
@@ -15,6 +21,7 @@ import type {
 } from "../../types";
 
 type ActionState = "idle" | "assigning" | "running";
+type DaemonActionState = "idle" | "starting" | "stopping";
 type CommentState = "idle" | "posting";
 
 type UseTicketAgentControlParams = {
@@ -45,6 +52,7 @@ export function useTicketAgentControl({
 }: UseTicketAgentControlParams) {
   const [actionState, setActionState] = useState<ActionState>("idle");
   const [actionMessage, setActionMessage] = useState("");
+  const [daemonActionState, setDaemonActionState] = useState<DaemonActionState>("idle");
   const [confirmationTokens, setConfirmationTokens] = useState<Record<string, string>>({});
   const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
@@ -109,18 +117,54 @@ export function useTicketAgentControl({
       }
       if (!assignmentId) throw new Error("缺少 assignment id");
       if (!confirmationToken) throw new Error("缺少执行确认 token；请先重新分配任务再运行");
+      const runKey = idempotencyKey(`run-${ticket.key}`);
       await runAssignment(assignmentId, {
         confirmation_token: confirmationToken,
         timeout_seconds: 120,
-        idempotency_key: idempotencyKey(`run-${ticket.key}`),
+        idempotency_key: runKey,
       });
-      setActionMessage("已派发运行请求；请保持本地 daemon 运行，进度会从 WebSocket 推送。");
+      await runAssignmentNow(assignmentId, {
+        confirmation_token: confirmationToken,
+        timeout_seconds: 120,
+        idempotency_key: runKey,
+      });
+      setActionMessage("本地 daemon 已 claim 该 assignment；结果和阻塞原因会回流到任务证据面板。");
       watchAssignmentEvents(assignmentId);
       await onRefresh(ticket.key);
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "运行失败");
     } finally {
       setActionState("idle");
+    }
+  }
+
+  async function startLocalDaemon() {
+    if (dataSource !== "api" || readOnly) return;
+    setDaemonActionState("starting");
+    setActionMessage("");
+    try {
+      await startDaemon({ runtime_id: "workbench-local", interval_seconds: 2 });
+      setActionMessage("本地运行时已启动，会自动 claim 可运行的 assignment。");
+      await onRefresh(ticket.key);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "启动本地运行时失败");
+    } finally {
+      setDaemonActionState("idle");
+    }
+  }
+
+  async function stopLocalDaemon() {
+    if (dataSource !== "api" || readOnly) return;
+    setDaemonActionState("stopping");
+    setActionMessage("");
+    try {
+      await stopDaemon();
+      setActionMessage("本地运行时已停止。");
+      await onRefresh(ticket.key);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "停止本地运行时失败");
+    } finally {
+      setDaemonActionState("idle");
     }
   }
 
@@ -179,10 +223,13 @@ export function useTicketAgentControl({
     assignSelectedTicket,
     commentDraft,
     commentState,
+    daemonActionState,
     mutationReady,
     postComment,
     runSelectedAssignment,
     setCommentDraft,
+    startLocalDaemon,
+    stopLocalDaemon,
     watchAssignmentEvents,
   };
 }
