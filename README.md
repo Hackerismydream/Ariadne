@@ -64,6 +64,12 @@ In this mode, a human assigns a Build Ticket to an Agent teammate, the local
 daemon claims one assignment, the Agent runs the ticket through Ariadne's full
 loop, writes comments and journal events, and updates the board.
 
+Each completed ticket run also writes a landing evidence packet under the
+ticket artifact directory. The packet has JSON and Markdown forms and links the
+execution log, diff, changed files, tests, review, memory, Feishu plan, next
+tickets, and orchestrator result. It is the local evidence input for later
+review and merge-gating work.
+
 For recovery-oriented automation, run one bounded supervisor pass:
 
 ```bash

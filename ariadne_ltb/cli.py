@@ -1596,6 +1596,8 @@ def ticket_run(
     typer.echo(f"memory: {result.memory_path}")
     typer.echo(f"feishu plan: {result.feishu_plan_path}")
     typer.echo(f"next tickets: {result.next_tickets_path}")
+    typer.echo(f"landing evidence json: {result.landing_evidence_json_path}")
+    typer.echo(f"landing evidence md: {result.landing_evidence_md_path}")
     typer.echo(f"agent runtime: {result.agent_runtime}")
     if result.llm_agent_artifact_paths:
         typer.echo(f"llm agent artifacts: {', '.join(result.llm_agent_artifact_paths)}")
@@ -1747,6 +1749,8 @@ def daemon_run_once(
                 f"{', '.join(result.ticket_run_result.llm_agent_artifact_paths)}"
             )
         typer.echo(f"backlog planner: {result.ticket_run_result.backlog_planner_name}")
+        typer.echo(f"landing evidence json: {result.ticket_run_result.landing_evidence_json_path}")
+        typer.echo(f"landing evidence md: {result.ticket_run_result.landing_evidence_md_path}")
         typer.echo(f"board: {result.ticket_run_result.board_path}")
     typer.echo(f"assignment {result.status}: {result.assignment_id}")
 

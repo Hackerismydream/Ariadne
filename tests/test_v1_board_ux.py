@@ -51,8 +51,11 @@ def test_board_contains_v1_workbench_sections(tmp_path: Path) -> None:
         "Codex Gate Status",
         "Execution Permission Profile",
         "Provider Audit Artifacts",
+        "Landing Evidence",
     ]:
         assert heading in board
+    assert "landing_evidence.json" in board
+    assert "- Partial: `false`" in board
 
 
 def test_board_shows_inbox_repair_ticket_evidence(tmp_path: Path) -> None:

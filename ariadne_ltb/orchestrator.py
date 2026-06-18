@@ -15,7 +15,7 @@ from ariadne_ltb.backlog import (
 )
 from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.execution import backend_for_name
-from ariadne_ltb.git_utils import changed_files, git_diff, git_head, git_status
+from ariadne_ltb.git_utils import changed_files, git_branch, git_diff, git_head, git_status
 from ariadne_ltb.handoffs import record_handoff
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
@@ -37,6 +37,9 @@ from ariadne_ltb.models import (
     FailureReason,
     FeishuWritePlan,
     HandoffStatus,
+    LandingArtifactRef,
+    LandingEvidence,
+    LandingTestResult,
     MemoryRecord,
     ProjectResource,
     RouteDecision,
@@ -85,6 +88,8 @@ class TicketRunResult:
     board_path: str
     board_html_path: str
     orchestrator_result_path: str
+    landing_evidence_json_path: str
+    landing_evidence_md_path: str
     worktree_path: str | None = None
 
 
@@ -897,14 +902,50 @@ class TicketRunOrchestrator:
                 },
             },
         )
+        landing_json_artifact, landing_md_artifact = _write_landing_evidence_artifacts(
+            self.store,
+            ticket,
+            memory_run.id,
+            backend_name=backend_name,
+            planner_name=planner,
+            agent_runtime=agent_runtime,
+            backlog_planner_name=backlog_planner,
+            target_repo=target_repo,
+            worktree_path=worktree_path,
+            execution=execution,
+            review_id=review.id,
+            review_verdict=review.verdict,
+            memory_path=str(memory_path),
+            board_path=str(board_path),
+            next_tickets_path=next_tickets_artifact.path,
+            feishu_plan_path=str(feishu_path),
+            orchestrator_result_path=manifest_artifact.path,
+            linked_artifacts={
+                "execution_log": execution_artifacts["execution_log"],
+                "git_diff": execution_artifacts["git_diff"],
+                "changed_files": execution_artifacts["changed_files"],
+                "test_output": execution_artifacts["test_output"],
+                "review_report": review_artifact,
+                "memory_record": memory_artifact,
+                "next_tickets": next_tickets_artifact,
+                "feishu_plan": feishu_artifact,
+                "orchestrator_result": manifest_artifact,
+            },
+        )
         ticket = (
             self.store.load_ticket(ticket.id)
-            .with_artifacts([manifest_artifact])
+            .with_artifacts([manifest_artifact, landing_json_artifact, landing_md_artifact])
             .append_event(
                 "orchestrator_result_written",
                 "Build Lead",
                 "Wrote structured ticket run result manifest.",
                 payload_ref=manifest_artifact.id,
+            )
+            .append_event(
+                "landing_evidence_written",
+                "Build Lead",
+                "Wrote ticket landing evidence packet.",
+                payload_ref=landing_json_artifact.id,
             )
             .model_copy(
                 deep=True,
@@ -913,6 +954,10 @@ class TicketRunOrchestrator:
                     | {
                         "orchestrator_result_artifact_id": manifest_artifact.id,
                         "orchestrator_result_path": manifest_artifact.path,
+                        "landing_evidence_json_artifact_id": landing_json_artifact.id,
+                        "landing_evidence_md_artifact_id": landing_md_artifact.id,
+                        "landing_evidence_json_path": landing_json_artifact.path,
+                        "landing_evidence_md_path": landing_md_artifact.path,
                     }
                 },
             )
@@ -955,6 +1000,8 @@ class TicketRunOrchestrator:
             board_path=str(board_path),
             board_html_path=str(self.store.board_dir / "index.html"),
             orchestrator_result_path=manifest_artifact.path,
+            landing_evidence_json_path=landing_json_artifact.path,
+            landing_evidence_md_path=landing_md_artifact.path,
             worktree_path=worktree_path,
         )
 
@@ -1240,6 +1287,220 @@ def _write_orchestrator_result_artifact(
             "review_report_id": str(payload.get("review_report_id", "")),
         },
     )
+
+
+def _write_landing_evidence_artifacts(
+    store: AriadneStore,
+    ticket: BuildTicket,
+    agent_run_id: str,
+    *,
+    backend_name: str,
+    planner_name: str,
+    agent_runtime: str,
+    backlog_planner_name: str,
+    target_repo: Path,
+    worktree_path: str | None,
+    execution: ExecutionResult,
+    review_id: str,
+    review_verdict: ReviewVerdict,
+    memory_path: str,
+    board_path: str,
+    next_tickets_path: str,
+    feishu_plan_path: str,
+    orchestrator_result_path: str,
+    linked_artifacts: dict[str, Artifact],
+) -> tuple[Artifact, Artifact]:
+    missing_fields = [
+        name
+        for name, value in {
+            "memory_path": memory_path,
+            "board_path": board_path,
+            "next_tickets_path": next_tickets_path,
+            "feishu_plan_path": feishu_plan_path,
+            "orchestrator_result_path": orchestrator_result_path,
+        }.items()
+        if not value
+    ]
+    execution_failed = execution.exit_code != 0 or (
+        execution.test_exit_code is not None and execution.test_exit_code != 0
+    )
+    evidence = LandingEvidence(
+        id=stable_id("landing_evidence", ticket.id, execution.id, review_id),
+        ticket_id=ticket.id,
+        ticket_key=ticket.key,
+        ticket_title=ticket.title,
+        ticket_status=ticket.status,
+        backend_name=backend_name,
+        planner_name=planner_name,
+        agent_runtime=agent_runtime,
+        backlog_planner_name=backlog_planner_name,
+        branch=git_branch(target_repo),
+        target_repo_path=str(target_repo),
+        worktree_path=worktree_path,
+        execution_result_id=execution.id,
+        review_report_id=review_id,
+        review_verdict=review_verdict,
+        changed_files=execution.changed_files,
+        git_diff_summary=_summarize_diff(execution.git_diff),
+        test_results=[
+            LandingTestResult(
+                command=execution.test_command,
+                exit_code=execution.test_exit_code,
+                status=_test_status(execution),
+                output_artifact_path=linked_artifacts.get("test_output").path
+                if linked_artifacts.get("test_output")
+                else None,
+            )
+        ]
+        if execution.test_command
+        else [],
+        memory_path=memory_path,
+        board_path=board_path,
+        next_tickets_path=next_tickets_path,
+        feishu_plan_path=feishu_plan_path,
+        orchestrator_result_path=orchestrator_result_path,
+        gate_inputs={
+            "external_execution_enabled": os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1",
+            "confirm_execution_required": execution.backend_name in {"codex", "claude-code", "shell"},
+            "execution_blocked": execution.blocked,
+            "block_reason": execution.block_reason,
+            "failure_reason": execution.failure_reason.value if execution.failure_reason else None,
+            "execution_exit_code": execution.exit_code,
+            "test_exit_code": execution.test_exit_code,
+            "execution_failed": execution_failed,
+            "review_verdict": review_verdict.value,
+        },
+        linked_artifacts=[
+            LandingArtifactRef(
+                kind=kind,
+                artifact_id=artifact.id,
+                path=artifact.path,
+                summary=artifact.summary,
+            )
+            for kind, artifact in linked_artifacts.items()
+        ],
+        partial=execution.blocked
+        or execution_failed
+        or review_verdict is not ReviewVerdict.PASS
+        or bool(missing_fields),
+        missing_fields=missing_fields,
+    )
+    json_artifact = store.write_artifact(
+        ticket.id,
+        agent_run_id,
+        ArtifactType.LANDING_EVIDENCE,
+        "landing_evidence.json",
+        evidence.model_dump_json(indent=2) + "\n",
+        "Ticket landing evidence packet",
+        metadata={
+            "landing_evidence_id": evidence.id,
+            "format": "json",
+            "partial": evidence.partial,
+            "review_verdict": review_verdict.value,
+            "execution_result_id": execution.id,
+        },
+    )
+    md_artifact = store.write_artifact(
+        ticket.id,
+        agent_run_id,
+        ArtifactType.LANDING_EVIDENCE,
+        "landing_evidence.md",
+        _landing_evidence_markdown(evidence),
+        "Ticket landing evidence summary",
+        metadata={
+            "landing_evidence_id": evidence.id,
+            "format": "markdown",
+            "partial": evidence.partial,
+            "review_verdict": review_verdict.value,
+            "json_artifact_id": json_artifact.id,
+        },
+    )
+    return json_artifact, md_artifact
+
+
+def _summarize_diff(diff: str) -> dict[str, object]:
+    additions = 0
+    deletions = 0
+    files: set[str] = set()
+    for line in diff.splitlines():
+        if line.startswith("+++ b/"):
+            files.add(line.removeprefix("+++ b/"))
+        elif line.startswith("--- a/"):
+            files.add(line.removeprefix("--- a/"))
+        elif line.startswith("+") and not line.startswith("+++"):
+            additions += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            deletions += 1
+    return {
+        "files_changed": len(files),
+        "additions": additions,
+        "deletions": deletions,
+        "raw_diff_embedded": False,
+    }
+
+
+def _test_status(execution: ExecutionResult) -> str:
+    if execution.test_exit_code == 0:
+        return "pass"
+    if execution.test_exit_code is None:
+        return "not_run"
+    return "fail"
+
+
+def _landing_evidence_markdown(evidence: LandingEvidence) -> str:
+    tests = "\n".join(
+        f"- `{test.command}`: `{test.status}` exit=`{test.exit_code}`"
+        for test in evidence.test_results
+    )
+    artifacts = "\n".join(
+        f"- `{artifact.kind}`: `{artifact.path}`" for artifact in evidence.linked_artifacts
+    )
+    return f"""# Landing Evidence: {evidence.ticket_key}
+
+- Ticket: `{evidence.ticket_key}` {evidence.ticket_title}
+- Backend: `{evidence.backend_name}`
+- Planner: `{evidence.planner_name}`
+- Review: `{evidence.review_verdict.value}`
+- Partial: `{str(evidence.partial).lower()}`
+- Branch: `{evidence.branch or 'unknown'}`
+- Worktree: `{evidence.worktree_path or evidence.target_repo_path}`
+
+## Changed Files
+
+{_markdown_bullets(evidence.changed_files)}
+
+## Diff Summary
+
+- Files changed: `{evidence.git_diff_summary.get('files_changed', 0)}`
+- Additions: `{evidence.git_diff_summary.get('additions', 0)}`
+- Deletions: `{evidence.git_diff_summary.get('deletions', 0)}`
+
+## Tests
+
+{tests or '- No test command recorded.'}
+
+## Required Evidence
+
+- Memory: `{evidence.memory_path}`
+- Board: `{evidence.board_path}`
+- Feishu plan: `{evidence.feishu_plan_path}`
+- Next tickets: `{evidence.next_tickets_path}`
+- Orchestrator result: `{evidence.orchestrator_result_path or 'missing'}`
+
+## Missing Fields
+
+{_markdown_bullets(evidence.missing_fields) if evidence.missing_fields else '- None'}
+
+## Linked Artifacts
+
+{artifacts or '- None'}
+"""
+
+
+def _markdown_bullets(values: list[str]) -> str:
+    if not values:
+        return "- None"
+    return "\n".join(f"- `{value}`" for value in values)
 
 
 def _write_memory_artifact(

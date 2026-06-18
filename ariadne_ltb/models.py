@@ -232,6 +232,7 @@ class ArtifactType(str, Enum):
     SKILL_BUNDLE = "skill_bundle"
     WORKTREE_ISOLATION = "worktree_isolation"
     ORCHESTRATOR_RESULT = "orchestrator_result"
+    LANDING_EVIDENCE = "landing_evidence"
     STORE_INVARIANT_REPORT = "store_invariant_report"
     PLANNER_ERROR = "planner_error"
     LLM_AGENT_RESULT = "llm_agent_result"
@@ -1161,6 +1162,51 @@ class BackendSmokeEvidence(AriadneModel):
     llm_agent_artifact_paths: list[str] = Field(default_factory=list)
     external_execution_enabled: bool = False
     confirm_execution: bool = False
+    created_at: str = Field(default_factory=utc_now)
+
+
+class LandingArtifactRef(AriadneModel):
+    kind: str
+    artifact_id: str
+    path: str
+    summary: str = ""
+
+
+class LandingTestResult(AriadneModel):
+    command: str
+    exit_code: int | None = None
+    status: str
+    output_artifact_path: str | None = None
+
+
+class LandingEvidence(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    ticket_title: str
+    ticket_status: TicketStatus
+    backend_name: str
+    planner_name: str
+    agent_runtime: str = "deterministic"
+    backlog_planner_name: str = "deterministic"
+    branch: str | None = None
+    target_repo_path: str
+    worktree_path: str | None = None
+    execution_result_id: str
+    review_report_id: str
+    review_verdict: ReviewVerdict
+    changed_files: list[str] = Field(default_factory=list)
+    git_diff_summary: dict[str, Any] = Field(default_factory=dict)
+    test_results: list[LandingTestResult] = Field(default_factory=list)
+    memory_path: str
+    board_path: str
+    next_tickets_path: str
+    feishu_plan_path: str
+    orchestrator_result_path: str | None = None
+    gate_inputs: dict[str, Any] = Field(default_factory=dict)
+    linked_artifacts: list[LandingArtifactRef] = Field(default_factory=list)
+    partial: bool = False
+    missing_fields: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
 
 

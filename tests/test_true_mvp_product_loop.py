@@ -75,8 +75,13 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert ArtifactType.CODEX_HANDOFF in artifact_types
     assert ArtifactType.NEXT_TICKETS in artifact_types
     assert ArtifactType.ORCHESTRATOR_RESULT in artifact_types
+    assert ArtifactType.LANDING_EVIDENCE in artifact_types
     assert ArtifactType.PERMISSION_PROFILE in artifact_types
     assert result.orchestrator_result_path
+    assert result.landing_evidence_json_path
+    assert result.landing_evidence_md_path
+    assert Path(result.landing_evidence_json_path).exists()
+    assert Path(result.landing_evidence_md_path).exists()
     manifest = json.loads(Path(result.orchestrator_result_path).read_text(encoding="utf-8"))
     assert manifest["ticket_key"] == "ARI-003"
     assert manifest["backend_name"] == "fake-codex"
@@ -86,6 +91,13 @@ def test_orchestrator_runs_reusable_full_loop(tmp_path: Path) -> None:
     assert manifest["permission_profile_id"]
     assert manifest["artifacts"]["next_tickets_path"] == result.next_tickets_path
     assert manifest["artifacts"]["permission_profile_path"].endswith("execution_permission_profile.json")
+    landing = json.loads(Path(result.landing_evidence_json_path).read_text(encoding="utf-8"))
+    assert landing["ticket_key"] == "ARI-003"
+    assert landing["review_verdict"] == "pass"
+    assert landing["partial"] is False
+    assert landing["execution_result_id"] == result.execution_result_id
+    assert landing["orchestrator_result_path"] == result.orchestrator_result_path
+    assert landing["git_diff_summary"]["files_changed"] >= 1
 
     handoff_path = store.load_artifact(result.handoff_artifact_id).path
     handoff = Path(handoff_path).read_text(encoding="utf-8")

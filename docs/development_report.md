@@ -5085,6 +5085,78 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 12:42 CST Ticket Landing Evidence Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Frontend integration decision:
+
+- Core worktree is clean.
+- Frontend worktree `/Users/martinlos/code/Ariadne` is clean on
+  `codex/ariadne-workbench-frontend-lane`.
+- Direct merge is deferred for this slice because `git merge-tree` shows
+  conflicts in core-owned files including `.gitignore`, `README.md`,
+  `ariadne_ltb/board.py`, `ariadne_ltb/cli.py`, and
+  `ariadne_ltb/execution.py`.
+- The frontend lane also carries older core worktree / landing evidence commits,
+  so the safer product path here is to implement the missing core evidence
+  contract directly on the current branch and leave UI integration for a
+  dedicated merge slice.
+
+Implemented:
+
+- Added `LandingEvidence`, `LandingArtifactRef`, and `LandingTestResult` domain
+  models.
+- Added `ArtifactType.LANDING_EVIDENCE`.
+- Added a read-only `git_branch()` helper.
+- `TicketRunOrchestrator.run_ticket()` now writes:
+  - `landing_evidence.json`;
+  - `landing_evidence.md`.
+- Landing evidence links execution log, git diff, changed files, test output,
+  review report, memory record, next tickets, Feishu plan, and orchestrator
+  result.
+- `TicketRunResult`, `ari ticket run`, and `ari daemon run-once` now expose the
+  landing evidence paths.
+- Static board ticket detail now shows Landing Evidence with partial status,
+  review verdict, diff summary, and linked raw artifacts.
+
+Why this matters:
+
+- Ariadne already had release-level evidence, but not a per-ticket landing
+  packet that a reviewer, merge gate, or supervisor can evaluate.
+- This slice creates the missing durable input for future automated review,
+  merge gating, and conflict handling without adding unsafe merge or PR writes.
+
+Safety boundaries:
+
+- No git commit, push, merge, PR, or remote write is performed by landing
+  evidence generation.
+- The packet stores artifact ids, paths, diff counts, status values, and gate
+  inputs. It does not embed secrets.
+- Real external execution remains controlled by the existing execution gates.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_true_mvp_product_loop.py::test_orchestrator_runs_reusable_full_loop tests/test_v1_board_ux.py::test_board_contains_v1_workbench_sections`: passed.
+- `python3.11 -m ruff check ariadne_ltb/models.py ariadne_ltb/git_utils.py ariadne_ltb/orchestrator.py ariadne_ltb/board.py ariadne_ltb/cli.py tests/test_true_mvp_product_loop.py tests/test_v1_board_ux.py`: passed.
+- `python3.11 -m pytest`: passed, `263 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed, including release evidence, workbench data
+  sync, and `frontend/ariadne-workbench` production build.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 12:08 CST Supervisor Bounded Loop Slice
 
 Branch: `codex/ariadne-production-frontend-integration`
