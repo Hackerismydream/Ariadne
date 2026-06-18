@@ -13,6 +13,7 @@ export type AriadneTicket = {
   title: string;
   summary: string;
   latestAssignmentId?: string | null;
+  targetProjectId?: string | null;
   status: TicketStatus;
   priority: "high" | "medium" | "low";
   owner: string;
@@ -143,6 +144,7 @@ export type AriadneGoal = {
   id: string;
   title: string;
   northStar: string;
+  targetProjectId?: string | null;
   status: "active" | "reviewing" | "blocked";
   knowledgeInputs: string[];
   feedbackSignals: string[];

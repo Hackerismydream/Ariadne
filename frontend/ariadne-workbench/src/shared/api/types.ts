@@ -1,8 +1,14 @@
 export type ApiWorkbench = {
+  goals: ApiProjectGoal[];
+  sources: ApiSourceDocument[];
   tickets: ApiTicketSummary[];
   assignments: ApiAssignmentSummary[];
+  agents: ApiAgentProfile[];
   runtime_capabilities: ApiRuntimeCapability[];
   target_projects: ApiTargetProject[];
+  skills: ApiBuildSkill[];
+  inbox: ApiInboxItem[];
+  backlog_previews: ApiBacklogPreview[];
 };
 
 export type ApiTicketSummary = {
@@ -16,6 +22,12 @@ export type ApiTicketSummary = {
   latest_assignment_id?: string | null;
   latest_execution_result_id?: string | null;
   latest_review_verdict?: string | null;
+  build_packet_id?: string | null;
+  summary?: string | null;
+  acceptance_criteria?: string[];
+  affected_modules?: string[];
+  source_ref?: string | null;
+  target_project_id?: string | null;
 };
 
 export type ApiAssignmentSummary = {
@@ -51,6 +63,134 @@ export type ApiTargetProject = {
   label: string;
   available: boolean;
   disabled_reason: string;
+};
+
+export type ApiProjectGoal = {
+  id: string;
+  title: string;
+  north_star: string;
+  current_state: string;
+  target_state: string;
+  status: "active" | "reviewing" | "blocked";
+  target_project_id?: string | null;
+  knowledge_inputs: string[];
+  feedback_signals: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateProjectGoalRequest = {
+  title: string;
+  north_star: string;
+  current_state?: string;
+  target_state?: string;
+  target_project_id?: string | null;
+  knowledge_inputs?: string[];
+  feedback_signals?: string[];
+};
+
+export type ApiSourceDocument = {
+  id: string;
+  source_type: string;
+  title: string;
+  path_or_url: string;
+  summary: string;
+  status: string;
+  linked_ticket_count: number;
+  created_at: string;
+  evidence_snippets: string[];
+};
+
+export type CreateSourceRequest = {
+  title: string;
+  source_type: "blog" | "paper" | "github_repo" | "github_readme" | "note" | "manual_note" | "repo_note";
+  path_or_url: string;
+  content?: string;
+  summary?: string;
+  evidence_snippets?: string[];
+};
+
+export type ApiAgentProfile = {
+  id: string;
+  name: string;
+  role: string;
+  backend_name?: string | null;
+  planner_name: string;
+  agent_runtime: string;
+  backlog_planner_name: string;
+  description: string;
+  capabilities: string[];
+  enabled: boolean;
+  run_count: number;
+};
+
+export type ApiBuildSkill = {
+  id: string;
+  name: string;
+  description: string;
+  applies_to_agent_roles: string[];
+  updated_at: string;
+};
+
+export type ApiInboxItem = {
+  id: string;
+  source_type: string;
+  source_id: string;
+  ticket_id?: string | null;
+  ticket_key?: string | null;
+  title: string;
+  summary: string;
+  severity: string;
+  status: string;
+  failure_reason?: string | null;
+  evidence_ref?: string | null;
+  recommended_action: string;
+  resolution_note?: string | null;
+  repair_ticket_id?: string | null;
+  repair_ticket_key?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApiBacklogOperation = {
+  id: string;
+  operation_type: string;
+  reason: string;
+  ticket_id?: string | null;
+  ticket_key?: string | null;
+  title?: string | null;
+  description?: string | null;
+  source_type?: string | null;
+  source_ref?: string | null;
+  priority?: string | null;
+  status?: string | null;
+  owner_agent?: string | null;
+  build_decision?: string | null;
+  evidence_refs: string[];
+};
+
+export type ApiBacklogPreview = {
+  id: string;
+  trigger_type: string;
+  trigger_ref: string;
+  rationale: string;
+  operations: ApiBacklogOperation[];
+  conflict_count: number;
+  evidence_refs: string[];
+  created_at: string;
+  applied_at?: string | null;
+  applied_update_id?: string | null;
+};
+
+export type IssueFactoryPreviewRequest = {
+  goal_id: string;
+  source_ids: string[];
+  target_project_id?: string | null;
+};
+
+export type RegisterTargetProjectRequest = {
+  path: string;
+  label?: string | null;
 };
 
 export type AssignTicketRequest = {

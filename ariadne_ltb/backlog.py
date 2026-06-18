@@ -645,6 +645,36 @@ def _build_packet_from_preview_operation(
             document,
             suggestion,
         )
+    if operation.metadata.get("acceptance_criteria") or operation.metadata.get("affected_modules"):
+        decision_value = str(operation.metadata.get("build_decision") or BuildDecision.CODE_TASK.value)
+        try:
+            decision = BuildDecision(decision_value)
+        except ValueError:
+            decision = BuildDecision.CODE_TASK
+        return BuildPacket(
+            id=stable_id("packet", ticket.id),
+            ticket_id=ticket.id,
+            source_summary=document.summary,
+            insight=operation.reason,
+            evidence=[
+                Evidence(
+                    id=stable_id("evidence", ticket.id, document.id, str(index), str(item)),
+                    source_ref=document.id,
+                    quote_or_summary=str(item),
+                    location=document.path_or_url,
+                    confidence=0.8,
+                )
+                for index, item in enumerate((document.metadata.get("evidence_snippets") or [operation.reason])[:5])
+            ],
+            project_relevance="Generated from the active Web Workbench goal and selected external knowledge.",
+            build_decision=decision,
+            tasks=[operation.title or ticket.title],
+            acceptance_criteria=[str(item) for item in operation.metadata.get("acceptance_criteria", [])],
+            affected_modules=[str(item) for item in operation.metadata.get("affected_modules", [])],
+            risks=["Generated issue needs normal review before real external execution."],
+            assumptions=["The target project path registered in Workbench is the intended build workspace."],
+            metadata={"source_document_id": document.id, "preview_operation_id": operation.id},
+        )
     return fallback_builder(ticket, document)
 
 

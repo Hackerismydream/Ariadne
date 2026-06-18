@@ -22,6 +22,13 @@ import { runAssignmentButtonLabel } from "./features/run-assignment/ui";
 import { watchRunEventsButtonLabel } from "./features/watch-run-events/ui";
 import { useTicketAgentControl } from "./features/agent-control/model";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
+import {
+  applyIssueFactoryPreview,
+  createIssueFactoryPreview,
+  createProjectGoal,
+  createSource,
+  registerTargetProject,
+} from "./shared/api/client";
 import type {
   AriadneTicket,
   BackendSmokeEvidence,
@@ -41,6 +48,7 @@ function parseHashRoute(hash = globalThis.location?.hash ?? "") {
   if (!value) return {};
   const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
   if (issueMatch) return { page: "issues" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
+  if (value === "runtime") return { page: "runtimes" as PageKey };
   if (["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(value)) {
     return { page: value as PageKey };
   }
@@ -396,8 +404,8 @@ function PageFrame({
   onTicketSelect: (ticketId: string) => void;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  if (page === "goal") return <GoalPage data={data} onTicketSelect={onTicketSelect} />;
-  if (page === "knowledge") return <KnowledgePage data={data} />;
+  if (page === "goal") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
+  if (page === "knowledge") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
   if (page === "issues") {
     return (
       <IssuesPage
@@ -452,8 +460,64 @@ function PageHeader({
   );
 }
 
-function GoalPage({ data, onTicketSelect }: { data: WorkbenchData; onTicketSelect: (ticketId: string) => void }) {
+function GoalPage({
+  data,
+  dataSource,
+  onRefresh,
+  onTicketSelect,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  onRefresh: () => Promise<void>;
+  onTicketSelect: (ticketId: string) => void;
+}) {
   const goal = data.goal;
+  const [projectPath, setProjectPath] = useState("");
+  const [projectLabel, setProjectLabel] = useState(data.projectResources?.[0]?.label ?? "");
+  const [goalTitle, setGoalTitle] = useState(goal.id === "GOAL-NOT-CREATED" ? "" : goal.title);
+  const [northStar, setNorthStar] = useState(goal.id === "GOAL-NOT-CREATED" ? "" : goal.northStar);
+  const [targetState, setTargetState] = useState(goal.targetState);
+  const [status, setStatus] = useState("");
+  const [preferredProjectId, setPreferredProjectId] = useState(goal.targetProjectId ?? data.projectResources?.[0]?.id ?? "");
+  const activeProject = data.projectResources?.find((resource) => resource.id === preferredProjectId && resource.available)
+    ?? data.projectResources?.find((resource) => resource.available)
+    ?? data.projectResources?.[0];
+
+  async function saveProject() {
+    if (!projectPath.trim()) return;
+    setStatus("正在注册目标项目...");
+    try {
+      const result = await registerTargetProject({ path: projectPath.trim(), label: projectLabel.trim() || undefined }) as {
+        target_project?: { id?: string };
+      };
+      if (result.target_project?.id) setPreferredProjectId(result.target_project.id);
+      await onRefresh();
+      setStatus("目标项目已注册。");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "目标项目注册失败。");
+    }
+  }
+
+  async function saveGoal() {
+    if (!goalTitle.trim() || !northStar.trim()) return;
+    setStatus("正在创建目标...");
+    try {
+      await createProjectGoal({
+        title: goalTitle.trim(),
+        north_star: northStar.trim(),
+        current_state: "Builder has provided a folder-backed project and external knowledge sources.",
+        target_state: targetState.trim() || "Ariadne generates issues, assigns agents, and records evidence from the Web Workbench.",
+        target_project_id: activeProject?.id ?? null,
+        knowledge_inputs: data.sources.map((source) => source.title),
+        feedback_signals: ["Created from Ariadne Workbench web product path."],
+      });
+      await onRefresh();
+      setStatus("目标已创建。");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "目标创建失败。");
+    }
+  }
+
   return (
     <section className="page">
       <PageHeader
@@ -461,9 +525,67 @@ function GoalPage({ data, onTicketSelect }: { data: WorkbenchData; onTicketSelec
         title="当前目标"
         count={1}
         description="目标是输入，任务状态机才是执行中心。"
-        action={<button className="outline-button" type="button">导入知识</button>}
+        action={<button className="outline-button" type="button" onClick={() => { globalThis.location.hash = "knowledge"; }}>导入知识</button>}
       />
       <div className="goal-layout">
+        <section className="panel wide">
+          <h2>项目和目标输入</h2>
+          <div className="form-grid">
+            <label>
+              <span>项目文件夹</span>
+              <input
+                disabled={dataSource !== "api"}
+                placeholder="/Users/you/code/project"
+                value={projectPath}
+                onChange={(event) => setProjectPath(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>项目名称</span>
+              <input
+                disabled={dataSource !== "api"}
+                placeholder="Mini Code Agent"
+                value={projectLabel}
+                onChange={(event) => setProjectLabel(event.target.value)}
+              />
+            </label>
+            <button disabled={dataSource !== "api" || !projectPath.trim()} type="button" onClick={() => void saveProject()}>
+              注册项目
+            </button>
+          </div>
+          <div className="form-grid goal-form">
+            <label>
+              <span>目标标题</span>
+              <input
+                disabled={dataSource !== "api"}
+                placeholder="构建 Mini Code Agent"
+                value={goalTitle}
+                onChange={(event) => setGoalTitle(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>北极星目标</span>
+              <textarea
+                disabled={dataSource !== "api"}
+                placeholder="一个文件夹就是一个项目，外部知识进入后生成 issue，并调度 Codex/Claude 完成版本。"
+                value={northStar}
+                onChange={(event) => setNorthStar(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>目标态</span>
+              <textarea
+                disabled={dataSource !== "api"}
+                value={targetState}
+                onChange={(event) => setTargetState(event.target.value)}
+              />
+            </label>
+            <button disabled={dataSource !== "api" || !goalTitle.trim() || !northStar.trim()} type="button" onClick={() => void saveGoal()}>
+              创建目标
+            </button>
+          </div>
+          {status ? <p className="action-message">{status}</p> : null}
+        </section>
         <section className="goal-hero">
           <div className="status-dot active" />
           <p className="eyebrow">{goal.id}</p>
@@ -499,8 +621,21 @@ function GoalPage({ data, onTicketSelect }: { data: WorkbenchData; onTicketSelec
   );
 }
 
-function KnowledgePage({ data }: { data: WorkbenchData }) {
+function KnowledgePage({
+  data,
+  dataSource,
+  onRefresh,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  onRefresh: () => Promise<void>;
+}) {
   const [selectedSourceId, setSelectedSourceId] = useState(data.sources[0]?.id ?? "");
+  const [sourceTitle, setSourceTitle] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceType, setSourceType] = useState<"blog" | "paper" | "github_repo" | "note">("blog");
+  const [sourceContent, setSourceContent] = useState("");
+  const [actionStatus, setActionStatus] = useState("");
   const sourceCards = data.knowledgeCards.filter((card) => card.sourceId === selectedSourceId);
   const fallbackCard = sourceCards[0] ?? data.knowledgeCards[0];
   const [selectedCardId, setSelectedCardId] = useState(fallbackCard?.id ?? "");
@@ -513,6 +648,13 @@ function KnowledgePage({ data }: { data: WorkbenchData }) {
   const [selectedChangeId, setSelectedChangeId] = useState(cardChanges[0]?.id ?? "");
   const selectedChange = cardChanges.find((change) => change.id === selectedChangeId) ?? cardChanges[0];
   const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
+
+  useEffect(() => {
+    if (!data.sources.some((source) => source.id === selectedSourceId)) {
+      setSelectedSourceId(data.sources[0]?.id ?? "");
+    }
+    setPreviewStatus(data.backlogMutationPreview.status);
+  }, [data.sources, data.backlogMutationPreview.status, selectedSourceId]);
 
   function selectSource(sourceId: string) {
     const nextCard = data.knowledgeCards.find((card) => card.sourceId === sourceId) ?? data.knowledgeCards[0];
@@ -534,6 +676,67 @@ function KnowledgePage({ data }: { data: WorkbenchData }) {
     if (step.knowledgeCardId !== selectedCard.id) return false;
     return !step.backlogChangeId || !selectedChange || step.backlogChangeId === selectedChange.id;
   });
+  const activeGoal = data.goal.id !== "GOAL-NOT-CREATED" ? data.goal : undefined;
+  const activeProject = data.projectResources?.find((resource) => resource.id === activeGoal?.targetProjectId && resource.available)
+    ?? data.projectResources?.find((resource) => resource.available)
+    ?? data.projectResources?.[0];
+  const activePreviewId = data.backlogMutationPreview.previewId;
+
+  async function addSource() {
+    if (!sourceTitle.trim() || !sourceUrl.trim()) return;
+    setActionStatus("正在添加来源...");
+    try {
+      await createSource({
+        title: sourceTitle.trim(),
+        source_type: sourceType,
+        path_or_url: sourceUrl.trim(),
+        content: sourceContent.trim(),
+      });
+      setSourceTitle("");
+      setSourceUrl("");
+      setSourceContent("");
+      await onRefresh();
+      setActionStatus("来源已添加。");
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "来源添加失败。");
+    }
+  }
+
+  async function generateIssues() {
+    if (!activeGoal) {
+      setActionStatus("请先在目标页创建目标。");
+      return;
+    }
+    setActionStatus("正在生成任务预览...");
+    try {
+      const result = await createIssueFactoryPreview({
+        goal_id: activeGoal.id,
+        source_ids: data.sources.map((source) => source.id),
+        target_project_id: activeProject?.id ?? null,
+      });
+      await onRefresh();
+      setSelectedChangeId(result.preview.operations[0]?.id ?? "");
+      setActionStatus(`已生成 ${result.preview.operations.length} 个任务变更。`);
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "任务预览生成失败。");
+    }
+  }
+
+  async function applyPreview() {
+    if (!activePreviewId) {
+      setActionStatus("还没有可应用的任务预览。");
+      return;
+    }
+    setActionStatus("正在应用任务变更...");
+    try {
+      await applyIssueFactoryPreview(activePreviewId);
+      await onRefresh();
+      setPreviewStatus("applied");
+      setActionStatus("任务变更已应用，新的 issue 已写入任务列表。");
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "应用任务变更失败。");
+    }
+  }
 
   return (
     <section className="page full-bleed knowledge-page">
@@ -543,13 +746,43 @@ function KnowledgePage({ data }: { data: WorkbenchData }) {
         count={data.sources.length}
         action={
           <div className="toolbar">
-            <button type="button">添加来源</button>
-            <button type="button">导入文件夹</button>
-            <button type="button">扫描仓库</button>
-            <button className="primary-action" type="button">生成任务</button>
+            <button type="button" onClick={() => setActionStatus("请在下方表单填写来源并保存。")}>添加来源</button>
+            <button type="button" onClick={() => setActionStatus("文件夹导入会复用来源表单；当前版本先登记路径或 URL。")}>导入文件夹</button>
+            <button type="button" onClick={() => setActionStatus("仓库扫描会复用来源表单；当前版本先登记仓库 URL。")}>扫描仓库</button>
+            <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>生成任务</button>
           </div>
         }
       />
+      <section className="panel source-input-panel">
+        <h2>添加外部知识</h2>
+        <div className="form-grid">
+          <label>
+            <span>类型</span>
+            <select disabled={dataSource !== "api"} value={sourceType} onChange={(event) => setSourceType(event.target.value as typeof sourceType)}>
+              <option value="blog">博客</option>
+              <option value="paper">论文</option>
+              <option value="github_repo">GitHub 仓库</option>
+              <option value="note">手动笔记</option>
+            </select>
+          </label>
+          <label>
+            <span>标题</span>
+            <input disabled={dataSource !== "api"} value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="minimal-agent 博客" />
+          </label>
+          <label>
+            <span>路径或 URL</span>
+            <input disabled={dataSource !== "api"} value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://minimal-agent.com/" />
+          </label>
+          <label className="wide-field">
+            <span>摘要或摘录</span>
+            <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="粘贴关键观点，Ariadne 会把它作为 issue factory 的证据。" />
+          </label>
+          <button disabled={dataSource !== "api" || !sourceTitle.trim() || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
+            保存来源
+          </button>
+        </div>
+        {actionStatus ? <p className="action-message">{actionStatus}</p> : null}
+      </section>
       <div className="knowledge-layout">
         <section className="knowledge-column source-column">
           <ColumnHeader title="来源收件箱" meta={`${data.sources.length} 个输入`} />
@@ -628,7 +861,7 @@ function KnowledgePage({ data }: { data: WorkbenchData }) {
           <BacklogChangeGroup title="延后" emptyLabel="延后" kind="deferred" changes={groupedChanges.deferred} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
           <BacklogChangeGroup title="拒绝" emptyLabel="拒绝" kind="rejected" changes={groupedChanges.rejected} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
           <div className="apply-row">
-            <button type="button" onClick={() => setPreviewStatus(previewStatus === "applied" ? "preview_only" : "applied")}>
+            <button disabled={dataSource !== "api" || !activePreviewId || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
               {previewStatus === "applied" ? "已应用" : "应用任务变更"}
             </button>
             <span>{previewStatusLabel(previewStatus)} · 最近预览：{data.backlogMutationPreview.lastPreviewAt}</span>
@@ -871,7 +1104,9 @@ function TicketInspector({
   ticket: AriadneTicket;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  const targetProject = data.projectResources?.find((resource) => resource.available) ?? data.projectResources?.[0];
+  const targetProject = data.projectResources?.find((resource) => resource.id === ticket.targetProjectId && resource.available)
+    ?? data.projectResources?.find((resource) => resource.available)
+    ?? data.projectResources?.[0];
   const ticketAssignments = data.assignments?.filter((assignment) =>
     assignment.ticketId === ticket.id || assignment.ticketKey === ticket.key,
   ) ?? [];

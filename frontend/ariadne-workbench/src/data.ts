@@ -1,5 +1,5 @@
 import { getWorkbench } from "./shared/api/client";
-import type { ApiWorkbench } from "./shared/api/types";
+import type { ApiBacklogOperation, ApiBacklogPreview, ApiSourceDocument, ApiWorkbench } from "./shared/api/types";
 import type { AriadneTicket, RuntimeInfo, TicketStatus, WorkbenchData } from "./types";
 
 export const workbenchData: WorkbenchData = {
@@ -487,7 +487,8 @@ export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source
   try {
     const apiData = await getWorkbench();
     return { data: adaptApiWorkbench(apiData), source: "api", readOnly: false };
-  } catch {
+  } catch (error) {
+    console.error("Ariadne Workbench API load failed", error);
     if (!offlineFallbackEnabled()) {
       return { data: workbenchData, source: "disconnected", readOnly: true };
     }
@@ -529,9 +530,27 @@ function offlineFallbackEnabled() {
 }
 
 function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
+  const sortedPreviews = [...apiData.backlog_previews].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const latestPreview = sortedPreviews.length ? sortedPreviews[sortedPreviews.length - 1] : undefined;
+  const sources = apiData.sources.map(adaptSource);
+  const knowledgeCards = apiData.sources.map(adaptKnowledgeCard);
+  const backlogChanges = latestPreview ? adaptBacklogPreviewChanges(latestPreview) : [];
   return {
-    ...workbenchData,
+    goal: adaptGoal(apiData),
     tickets: apiData.tickets.map((ticket) => adaptTicket(ticket, apiData)),
+    sources,
+    knowledgeCards,
+    backlogChanges,
+    traceSteps: latestPreview ? adaptTraceSteps(latestPreview) : [],
+    backlogMutationPreview: adaptBacklogMutationPreview(latestPreview),
+    agents: apiData.agents.map((agent) => ({
+      name: agent.name,
+      description: agent.description || agent.role,
+      backend: agent.backend_name ?? agent.agent_runtime,
+      status: agent.enabled ? (agent.run_count ? "online" : "idle") : "offline",
+      runs: agent.run_count,
+      reasoning: `${agent.planner_name} / ${agent.agent_runtime}`,
+    })),
     assignments: apiData.assignments.map((assignment) => ({
       id: assignment.id,
       ticketId: assignment.ticket_id,
@@ -553,25 +572,59 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       available: project.available,
       disabledReason: project.disabled_reason,
     })),
+    backendSmokeEvidence: [],
+    releaseEvidence: undefined,
+    skills: apiData.skills.map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      usedBy: skill.applies_to_agent_roles,
+      updatedAt: skill.updated_at,
+    })),
+    inbox: apiData.inbox.map((item) => ({
+      id: item.id,
+      ticketId: item.ticket_id ?? undefined,
+      ticketKey: item.ticket_key ?? undefined,
+      title: item.title,
+      body: item.summary,
+      time: item.created_at,
+      kind: adaptInboxKind(item.source_type),
+      status: adaptInboxStatus(item.status),
+      severity: adaptInboxSeverity(item.severity),
+      sourceType: item.source_type,
+      sourceId: item.source_id,
+      failureReason: item.failure_reason,
+      recommendedAction: item.recommended_action,
+      evidenceRef: item.evidence_ref,
+      resolutionNote: item.resolution_note,
+      repairTicketId: item.repair_ticket_id ?? undefined,
+      repairTicketKey: item.repair_ticket_key ?? undefined,
+    })),
   };
 }
 
 function adaptTicket(ticket: ApiWorkbench["tickets"][number], apiData: ApiWorkbench): AriadneTicket {
-  const fixture = workbenchData.tickets.find((item) => item.key === ticket.key);
   const assignment = apiData.assignments.find((item) => item.id === ticket.latest_assignment_id)
     ?? apiData.assignments.find((item) => item.ticket_id === ticket.id);
+  const progress = apiData.assignments
+    .filter((item) => item.ticket_id === ticket.id)
+    .map((item) => ({
+      time: item.created_at ?? "",
+      actor: item.agent_name,
+      kind: item.status,
+      body: item.blocker ? `${item.status}: ${item.blocker}` : `Assignment ${item.status} via ${item.backend_name ?? "runtime"}`,
+    }));
   return {
-    ...(fixture ?? workbenchData.tickets[0]),
     id: ticket.id,
     key: ticket.key,
     title: ticket.title,
     latestAssignmentId: ticket.latest_assignment_id,
-    summary: fixture?.summary ?? `由 Ariadne 管理的 ${ticket.source_type} 来源任务。`,
+    targetProjectId: ticket.target_project_id,
+    summary: ticket.summary ?? `由 Ariadne 管理的 ${ticket.source_type} 来源任务。`,
     status: adaptTicketStatus(ticket.status),
     priority: ticket.priority === "high" || ticket.priority === "low" ? ticket.priority : "medium",
     owner: assignment?.agent_name ?? ticket.assigned_agent_id ?? "构建负责人",
-    source: ticket.source_type,
-    decision: fixture?.decision ?? "code_task",
+    source: ticket.source_ref ?? ticket.source_type,
+    decision: "code_task",
     reviewVerdict: ticket.latest_review_verdict === "pass"
       ? "pass"
       : ticket.latest_review_verdict === "needs_fix"
@@ -579,9 +632,11 @@ function adaptTicket(ticket: ApiWorkbench["tickets"][number], apiData: ApiWorkbe
         : ticket.status === "blocked"
           ? "blocked"
           : "pending",
-    progress: fixture?.progress ?? [],
-    changedFiles: fixture?.changedFiles ?? [],
-    acceptance: fixture?.acceptance ?? ["任务可以分配给生产运行时。", "运行进度在 Ariadne 中可见。"],
+    progress,
+    changedFiles: ticket.affected_modules ?? [],
+    acceptance: ticket.acceptance_criteria?.length
+      ? ticket.acceptance_criteria
+      : ["任务可以分配给生产运行时。", "运行进度在 Ariadne 中可见。"],
   };
 }
 
@@ -611,4 +666,173 @@ function adaptRuntime(runtime: ApiWorkbench["runtime_capabilities"][number]): Ru
     fallbackOnly: runtime.fallback_only,
     disabledReasons: runtime.disabled_reasons,
   };
+}
+
+function adaptGoal(apiData: ApiWorkbench): WorkbenchData["goal"] {
+  const sortedGoals = [...apiData.goals].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const goal = sortedGoals.length ? sortedGoals[sortedGoals.length - 1] : undefined;
+  if (!goal) {
+    return {
+      id: "GOAL-NOT-CREATED",
+      title: "还没有创建产品目标",
+      northStar: "从网页创建目标、添加外部知识，再生成 issue。",
+      targetProjectId: null,
+      status: "active",
+      knowledgeInputs: [],
+      feedbackSignals: [],
+      currentState: "Workbench 已连接本地 API，但还没有目标。",
+      targetState: "创建目标后由 Issue Factory 生成可执行任务。",
+    };
+  }
+  return {
+    id: goal.id,
+    title: goal.title,
+    northStar: goal.north_star,
+    targetProjectId: goal.target_project_id,
+    status: goal.status,
+    knowledgeInputs: goal.knowledge_inputs,
+    feedbackSignals: goal.feedback_signals,
+    currentState: goal.current_state || "已在 Workbench 创建目标。",
+    targetState: goal.target_state || "生成 issue 并通过 Agent Runtime 推进版本。",
+  };
+}
+
+function adaptSource(source: ApiSourceDocument): WorkbenchData["sources"][number] {
+  return {
+    id: source.id,
+    sourceType: adaptSourceType(source.source_type),
+    title: source.title,
+    status: source.status === "linked" ? "linked" : source.status === "applied" ? "applied" : "new",
+    ingestedAt: source.created_at,
+    pathOrUrl: source.path_or_url,
+    linkedTicketCount: source.linked_ticket_count,
+  };
+}
+
+function adaptKnowledgeCard(source: ApiSourceDocument): WorkbenchData["knowledgeCards"][number] {
+  return {
+    id: `kc-${source.id}`,
+    sourceId: source.id,
+    title: source.title,
+    sourceSummary: source.summary,
+    evidence: source.evidence_snippets.length ? source.evidence_snippets : [source.summary],
+    projectRelevance: "由 Workbench 来源输入生成，等待 Issue Factory 关联到任务。",
+    buildDecision: "code_task",
+    affectedModules: [],
+    risks: [],
+    confidence: 0.7,
+    primary: true,
+  };
+}
+
+function adaptBacklogPreviewChanges(preview: ApiBacklogPreview): WorkbenchData["backlogChanges"] {
+  return preview.operations.map((operation) => adaptBacklogOperation(preview, operation));
+}
+
+function adaptBacklogOperation(preview: ApiBacklogPreview, operation: ApiBacklogOperation): WorkbenchData["backlogChanges"][number] {
+  return {
+    id: operation.id,
+    knowledgeCardId: `kc-${preview.evidence_refs[1] ?? preview.evidence_refs[0] ?? preview.trigger_ref}`,
+    kind: operation.operation_type === "update_ticket"
+      ? "updated"
+      : operation.operation_type === "defer_ticket"
+        ? "deferred"
+        : operation.operation_type === "supersede_ticket"
+          ? "superseded"
+          : operation.operation_type === "no_op"
+            ? "no_op"
+            : "added",
+    ticketKey: operation.ticket_key ?? "NEW",
+    title: operation.title ?? "未命名任务",
+    reason: operation.reason,
+    priority: operation.priority === "high" ? "P1" : operation.priority === "low" ? "P3" : "P2",
+    suggestedOwnerAgent: operation.owner_agent ?? "Build Lead",
+    buildDecision: operation.build_decision === "architecture_change" ? "architecture_change" : "code_task",
+    previewId: preview.id,
+    previewStatus: preview.applied_update_id ? "applied" : preview.conflict_count ? "blocked" : "preview_only",
+    triggerType: preview.trigger_type,
+    operationType: operation.operation_type,
+    appliedUpdateId: preview.applied_update_id,
+    conflictCount: preview.conflict_count,
+    evidenceRefs: operation.evidence_refs,
+  };
+}
+
+function adaptTraceSteps(preview: ApiBacklogPreview): WorkbenchData["traceSteps"] {
+  return preview.operations.flatMap((operation) => {
+    const knowledgeCardId = `kc-${preview.evidence_refs[1] ?? preview.evidence_refs[0] ?? preview.trigger_ref}`;
+    return [
+      {
+        id: `${operation.id}-source`,
+        knowledgeCardId,
+        backlogChangeId: operation.id,
+        label: "Source" as const,
+        summary: `来源证据：${preview.evidence_refs.join(", ") || preview.trigger_ref}`,
+        artifactPath: ".ariadne/sources/",
+        timestamp: preview.created_at,
+      },
+      {
+        id: `${operation.id}-ticket`,
+        knowledgeCardId,
+        backlogChangeId: operation.id,
+        label: "Ticket Delta" as const,
+        summary: operation.reason,
+        artifactPath: `.ariadne/backlog/previews/${preview.id}.json`,
+        timestamp: preview.created_at,
+      },
+    ];
+  });
+}
+
+function adaptBacklogMutationPreview(preview?: ApiBacklogPreview): WorkbenchData["backlogMutationPreview"] {
+  if (!preview) {
+    return {
+      status: "preview_only",
+      added: 0,
+      updated: 0,
+      deferred: 0,
+      rejected: 0,
+      noOp: 0,
+      unsafe: 0,
+      lastPreviewAt: "未生成",
+    };
+  }
+  return {
+    status: preview.applied_update_id ? "applied" : preview.conflict_count ? "blocked" : "preview_only",
+    added: preview.operations.filter((operation) => operation.operation_type === "add_ticket").length,
+    updated: preview.operations.filter((operation) => operation.operation_type === "update_ticket").length,
+    deferred: preview.operations.filter((operation) => operation.operation_type === "defer_ticket").length,
+    rejected: preview.operations.filter((operation) => operation.operation_type === "supersede_ticket").length,
+    noOp: preview.operations.filter((operation) => operation.operation_type === "no_op").length,
+    unsafe: preview.conflict_count,
+    lastPreviewAt: preview.created_at,
+    previewId: preview.id,
+    triggerType: preview.trigger_type,
+    appliedUpdateId: preview.applied_update_id,
+  };
+}
+
+function adaptSourceType(sourceType: string): WorkbenchData["sources"][number]["sourceType"] {
+  if (sourceType === "github_repo") return "github_readme";
+  if (sourceType === "note") return "manual_note";
+  if (sourceType === "review") return "review_feedback";
+  if (sourceType === "paper" || sourceType === "blog") return sourceType;
+  return "manual_note";
+}
+
+function adaptInboxKind(sourceType: string): WorkbenchData["inbox"][number]["kind"] {
+  if (sourceType === "assignment" || sourceType === "execution") return "blocker";
+  if (sourceType === "memory") return "memory";
+  if (sourceType === "review") return "review";
+  return "goal";
+}
+
+function adaptInboxStatus(status: string): WorkbenchData["inbox"][number]["status"] {
+  if (status === "acknowledged" || status === "resolved" || status === "snoozed") return status;
+  return "open";
+}
+
+function adaptInboxSeverity(severity: string): WorkbenchData["inbox"][number]["severity"] {
+  if (severity === "low" || severity === "high" || severity === "critical") return severity;
+  return "medium";
 }
