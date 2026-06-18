@@ -4,9 +4,9 @@
 
 **Goal:** Turn Ariadne from a CLI-driven agent loop plus read-only frontend into a local API-driven agent control plane that lets AI builders assign, run, observe, and comment on agent team work from the browser.
 
-**Architecture:** Add a thin application layer that both CLI and HTTP call, then expose a local stdlib HTTP API over those services. The frontend should prefer `/api/workbench` and typed mutation endpoints, while `/web_data/workbench.json`, `fake-codex`, `dry-run`, and `demo full` remain offline regression fallback only.
+**Architecture:** Add a thin application layer that both CLI and HTTP call, then expose a local FastAPI control-plane API over those services. The frontend should prefer `/api/workbench` and typed mutation endpoints, while `/web_data/workbench.json`, `fake-codex`, `dry-run`, and `demo full` remain offline regression fallback only.
 
-**Tech Stack:** Python 3.11, Pydantic v2, Typer, JSON/JSONL store, stdlib `http.server.ThreadingHTTPServer`, React 19, Vite, TypeScript.
+**Tech Stack:** Python 3.11, Pydantic v2, Typer, FastAPI, Uvicorn, JSON/JSONL store, React 19, Vite, TypeScript.
 
 ---
 
@@ -48,7 +48,7 @@ Browser UI
 6. Raw local evidence must remain available for local audit. Web projections must redact commands, templates, handoff paths, absolute `.ariadne` paths, raw stdout/stderr, and secrets.
 7. Frontend P0 is real API-backed `assign -> run -> watch -> comment`. Broad FSD cleanup is P1 after the action path works.
 8. Browser/API product actions may expose only production coding backends: `codex` and `claude-code`. `fake-codex` and `dry-run` are allowed only in automated tests or explicitly labeled offline fallback paths; they must not appear as selectable browser action runtimes.
-9. The local API server is P0 stdlib HTTP and local-only: default bind is `127.0.0.1`; `0.0.0.0` requires an explicit CLI warning; request bodies are size-limited; mutation routes require `Content-Type: application/json`; CORS is not opened broadly.
+9. The local API server is P0 FastAPI/Uvicorn and local-only: default bind is `127.0.0.1`; `0.0.0.0` requires an explicit CLI warning; request bodies are size-limited; mutation routes require `Content-Type: application/json`; CORS is not opened broadly.
 10. Confirmation tokens are server-issued action tokens bound to `assignment_id`, `target_project_id`, and backend. They must not appear in `/api/workbench`, timeline events, logs, or evidence projections.
 
 ## Target File Structure
@@ -73,7 +73,9 @@ ariadne_ltb/domain/__init__.py
 ariadne_ltb/domain/runtime_policy.py
 ariadne_ltb/interfaces/__init__.py
 ariadne_ltb/interfaces/http/__init__.py
-ariadne_ltb/interfaces/http/server.py
+ariadne_ltb/interfaces/http/app.py
+ariadne_ltb/interfaces/http/dependencies.py
+ariadne_ltb/interfaces/http/errors.py
 ariadne_ltb/interfaces/http/routes.py
 ariadne_ltb/interfaces/http/schemas.py
 ```
@@ -1035,9 +1037,12 @@ Expected: timeline and redaction tests pass.
 ### Task 8: Local HTTP Control Plane
 
 **Files:**
+- Modify: `pyproject.toml`
 - Create: `ariadne_ltb/interfaces/__init__.py`
 - Create: `ariadne_ltb/interfaces/http/__init__.py`
-- Create: `ariadne_ltb/interfaces/http/server.py`
+- Create: `ariadne_ltb/interfaces/http/app.py`
+- Create: `ariadne_ltb/interfaces/http/dependencies.py`
+- Create: `ariadne_ltb/interfaces/http/errors.py`
 - Create: `ariadne_ltb/interfaces/http/routes.py`
 - Create: `ariadne_ltb/interfaces/http/schemas.py`
 - Modify: `ariadne_ltb/cli.py`
@@ -1046,7 +1051,7 @@ Expected: timeline and redaction tests pass.
 
 - [ ] **Step 1: Write failing HTTP tests**
 
-Use stdlib `urllib.request` or direct route handler tests. Cover:
+Use `fastapi.testclient.TestClient`. Cover:
 
 ```text
 GET /api/workbench returns schema_version
@@ -1074,35 +1079,83 @@ python3.11 -m pytest tests/test_control_plane_http.py tests/test_http_contract_r
 
 Expected: fail because HTTP interface does not exist.
 
-- [ ] **Step 2: Implement routes**
+- [ ] **Step 2: Add FastAPI dependencies**
 
-Use `ThreadingHTTPServer` and a route dispatcher. No FastAPI dependency is required for P0.
+Modify `pyproject.toml`:
 
-Server safety defaults:
+```toml
+dependencies = [
+  "fastapi>=0.115",
+  "pydantic>=2.0",
+  "typer>=0.12",
+  "uvicorn>=0.30",
+]
 
-```text
-default host is 127.0.0.1
-binding 0.0.0.0 prints an explicit warning before serving
-maximum request body is 1 MiB
-mutation routes require Content-Type: application/json
-CORS defaults to same-origin only
-errors do not include stack traces
-errors do not include raw local paths
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27",
+  "pytest>=8",
+  "ruff>=0.6",
+]
 ```
 
-Routes:
+`httpx` is required for FastAPI `TestClient`. Do not add database, auth, Celery, Redis, or background-worker dependencies for this P0.
+
+- [ ] **Step 3: Implement FastAPI app factory**
+
+Create `ariadne_ltb/interfaces/http/app.py`:
+
+```python
+from fastapi import FastAPI
+
+from ariadne_ltb.interfaces.http.errors import install_exception_handlers
+from ariadne_ltb.interfaces.http.routes import router
+
+
+def create_app(root: str | None = None) -> FastAPI:
+    app = FastAPI(
+        title="Ariadne Local Agent Control Plane",
+        version="1.0.0",
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
+    )
+    app.state.ariadne_root = root
+    install_exception_handlers(app)
+    app.include_router(router, prefix="/api")
+    return app
+```
+
+Create `ariadne_ltb/interfaces/http/dependencies.py`:
+
+```python
+from fastapi import Request
+
+from ariadne_ltb.storage import AriadneStore
+
+
+def get_store(request: Request) -> AriadneStore:
+    root = request.app.state.ariadne_root
+    return AriadneStore(root)
+```
+
+- [ ] **Step 4: Implement route modules**
+
+Create routes using `APIRouter`:
 
 ```text
+GET /api/health
 GET /api/workbench
 GET /api/runtime/status
 POST /api/tickets/{ticket_id}/assign
 POST /api/assignments/{assignment_id}/run
 GET /api/assignments/{assignment_id}/events
 POST /api/tickets/{ticket_id}/comments
-GET /api/health
 ```
 
-Response shape:
+All routes must call application services. Routes must not call `AriadneStore.create_assignment`, `LocalDaemonWorker.run_once`, or `TicketRunOrchestrator.run_ticket` directly.
+
+Use response shape:
 
 ```json
 {
@@ -1111,7 +1164,7 @@ Response shape:
 }
 ```
 
-Error shape:
+Use error shape:
 
 ```json
 {
@@ -1124,7 +1177,21 @@ Error shape:
 }
 ```
 
-- [ ] **Step 3: Add CLI command**
+- [ ] **Step 5: Add FastAPI middleware and error handlers**
+
+Server safety defaults:
+
+```text
+default host is 127.0.0.1
+binding 0.0.0.0 prints an explicit warning before serving
+maximum request body is 1 MiB
+mutation routes require Content-Type: application/json
+CORS is not enabled by default
+errors do not include stack traces
+errors do not include raw local paths
+```
+
+- [ ] **Step 6: Add CLI command**
 
 Add:
 
@@ -1139,13 +1206,25 @@ The command should print:
 Ariadne local API listening on http://127.0.0.1:8766
 ```
 
-- [ ] **Step 4: Run tests and commit**
+Implementation should call:
+
+```python
+import uvicorn
+
+from ariadne_ltb.interfaces.http.app import create_app
+
+uvicorn.run(create_app(root=str(state.root)), host=host, port=port, log_level="info")
+```
+
+If `host == "0.0.0.0"`, print an explicit local security warning before serving.
+
+- [ ] **Step 7: Run tests and commit**
 
 Run:
 
 ```bash
 python3.11 -m pytest tests/test_control_plane_http.py tests/test_http_contract_rejects_dangerous_fields.py -q
-git add ariadne_ltb/interfaces ariadne_ltb/cli.py tests/test_control_plane_http.py tests/test_http_contract_rejects_dangerous_fields.py
+git add pyproject.toml ariadne_ltb/interfaces ariadne_ltb/cli.py tests/test_control_plane_http.py tests/test_http_contract_rejects_dangerous_fields.py
 git commit -m "feat: add local api control plane"
 ```
 
