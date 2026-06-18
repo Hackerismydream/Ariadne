@@ -915,17 +915,20 @@ def backend_smoke_test(
         str,
         typer.Option(
             "--runtime-profile",
-            help="deterministic|production. Production uses LLM upstream agents and backlog planner.",
+            help=(
+                "deterministic|production. Defaults to production so real backend smoke "
+                "uses LLM upstream agents and backlog planner."
+            ),
         ),
-    ] = "deterministic",
+    ] = "production",
     agent_runtime: Annotated[
         str,
-        typer.Option("--agent-runtime", help="deterministic|llm upstream agent runtime for the daemon pass."),
-    ] = "deterministic",
+        typer.Option("--agent-runtime", help="auto|deterministic|llm upstream agent runtime for the daemon pass."),
+    ] = "auto",
     backlog_planner: Annotated[
         str,
-        typer.Option("--backlog-planner", help="deterministic|llm feedback backlog planner for the daemon pass."),
-    ] = "deterministic",
+        typer.Option("--backlog-planner", help="auto|deterministic|llm feedback backlog planner for the daemon pass."),
+    ] = "auto",
 ) -> None:
     """Run a safety-gated real backend smoke test through assignment + daemon."""
     if backend not in {"codex", "claude-code"}:

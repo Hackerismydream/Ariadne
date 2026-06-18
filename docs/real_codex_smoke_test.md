@@ -88,6 +88,12 @@ ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
 uv run ari backend smoke-test codex --confirm-execution
 ```
 
+The smoke-test command defaults to the production runtime profile. That means
+Codex/Claude execution is paired with DeepSeek-backed upstream agent and backlog
+planner roles when the required credentials are present. Use
+`--runtime-profile deterministic` only for controlled local regression fixtures
+or automated tests.
+
 The current local Codex CLI reads prompts from stdin and does not advertise
 `--prompt-file`, so Ariadne's default Codex template is:
 

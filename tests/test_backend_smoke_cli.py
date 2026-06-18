@@ -12,6 +12,20 @@ from ariadne_ltb.models import FailureReason
 from ariadne_ltb.target_project import ensure_demo_target_project
 
 
+def test_backend_smoke_test_help_defaults_to_production_runtime() -> None:
+    result = CliRunner().invoke(app, ["backend", "smoke-test", "--help"])
+    compact_output = " ".join(result.output.split())
+
+    assert result.exit_code == 0, result.output
+    assert "Defaults to" in compact_output
+    assert "production so real backend smoke uses" in compact_output
+    assert "[default: production]" in result.output
+    assert "auto|deterministic|llm upstream agent" in compact_output
+    assert "runtime for the daemon pass" in compact_output
+    assert "auto|deterministic|llm feedback backlog" in compact_output
+    assert "planner for the daemon pass" in compact_output
+
+
 def test_backend_doctor_reports_gates_without_secrets(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-print")
     monkeypatch.setenv("ARIADNE_CODEX_COMMAND_TEMPLATE", "codex exec {ticket_key}")
@@ -157,6 +171,8 @@ if "test_export_json_command" not in test_text:
             "smoke-test",
             "codex",
             "--confirm-execution",
+            "--runtime-profile",
+            "deterministic",
             "--timeout-seconds",
             "30",
         ],

@@ -125,6 +125,31 @@ Behavior and policy:
 - The target repository option now explicitly says omitted target paths use the
   offline fixture target only for smoke/regression, not product acceptance.
 
+## 2026-06-18 14:05 CST Production Runtime Backend Smoke Defaults
+
+This slice moves `ari backend smoke-test codex|claude-code` away from
+deterministic defaults. The command is a real backend smoke path, so its default
+runtime profile is now production. That pairs Codex/Claude execution with
+DeepSeek-backed upstream agent and backlog planner roles when credentials and
+confirmation gates are present.
+
+Implemented files:
+
+- `ariadne_ltb/cli.py`
+- `tests/test_backend_smoke_cli.py`
+- `README.md`
+- `docs/real_codex_smoke_test.md`
+
+Behavior and policy:
+
+- `ari backend smoke-test --help` now shows `[default: production]` for
+  `--runtime-profile`.
+- `--agent-runtime` and `--backlog-planner` default to `auto`.
+- Deterministic smoke remains available with
+  `--runtime-profile deterministic` for automated tests and offline fixtures.
+- Real backend smoke still refuses without `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1`
+  and `--confirm-execution`.
+
 ## Implemented files
 
 Core product loop:

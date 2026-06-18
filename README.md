@@ -351,11 +351,14 @@ backend execution -> review -> memory -> board.
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ari backend smoke-test codex --runtime-profile production --confirm-execution --timeout-seconds 180
+ari backend smoke-test codex --confirm-execution --timeout-seconds 180
 
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 \
-ari backend smoke-test claude-code --runtime-profile production --confirm-execution --timeout-seconds 180
+ari backend smoke-test claude-code --confirm-execution --timeout-seconds 180
 ```
+
+`ari backend smoke-test` defaults to the production runtime profile. Pass
+`--runtime-profile deterministic` only for local regression fixtures or tests.
 
 Each smoke run now writes first-class backend evidence under
 `.ariadne/evidence/backend_smoke/<backend>/`. Product doctor and release
