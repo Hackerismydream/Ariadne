@@ -9,7 +9,7 @@ from ariadne_ltb.cli import app
 from ariadne_ltb.execution import ExecutionContext, FakeCodexBackend, ShellBackend
 from ariadne_ltb.full_demo import run_full_demo
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import ArtifactType, BuildDecision, ReviewVerdict, SourceType, TicketStatus
+from ariadne_ltb.models import ArtifactType, BuildDecision, LandingEvidence, ReviewVerdict, SourceType, TicketStatus
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
 
@@ -117,11 +117,62 @@ def test_full_demo_runs_complete_learning_to_build_chain(tmp_path: Path) -> None
     assert ArtifactType.EXECUTION_LOG in {artifact.artifact_type for artifact in artifacts}
     assert ArtifactType.GIT_DIFF in {artifact.artifact_type for artifact in artifacts}
     assert ArtifactType.TEST_OUTPUT in {artifact.artifact_type for artifact in artifacts}
+    assert ArtifactType.LANDING_EVIDENCE in {artifact.artifact_type for artifact in artifacts}
 
     board = result.board_path.read_text(encoding="utf-8")
     assert "learning input -> build decision -> coding execution -> review -> memory" in board
+    assert "Landing Evidence" in board
     assert "fake-codex" in board
     assert "demo_todo/cli.py" in board
+
+
+def test_full_demo_writes_valid_landing_evidence_packet(tmp_path: Path) -> None:
+    result = run_full_demo(root=tmp_path, source_paths=SOURCE_FIXTURES)
+    store = AriadneStore(tmp_path)
+    ticket = store.load_ticket(result.selected_ticket_id)
+
+    json_path = Path(ticket.metadata["landing_evidence_json_path"])
+    md_path = Path(ticket.metadata["landing_evidence_md_path"])
+    evidence = LandingEvidence.model_validate_json(json_path.read_text(encoding="utf-8"))
+
+    assert json_path.name == "landing_evidence.json"
+    assert md_path.name == "landing_evidence.md"
+    assert md_path.exists()
+    assert evidence.ticket_key == result.selected_ticket_key
+    assert evidence.backend_name == "fake-codex"
+    assert evidence.changed_files == ["demo_todo/cli.py", "tests/test_cli.py"]
+    assert evidence.git_diff_summary["raw_diff_embedded"] is False
+    assert evidence.git_diff_summary["additions"] > 0
+    assert evidence.test_results[0].command
+    assert evidence.test_results[0].status == "passed"
+    assert evidence.review_verdict is ReviewVerdict.PASS
+    assert evidence.memory_path == str(result.memory_path)
+    assert evidence.board_path == str(result.board_path)
+    assert evidence.next_tickets_path == str(result.next_tickets_path)
+    assert evidence.gate_inputs["external_execution_enabled"] is False
+    assert any(artifact.kind == "git_diff" for artifact in evidence.linked_artifacts)
+    assert any(artifact.kind == "execution_log" for artifact in evidence.linked_artifacts)
+
+
+def test_blocked_full_demo_still_writes_partial_landing_evidence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+
+    result = run_full_demo(root=tmp_path, source_paths=SOURCE_FIXTURES, backend_name="codex")
+    store = AriadneStore(tmp_path)
+    ticket = store.load_ticket(result.selected_ticket_id)
+    evidence = LandingEvidence.model_validate_json(
+        Path(ticket.metadata["landing_evidence_json_path"]).read_text(encoding="utf-8")
+    )
+
+    assert evidence.backend_name == "codex"
+    assert evidence.partial is True
+    assert evidence.gate_inputs["blocked"] is True
+    assert evidence.gate_inputs["failure_reason"] == "external_execution_blocked"
+    assert evidence.review_verdict is ReviewVerdict.BLOCKED
+    assert Path(evidence.board_path).exists()
 
 
 def test_cli_ingest_ticket_list_and_full_demo(tmp_path: Path) -> None:

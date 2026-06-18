@@ -170,7 +170,7 @@ def _load_landing_evidence(artifact: Artifact | None) -> LandingEvidence | None:
 def _tests_check(evidence: LandingEvidence) -> LandingGateCheck:
     if not evidence.test_results:
         return _check("tests_passed", LandingGateCheckStatus.WARN, "No test result was recorded.", None)
-    failed = [test for test in evidence.test_results if test.status != "pass"]
+    failed = [test for test in evidence.test_results if test.status not in {"pass", "passed"}]
     if failed:
         return _check(
             "tests_passed",

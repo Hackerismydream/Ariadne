@@ -14,16 +14,23 @@ class TargetProjectRegistry:
     def __init__(self, store: AriadneStore) -> None:
         self.store = store
 
-    def register(self, path: str | Path, label: str | None = None) -> TargetProjectDTO:
+    def register(
+        self,
+        path: str | Path,
+        label: str | None = None,
+        target_project_id: str | None = None,
+    ) -> TargetProjectDTO:
         validation = validate_target_repo_path(path)
         if not validation.valid:
             raise ValidationAppError(validation.reason, {"path": validation.path})
         resources = self.store.load_project_resources()
         resource = ProjectResource.local_directory(
-            "ariadne-local",
+            target_project_id or "ariadne-local",
             validation.path,
             label=label or Path(validation.path).name,
         )
+        if target_project_id:
+            resource = resource.model_copy(update={"id": target_project_id})
         by_id = {existing.id: existing for existing in resources}
         by_id[resource.id] = resource
         self.store.save_project_resources(sorted(by_id.values(), key=lambda item: item.label or item.id))

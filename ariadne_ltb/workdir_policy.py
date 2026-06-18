@@ -132,7 +132,7 @@ def _remove_git_worktree(record: WorktreeIsolation, *, force_dirty: bool) -> tup
 
 
 def _delete_managed_branch(record: WorktreeIsolation) -> tuple[bool, str]:
-    if not record.branch_name.startswith("ariadne/"):
+    if not record.branch_name.startswith(("ariadne/", "codex/")):
         return False, "branch cleanup skipped for non-Ariadne branch"
     base = Path(record.base_repo_path)
     if not base.exists() or not is_git_repo(base):

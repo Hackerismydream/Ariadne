@@ -447,6 +447,18 @@ def _capability_board_line(capability: RuntimeCapability) -> str:
     )
 
 
+def _load_ticket_artifacts(store: AriadneStore, ticket: BuildTicket) -> list:
+    artifacts = []
+    for artifact_id in ticket.artifact_ids:
+        try:
+            artifacts.append(store.load_artifact(artifact_id))
+        except Exception:
+            # Board export is a review surface; skip legacy/corrupt artifact index
+            # entries instead of making the whole board unreadable.
+            continue
+    return artifacts
+
+
 def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
     lines = [
         f"## {ticket.key} - {ticket.title}",
@@ -471,7 +483,7 @@ def _ticket_section(store: AriadneStore, ticket: BuildTicket) -> list[str]:
                 "",
             ]
         )
-    artifacts = [store.load_artifact(artifact_id) for artifact_id in ticket.artifact_ids]
+    artifacts = _load_ticket_artifacts(store, ticket)
     assignment = store.find_latest_assignment_for_ticket(ticket.id)
     lines.extend(["## Agent Assignment", ""])
     if assignment:

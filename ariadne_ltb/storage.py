@@ -978,10 +978,12 @@ class AriadneStore:
         return self._read_model(self.artifact_index_dir / f"{artifact_id}.json", Artifact)
 
     def list_artifacts_for_ticket(self, ticket_id: str) -> list[Artifact]:
-        artifacts = [
-            self.load_artifact(path.stem)
-            for path in sorted(self.artifact_index_dir.glob("*.json"))
-        ]
+        artifacts: list[Artifact] = []
+        for path in sorted(self.artifact_index_dir.glob("*.json")):
+            try:
+                artifacts.append(self.load_artifact(path.stem))
+            except (ValidationError, OSError, json.JSONDecodeError):
+                continue
         return [artifact for artifact in artifacts if artifact.ticket_id == ticket_id]
 
     def read_artifact_text(self, artifact: Artifact) -> str:
@@ -1020,6 +1022,20 @@ class AriadneStore:
     def save_release_evidence_packet(self, packet: ReleaseEvidencePacket) -> Path:
         self._write_model(self.release_evidence_packet_path, packet)
         return self.release_evidence_packet_path
+
+    def resolve_active_worktree(self, ticket_id_or_key: str) -> WorktreeIsolation | None:
+        ticket = self.resolve_ticket(ticket_id_or_key)
+        metadata = ticket.metadata.get("worktree_isolation")
+        if isinstance(metadata, dict):
+            record = WorktreeIsolation.model_validate(metadata)
+            if record.active:
+                return record
+
+        record_path = self.worktree_record_path(ticket.key)
+        if not record_path.exists():
+            return None
+        record = self.load_worktree_isolation(ticket.key)
+        return record if record.active else None
 
 
 def _default_agent_profiles() -> list[AgentProfile]:

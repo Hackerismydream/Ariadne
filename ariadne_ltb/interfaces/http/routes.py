@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.comments import CommentService
@@ -8,8 +8,12 @@ from ariadne_ltb.application.dtos import (
     AssignTicketInput,
     CreateCommentInput,
     RegisterTargetProjectInput,
+    RunAssignmentOutput,
     RunAssignmentInput,
 )
+from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
+from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
+from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.run_events import RunEventService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
@@ -66,24 +70,51 @@ def assign_ticket(
 ) -> dict:
     if idempotency_key and not payload.idempotency_key:
         payload = payload.model_copy(update={"idempotency_key": idempotency_key})
-    return AssignTicketService(store).assign(ticket_id_or_key, payload).model_dump(mode="json")
+    return AssignTicketService(store).assign(ticket_id_or_key, payload, source="http").model_dump(mode="json")
 
 
 @router.post("/api/assignments/{assignment_id}/run")
 def run_assignment(
     assignment_id: str,
     payload: RunAssignmentInput,
+    background_tasks: BackgroundTasks,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     store: AriadneStore = Depends(get_store),
 ) -> dict:
     if idempotency_key and not payload.idempotency_key:
         payload = payload.model_copy(update={"idempotency_key": idempotency_key})
-    return RunAssignmentService(store).run(assignment_id, payload).model_dump(mode="json")
+    assignment = store.load_assignment(assignment_id)
+    ConfirmationTokenService(store).verify(assignment, payload.confirmation_token)
+    background_tasks.add_task(
+        RunAssignmentService(store).run,
+        assignment_id,
+        payload.model_copy(update={"idempotency_key": None}),
+    )
+    return RunAssignmentOutput(
+        assignment=assignment_dto(assignment),
+        did_work=False,
+        status=assignment.status.value,
+        message="run accepted; watch assignment events for progress",
+    ).model_dump(mode="json")
+
+
+@router.get("/api/assignments/{assignment_id}/events")
+def assignment_events(
+    assignment_id: str,
+    since: str | None = None,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return RunEventService(store).assignment_events(assignment_id, since=since).model_dump(mode="json")
 
 
 @router.get("/api/tickets/{ticket_id_or_key}/timeline")
 def ticket_timeline(ticket_id_or_key: str, store: AriadneStore = Depends(get_store)) -> dict:
     return CommentService(store).timeline(ticket_id_or_key).model_dump(mode="json")
+
+
+@router.get("/api/evidence")
+def evidence_projection(store: AriadneStore = Depends(get_store)) -> dict:
+    return EvidenceProjectionService(store).snapshot().model_dump(mode="json")
 
 
 @router.post("/api/tickets/{ticket_id_or_key}/comments")

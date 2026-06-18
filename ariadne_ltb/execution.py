@@ -51,6 +51,8 @@ def _blocked_result(
         id=stable_id("execution", context.ticket_id, backend_name, reason),
         ticket_id=context.ticket_id,
         backend_name=backend_name,
+        target_repo_path=context.target_repo_path,
+        target_worktree_path=context.target_worktree_path,
         dry_run=dry_run,
         blocked=True,
         block_reason=reason,

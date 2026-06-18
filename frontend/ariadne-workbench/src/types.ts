@@ -171,6 +171,9 @@ export type RuntimeInfo = {
   confirmExecutionRequired?: boolean;
   supportsExternalExecution?: boolean;
   supportsDryRun?: boolean;
+  canAssign?: boolean;
+  canRun?: boolean;
+  fallbackOnly?: boolean;
   disabledReasons?: string[];
   checkedAt?: string;
 };

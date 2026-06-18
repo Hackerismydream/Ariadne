@@ -211,9 +211,10 @@ class TicketRunOrchestrator:
         )
 
         target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        target_validation = validate_target_repo_path(target_repo)
         worktree_block: WorktreeBlock | None = None
         worktree_path: str | None = None
-        if isolate_worktree:
+        if isolate_worktree and target_validation.valid:
             isolation = prepare_isolated_worktree(self.store, ticket, target_repo, self.assignment_id)
             if isolation.block:
                 worktree_block = isolation.block
@@ -258,13 +259,15 @@ class TicketRunOrchestrator:
                     payload_ref=worktree_artifact.id,
                 )
                 target_repo = Path(isolation.record.worktree_path)
+                target_validation = validate_target_repo_path(target_repo)
                 worktree_path = isolation.record.worktree_path
         runtime_capability_path = self.store.save_runtime_capabilities(collect_runtime_capabilities())
+        resource_label = f"{ticket.key} isolated worktree" if worktree_path else f"{ticket.key} target repository"
         project_resources = [
             ProjectResource.local_directory(
                 "ariadne-local",
                 target_repo,
-                label=f"{ticket.key} target repository",
+                label=resource_label,
             )
         ]
         project_resources_path = self.store.save_project_resources(project_resources)
@@ -296,6 +299,12 @@ class TicketRunOrchestrator:
             permission_profile.model_dump_json(indent=2) + "\n",
             "Execution permission profile",
             metadata={"permission_profile_id": permission_profile.id},
+        )
+        handoff_prompt = _augment_handoff_with_project_resources(
+            handoff_prompt,
+            project_resources,
+            target_repo,
+            worktree_path,
         )
         handoff_prompt = (
             handoff_prompt.rstrip()
@@ -382,6 +391,7 @@ class TicketRunOrchestrator:
             ticket_key=ticket.key,
             build_packet_id=packet.id,
             target_repo_path=str(target_repo),
+            target_worktree_path=worktree_path,
             handoff_prompt=handoff_prompt,
             handoff_file=str(self.store.base / "handoffs" / f"{ticket.key}.md"),
             backend_name=backend_name,
@@ -406,7 +416,6 @@ class TicketRunOrchestrator:
             payload_ref=execution_run.id,
         )
         self.store.save_ticket(ticket)
-        validation = validate_target_repo_path(target_repo)
         if worktree_block:
             execution = _blocked_execution(
                 context,
@@ -414,8 +423,8 @@ class TicketRunOrchestrator:
                 worktree_block.reason,
                 worktree_block.failure_reason,
             )
-        elif not validation.valid:
-            execution = _blocked_execution(context, backend_name, validation.reason, FailureReason.INVALID_RESOURCE)
+        elif not target_validation.valid:
+            execution = _blocked_execution(context, backend_name, target_validation.reason, FailureReason.INVALID_RESOURCE)
         else:
             lock = DirectoryLock(
                 self.store,
@@ -433,6 +442,12 @@ class TicketRunOrchestrator:
                     execution = backend_for_name(backend_name).execute(context)
                 finally:
                     lock.release()
+        execution = execution.model_copy(
+            update={
+                "target_repo_path": execution.target_repo_path or context.target_repo_path,
+                "target_worktree_path": execution.target_worktree_path or context.target_worktree_path,
+            }
+        )
         self.store.save_execution_result(execution)
         execution_artifacts = _write_execution_artifacts(self.store, execution_run.id, execution)
         execution = execution.model_copy(
@@ -1162,6 +1177,8 @@ def _blocked_execution(
         id=stable_id("execution", context.ticket_id, backend_name, failure_reason.value, reason),
         ticket_id=context.ticket_id,
         backend_name=backend_name,
+        target_repo_path=context.target_repo_path,
+        target_worktree_path=context.target_worktree_path,
         dry_run=False,
         blocked=True,
         block_reason=reason,
@@ -1181,6 +1198,32 @@ def _blocked_execution(
         test_exit_code=None,
         warnings=[reason],
     )
+
+
+def _augment_handoff_with_project_resources(
+    handoff_prompt: str,
+    project_resources: list[ProjectResource],
+    target_repo: Path,
+    worktree_path: str | None,
+) -> str:
+    lines = [
+        "## Project Resources",
+        "",
+        f"Target repo path: `{target_repo}`",
+    ]
+    if worktree_path:
+        lines.append(f"Target worktree path: `{worktree_path}`")
+    lines.append("")
+    for resource in project_resources:
+        ref = resource.resource_ref
+        label = resource.label or ref.get("label") or resource.resource_type
+        local_path = ref.get("local_path")
+        lines.append(f"- ProjectResource `{resource.id}` ({label}): `{local_path}`")
+    section = "\n".join(lines) + "\n\n"
+    marker = "\n## Safety Constraints\n"
+    if marker in handoff_prompt:
+        return handoff_prompt.replace(marker, f"\n{section}## Safety Constraints\n", 1)
+    return handoff_prompt.rstrip() + "\n\n" + section
 
 
 def _write_execution_artifacts(
@@ -1362,6 +1405,7 @@ def _write_landing_evidence_artifacts(
         gate_inputs={
             "external_execution_enabled": os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1",
             "confirm_execution_required": execution.backend_name in {"codex", "claude-code", "shell"},
+            "blocked": execution.blocked,
             "execution_blocked": execution.blocked,
             "block_reason": execution.block_reason,
             "failure_reason": execution.failure_reason.value if execution.failure_reason else None,
@@ -1441,10 +1485,10 @@ def _summarize_diff(diff: str) -> dict[str, object]:
 
 def _test_status(execution: ExecutionResult) -> str:
     if execution.test_exit_code == 0:
-        return "pass"
+        return "passed"
     if execution.test_exit_code is None:
         return "not_run"
-    return "fail"
+    return "failed"
 
 
 def _landing_evidence_markdown(evidence: LandingEvidence) -> str:

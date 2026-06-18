@@ -18,10 +18,14 @@ class TargetProjectDTO(AriadneDTO):
 
 class RuntimeCapabilityDTO(AriadneDTO):
     backend_name: str
+    display_name: str
     available: bool
+    can_assign: bool
+    can_run: bool
+    fallback_only: bool
+    confirm_execution_required: bool
     external_execution_enabled: bool
     command_template_set: bool
-    confirm_execution_required: bool
     disabled_reasons: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
 
@@ -56,6 +60,7 @@ class AssignmentDTO(AriadneDTO):
 
 
 class WorkbenchDTO(AriadneDTO):
+    schema_version: Literal["ariadne.workbench.v1"] = "ariadne.workbench.v1"
     tickets: list[TicketSummaryDTO]
     assignments: list[AssignmentDTO]
     runtime_capabilities: list[RuntimeCapabilityDTO]
@@ -71,9 +76,7 @@ class AssignTicketInput(AriadneDTO):
     assignee_id: str
     assignee_kind: Literal["agent", "build_team"] = "build_team"
     backend_name: str | None = None
-    planner_name: str | None = None
-    agent_runtime: str | None = None
-    backlog_planner_name: str | None = None
+    runtime_profile: Literal["auto", "production", "deterministic"] = "production"
     target_project_id: str
     idempotency_key: str | None = None
 
@@ -81,16 +84,14 @@ class AssignTicketInput(AriadneDTO):
 class AssignTicketOutput(AriadneDTO):
     ticket: TicketSummaryDTO
     assignment: AssignmentDTO
+    confirmation_token: str | None = None
     route_decision_artifact_path: str | None = None
     idempotent_replay: bool = False
 
 
 class RunAssignmentInput(AriadneDTO):
-    confirm_execution: bool = False
-    runtime_id: str = "local"
-    agent_runtime: str | None = None
-    backlog_planner: str | None = None
-    timeout_seconds: int | None = None
+    confirmation_token: str
+    timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
     idempotency_key: str | None = None
 
 
@@ -105,8 +106,8 @@ class RunAssignmentOutput(AriadneDTO):
 
 class CreateCommentInput(AriadneDTO):
     body: str
-    author: str = "human"
     reply_to: str | None = None
+    assignment_id: str | None = None
     idempotency_key: str | None = None
 
 
@@ -128,3 +129,44 @@ class TimelineDTO(AriadneDTO):
     comments: list[CommentDTO]
     runtime_events: list[dict[str, Any]]
     artifacts: list[dict[str, Any]]
+
+
+class AssignmentEventDTO(AriadneDTO):
+    id: str
+    source: Literal["assignment", "runtime_event", "run_message", "comment", "artifact"]
+    cursor: str
+    timestamp: str
+    assignment_id: str
+    ticket_id: str
+    ticket_key: str
+    stage: str
+    event_type: str
+    actor: str
+    summary: str
+    ref_id: str | None = None
+
+
+class AssignmentEventsDTO(AriadneDTO):
+    assignment: AssignmentDTO
+    events: list[AssignmentEventDTO]
+
+
+class ExecutionEvidenceDTO(AriadneDTO):
+    id: str
+    ticket_id: str
+    backend_name: str
+    dry_run: bool
+    blocked: bool
+    block_reason: str | None = None
+    failure_reason: str | None = None
+    exit_code: int
+    changed_files: list[str] = Field(default_factory=list)
+    test_exit_code: int | None = None
+    warnings: list[str] = Field(default_factory=list)
+    diff_artifact_id: str | None = None
+    execution_log_artifact_id: str | None = None
+
+
+class EvidenceProjectionDTO(AriadneDTO):
+    schema_version: Literal["ariadne.evidence-projection.v1"] = "ariadne.evidence-projection.v1"
+    execution_results: list[ExecutionEvidenceDTO] = Field(default_factory=list)

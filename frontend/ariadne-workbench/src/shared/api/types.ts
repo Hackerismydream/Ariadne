@@ -33,7 +33,11 @@ export type ApiAssignmentSummary = {
 
 export type ApiRuntimeCapability = {
   backend_name: string;
+  display_name: string;
   available: boolean;
+  can_assign: boolean;
+  can_run: boolean;
+  fallback_only: boolean;
   external_execution_enabled: boolean;
   command_template_set: boolean;
   confirm_execution_required: boolean;
@@ -52,25 +56,35 @@ export type AssignTicketRequest = {
   assignee_id: string;
   assignee_kind: "agent" | "build_team";
   backend_name?: "codex" | "claude-code";
-  planner_name?: "deterministic" | "llm";
-  agent_runtime?: "deterministic" | "llm";
-  backlog_planner_name?: "deterministic" | "llm";
+  runtime_profile: "production";
   target_project_id: string;
   idempotency_key?: string;
 };
 
 export type RunAssignmentRequest = {
-  confirm_execution: boolean;
-  runtime_id: string;
-  agent_runtime?: "deterministic" | "llm";
-  backlog_planner?: "deterministic" | "llm";
+  confirmation_token: string;
   timeout_seconds?: number;
   idempotency_key?: string;
 };
 
 export type AddTicketCommentRequest = {
   body: string;
-  author?: string;
   reply_to?: string;
+  assignment_id?: string;
   idempotency_key?: string;
+};
+
+export type AssignmentEvent = {
+  id: string;
+  source: "assignment" | "runtime_event" | "run_message" | "comment" | "artifact";
+  cursor: string;
+  timestamp: string;
+  assignment_id: string;
+  ticket_id: string;
+  ticket_key: string;
+  stage: string;
+  event_type: string;
+  actor: string;
+  summary: string;
+  ref_id?: string | null;
 };

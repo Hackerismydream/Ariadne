@@ -860,6 +860,7 @@ class ExecutionContext(AriadneModel):
     ticket_key: str | None = None
     build_packet_id: str
     target_repo_path: str
+    target_worktree_path: str | None = None
     handoff_prompt: str
     handoff_file: str | None = None
     backend_name: str
@@ -880,6 +881,8 @@ class ExecutionResult(AriadneModel):
     id: str
     ticket_id: str
     backend_name: str
+    target_repo_path: str | None = None
+    target_worktree_path: str | None = None
     dry_run: bool
     blocked: bool = False
     block_reason: str | None = None
@@ -933,6 +936,9 @@ class WorktreeIsolation(AriadneModel):
     id: str
     ticket_id: str
     ticket_key: str
+    branch_policy: str = "codex-ticket-slug-v1"
+    branch_slug: str | None = None
+    target_repo_path: str | None = None
     base_repo_path: str
     base_branch: str
     base_sha: str

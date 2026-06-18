@@ -1,21 +1,24 @@
 import type {
   AddTicketCommentRequest,
+  AssignmentEvent,
   ApiWorkbench,
   AssignTicketRequest,
   RunAssignmentRequest,
 } from "./types";
+import { AriadneApiError } from "./errors";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     cache: "no-store",
+    ...init,
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-    ...init,
   });
   if (!response.ok) {
-    throw new Error(await response.text());
+    const body = await response.text();
+    throw new AriadneApiError(body || response.statusText, response.status, body);
   }
   return (await response.json()) as T;
 }
@@ -42,6 +45,13 @@ export function runAssignment(assignmentId: string, payload: RunAssignmentReques
     headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
     body: JSON.stringify(payload),
   });
+}
+
+export function getAssignmentEvents(assignmentId: string, since?: string) {
+  const query = since ? `?since=${encodeURIComponent(since)}` : "";
+  return requestJson<{ events: AssignmentEvent[] }>(
+    `/api/assignments/${encodeURIComponent(assignmentId)}/events${query}`,
+  );
 }
 
 export function addTicketComment(ticketIdOrKey: string, payload: AddTicketCommentRequest) {

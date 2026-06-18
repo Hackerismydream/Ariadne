@@ -6160,3 +6160,85 @@ Release evidence path:
 Board path:
 
 - `.ariadne/board/index.md`
+
+## 2026-06-18 16:30 CST Strict Local API Agent Control Plane Slice
+
+Branch: `codex/strict-local-api-control-plane`
+
+Implemented:
+
+- Added a local FastAPI control-plane path for the browser workbench:
+  `/api/workbench`, runtime status, target projects, assign, run, assignment
+  events, comments, and redacted evidence projection.
+- Added application-layer DTOs, runtime policy, idempotency helpers,
+  confirmation tokens, target project registry, assignment events, comments,
+  and browser-safe evidence projection.
+- Browser product actions now expose product coding backends only:
+  `codex` and `claude-code`; `fake-codex`, `dry-run`, and `shell` are rejected
+  for HTTP product assignment.
+- Browser assign now targets the selected product backend agent profile
+  directly, so `codex` assignments show `Codex` instead of routing through a
+  stale `Fake Codex` build-team implementer.
+- HTTP run now accepts the action and starts the existing daemon/orchestrator
+  service in the background. The browser returns immediately and uses Watch for
+  progress instead of blocking on a full agent loop.
+- Frontend API client and typed slices were added under
+  `frontend/ariadne-workbench/src/shared`, `entities`, and `features`.
+- Frontend issue selection is preserved across API refreshes after assign,
+  run, watch, and comment.
+- Assignment event rendering now shows all events, so human comments are not
+  hidden behind early planner/runtime events.
+- Browser comments are server-authored as `human`; the HTTP API rejects a
+  client-supplied `author` field.
+- README was updated so the workbench is no longer described as read-only in
+  the product path; static snapshot mode is documented as offline fallback.
+
+Browser validation:
+
+- Started `python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766`.
+- Started `npm run dev -- --port 5173`.
+- Opened `http://127.0.0.1:5173/#issues` in the real in-app browser.
+- Clicked through the product path on ARI-005:
+  `Assign -> Run -> Watch -> Comment -> Watch`.
+- Verified:
+  - assignment was created with owner `Codex`;
+  - Run returned immediately instead of leaving the UI stuck in `Running...`;
+  - Watch showed planner, handoff, assignment, execution, memory, and blocked
+    execution events;
+  - a human comment was written and became visible in assignment events.
+
+Verification:
+
+- `python3.11 -m pytest`: passed, `317 passed`.
+- `ruff check .`: passed.
+- `npm run build`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed and wrote
+  `.ariadne/board/index.md`.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: ran successfully. Codex and
+  Claude commands were found; external execution was unset; DeepSeek key was
+  reported as set without printing the value; local `.env` secret finding was
+  redacted and correctly reported.
+
+Known limitations:
+
+- The local control plane is still single-user/local-only. It is not yet a
+  hosted authenticated WebSocket control plane.
+- Browser run is accepted in the background, but richer run cancellation,
+  leases, and streaming progress are still future work.
+- The target project selector is still implicit: the frontend chooses the first
+  available registered target project. A dedicated browser target-project
+  selection/registration UI remains needed.
+- Real external Codex/Claude execution remains gated by
+  `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` and explicit confirmation.
+- `.env` contains local secrets for development and remains gitignored; it must
+  not be committed.
+
+Next recommended Build Tickets:
+
+- Add a browser target-project picker and registration flow.
+- Add background run cancellation and lease visibility to the API.
+- Add event polling or streaming so Watch can auto-refresh.
+- Add browser-visible evidence panel backed by `/api/evidence`.
+- Add a production smoke path that runs Codex/Claude only when gates and login
+  are ready, and records the result as release evidence.

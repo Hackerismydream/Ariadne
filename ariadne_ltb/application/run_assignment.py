@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.dtos import RunAssignmentInput, RunAssignmentOutput
 from ariadne_ltb.application.idempotency import IdempotencyStore
 from ariadne_ltb.application.mappers import assignment_dto
@@ -15,7 +16,7 @@ class RunAssignmentService:
         self.idempotency = IdempotencyStore(store)
 
     def run(self, assignment_id: str, payload: RunAssignmentInput) -> RunAssignmentOutput:
-        replay = self.idempotency.get(payload.idempotency_key)
+        replay = self.idempotency.get(payload.idempotency_key, "run_assignment")
         if replay:
             assignment = self.store.load_assignment(replay["assignment_id"])
             return RunAssignmentOutput(
@@ -26,10 +27,12 @@ class RunAssignmentService:
                 ticket_run_result=replay.get("ticket_run_result"),
                 idempotent_replay=True,
             )
-        result = LocalDaemonWorker(self.store, runtime_id=payload.runtime_id).run_once(
-            confirm_execution=payload.confirm_execution,
-            agent_runtime=payload.agent_runtime,
-            backlog_planner=payload.backlog_planner,
+        assignment = self.store.load_assignment(assignment_id)
+        ConfirmationTokenService(self.store).verify(assignment, payload.confirmation_token)
+        result = LocalDaemonWorker(self.store, runtime_id="web").run_once(
+            confirm_execution=True,
+            agent_runtime=assignment.agent_runtime,
+            backlog_planner=assignment.backlog_planner_name,
             timeout_seconds=payload.timeout_seconds,
             assignment_id=assignment_id,
         )
@@ -44,6 +47,7 @@ class RunAssignmentService:
                 "message": result.message,
                 "ticket_run_result": run_result,
             },
+            "run_assignment",
         )
         return RunAssignmentOutput(
             assignment=assignment_dto(assignment),
