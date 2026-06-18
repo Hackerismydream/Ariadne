@@ -96,3 +96,71 @@ def test_supervisor_run_once_can_poll_daemon_without_work(tmp_path: Path) -> Non
     payload = json.loads(result.output)
     assert payload["daemon"]["did_work"] is False
     assert payload["daemon"]["status"] == "no_work"
+
+
+def test_supervisor_loop_recovers_dispatches_then_stops_idle(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider quota exhausted", FailureReason.QUOTA_EXCEEDED))
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "supervisor",
+            "loop",
+            "--to",
+            "fake-codex",
+            "--runtime-profile",
+            "deterministic",
+            "--max-cycles",
+            "3",
+            "--interval-seconds",
+            "0",
+            "--output",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["stop_reason"] == "idle"
+    assert payload["cycle_count"] == 2
+    assert payload["cycles"][0]["action_count"] == 2
+    assert payload["cycles"][0]["result"]["recovery"]["created_ticket_count"] == 1
+    assert payload["cycles"][0]["result"]["dispatch"]["assigned_count"] == 1
+    assert payload["cycles"][1]["action_count"] == 0
+
+    report_path = Path(payload["report_path"])
+    assert report_path.exists()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["stop_reason"] == "idle"
+    assert report["cycle_count"] == 2
+
+
+def test_supervisor_loop_can_run_fixed_idle_cycles(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "supervisor",
+            "loop",
+            "--no-recover",
+            "--no-dispatch",
+            "--max-cycles",
+            "2",
+            "--stop-after-idle-cycles",
+            "0",
+            "--output",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["stop_reason"] == "max_cycles"
+    assert payload["cycle_count"] == 2
+    assert [cycle["status"] for cycle in payload["cycles"]] == ["idle", "idle"]

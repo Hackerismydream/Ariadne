@@ -5085,6 +5085,59 @@ Board path:
 
 - `.ariadne/board/index.md`
 
+## 2026-06-18 12:08 CST Supervisor Bounded Loop Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `supervisor_loop()` in `ariadne_ltb/supervisor.py`.
+- Added `ari supervisor loop` as a bounded multi-cycle supervisor command.
+- The loop:
+  - refreshes inbox evidence each cycle;
+  - recovers open inbox items into repair tickets;
+  - dispatches repair tickets to an Agent profile;
+  - optionally runs one daemon claim/execution per cycle only with
+    `--run-daemon`;
+  - stops after an idle cycle by default;
+  - persists a compact JSON report under `.ariadne/supervisor/`.
+- Reused the same run-once summary structure for CLI and Python API output.
+- Updated README with the loop command.
+- Added deterministic tests for loop recovery/dispatch, idle stop, fixed idle
+  cycles, and report persistence.
+
+Safety boundaries:
+
+- The loop does not enable real external execution by itself.
+- Codex/Claude execution still requires the existing environment gate and
+  `--confirm-execution` when `--run-daemon` is used.
+- The persisted report contains counts, ids, statuses, and paths only; it does
+  not print or persist credentials.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_supervisor.py`: passed, `5 passed`.
+- `python3.11 -m ruff check ariadne_ltb/supervisor.py ariadne_ltb/cli.py tests/test_supervisor.py`: passed.
+- `python3.11 -m ariadne_ltb.cli supervisor loop --help`: passed and shows
+  bounded loop controls.
+- `python3.11 -m pytest`: passed, `263 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed, including release evidence, workbench data
+  sync, and `frontend/ariadne-workbench` production build.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
+
 ## 2026-06-18 11:36 CST Inbox Recovery Visibility Slice
 
 Branch: `codex/ariadne-production-frontend-integration`

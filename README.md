@@ -69,13 +69,15 @@ For recovery-oriented automation, run one bounded supervisor pass:
 ```bash
 ari supervisor run-once --output json
 ari supervisor run-once --run-daemon --confirm-execution
+ari supervisor loop --max-cycles 12 --interval-seconds 300 --output json
 ```
 
 The default supervisor pass refreshes inbox evidence, creates repair tickets
 from open inbox items, and dispatches those repair tickets to the production
 Codex profile. It does not run the daemon unless `--run-daemon` is explicit, so
 real Codex or Claude execution still requires the normal external execution
-gate.
+gate. `ari supervisor loop` repeats the same bounded pass, stops after an idle
+cycle by default, and writes a compact report under `.ariadne/supervisor/`.
 
 Real writes and external coding execution remain gated. `ari doctor product`
 summarizes which parts of the production path are ready, blocked, or waiting

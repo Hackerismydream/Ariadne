@@ -78,7 +78,7 @@ from ariadne_ltb.retry import create_retry_assignment
 from ariadne_ltb.review import review_execution, review_execution_with_llm
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
-from ariadne_ltb.supervisor import supervisor_run_once
+from ariadne_ltb.supervisor import summarize_run_once, supervisor_loop, supervisor_run_once
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 from ariadne_ltb.team import route_ticket_to_build_team
 from ariadne_ltb.workdir_policy import cleanup_workdirs, list_workdirs
@@ -1905,53 +1905,7 @@ def supervisor_run_once_command(
         confirm_execution=confirm_execution,
         timeout_seconds=timeout_seconds,
     )
-    payload = {
-        "inbox_count": len(result.refreshed_inbox_items),
-        "recovery": None
-        if result.recovery is None
-        else {
-            "recovered_count": len(result.recovery.recovered),
-            "created_ticket_count": result.recovery.created_ticket_count,
-            "existing_ticket_count": result.recovery.existing_ticket_count,
-            "preview_count": result.recovery.preview_count,
-            "skipped_count": len(result.recovery.skipped),
-            "tickets": [
-                item.ticket.key if item.ticket else item.preview.id if item.preview else item.inbox_item.id
-                for item in result.recovery.recovered
-            ],
-        },
-        "dispatch": None
-        if result.dispatch is None
-        else {
-            "assigned_count": len(result.dispatch.assignments),
-            "skipped_count": len(result.dispatch.skipped),
-            "assignments": [
-                {
-                    "assignment_id": assignment.id,
-                    "ticket_key": assignment.ticket_key,
-                    "agent_id": assignment.agent_id,
-                    "backend": assignment.backend_name,
-                    "planner": assignment.planner_name,
-                    "agent_runtime": assignment.agent_runtime,
-                    "backlog_planner": assignment.backlog_planner_name,
-                }
-                for assignment in result.dispatch.assignments
-            ],
-            "skipped": [
-                {"ticket_key": item.ticket.key, "reason": item.reason}
-                for item in result.dispatch.skipped
-            ],
-        },
-        "daemon": None
-        if result.daemon is None
-        else {
-            "did_work": result.daemon.did_work,
-            "assignment_id": result.daemon.assignment_id,
-            "ticket_key": result.daemon.ticket_key,
-            "status": result.daemon.status,
-            "message": result.daemon.message,
-        },
-    }
+    payload = summarize_run_once(result)
     if output == "json":
         typer.echo(json.dumps(payload, indent=2))
         return
@@ -1986,6 +1940,131 @@ def supervisor_run_once_command(
             f"daemon: did_work={str(payload['daemon']['did_work']).lower()} "
             f"status={payload['daemon']['status']} assignment={payload['daemon']['assignment_id'] or ''}"
         )
+
+
+@supervisor_app.command("loop")
+def supervisor_loop_command(
+    agent_id: Annotated[
+        str,
+        typer.Option("--to", help="Agent profile id or name for dispatched repair tickets."),
+    ] = PRODUCT_DEFAULT_BACKEND,
+    backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
+    planner: Annotated[str | None, typer.Option("--planner", help="Override planner name.")] = None,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+        ),
+    ] = "production",
+    agent_runtime: Annotated[
+        str | None,
+        typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm."),
+    ] = None,
+    backlog_planner: Annotated[
+        str | None,
+        typer.Option("--backlog-planner", help="Override feedback backlog planner: deterministic|llm."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Maximum inbox items or repair tickets per pass."),
+    ] = None,
+    recover: Annotated[
+        bool,
+        typer.Option("--recover/--no-recover", help="Create repair tickets from open inbox items."),
+    ] = True,
+    dispatch: Annotated[
+        bool,
+        typer.Option("--dispatch/--no-dispatch", help="Assign inbox repair tickets."),
+    ] = True,
+    run_daemon: Annotated[
+        bool,
+        typer.Option("--run-daemon", help="Claim and run one queued assignment after dispatch."),
+    ] = False,
+    runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
+    confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    timeout_seconds: Annotated[
+        int | None,
+        typer.Option("--timeout-seconds", help="Maximum seconds for one execution backend command."),
+    ] = None,
+    max_cycles: Annotated[int, typer.Option("--max-cycles", help="Maximum supervisor cycles.")] = 3,
+    interval_seconds: Annotated[
+        float,
+        typer.Option("--interval-seconds", help="Sleep interval between cycles."),
+    ] = 0.0,
+    stop_after_idle_cycles: Annotated[
+        int,
+        typer.Option("--stop-after-idle-cycles", help="Stop after this many idle cycles. Use 0 to disable."),
+    ] = 1,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Run a bounded supervisor loop and persist a compact report."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    if limit is not None and limit < 1:
+        raise typer.BadParameter("limit must be positive")
+    if max_cycles < 1:
+        raise typer.BadParameter("max-cycles must be positive")
+    if interval_seconds < 0:
+        raise typer.BadParameter("interval-seconds must be non-negative")
+    if stop_after_idle_cycles < 0:
+        raise typer.BadParameter("stop-after-idle-cycles must be non-negative")
+    store = AriadneStore(state.root)
+    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        runtime_profile,
+        planner,
+        agent_runtime,
+        backlog_planner,
+    )
+    agent = store.resolve_agent_profile(agent_id)
+    result = supervisor_loop(
+        store,
+        agent,
+        backend_name=backend,
+        planner_name=selected_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
+        limit=limit,
+        recover=recover,
+        dispatch=dispatch,
+        run_daemon=run_daemon,
+        runtime_id=runtime_id,
+        confirm_execution=confirm_execution,
+        timeout_seconds=timeout_seconds,
+        max_cycles=max_cycles,
+        interval_seconds=interval_seconds,
+        stop_after_idle_cycles=stop_after_idle_cycles,
+    )
+    payload = {
+        "stop_reason": result.stop_reason,
+        "cycle_count": len(result.cycles),
+        "report_path": str(result.report_path),
+        "cycles": [
+            {
+                "index": cycle.index,
+                "status": cycle.status,
+                "action_count": cycle.action_count,
+                "result": summarize_run_once(cycle.result),
+            }
+            for cycle in result.cycles
+        ],
+    }
+    if output == "json":
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    typer.echo(f"supervisor loop: cycles={payload['cycle_count']} stop_reason={payload['stop_reason']}")
+    typer.echo(f"report: {payload['report_path']}")
+    for cycle in payload["cycles"]:
+        typer.echo(
+            f"cycle {cycle['index']}: {cycle['status']} actions={cycle['action_count']} "
+            f"inbox={cycle['result']['inbox_count']}"
+        )
+        daemon = cycle["result"]["daemon"]
+        if daemon is not None:
+            typer.echo(
+                f"  daemon: did_work={str(daemon['did_work']).lower()} "
+                f"status={daemon['status']} assignment={daemon['assignment_id'] or ''}"
+            )
 
 
 @runtime_app.command("journal")
