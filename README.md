@@ -494,6 +494,7 @@ visible instead of buried in command output:
 ari inbox refresh
 ari inbox list --refresh
 ari inbox recover --output json
+ari inbox dispatch-repairs --to codex --runtime-profile production
 ```
 
 Inbox items are persisted under `.ariadne/inbox/items.json` and include source
@@ -503,6 +504,9 @@ recovery action.
 Tickets through the backlog preview/apply path. Use `--preview-only` to write
 repair previews without mutating tickets, and `--include-acknowledged` to verify
 that previously acknowledged failures still point at existing repair tickets.
+`ari inbox dispatch-repairs` then assigns those repair tickets to an Agent
+teammate. It defaults to the production Codex profile and skips repair tickets
+that already have queued, claimed, or running assignments.
 
 Ariadne also includes local lexical search over the workbench evidence:
 

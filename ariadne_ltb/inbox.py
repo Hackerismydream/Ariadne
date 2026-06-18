@@ -7,6 +7,7 @@ from pathlib import Path
 from ariadne_ltb.models import (
     AgentRun,
     AgentRunStatus,
+    AgentProfile,
     AssignmentStatus,
     BacklogOperation,
     BacklogOperationType,
@@ -56,6 +57,18 @@ class InboxRecoveryBatchResult:
     @property
     def preview_count(self) -> int:
         return sum(1 for item in self.recovered if item.preview_only)
+
+
+@dataclass(frozen=True)
+class InboxRepairDispatchSkip:
+    ticket: BuildTicket
+    reason: str
+
+
+@dataclass(frozen=True)
+class InboxRepairDispatchResult:
+    assignments: list[TicketAssignment]
+    skipped: list[InboxRepairDispatchSkip]
 
 
 def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
@@ -123,6 +136,82 @@ def recover_inbox_items(
         for item in actionable
     ]
     return InboxRecoveryBatchResult(recovered=recovered, skipped=skipped)
+
+
+def dispatch_repair_tickets(
+    store: AriadneStore,
+    agent: AgentProfile,
+    backend_name: str | None = None,
+    planner_name: str | None = None,
+    agent_runtime: str | None = None,
+    backlog_planner_name: str | None = None,
+    limit: int | None = None,
+) -> InboxRepairDispatchResult:
+    """Assign inbox-generated repair tickets that do not already have open work."""
+
+    repair_tickets = [
+        ticket
+        for ticket in store.list_tickets()
+        if ticket.metadata.get("generated_from_inbox_item_id")
+    ]
+    assignments: list[TicketAssignment] = []
+    skipped: list[InboxRepairDispatchSkip] = []
+    actionable: list[BuildTicket] = []
+    for ticket in repair_tickets:
+        if ticket.status in {
+            TicketStatus.DONE,
+            TicketStatus.CANCELLED,
+            TicketStatus.SUPERSEDED,
+        }:
+            skipped.append(InboxRepairDispatchSkip(ticket, f"ticket_status_{ticket.status.value}"))
+            continue
+        open_assignment = next(
+            (
+                assignment
+                for assignment in store.list_assignments_for_ticket(ticket.id)
+                if assignment.status
+                in {
+                    AssignmentStatus.QUEUED,
+                    AssignmentStatus.CLAIMED,
+                    AssignmentStatus.RUNNING,
+                }
+            ),
+            None,
+        )
+        if open_assignment:
+            skipped.append(InboxRepairDispatchSkip(ticket, f"open_assignment_exists:{open_assignment.id}"))
+            continue
+        actionable.append(ticket)
+
+    if limit is not None:
+        skipped.extend(InboxRepairDispatchSkip(ticket, "limit_exceeded") for ticket in actionable[limit:])
+        actionable = actionable[:limit]
+
+    for ticket in actionable:
+        assignment = store.create_assignment(
+            ticket,
+            agent,
+            backend_name=backend_name,
+            planner_name=planner_name,
+            agent_runtime=agent_runtime,
+            backlog_planner_name=backlog_planner_name,
+            assigned_by="inbox_recovery",
+        )
+        status = (
+            TicketStatus.READY_FOR_EXECUTION
+            if (assignment.backend_name or agent.backend_name) == "fake-codex"
+            else TicketStatus.WAITING_APPROVAL
+        )
+        store.save_ticket(
+            store.load_ticket(ticket.id).with_status(
+                status,
+                "Ariadne",
+                f"Inbox repair ticket assigned to {agent.name}.",
+            )
+        )
+        assignments.append(assignment)
+
+    return InboxRepairDispatchResult(assignments=assignments, skipped=skipped)
 
 
 def create_repair_ticket_from_inbox(

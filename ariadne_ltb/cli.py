@@ -41,7 +41,12 @@ from ariadne_ltb.github_integration import (
     link_ticket_to_github,
     sync_ticket_with_github,
 )
-from ariadne_ltb.inbox import create_repair_ticket_from_inbox, recover_inbox_items, refresh_inbox
+from ariadne_ltb.inbox import (
+    create_repair_ticket_from_inbox,
+    dispatch_repair_tickets,
+    recover_inbox_items,
+    refresh_inbox,
+)
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.local_search import search_local_evidence
@@ -2211,6 +2216,99 @@ def inbox_recover(
         ticket = item["ticket_key"] or item["preview_id"] or "none"
         suffix = " existing" if item["already_exists"] else ""
         typer.echo(f"{item['inbox_item_id']}\t{item['inbox_status']}\t{ticket}{suffix}")
+
+
+@inbox_app.command("dispatch-repairs")
+def inbox_dispatch_repairs(
+    agent_id: Annotated[
+        str,
+        typer.Option("--to", help="Agent profile id or name for repair tickets."),
+    ] = PRODUCT_DEFAULT_BACKEND,
+    backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
+    planner: Annotated[str | None, typer.Option("--planner", help="Override planner name.")] = None,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+        ),
+    ] = "production",
+    agent_runtime: Annotated[
+        str | None,
+        typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm."),
+    ] = None,
+    backlog_planner: Annotated[
+        str | None,
+        typer.Option("--backlog-planner", help="Override feedback backlog planner: deterministic|llm."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Maximum number of repair tickets to dispatch."),
+    ] = None,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Assign inbox-generated repair tickets to an Agent teammate."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    if limit is not None and limit < 1:
+        raise typer.BadParameter("limit must be positive")
+    store = AriadneStore(state.root)
+    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        runtime_profile,
+        planner,
+        agent_runtime,
+        backlog_planner,
+    )
+    agent = store.resolve_agent_profile(agent_id)
+    result = dispatch_repair_tickets(
+        store,
+        agent,
+        backend_name=backend,
+        planner_name=selected_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
+        limit=limit,
+    )
+    assigned_payload = [
+        {
+            "assignment_id": assignment.id,
+            "ticket_id": assignment.ticket_id,
+            "ticket_key": assignment.ticket_key,
+            "agent_id": assignment.agent_id,
+            "agent_name": assignment.agent_name,
+            "backend": assignment.backend_name,
+            "planner": assignment.planner_name,
+            "agent_runtime": assignment.agent_runtime,
+            "backlog_planner": assignment.backlog_planner_name,
+        }
+        for assignment in result.assignments
+    ]
+    skipped_payload = [
+        {
+            "ticket_id": item.ticket.id,
+            "ticket_key": item.ticket.key,
+            "reason": item.reason,
+        }
+        for item in result.skipped
+    ]
+    payload = {
+        "assigned_count": len(result.assignments),
+        "skipped_count": len(result.skipped),
+        "assigned": assigned_payload,
+        "skipped": skipped_payload,
+    }
+    if output == "json":
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    typer.echo(f"assigned: {payload['assigned_count']}")
+    typer.echo(f"skipped: {payload['skipped_count']}")
+    for item in assigned_payload:
+        typer.echo(
+            f"{item['ticket_key']}\t{item['assignment_id']}\t{item['agent_id']}\t"
+            f"{item['backend']}\t{item['planner']}\t{item['agent_runtime']}\t{item['backlog_planner']}"
+        )
+    for item in skipped_payload:
+        typer.echo(f"skipped {item['ticket_key']}: {item['reason']}")
 
 
 @app.command("search")

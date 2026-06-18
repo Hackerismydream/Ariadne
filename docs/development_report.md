@@ -5478,3 +5478,56 @@ Release evidence path:
 Board path:
 
 - `.ariadne/board/index.md`
+
+## 2026-06-18 11:36 CST Inbox Repair Dispatch Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `dispatch_repair_tickets()` to assign inbox-generated repair tickets to
+  Agent profiles without duplicating open assignments.
+- Added `ari inbox dispatch-repairs`:
+  - defaults to `--to codex --runtime-profile production`;
+  - supports backend/planner/agent-runtime/backlog-planner overrides;
+  - supports `--limit` for bounded supervisor passes;
+  - emits `table|json` summaries for automation.
+- Dispatch skips repair tickets that are already done/cancelled/superseded or
+  already have queued/claimed/running assignments.
+- Updated README to show the operational chain:
+  `inbox refresh -> inbox recover -> inbox dispatch-repairs -> daemon run-once`.
+- Added deterministic tests for fake-codex dispatch idempotency and production
+  Codex/LLM assignment defaults.
+
+Why this matters:
+
+- Batch recovery created repair Build Tickets, but those tickets still needed a
+  manual assignment step before the daemon/runtime could claim them.
+- This slice connects feedback recovery to the Agent queue:
+  inbox failure -> repair ticket -> assignment -> daemon/runtime.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_inbox.py`: passed, `10 passed`.
+- `python3.11 -m ruff check ariadne_ltb/inbox.py ariadne_ltb/cli.py tests/test_inbox.py`: passed.
+- `python3.11 -m ariadne_ltb.cli inbox --help`: passed and shows `dispatch-repairs`.
+- `python3.11 -m ariadne_ltb.cli inbox dispatch-repairs --help`: passed and shows
+  production defaults and dispatch options.
+
+- `python3.11 -m pytest`: passed, `258 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_09d56fe08564`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`

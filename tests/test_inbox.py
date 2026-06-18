@@ -10,7 +10,7 @@ from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.github_integration import sync_ticket_with_github
 from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.ingest import ingest_sources
-from ariadne_ltb.models import ExecutionResult, FailureReason, FeishuWritePlan, InboxStatus
+from ariadne_ltb.models import AssignmentStatus, ExecutionResult, FailureReason, FeishuWritePlan, InboxStatus, TicketStatus
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
@@ -278,6 +278,95 @@ def test_inbox_recover_preview_only_respects_limit(tmp_path: Path) -> None:
     assert len(store.list_tickets()) == 2
     assert len(store.list_backlog_previews()) == 1
     assert store.list_backlog_previews()[0].trigger_type.value == "inbox_recovery"
+
+
+def test_inbox_dispatch_repairs_assigns_repair_tickets_idempotently(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    tickets = ingest_sources(store, SOURCE_FIXTURES[:2])
+    for ticket in tickets:
+        assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+        store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+
+    recover = CliRunner().invoke(app, ["--root", str(tmp_path), "inbox", "recover", "--output", "json"])
+    assert recover.exit_code == 0, recover.output
+
+    dispatch = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "inbox",
+            "dispatch-repairs",
+            "--to",
+            "fake-codex",
+            "--runtime-profile",
+            "deterministic",
+            "--output",
+            "json",
+        ],
+    )
+
+    assert dispatch.exit_code == 0, dispatch.output
+    payload = json.loads(dispatch.output)
+    assert payload["assigned_count"] == 2
+    assert payload["skipped_count"] == 0
+    assert {item["backend"] for item in payload["assigned"]} == {"fake-codex"}
+
+    for item in payload["assigned"]:
+        assignment = store.load_assignment(item["assignment_id"])
+        repair_ticket = store.load_ticket(item["ticket_id"])
+        assert assignment.status is AssignmentStatus.QUEUED
+        assert assignment.assigned_by == "inbox_recovery"
+        assert repair_ticket.status is TicketStatus.READY_FOR_EXECUTION
+        assert repair_ticket.metadata["generated_from_inbox_item_id"]
+
+    second = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "inbox",
+            "dispatch-repairs",
+            "--to",
+            "fake-codex",
+            "--runtime-profile",
+            "deterministic",
+            "--output",
+            "json",
+        ],
+    )
+
+    assert second.exit_code == 0, second.output
+    second_payload = json.loads(second.output)
+    assert second_payload["assigned_count"] == 0
+    assert second_payload["skipped_count"] == 2
+    assert all(item["reason"].startswith("open_assignment_exists:") for item in second_payload["skipped"])
+
+
+def test_inbox_dispatch_repairs_defaults_to_production_codex_profile(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+
+    recover = CliRunner().invoke(app, ["--root", str(tmp_path), "inbox", "recover", "--output", "json"])
+    assert recover.exit_code == 0, recover.output
+
+    dispatch = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "dispatch-repairs", "--output", "json"],
+    )
+
+    assert dispatch.exit_code == 0, dispatch.output
+    payload = json.loads(dispatch.output)
+    assert payload["assigned_count"] == 1
+    assigned = payload["assigned"][0]
+    assert assigned["agent_id"] == "codex"
+    assert assigned["backend"] == "codex"
+    assert assigned["planner"] == "llm"
+    assert assigned["agent_runtime"] == "llm"
+    assert assigned["backlog_planner"] == "llm"
+    assert store.load_ticket(assigned["ticket_id"]).status is TicketStatus.WAITING_APPROVAL
 
 
 def test_inbox_create_ticket_preview_only_does_not_mutate_tickets(tmp_path: Path) -> None:
