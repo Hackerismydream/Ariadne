@@ -78,6 +78,7 @@ from ariadne_ltb.retry import create_retry_assignment
 from ariadne_ltb.review import review_execution, review_execution_with_llm
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.supervisor import supervisor_run_once
 from ariadne_ltb.target_project import ensure_demo_target_project, target_test_command
 from ariadne_ltb.team import route_ticket_to_build_team
 from ariadne_ltb.workdir_policy import cleanup_workdirs, list_workdirs
@@ -103,6 +104,7 @@ backlog_app = typer.Typer(help="Ticket backlog update commands.")
 inbox_app = typer.Typer(help="Local inbox for failures, blockers, and integration issues.")
 evidence_app = typer.Typer(help="Release evidence packet commands.")
 workdir_app = typer.Typer(help="Generated workdir and isolated worktree commands.")
+supervisor_app = typer.Typer(help="Local supervisor recovery and dispatch commands.")
 app.add_typer(agent_app, name="agent")
 app.add_typer(team_app, name="team")
 app.add_typer(assignment_app, name="assignment")
@@ -123,6 +125,7 @@ app.add_typer(backlog_app, name="backlog")
 app.add_typer(inbox_app, name="inbox")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(workdir_app, name="workdir")
+app.add_typer(supervisor_app, name="supervisor")
 
 
 class CliState:
@@ -1825,6 +1828,164 @@ def daemon_status() -> None:
     if events:
         last = events[-1]
         typer.echo(f"last journal event: {last.stage}:{last.event_type}")
+
+
+@supervisor_app.command("run-once")
+def supervisor_run_once_command(
+    agent_id: Annotated[
+        str,
+        typer.Option("--to", help="Agent profile id or name for dispatched repair tickets."),
+    ] = PRODUCT_DEFAULT_BACKEND,
+    backend: Annotated[str | None, typer.Option("--backend", help="Override backend name.")] = None,
+    planner: Annotated[str | None, typer.Option("--planner", help="Override planner name.")] = None,
+    runtime_profile: Annotated[
+        str,
+        typer.Option(
+            "--runtime-profile",
+            help="deterministic|production. Production uses LLM planner, agents, and backlog planner.",
+        ),
+    ] = "production",
+    agent_runtime: Annotated[
+        str | None,
+        typer.Option("--agent-runtime", help="Override upstream agent runtime: deterministic|llm."),
+    ] = None,
+    backlog_planner: Annotated[
+        str | None,
+        typer.Option("--backlog-planner", help="Override feedback backlog planner: deterministic|llm."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Maximum inbox items or repair tickets per pass."),
+    ] = None,
+    recover: Annotated[
+        bool,
+        typer.Option("--recover/--no-recover", help="Create repair tickets from open inbox items."),
+    ] = True,
+    dispatch: Annotated[
+        bool,
+        typer.Option("--dispatch/--no-dispatch", help="Assign inbox repair tickets."),
+    ] = True,
+    run_daemon: Annotated[
+        bool,
+        typer.Option("--run-daemon", help="Claim and run one queued assignment after dispatch."),
+    ] = False,
+    runtime_id: Annotated[str, typer.Option("--runtime-id")] = "local",
+    confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
+    timeout_seconds: Annotated[
+        int | None,
+        typer.Option("--timeout-seconds", help="Maximum seconds for one execution backend command."),
+    ] = None,
+    output: Annotated[str, typer.Option("--output", help="table|json")] = "table",
+) -> None:
+    """Run one supervisor pass: inbox refresh, recovery, repair dispatch, optional daemon."""
+    if output not in {"table", "json"}:
+        raise typer.BadParameter("output must be table or json")
+    if limit is not None and limit < 1:
+        raise typer.BadParameter("limit must be positive")
+    store = AriadneStore(state.root)
+    selected_planner, selected_agent_runtime, selected_backlog_planner = _runtime_profile_values(
+        runtime_profile,
+        planner,
+        agent_runtime,
+        backlog_planner,
+    )
+    agent = store.resolve_agent_profile(agent_id)
+    result = supervisor_run_once(
+        store,
+        agent,
+        backend_name=backend,
+        planner_name=selected_planner,
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
+        limit=limit,
+        recover=recover,
+        dispatch=dispatch,
+        run_daemon=run_daemon,
+        runtime_id=runtime_id,
+        confirm_execution=confirm_execution,
+        timeout_seconds=timeout_seconds,
+    )
+    payload = {
+        "inbox_count": len(result.refreshed_inbox_items),
+        "recovery": None
+        if result.recovery is None
+        else {
+            "recovered_count": len(result.recovery.recovered),
+            "created_ticket_count": result.recovery.created_ticket_count,
+            "existing_ticket_count": result.recovery.existing_ticket_count,
+            "preview_count": result.recovery.preview_count,
+            "skipped_count": len(result.recovery.skipped),
+            "tickets": [
+                item.ticket.key if item.ticket else item.preview.id if item.preview else item.inbox_item.id
+                for item in result.recovery.recovered
+            ],
+        },
+        "dispatch": None
+        if result.dispatch is None
+        else {
+            "assigned_count": len(result.dispatch.assignments),
+            "skipped_count": len(result.dispatch.skipped),
+            "assignments": [
+                {
+                    "assignment_id": assignment.id,
+                    "ticket_key": assignment.ticket_key,
+                    "agent_id": assignment.agent_id,
+                    "backend": assignment.backend_name,
+                    "planner": assignment.planner_name,
+                    "agent_runtime": assignment.agent_runtime,
+                    "backlog_planner": assignment.backlog_planner_name,
+                }
+                for assignment in result.dispatch.assignments
+            ],
+            "skipped": [
+                {"ticket_key": item.ticket.key, "reason": item.reason}
+                for item in result.dispatch.skipped
+            ],
+        },
+        "daemon": None
+        if result.daemon is None
+        else {
+            "did_work": result.daemon.did_work,
+            "assignment_id": result.daemon.assignment_id,
+            "ticket_key": result.daemon.ticket_key,
+            "status": result.daemon.status,
+            "message": result.daemon.message,
+        },
+    }
+    if output == "json":
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    typer.echo(f"inbox items: {payload['inbox_count']}")
+    if payload["recovery"] is None:
+        typer.echo("recovery: skipped")
+    else:
+        typer.echo(
+            "recovery: "
+            f"recovered={payload['recovery']['recovered_count']} "
+            f"created={payload['recovery']['created_ticket_count']} "
+            f"existing={payload['recovery']['existing_ticket_count']} "
+            f"skipped={payload['recovery']['skipped_count']}"
+        )
+    if payload["dispatch"] is None:
+        typer.echo("dispatch: skipped")
+    else:
+        typer.echo(
+            "dispatch: "
+            f"assigned={payload['dispatch']['assigned_count']} "
+            f"skipped={payload['dispatch']['skipped_count']}"
+        )
+        for item in payload["dispatch"]["assignments"]:
+            typer.echo(
+                f"{item['ticket_key']}\t{item['assignment_id']}\t{item['agent_id']}\t"
+                f"{item['backend']}\t{item['planner']}\t{item['agent_runtime']}\t{item['backlog_planner']}"
+            )
+    if payload["daemon"] is None:
+        typer.echo("daemon: skipped")
+    else:
+        typer.echo(
+            f"daemon: did_work={str(payload['daemon']['did_work']).lower()} "
+            f"status={payload['daemon']['status']} assignment={payload['daemon']['assignment_id'] or ''}"
+        )
 
 
 @runtime_app.command("journal")

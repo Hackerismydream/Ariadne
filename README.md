@@ -64,6 +64,19 @@ In this mode, a human assigns a Build Ticket to an Agent teammate, the local
 daemon claims one assignment, the Agent runs the ticket through Ariadne's full
 loop, writes comments and journal events, and updates the board.
 
+For recovery-oriented automation, run one bounded supervisor pass:
+
+```bash
+ari supervisor run-once --output json
+ari supervisor run-once --run-daemon --confirm-execution
+```
+
+The default supervisor pass refreshes inbox evidence, creates repair tickets
+from open inbox items, and dispatches those repair tickets to the production
+Codex profile. It does not run the daemon unless `--run-daemon` is explicit, so
+real Codex or Claude execution still requires the normal external execution
+gate.
+
 Real writes and external coding execution remain gated. `ari doctor product`
 summarizes which parts of the production path are ready, blocked, or waiting
 for an explicit execution/write gate. It reports production acceptance

@@ -5531,3 +5531,61 @@ Release evidence path:
 Board path:
 
 - `.ariadne/board/index.md`
+
+## 2026-06-18 11:36 CST Supervisor Run Once Slice
+
+Branch: `codex/ariadne-production-frontend-integration`
+
+Implemented:
+
+- Added `ariadne_ltb/supervisor.py` with `supervisor_run_once()`.
+- Added `ari supervisor run-once` as a bounded local supervisor pass:
+  - refresh inbox evidence;
+  - recover open inbox items into repair tickets;
+  - dispatch repair tickets to an Agent profile;
+  - optionally run one daemon claim/execution only when `--run-daemon` is set.
+- The default command is production-oriented but safety-gated:
+  - default agent is `codex`;
+  - default runtime profile is `production`;
+  - daemon execution is skipped unless explicitly requested;
+  - real external execution still requires the normal `--confirm-execution` and
+    environment gate when daemon execution reaches Codex or Claude.
+- Updated README with the supervisor recovery path.
+- Added deterministic supervisor tests for recovery+dispatch without daemon,
+  skip flags, and daemon polling with no work.
+
+Why this matters:
+
+- Previous slices gave Ariadne the pieces: inbox refresh, batch recover, repair
+  dispatch, and daemon run-once. Users and automation still had to remember the
+  sequence manually.
+- This slice gives Ariadne a local supervisor entrypoint for the production
+  workbench loop:
+  failure evidence -> inbox -> repair ticket -> assignment queue -> optional
+  daemon/runtime.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_supervisor.py`: passed, `3 passed`.
+- `python3.11 -m ruff check ariadne_ltb/supervisor.py ariadne_ltb/cli.py tests/test_supervisor.py`: passed.
+- `python3.11 -m ariadne_ltb.cli supervisor --help`: passed and shows `run-once`.
+- `python3.11 -m ariadne_ltb.cli supervisor run-once --help`: passed and shows
+  recovery, dispatch, daemon, and production profile options.
+
+- `python3.11 -m pytest`: passed, `261 passed`.
+- `python3.11 -m ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude
+  commands were found, DeepSeek key was reported as set, external execution was
+  unset, and `.env` secret findings were redacted.
+- `scripts/verify_v1.sh`: passed and generated release evidence packet
+  `release_evidence_494eaa10903d`.
+
+Release evidence path:
+
+- `.ariadne/evidence/release_evidence_packet.json`
+
+Board path:
+
+- `.ariadne/board/index.md`
