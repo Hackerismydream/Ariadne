@@ -9,14 +9,21 @@ from ariadne_ltb.application.comments import CommentService
 from ariadne_ltb.application.dtos import (
     AssignTicketInput,
     CreateCommentInput,
+    CreateProjectGoalInput,
+    CreateSourceInput,
+    IssueFactoryPreviewInput,
     RegisterTargetProjectInput,
     RunAssignmentInput,
 )
 from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
+from ariadne_ltb.application.issue_factory import IssueFactoryService
+from ariadne_ltb.application.mappers import source_document_dto
+from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.run_events import AssignmentEventCache, RunEventService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
+from ariadne_ltb.application.web_sources import WebSourceService
 from ariadne_ltb.application.workbench_projection import WorkbenchProjectionService
 from ariadne_ltb.interfaces.http.dependencies import get_store
 from ariadne_ltb.storage import AriadneStore
@@ -58,6 +65,49 @@ def register_target_project(
 ) -> dict:
     project = TargetProjectRegistry(store).register(payload.path, payload.label)
     return {"target_project": project.model_dump(mode="json")}
+
+
+@router.get("/api/goals")
+def list_goals(store: AriadneStore = Depends(get_store)) -> dict:
+    return {"goals": [goal.model_dump(mode="json") for goal in ProjectGoalService(store).list()]}
+
+
+@router.post("/api/goals")
+def create_goal(
+    payload: CreateProjectGoalInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return {"goal": ProjectGoalService(store).create(payload).model_dump(mode="json")}
+
+
+@router.get("/api/sources")
+def list_sources(store: AriadneStore = Depends(get_store)) -> dict:
+    return {"sources": [source_document_dto(store, source).model_dump(mode="json") for source in store.list_source_documents()]}
+
+
+@router.post("/api/sources")
+def create_source(
+    payload: CreateSourceInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    source = WebSourceService(store).create(payload)
+    return {"source": source_document_dto(store, source).model_dump(mode="json")}
+
+
+@router.post("/api/issue-factory/preview")
+def create_issue_factory_preview(
+    payload: IssueFactoryPreviewInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return {"preview": IssueFactoryService(store).preview(payload).model_dump(mode="json")}
+
+
+@router.post("/api/issue-factory/{preview_id}/apply")
+def apply_issue_factory_preview(
+    preview_id: str,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return IssueFactoryService(store).apply(preview_id).model_dump(mode="json")
 
 
 @router.post("/api/tickets/{ticket_id_or_key}/assign")

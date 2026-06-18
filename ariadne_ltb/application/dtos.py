@@ -41,6 +41,12 @@ class TicketSummaryDTO(AriadneDTO):
     latest_assignment_id: str | None = None
     latest_execution_result_id: str | None = None
     latest_review_verdict: str | None = None
+    build_packet_id: str | None = None
+    summary: str | None = None
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    affected_modules: list[str] = Field(default_factory=list)
+    source_ref: str | None = None
+    target_project_id: str | None = None
 
 
 class AssignmentDTO(AriadneDTO):
@@ -59,17 +65,154 @@ class AssignmentDTO(AriadneDTO):
     failure_reason: str | None = None
 
 
+class ProjectGoalDTO(AriadneDTO):
+    id: str
+    title: str
+    north_star: str
+    current_state: str = ""
+    target_state: str = ""
+    status: Literal["active", "reviewing", "blocked"] = "active"
+    target_project_id: str | None = None
+    knowledge_inputs: list[str] = Field(default_factory=list)
+    feedback_signals: list[str] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
+
+
+class SourceDocumentDTO(AriadneDTO):
+    id: str
+    source_type: str
+    title: str
+    path_or_url: str
+    summary: str
+    status: str = "new"
+    linked_ticket_count: int = 0
+    created_at: str
+    evidence_snippets: list[str] = Field(default_factory=list)
+
+
+class AgentProfileDTO(AriadneDTO):
+    id: str
+    name: str
+    role: str
+    backend_name: str | None = None
+    planner_name: str
+    agent_runtime: str
+    backlog_planner_name: str
+    description: str = ""
+    capabilities: list[str] = Field(default_factory=list)
+    enabled: bool
+    run_count: int = 0
+
+
+class BuildSkillDTO(AriadneDTO):
+    id: str
+    name: str
+    description: str
+    applies_to_agent_roles: list[str] = Field(default_factory=list)
+    updated_at: str
+
+
+class InboxItemDTO(AriadneDTO):
+    id: str
+    source_type: str
+    source_id: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    title: str
+    summary: str
+    severity: str
+    status: str
+    failure_reason: str | None = None
+    evidence_ref: str | None = None
+    recommended_action: str
+    resolution_note: str | None = None
+    repair_ticket_id: str | None = None
+    repair_ticket_key: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class BacklogOperationDTO(AriadneDTO):
+    id: str
+    operation_type: str
+    reason: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    title: str | None = None
+    description: str | None = None
+    source_type: str | None = None
+    source_ref: str | None = None
+    priority: str | None = None
+    status: str | None = None
+    owner_agent: str | None = None
+    build_decision: str | None = None
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class BacklogPreviewDTO(AriadneDTO):
+    id: str
+    trigger_type: str
+    trigger_ref: str
+    rationale: str
+    operations: list[BacklogOperationDTO] = Field(default_factory=list)
+    conflict_count: int = 0
+    evidence_refs: list[str] = Field(default_factory=list)
+    created_at: str
+    applied_at: str | None = None
+    applied_update_id: str | None = None
+
+
 class WorkbenchDTO(AriadneDTO):
     schema_version: Literal["ariadne.workbench.v1"] = "ariadne.workbench.v1"
+    goals: list[ProjectGoalDTO] = Field(default_factory=list)
+    sources: list[SourceDocumentDTO] = Field(default_factory=list)
     tickets: list[TicketSummaryDTO]
     assignments: list[AssignmentDTO]
+    agents: list[AgentProfileDTO] = Field(default_factory=list)
     runtime_capabilities: list[RuntimeCapabilityDTO]
     target_projects: list[TargetProjectDTO]
+    skills: list[BuildSkillDTO] = Field(default_factory=list)
+    inbox: list[InboxItemDTO] = Field(default_factory=list)
+    backlog_previews: list[BacklogPreviewDTO] = Field(default_factory=list)
 
 
 class RegisterTargetProjectInput(AriadneDTO):
     path: str
     label: str | None = None
+
+
+class CreateProjectGoalInput(AriadneDTO):
+    title: str = Field(min_length=1, max_length=200)
+    north_star: str = Field(min_length=1, max_length=2000)
+    current_state: str = Field(default="", max_length=2000)
+    target_state: str = Field(default="", max_length=2000)
+    target_project_id: str | None = None
+    knowledge_inputs: list[str] = Field(default_factory=list)
+    feedback_signals: list[str] = Field(default_factory=list)
+
+
+class CreateSourceInput(AriadneDTO):
+    title: str = Field(min_length=1, max_length=240)
+    source_type: Literal["blog", "paper", "github_repo", "github_readme", "note", "manual_note", "repo_note"] = "note"
+    path_or_url: str = Field(min_length=1, max_length=2000)
+    content: str = Field(default="", max_length=120_000)
+    summary: str = Field(default="", max_length=4000)
+    evidence_snippets: list[str] = Field(default_factory=list)
+
+
+class IssueFactoryPreviewInput(AriadneDTO):
+    goal_id: str
+    source_ids: list[str] = Field(default_factory=list)
+    target_project_id: str | None = None
+
+
+class IssueFactoryApplyOutput(AriadneDTO):
+    preview: BacklogPreviewDTO
+    created_ticket_ids: list[str] = Field(default_factory=list)
+    updated_ticket_ids: list[str] = Field(default_factory=list)
+    superseded_ticket_ids: list[str] = Field(default_factory=list)
+    already_applied: bool = False
 
 
 class AssignTicketInput(AriadneDTO):

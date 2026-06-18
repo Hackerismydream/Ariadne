@@ -4,6 +4,10 @@ import type {
   AssignmentEventStream,
   ApiWorkbench,
   AssignTicketRequest,
+  CreateProjectGoalRequest,
+  CreateSourceRequest,
+  IssueFactoryPreviewRequest,
+  RegisterTargetProjectRequest,
   RunAssignmentRequest,
 } from "./types";
 import { AriadneApiError } from "./errors";
@@ -30,6 +34,41 @@ export function getWorkbench() {
 
 export function getRuntimeStatus() {
   return requestJson<{ capabilities: ApiWorkbench["runtime_capabilities"] }>("/api/runtime/status");
+}
+
+export function registerTargetProject(payload: RegisterTargetProjectRequest) {
+  return requestJson("/api/target-projects", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createProjectGoal(payload: CreateProjectGoalRequest) {
+  return requestJson("/api/goals", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createSource(payload: CreateSourceRequest) {
+  return requestJson("/api/sources", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createIssueFactoryPreview(payload: IssueFactoryPreviewRequest) {
+  return requestJson<{ preview: ApiWorkbench["backlog_previews"][number] }>("/api/issue-factory/preview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function applyIssueFactoryPreview(previewId: string) {
+  return requestJson(`/api/issue-factory/${encodeURIComponent(previewId)}/apply`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
 export function assignTicket(ticketIdOrKey: string, payload: AssignTicketRequest) {
