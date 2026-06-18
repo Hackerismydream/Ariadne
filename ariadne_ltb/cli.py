@@ -85,7 +85,7 @@ from ariadne_ltb.target_project import ensure_demo_target_project, target_test_c
 from ariadne_ltb.team import route_ticket_to_build_team
 from ariadne_ltb.workdir_policy import cleanup_workdirs, list_workdirs
 
-app = typer.Typer(help="Ariadne local deterministic Learning-to-Build workbench.")
+app = typer.Typer(help="Ariadne production-first local Agent Workbench for AI builders.")
 agent_app = typer.Typer(help="Agent teammate commands.")
 team_app = typer.Typer(help="Build Team routing commands.")
 assignment_app = typer.Typer(help="Assignment queue commands.")
@@ -732,13 +732,24 @@ def _runtime_profile_values(
 ) -> tuple[str | None, str | None, str | None]:
     if runtime_profile not in {"deterministic", "production"}:
         raise typer.BadParameter("runtime profile must be `deterministic` or `production`")
+    for label, value in {
+        "planner": planner,
+        "agent runtime": agent_runtime,
+        "backlog planner": backlog_planner,
+    }.items():
+        if value not in {None, "auto", "deterministic", "llm"}:
+            raise typer.BadParameter(f"{label} must be `auto`, `deterministic`, or `llm`")
     if runtime_profile == "production":
         return (
-            "llm" if planner in {None, "deterministic"} else planner,
-            "llm" if agent_runtime in {None, "deterministic"} else agent_runtime,
-            "llm" if backlog_planner in {None, "deterministic"} else backlog_planner,
+            "llm" if planner in {None, "auto", "deterministic"} else planner,
+            "llm" if agent_runtime in {None, "auto", "deterministic"} else agent_runtime,
+            "llm" if backlog_planner in {None, "auto", "deterministic"} else backlog_planner,
         )
-    return planner, agent_runtime, backlog_planner
+    return (
+        "deterministic" if planner in {None, "auto"} else planner,
+        "deterministic" if agent_runtime in {None, "auto"} else agent_runtime,
+        "deterministic" if backlog_planner in {None, "auto"} else backlog_planner,
+    )
 
 
 def _runtime_profile_pair(
@@ -1570,10 +1581,19 @@ def ticket_run(
     ] = PRODUCT_DEFAULT_BACKEND,
     target_repo_path: Annotated[
         Path | None,
-        typer.Option("--target-repo-path", help="Target repository path. Defaults to the local fixture target."),
+        typer.Option(
+            "--target-repo-path",
+            help=(
+                "Target repository path. For production runs pass the real project repo; "
+                "omitting this uses the offline fixture target for smoke/regression only."
+            ),
+        ),
     ] = None,
     command: Annotated[str | None, typer.Option("--command", help="Override backend command.")] = None,
-    planner: Annotated[str, typer.Option("--planner", help="deterministic|llm")] = "deterministic",
+    planner: Annotated[
+        str,
+        typer.Option("--planner", help="auto|deterministic|llm. auto production defaults to llm."),
+    ] = "auto",
     runtime_profile: Annotated[
         str,
         typer.Option(
@@ -1585,16 +1605,16 @@ def ticket_run(
         str,
         typer.Option(
             "--agent-runtime",
-            help="deterministic|llm for Build Lead/Knowledge/Memory; auto production promotes deterministic to llm.",
+            help="auto|deterministic|llm for Build Lead/Knowledge/Memory; auto production defaults to llm.",
         ),
-    ] = "deterministic",
+    ] = "auto",
     backlog_planner: Annotated[
         str,
         typer.Option(
             "--backlog-planner",
-            help="deterministic|llm for feedback-to-ticket updates; auto production promotes deterministic to llm.",
+            help="auto|deterministic|llm for feedback-to-ticket updates; auto production defaults to llm.",
         ),
-    ] = "deterministic",
+    ] = "auto",
     use_memory: Annotated[
         bool,
         typer.Option("--use-memory", help="Cite local memory records during planning."),

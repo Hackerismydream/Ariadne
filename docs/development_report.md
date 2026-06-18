@@ -102,6 +102,29 @@ Behavior and policy:
 - Added tests that fail if active product docs reintroduce demo-first product
   path wording.
 
+## 2026-06-18 13:45 CST Production-Aware CLI Defaults
+
+This slice moves CLI help and runtime-profile defaults away from deterministic
+wording in the product path. The root CLI now describes Ariadne as a
+production-first local Agent Workbench. `ari ticket run` still keeps automated
+tests deterministic, but its user-facing defaults are `auto`: Codex and Claude
+Code resolve to production LLM planning/review/backlog runtime, while
+`fake-codex` and `dry-run` resolve to deterministic offline fallback behavior.
+
+Implemented files:
+
+- `ariadne_ltb/cli.py`
+- `tests/test_cli_product_defaults.py`
+
+Behavior and policy:
+
+- `ari ticket run --help` presents `auto|deterministic|llm` for planner,
+  upstream agent runtime, and backlog planner, with `[default: auto]`.
+- Production backends resolve `auto` to DeepSeek-backed LLM roles.
+- Offline fallback backends resolve `auto` to deterministic roles.
+- The target repository option now explicitly says omitted target paths use the
+  offline fixture target only for smoke/regression, not product acceptance.
+
 ## Implemented files
 
 Core product loop:
