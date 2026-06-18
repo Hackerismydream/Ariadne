@@ -25,7 +25,13 @@ class FakeTransport:
                     "finish_reason": "stop",
                 }
             ],
-            "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+            "usage": {
+                "prompt_tokens": 3,
+                "prompt_cache_hit_tokens": 1,
+                "prompt_cache_miss_tokens": 2,
+                "completion_tokens": 4,
+                "total_tokens": 7,
+            },
         }
         self.error = error
         self.url = ""
@@ -63,11 +69,28 @@ def test_deepseek_client_uses_official_chat_json_payload(monkeypatch) -> None:
     assert transport.payload["model"] == "deepseek-v4-pro"
     assert transport.payload["response_format"] == {"type": "json_object"}
     assert transport.payload["stream"] is False
-    assert "json" in transport.payload["messages"][0]["content"].lower()
+    assert transport.payload["messages"][0]["content"] == "You are an Ariadne production agent. Return only valid JSON."
+    assert "Requested schema: ariadne_test" in transport.payload["messages"][1]["content"]
     assert transport.headers["Authorization"] == "Bearer test-secret-key"
     assert transport.timeout_seconds == 12
     assert response.content_json == {"ok": True, "summary": "valid json"}
     assert response.usage.total_tokens == 7
+    assert response.usage.prompt_cache_hit_tokens == 1
+    assert response.usage.prompt_cache_miss_tokens == 2
+
+
+def test_deepseek_request_keeps_cacheable_system_prefix_stable(monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    client = DeepSeekClient(api_key="test-secret-key", transport=FakeTransport())
+
+    first = client.build_request("First prompt.", "ariadne_first")
+    second = client.build_request("Second prompt.", "ariadne_second")
+
+    assert first.messages[0].content == second.messages[0].content
+    assert "ariadne_first" not in first.messages[0].content
+    assert "ariadne_second" not in second.messages[0].content
+    assert "Requested schema: ariadne_first" in first.messages[1].content
+    assert "Requested schema: ariadne_second" in second.messages[1].content
 
 
 def test_deepseek_client_redacts_transport_errors(monkeypatch) -> None:
