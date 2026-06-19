@@ -2914,6 +2914,13 @@ def evidence_packet(
         typer.echo(f"production acceptance: {packet.production_acceptance_status or 'unknown'}")
         typer.echo(f"product readiness: {packet.product_readiness_status or 'unknown'}")
         typer.echo(f"run gates: {packet.run_gate_status or 'unknown'}")
+        typer.echo(f"stale: {'yes' if packet.evidence_packet_stale else 'no'}")
+        for reason in packet.evidence_packet_stale_reasons:
+            typer.echo(f"  stale reason: {reason}")
+        if packet.readiness_next_actions:
+            typer.echo("next actions:")
+            for action in packet.readiness_next_actions[:8]:
+                typer.echo(f"  - {action}")
         typer.echo(f"active workdirs: {packet.active_workdir_count}")
         typer.echo(f"dirty workdirs: {packet.dirty_workdir_count}")
     failed_requirements: list[str] = []

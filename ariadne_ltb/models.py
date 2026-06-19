@@ -1447,6 +1447,10 @@ class ReleaseEvidencePacket(AriadneModel):
     production_acceptance_status: str | None = None
     run_gate_status: str | None = None
     product_readiness_checks: dict[str, str] = Field(default_factory=dict)
+    readiness_next_actions: list[str] = Field(default_factory=list)
+    readiness_blockers: list[dict[str, str]] = Field(default_factory=list)
+    evidence_packet_stale: bool = False
+    evidence_packet_stale_reasons: list[str] = Field(default_factory=list)
     real_success_evidence: dict[str, Any] = Field(default_factory=dict)
     real_failure_evidence: dict[str, Any] = Field(default_factory=dict)
     local_success_evidence: dict[str, Any] = Field(default_factory=dict)

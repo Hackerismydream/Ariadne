@@ -1400,6 +1400,32 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.next-actions {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--muted);
+}
+
+.next-actions.warning {
+  border-color: color-mix(in oklch, var(--warning), var(--border) 45%);
+}
+
+.next-actions strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.next-actions ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .commit-sha {
   display: block;
   margin-top: 10px;

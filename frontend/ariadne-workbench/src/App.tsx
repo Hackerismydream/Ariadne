@@ -1621,6 +1621,8 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
   const readyChecks = checks.filter(([, status]) => status === "ready").length;
   const successEvidenceCount = Object.values(evidence.realSuccessEvidence ?? {}).filter(Boolean).length;
   const failureEvidenceCount = Object.values(evidence.realFailureEvidence ?? {}).filter(Boolean).length;
+  const nextActions = evidence.readinessNextActions ?? [];
+  const staleReasons = evidence.evidencePacketStaleReasons ?? [];
   return (
     <section className="panel nested release-panel">
       <h3>发布证据包</h3>
@@ -1629,6 +1631,7 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
           ["生产验收", fallbackText(evidence.productionAcceptanceStatus, "未知")],
           ["产品就绪", fallbackText(evidence.productReadinessStatus, "未知")],
           ["运行门禁", fallbackText(evidence.runGateStatus, "未知")],
+          ["证据过期", evidence.evidencePacketStale ? "是" : "否"],
           ["检查项", checks.length ? `${readyChecks}/${checks.length} 就绪` : "未记录"],
           ["真实证据", `${successEvidenceCount} 条成功 / ${failureEvidenceCount} 条失败`],
           ["执行次数", `${evidence.executionResultCount ?? 0}`],
@@ -1636,6 +1639,26 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
           ["证据包", fallbackText(evidence.packetPath)],
         ]}
       />
+      {nextActions.length ? (
+        <div className="next-actions" aria-label="发布证据下一步">
+          <strong>下一步</strong>
+          <ul>
+            {nextActions.slice(0, 5).map((action) => (
+              <li key={action}>{action}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {staleReasons.length ? (
+        <div className="next-actions warning" aria-label="发布证据过期原因">
+          <strong>证据包需要重新生成</strong>
+          <ul>
+            {staleReasons.slice(0, 4).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {checks.length ? (
         <div className="check-summary release-checks" aria-label="产品就绪检查">
           {checks.slice(0, 8).map(([name, status]) => (

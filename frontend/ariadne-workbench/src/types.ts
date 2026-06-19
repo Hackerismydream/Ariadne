@@ -154,6 +154,10 @@ export type ReleaseEvidenceSummary = {
   productReadinessStatus?: string;
   runGateStatus?: string;
   productReadinessChecks?: Record<string, string>;
+  readinessNextActions?: string[];
+  readinessBlockers?: Array<Record<string, string>>;
+  evidencePacketStale?: boolean;
+  evidencePacketStaleReasons?: string[];
   realSuccessEvidence?: Record<string, unknown>;
   realFailureEvidence?: Record<string, unknown>;
   evidenceRefs?: Record<string, string>;

@@ -79,15 +79,25 @@ stale-doc-only cleanup.
 - Priority: P1
 - Labels: `enhancement`, `maturity-campaign`, `priority:P1`, `area:doctor`,
   `area:integrations`
-- Status: open.
+- Status: completed on `codex/ariadne-maturity-campaign`.
 - Problem: release evidence can be missing or stale, leaving product readiness
   blocked without a guided regeneration path.
+- Implementation:
+  - Release evidence packets now persist readiness next actions, blocking
+    checks, stale status, and stale reasons.
+  - Product doctor now separates missing packet, missing integration refs,
+    stale packet, missing real evidence, and unset run gates.
+  - `ari evidence packet` table output shows stale state and the top next
+    actions.
+  - The Workbench release evidence panel exposes the same readiness summary in
+    Chinese, including `下一步`, `证据过期`, and stale reasons.
 - Acceptance:
-  - `ari evidence packet` can be regenerated after current product runs.
-  - Product doctor separates missing packet, missing refs, missing real
+  - Done: `ari evidence packet` can be regenerated after current product runs.
+  - Done: product doctor separates missing packet, missing refs, stale packet,
+    missing real
     evidence, and unset run gates.
-  - Workbench exposes the same readiness summary in Chinese.
-  - Tests cover stale/missing packet behavior.
+  - Done: Workbench exposes the same readiness summary in Chinese.
+  - Done: tests cover stale/missing packet behavior.
 
 ### MAT-004: Add auditable DeepSeek LLM agent proof flow
 

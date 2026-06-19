@@ -6653,3 +6653,63 @@ Known limitation:
 
 - Main does not yet contain the maturity campaign branch. This entry only
   resolves branch/PR direction for the campaign; it does not merge to main.
+
+## 2026-06-20 Maturity Campaign: MAT-003 Guided Release Evidence Regeneration
+
+Branch: `codex/ariadne-maturity-campaign`
+
+GitHub issue: https://github.com/Hackerismydream/Ariadne/issues/18
+
+Implemented:
+
+- Release evidence packets now persist:
+  - `readiness_next_actions`
+  - `readiness_blockers`
+  - `evidence_packet_stale`
+  - `evidence_packet_stale_reasons`
+- Product doctor now distinguishes:
+  - missing release packet;
+  - missing integration evidence refs;
+  - stale release packet;
+  - missing real integration evidence;
+  - unset run gates.
+- `ari evidence packet` table output now shows stale state and concrete next
+  actions.
+- The Workbench release evidence panel now shows the same readiness summary in
+  Chinese, including next actions and stale reasons.
+
+Files changed:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/doctor.py`
+- `ariadne_ltb/evidence.py`
+- `ariadne_ltb/cli.py`
+- `frontend/ariadne-workbench/scripts/sync-local-data.mjs`
+- `frontend/ariadne-workbench/src/App.tsx`
+- `frontend/ariadne-workbench/src/styles.css`
+- `frontend/ariadne-workbench/src/types.ts`
+- `tests/test_release_evidence.py`
+- `tests/test_workbench_data_sync.py`
+- `tests/test_frontend_api_contract_static.py`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+
+Verification:
+
+- `python3.11 -m pytest tests/test_release_evidence.py tests/test_v1_doctor_release.py::test_doctor_product_reports_acceptance_readiness_without_external_writes tests/test_workbench_data_sync.py tests/test_frontend_api_contract_static.py`: passed, `24 passed`.
+- `ruff check ariadne_ltb/doctor.py ariadne_ltb/evidence.py ariadne_ltb/cli.py ariadne_ltb/models.py tests/test_release_evidence.py tests/test_workbench_data_sync.py tests/test_frontend_api_contract_static.py`: passed.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- `python3.11 -m ariadne_ltb.cli evidence packet`: passed and printed concrete
+  next actions.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed; after sequential
+  regeneration, `release_evidence_packet`, `integration_evidence_refs`, and
+  `release_evidence_freshness` reported `ready`.
+
+Known limitations:
+
+- Product readiness still reports real integration blockers for LLM agent
+  evidence, Claude Code, Feishu write, GitHub write/status evidence, and landing
+  gate evidence. This change makes those blockers actionable; it does not fake
+  real external success.
+- Running `ari evidence packet` and `ari doctor product` concurrently can briefly
+  show the previous packet state. The intended path is sequential:
+  `ari evidence packet` then `ari doctor product`.

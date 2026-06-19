@@ -87,6 +87,19 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
                 "real_codex_execution_evidence": "ready",
                 "external_execution_gate": "action_required",
             },
+            readiness_next_actions=[
+                "Set ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 only when running a confirmed Codex/Claude task.",
+            ],
+            readiness_blockers=[
+                {
+                    "name": "external_execution_gate",
+                    "status": "action_required",
+                    "summary": "External execution gate is unset.",
+                    "next_action": "Set ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 only when running a confirmed Codex/Claude task.",
+                }
+            ],
+            evidence_packet_stale=True,
+            evidence_packet_stale_reasons=["ticket_count changed from 3 to 4"],
             real_success_evidence={
                 "llm_agents": {"id": "llm_sync"},
                 "codex": {"id": "codex_sync"},
@@ -188,6 +201,10 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
     assert data["releaseEvidence"]["executionResultCount"] == 12
     assert data["releaseEvidence"]["productReadinessChecks"]["real_llm_agent_evidence"] == "ready"
     assert data["releaseEvidence"]["productReadinessChecks"]["external_execution_gate"] == "action_required"
+    assert data["releaseEvidence"]["readinessNextActions"][0].startswith("Set ARIADNE_ENABLE")
+    assert data["releaseEvidence"]["readinessBlockers"][0]["name"] == "external_execution_gate"
+    assert data["releaseEvidence"]["evidencePacketStale"] is True
+    assert data["releaseEvidence"]["evidencePacketStaleReasons"][0] == "ticket_count changed from 3 to 4"
     assert data["releaseEvidence"]["realSuccessEvidence"]["codex"]["id"] == "codex_sync"
     assert data["releaseEvidence"]["realFailureEvidence"]["github"]["id"] == "github_blocked"
     assert data["releaseEvidence"]["evidenceRefs"]["product_readiness"].endswith("product_readiness.json")

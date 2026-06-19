@@ -205,3 +205,25 @@ def test_sources_page_does_not_label_unfetched_github_as_analyzed() -> None:
     assert "source.fetch." in app
     assert "抓取中" in model
     assert "已阻塞" in model
+
+
+def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:
+    app = APP.read_text(encoding="utf-8")
+    types = (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
+        encoding="utf-8"
+    )
+    sync_script = (ROOT / "frontend" / "ariadne-workbench" / "scripts" / "sync-local-data.mjs").read_text(
+        encoding="utf-8"
+    )
+
+    for field in [
+        "readinessNextActions",
+        "readinessBlockers",
+        "evidencePacketStale",
+        "evidencePacketStaleReasons",
+    ]:
+        assert field in types
+        assert field in sync_script
+    assert "下一步" in app
+    assert "证据包需要重新生成" in app
+    assert "证据过期" in app

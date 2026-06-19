@@ -7,6 +7,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
+from ariadne_ltb.doctor import product_readiness_snapshot
 from ariadne_ltb.evidence import generate_release_evidence_packet
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import ExecutionResult, FeishuWriteResult
@@ -56,6 +57,11 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert "real_llm_agent_evidence" in packet.product_readiness_checks
     assert "real_feishu_write_evidence" in packet.product_readiness_checks
     assert "landing_gate_evidence" in packet.product_readiness_checks
+    assert "release_evidence_freshness" in packet.product_readiness_checks
+    assert packet.readiness_next_actions
+    assert packet.readiness_blockers
+    assert packet.evidence_packet_stale is False
+    assert packet.evidence_packet_stale_reasons == []
     assert "llm_agents" in packet.real_success_evidence
     assert "codex" in packet.real_success_evidence
     assert "github" in packet.real_failure_evidence
@@ -71,6 +77,9 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert "real_github_write_evidence" in persisted["product_readiness_checks"]
     assert "real_llm_agent_evidence" in persisted["product_readiness_checks"]
     assert "landing_gate_evidence" in persisted["product_readiness_checks"]
+    assert persisted["readiness_next_actions"]
+    assert persisted["readiness_blockers"]
+    assert persisted["evidence_packet_stale"] is False
 
 
 def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> None:
@@ -95,6 +104,9 @@ def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> Non
     assert "real_codex_execution_evidence" in payload["product_readiness_checks"]
     assert "real_llm_agent_evidence" in payload["product_readiness_checks"]
     assert "landing_gate_evidence" in payload["product_readiness_checks"]
+    assert payload["readiness_next_actions"]
+    assert payload["readiness_blockers"]
+    assert payload["evidence_packet_stale"] is False
     assert (tmp_path / ".ariadne" / "doctor" / "integrations.json").exists()
     assert (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").exists()
     assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()
@@ -112,8 +124,63 @@ def test_evidence_packet_require_acceptance_ready_blocks_fake_only_store(tmp_pat
 
     assert result.exit_code == 2, result.output
     assert "production acceptance: blocked" in result.output
+    assert "stale: no" in result.output
+    assert "next actions:" in result.output
     assert "requirement failed: production acceptance is blocked, expected ready" in result.output
     assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()
+
+
+def test_product_readiness_marks_stale_release_packet_with_action(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    for ref in [
+        tmp_path / ".ariadne" / "doctor" / "integrations.json",
+        tmp_path / ".ariadne" / "runtimes" / "capability_snapshot.json",
+    ]:
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        ref.write_text("{}\n", encoding="utf-8")
+    for ref_dir in [
+        tmp_path / ".ariadne" / "integrations" / "feishu",
+        tmp_path / ".ariadne" / "integrations" / "github",
+        tmp_path / ".ariadne" / "artifact_index",
+    ]:
+        ref_dir.mkdir(parents=True, exist_ok=True)
+    store.release_evidence_packet_path.write_text(
+        json.dumps(
+            {
+                "id": "release_evidence_stale",
+                "root_path": str(tmp_path),
+                "ticket_count": 0,
+                "assignment_count": 0,
+                "execution_result_count": 0,
+                "review_report_count": 0,
+                "memory_record_count": 0,
+                "inbox_item_count": 0,
+                "evidence_refs": {
+                    "integration_doctor": ".ariadne/doctor/integrations.json",
+                    "runtime_capabilities": ".ariadne/runtimes/capability_snapshot.json",
+                    "feishu_integrations": ".ariadne/integrations/feishu",
+                    "github_integrations": ".ariadne/integrations/github",
+                    "landing_gate_reports": ".ariadne/artifact_index",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    ingest_sources(store, SOURCE_FIXTURES)
+
+    snapshot = product_readiness_snapshot(store, tmp_path)
+
+    release_packet = snapshot["release_evidence_packet"]
+    assert release_packet["exists"] is True
+    assert release_packet["has_integration_refs"] is True
+    assert release_packet["stale"] is True
+    assert any("ticket_count changed" in reason for reason in release_packet["stale_reasons"])
+    statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
+    assert statuses["release_evidence_packet"] == "ready"
+    assert statuses["integration_evidence_refs"] == "ready"
+    assert statuses["release_evidence_freshness"] == "blocked"
+    assert "Run `ari evidence packet` to regenerate stale release evidence." in snapshot["next_actions"]
 
 
 def test_evidence_packet_requirement_flags_separate_acceptance_and_run_gates(
