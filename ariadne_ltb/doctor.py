@@ -8,6 +8,8 @@ import subprocess
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from pydantic import ValidationError
+
 from ariadne_ltb.github_integration import github_transport_snapshot, infer_github_repo
 from ariadne_ltb.llm import (
     DEFAULT_DEEPSEEK_BASE_URL,
@@ -799,10 +801,13 @@ def _llm_backlog_evidence(store: AriadneStore) -> dict[str, Any]:
 
 
 def _list_artifacts(store: AriadneStore) -> list[Any]:
-    return [
-        store.load_artifact(path.stem)
-        for path in sorted(store.artifact_index_dir.glob("*.json"))
-    ]
+    artifacts: list[Any] = []
+    for path in sorted(store.artifact_index_dir.glob("*.json")):
+        try:
+            artifacts.append(store.load_artifact(path.stem))
+        except ValidationError:
+            continue
+    return artifacts
 
 
 def _llm_agent_summary(operation_successes: dict[str, Any]) -> dict[str, Any]:

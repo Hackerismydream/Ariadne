@@ -6445,6 +6445,39 @@ Current boundaries:
 - `标记重要` and `忽略` are still lightweight frontend status actions, not persisted source metadata.
 - The next product slice should carry the generated MCA task set into assignment, route decision, handoff, daemon claim, real Codex/Claude execution feedback, tests, review, memory, and Workbench evidence.
 
+## 2026-06-20 Maturity Campaign: Product Doctor Legacy Artifact Tolerance
+
+Implemented the first slice from `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`.
+
+Files changed:
+
+- `ariadne_ltb/doctor.py`
+- `tests/test_v1_doctor_release.py`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+
+What changed:
+
+- Created the maturity issue pack and reflected the reviewed work items in
+  GitHub issues #16 through #21.
+- Fixed `ari doctor product` so legacy artifact index entries with unknown
+  historical artifact types do not crash product readiness inspection.
+- Added a regression test for a legacy `artifact_type=landing_gate` record.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py tests/test_release_evidence.py tests/test_v1_board_ux.py::test_board_export_tolerates_legacy_unknown_artifact_types`
+- `python3.11 -m ariadne_ltb.cli doctor product`
+
+Assumption:
+
+- Unknown legacy artifact records should not count as successful evidence.
+  They are skipped by the product doctor and remain diagnosable through store
+  invariant checks.
+
+Next recommended Build Ticket:
+
+- MAT-002: make Workbench show daemon execution feedback end to end.
+
 ## 2026-06-19 17:54 Real Source-to-Agent Compiler
 
 Branch: `codex/real-source-to-agent-compiler-plan`
