@@ -1172,6 +1172,7 @@ function TicketInspector({
         <div className="daemon-strip">
           <strong>本地运行时：{statusLabel(data.daemonStatus.status)}</strong>
           <span>{data.daemonStatus.backgroundRunning ? "后台循环运行中" : "后台循环未运行"}</span>
+          <span>{data.daemonStatus.externalExecutionAuthorized ? "已授权 Codex/Claude" : "未授权外部执行"}</span>
           <span>可领取 {data.daemonStatus.claimableAssignmentCount}</span>
           <span>{data.daemonStatus.currentTicketKey ?? "无当前任务"}</span>
         </div>
@@ -1180,10 +1181,10 @@ function TicketInspector({
             {assignTicketButtonLabel(actionState)}
           </button>
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
-            {actionState === "running" ? runAssignmentButtonLabel(actionState) : "立即 claim 并运行"}
+            {actionState === "running" ? runAssignmentButtonLabel(actionState) : "分配后由运行时自动 claim"}
           </button>
           <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void startLocalDaemon()}>
-            {daemonActionState === "starting" ? "启动中..." : "启动本地运行时"}
+            {daemonActionState === "starting" ? "启动中..." : "授权 Codex/Claude 并启动运行时"}
           </button>
           <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void stopLocalDaemon()}>
             {daemonActionState === "stopping" ? "停止中..." : "停止本地运行时"}
@@ -1578,6 +1579,10 @@ function RuntimesPage({
               <strong>{data.daemonStatus.backgroundRunning ? "运行中" : "未运行"}</strong>
             </div>
             <div>
+              <span>运行时授权</span>
+              <strong>{data.daemonStatus.externalExecutionAuthorized ? "已授权 Codex/Claude" : "未授权"}</strong>
+            </div>
+            <div>
               <span>当前任务</span>
               <strong>{data.daemonStatus.currentTicketKey ?? "无"}</strong>
             </div>
@@ -1640,8 +1645,8 @@ function RuntimeCapability({ runtime }: { runtime: RuntimeInfo }) {
         <strong>{runtime.externalExecutionEnabled ? "已开启" : "门禁关闭"}</strong>
       </div>
       <div>
-        <span>需要确认</span>
-        <strong>{yesNo(Boolean(runtime.confirmExecutionRequired))}</strong>
+        <span>授权方式</span>
+        <strong>{runtime.confirmExecutionRequired ? "运行时启动时确认 Codex/Claude" : "无需确认"}</strong>
       </div>
       <div>
         <span>演练模式</span>

@@ -98,3 +98,78 @@ def test_run_now_claims_assignment_and_projects_blocked_codex_evidence(tmp_path:
     assert evidence["feishu_plan_path"].endswith(".json")
     assert evidence["next_tickets_path"].endswith("next_tickets.json")
     assert "confirmation_token" not in workbench.text
+
+
+def test_runtime_start_authorization_replaces_per_run_external_confirmation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setattr("ariadne_ltb.execution.shutil.which", lambda _command: None)
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    project = TargetProjectRegistry(store).register(target, "Demo Target")
+    client = TestClient(create_app(tmp_path))
+
+    started = client.post(
+        "/api/daemon/start",
+        json={
+            "runtime_id": "workbench-local",
+            "external_execution_authorized": True,
+            "interval_seconds": 60,
+        },
+    )
+
+    assert started.status_code == 200, started.text
+    assert started.json()["daemon"]["external_execution_authorized"] is True
+
+    assigned = client.post(
+        "/api/tickets/ARI-003/assign",
+        json={
+            "assignee_id": "codex",
+            "assignee_kind": "agent",
+            "backend_name": "codex",
+            "runtime_profile": "deterministic",
+            "target_project_id": project.id,
+            "idempotency_key": "assign-runtime-authorized-codex",
+        },
+    )
+    assert assigned.status_code == 200, assigned.text
+    assignment_id = assigned.json()["assignment"]["id"]
+    token = assigned.json()["confirmation_token"]
+
+    result = client.post(
+        f"/api/assignments/{assignment_id}/run-now",
+        json={
+            "confirmation_token": token,
+            "timeout_seconds": 5,
+            "idempotency_key": "run-runtime-authorized-codex",
+        },
+    )
+
+    assert result.status_code == 200, result.text
+    execution = store.load_execution_result(result.json()["ticket_run_result"]["execution_result_id"])
+    assert execution.failure_reason is FailureReason.COMMAND_UNAVAILABLE
+    assert "--confirm-execution is required" not in execution.block_reason
+    client.post("/api/daemon/stop", json={})
+
+
+def test_stopping_daemon_clears_runtime_external_authorization(tmp_path: Path) -> None:
+    client = TestClient(create_app(tmp_path))
+
+    started = client.post(
+        "/api/daemon/start",
+        json={
+            "runtime_id": "workbench-local",
+            "external_execution_authorized": True,
+        },
+    )
+    assert started.status_code == 200, started.text
+    assert started.json()["daemon"]["external_execution_authorized"] is True
+
+    stopped = client.post("/api/daemon/stop", json={})
+
+    assert stopped.status_code == 200, stopped.text
+    assert stopped.json()["daemon"]["background_running"] is False
+    assert stopped.json()["daemon"]["external_execution_authorized"] is False

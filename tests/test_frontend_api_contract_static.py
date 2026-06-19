@@ -115,9 +115,24 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     assert "TicketExecutionEvidence" in app
     assert "ExecutionEvidencePanel" in app
     assert "data.daemonStatus" in app
-    assert "立即 claim 并运行" in app
+    assert "分配后由运行时自动 claim" in app
     assert "adaptTicketEvidence" in data
     assert "daemonStatus:" in data
+
+
+def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
+    api_types = API_TYPES.read_text(encoding="utf-8")
+    app = APP.read_text(encoding="utf-8")
+    control = AGENT_CONTROL.read_text(encoding="utf-8")
+
+    daemon_start_block = api_types.split("export type DaemonStartRequest", 1)[1].split("};", 1)[0]
+    run_block = api_types.split("export type RunAssignmentRequest", 1)[1].split("};", 1)[0]
+
+    assert "external_execution_authorized" in daemon_start_block
+    assert "external_execution_authorized" not in run_block
+    assert "confirm_execution" not in run_block
+    assert "授权 Codex/Claude" in app
+    assert "external_execution_authorized: true" in control
 
 
 def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:

@@ -217,6 +217,7 @@ export type DaemonStatus = {
   runtimeId: string;
   status: string;
   backgroundRunning: boolean;
+  externalExecutionAuthorized: boolean;
   stale?: boolean | null;
   currentAssignmentId?: string | null;
   currentTicketKey?: string | null;

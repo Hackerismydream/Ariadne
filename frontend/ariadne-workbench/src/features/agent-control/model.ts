@@ -83,7 +83,7 @@ export function useTicketAgentControl({
           [assigned.assignment!.id!]: assigned.confirmation_token!,
         }));
       }
-      setActionMessage("已创建 assignment 和一次性执行确认 token。");
+      setActionMessage("已创建 assignment；本地运行时会自动 claim 并执行。");
       await onRefresh(ticket.key);
       if (assigned.assignment?.id) watchAssignmentEvents(assigned.assignment.id);
     } catch (error) {
@@ -143,8 +143,12 @@ export function useTicketAgentControl({
     setDaemonActionState("starting");
     setActionMessage("");
     try {
-      await startDaemon({ runtime_id: "workbench-local", interval_seconds: 2 });
-      setActionMessage("本地运行时已启动，会自动 claim 可运行的 assignment。");
+      await startDaemon({
+        runtime_id: "workbench-local",
+        interval_seconds: 2,
+        external_execution_authorized: true,
+      });
+      setActionMessage("本地运行时已启动，并已授权 Codex/Claude 执行分配给它的任务。");
       await onRefresh(ticket.key);
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "启动本地运行时失败");

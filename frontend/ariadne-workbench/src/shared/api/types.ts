@@ -97,6 +97,7 @@ export type ApiDaemonStatus = {
   runtime_id: string;
   status: string;
   background_running: boolean;
+  external_execution_authorized: boolean;
   stale?: boolean | null;
   current_assignment_id?: string | null;
   current_ticket_key?: string | null;
@@ -266,6 +267,7 @@ export type DaemonStartRequest = {
   interval_seconds?: number;
   max_iterations?: number | null;
   timeout_seconds?: number | null;
+  external_execution_authorized?: boolean;
 };
 
 export type AddTicketCommentRequest = {

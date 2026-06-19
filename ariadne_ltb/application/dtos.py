@@ -103,6 +103,7 @@ class DaemonStatusDTO(AriadneDTO):
     runtime_id: str = "workbench-local"
     status: str = "unknown"
     background_running: bool = False
+    external_execution_authorized: bool = False
     stale: bool | None = None
     current_assignment_id: str | None = None
     current_ticket_key: str | None = None
@@ -305,6 +306,7 @@ class DaemonStartInput(AriadneDTO):
     interval_seconds: float = Field(default=2.0, ge=0.2, le=60.0)
     max_iterations: int | None = Field(default=None, ge=1, le=10_000)
     timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
+    external_execution_authorized: bool = False
 
 
 class DaemonControlOutput(AriadneDTO):
