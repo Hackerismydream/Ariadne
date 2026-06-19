@@ -6606,3 +6606,50 @@ Final verification:
   - source analysis completed;
   - source timeline showed cached commit and file count;
   - understanding panel showed README summary, manifest, tests, evidence, risk, and `仓库理解`.
+
+## 2026-06-20 Maturity Campaign: MAT-006 Source Compiler Branch Reconciliation
+
+Branch: `codex/ariadne-maturity-campaign`
+
+GitHub issue: https://github.com/Hackerismydream/Ariadne/issues/21
+
+Decision:
+
+- PR #15 (`codex/real-source-to-agent-compiler-plan` -> `main`) is superseded by
+  the maturity campaign branch for landing purposes.
+- The maturity branch already contains PR #15 commit
+  `911516f feat: implement real source-to-agent compiler`.
+- Future maturity work should continue on `codex/ariadne-maturity-campaign` so
+  source compiler, product doctor, and Workbench evidence changes do not drift
+  across competing branches.
+
+Evidence:
+
+- `git merge-base --is-ancestor 911516f HEAD`: passed with exit code `0`.
+- `git branch --contains 911516f`: listed both
+  `codex/ariadne-maturity-campaign` and
+  `codex/real-source-to-agent-compiler-plan`.
+- PR #15 remains mergeable, but it is narrower than the maturity campaign branch
+  and should not be the landing baseline by itself.
+- Existing browser QA for the source compiler slice remains the product proof:
+  adding `https://github.com/e10nMa2k/cc-mini` auto-filled the repository title,
+  completed source analysis, and rendered repository understanding evidence in
+  the Workbench.
+
+Files updated:
+
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+- `docs/development_report.md`
+
+Verification:
+
+- `git merge-base --is-ancestor 911516f HEAD`: passed.
+- `python3.11 -m pytest tests/test_source_repository_fetch.py tests/test_repository_scanner.py tests/test_issue_factory_compiler.py tests/test_handoff_packet_readiness.py tests/test_frontend_api_contract_static.py`: passed.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed as a diagnostic command
+  and still reports expected production readiness blockers.
+
+Known limitation:
+
+- Main does not yet contain the maturity campaign branch. This entry only
+  resolves branch/PR direction for the campaign; it does not merge to main.

@@ -128,18 +128,34 @@ stale-doc-only cleanup.
 - Priority: P1
 - Labels: `enhancement`, `maturity-campaign`, `priority:P1`,
   `area:workbench`
-- Status: open.
+- Status: completed on `codex/ariadne-maturity-campaign`.
 - Problem: source-to-agent compiler work exists on PR #15 and must be
   reconciled with the maturity baseline before dependent product work builds on
   divergent branches.
+- Reconciliation decision:
+  - PR #15 is superseded by the maturity campaign branch for landing purposes.
+  - The maturity branch contains PR #15 commit
+    `911516f feat: implement real source-to-agent compiler` as an ancestor.
+  - Future product work should target `codex/ariadne-maturity-campaign`, not
+    `codex/real-source-to-agent-compiler-plan`, so source compiler, product
+    doctor, and Workbench evidence changes stay in one reviewed baseline.
+- Evidence:
+  - `git merge-base --is-ancestor 911516f HEAD` returned `0` on
+    `codex/ariadne-maturity-campaign`.
+  - `git branch --contains 911516f` listed both
+    `codex/ariadne-maturity-campaign` and
+    `codex/real-source-to-agent-compiler-plan`.
+  - Browser QA for the source compiler slice is recorded in
+    `docs/development_report.md`: adding `https://github.com/e10nMa2k/cc-mini`
+    auto-filled the repo title, completed source analysis, and rendered
+    repository understanding evidence.
 - Acceptance:
-  - Decide whether PR #15 is superseded, mergeable, or needs rebasing onto the
-    maturity campaign.
-  - Main/maturity baseline has real source fetch/cache, repository
+  - Done: PR #15 is documented as superseded by the maturity campaign branch.
+  - Done: the maturity baseline has real source fetch/cache, repository
     understanding, typed issue compiler, and frozen handoff behavior.
-  - Browser QA covers adding a GitHub repo URL and seeing repository
+  - Done: browser QA covers adding a GitHub repo URL and seeing repository
     understanding evidence.
-  - Branch/PR decision is documented before close.
+  - Done: branch/PR decision is documented before close.
 
 ## Deduplication Decisions
 
@@ -154,5 +170,6 @@ stale-doc-only cleanup.
 
 ## Next Candidate
 
-After MAT-001 lands, the next highest-value issue is MAT-002. It is the core
-gap between a working local kernel and a mature browser Agent Workbench.
+After MAT-001, MAT-002, and MAT-006, the next highest-value issue is MAT-003.
+It should make release evidence regeneration guided and auditable so product
+readiness blockers are actionable instead of only descriptive.
