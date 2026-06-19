@@ -17,6 +17,7 @@ from ariadne_ltb.application.dtos import (
     RunAssignmentInput,
 )
 from ariadne_ltb.application.daemon_control import DaemonControlService
+from ariadne_ltb.application.errors import ApplicationError
 from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
 from ariadne_ltb.application.issue_factory import IssueFactoryService
 from ariadne_ltb.application.mappers import source_artifact_dto, source_document_dto, source_evidence_dto
@@ -84,7 +85,14 @@ def register_target_project(
     payload: RegisterTargetProjectInput,
     store: AriadneStore = Depends(get_store),
 ) -> dict:
-    project = TargetProjectRegistry(store).register(payload.path, payload.label)
+    project = TargetProjectRegistry(store).register(
+        payload.path,
+        payload.label,
+        create_if_missing=payload.create_if_missing,
+        init_git=payload.init_git,
+        test_command=payload.test_command,
+        issue_prefix=payload.issue_prefix,
+    )
     return {"target_project": project.model_dump(mode="json")}
 
 
@@ -155,7 +163,17 @@ def apply_issue_factory_preview(
     preview_id: str,
     store: AriadneStore = Depends(get_store),
 ) -> dict:
-    return IssueFactoryService(store).apply(preview_id).model_dump(mode="json")
+    try:
+        return IssueFactoryService(store).apply(preview_id).model_dump(mode="json")
+    except ValueError as exc:
+        if str(exc).startswith("stale_preview"):
+            raise ApplicationError(
+                "stale_preview",
+                "This task-change preview is stale because the project issue set changed. Regenerate task changes and apply the new preview.",
+                409,
+                {"preview_id": preview_id},
+            ) from exc
+        raise
 
 
 @router.post("/api/tickets/{ticket_id_or_key}/assign")

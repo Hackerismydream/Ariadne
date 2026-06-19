@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from hashlib import sha256
 
+from ariadne_ltb.application.build_context import IssueFactoryContext, assemble_issue_factory_context
 from ariadne_ltb.application.dtos import (
     BacklogPreviewDTO,
     IssueFactoryApplyOutput,
     IssueFactoryPreviewInput,
 )
+from ariadne_ltb.application.issue_delta_validation import validate_issue_delta_operations
 from ariadne_ltb.application.mappers import backlog_preview_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.backlog import apply_backlog_preview, ticket_backlog_fingerprint
@@ -31,14 +33,15 @@ class IssueFactoryService:
         goal = ProjectGoalService(self.store).load(payload.goal_id)
         sources = self._sources(payload.source_ids)
         fingerprint = ticket_backlog_fingerprint(self.store)
-        seed = "|".join([goal.id, goal.title, goal.north_star, fingerprint, *[source.id for source in sources]])
+        context = assemble_issue_factory_context(self.store, goal, sources, payload.target_project_id)
+        seed = "|".join([goal.id, context.manifest.context_fingerprint, fingerprint])
         idempotency_key = stable_id("issue_factory", seed)
         preview_id = stable_id("backlog_preview", idempotency_key)
         existing = self._load_existing(preview_id)
         if existing:
             return backlog_preview_dto(existing)
 
-        operations = self._operations(goal.title, goal.north_star, sources, payload.target_project_id)
+        operations = validate_issue_delta_operations(self._operations(goal.title, goal.north_star, context))
         preview = BacklogPreview(
             id=preview_id,
             trigger_type=BacklogUpdateTrigger.MANUAL_GOAL,
@@ -50,7 +53,7 @@ class IssueFactoryService:
                 "Generated an issue set from the active builder goal, selected external knowledge, "
                 "and current local project context."
             ),
-            evidence_refs=[goal.id, *[source.id for source in sources]],
+            evidence_refs=[goal.id, *context.manifest.evidence_ids],
         )
         self.store.save_backlog_preview(preview)
         return backlog_preview_dto(preview)
@@ -81,20 +84,23 @@ class IssueFactoryService:
         self,
         title: str,
         north_star: str,
-        sources: list[SourceDocument],
-        target_project_id: str | None,
+        context: IssueFactoryContext,
     ) -> list[BacklogOperation]:
-        tasks = _dogfood_tasks() if _is_mini_code_goal(title, north_star, sources) else _generic_tasks(title)
+        tasks = _mini_code_agent_tasks() if _is_mini_code_context(title, north_star, context) else _generic_tasks(title)
         operations: list[BacklogOperation] = []
         existing_keys = {ticket.key for ticket in self.store.list_tickets()}
-        next_index = _next_ticket_index(existing_keys)
-        primary_source = sources[0] if sources else _synthetic_source(title, north_star)
+        prefix = _issue_prefix(self.store, context.manifest.target_project_id, title)
+        next_index = _next_ticket_index(existing_keys, prefix)
+        primary_source = context.sources[0] if context.sources else _synthetic_source(title, north_star)
+        evidence_refs = context.manifest.evidence_ids or [primary_source.id]
+        source_artifact_ids = context.manifest.source_artifact_ids
+        source_document_ids = context.manifest.source_document_ids
         for task in tasks:
-            while f"ARI-{next_index:03d}" in existing_keys:
+            while f"{prefix}-{next_index:03d}" in existing_keys:
                 next_index += 1
-            ticket_key = f"ARI-{next_index:03d}"
+            ticket_key = f"{prefix}-{next_index:03d}"
             existing_keys.add(ticket_key)
-            source_doc = _source_for_task(primary_source, task, target_project_id)
+            source_doc = _source_for_task(primary_source, task, context, evidence_refs)
             ticket_id = stable_id("ticket", source_doc.id, ticket_key)
             operations.append(
                 BacklogOperation(
@@ -115,8 +121,15 @@ class IssueFactoryService:
                         "build_decision": task["build_decision"],
                         "acceptance_criteria": task["acceptance_criteria"],
                         "affected_modules": task["affected_modules"],
-                        "evidence_refs": [primary_source.id],
-                        "target_project_id": target_project_id,
+                        "evidence_refs": evidence_refs,
+                        "source_document_ids": source_document_ids,
+                        "source_artifact_ids": source_artifact_ids,
+                        "build_context_id": context.manifest.id,
+                        "context_fingerprint": context.manifest.context_fingerprint,
+                        "target_project_id": context.manifest.target_project_id,
+                        "goal_reason": task["reason"],
+                        "risks": task.get("risks", []),
+                        "assumptions": task.get("assumptions", []),
                     },
                 )
             )
@@ -124,10 +137,10 @@ class IssueFactoryService:
         return operations
 
 
-def _next_ticket_index(existing_keys: set[str]) -> int:
+def _next_ticket_index(existing_keys: set[str], prefix: str) -> int:
     values = []
     for key in existing_keys:
-        if key.startswith("ARI-"):
+        if key.startswith(f"{prefix}-"):
             try:
                 values.append(int(key.split("-", 1)[1]))
             except ValueError:
@@ -135,48 +148,105 @@ def _next_ticket_index(existing_keys: set[str]) -> int:
     return (max(values) + 1) if values else 1
 
 
-def _is_mini_code_goal(title: str, north_star: str, sources: list[SourceDocument]) -> bool:
-    haystack = " ".join([title, north_star, *[source.title + " " + source.path_or_url for source in sources]]).lower()
+def _issue_prefix(store: AriadneStore, target_project_id: str, title: str) -> str:
+    for resource in store.load_project_resources():
+        if resource.id == target_project_id:
+            prefix = resource.resource_ref.get("issue_prefix")
+            if prefix:
+                return _normalize_prefix(str(prefix))
+            label = resource.label or resource.resource_ref.get("label")
+            if label:
+                return _prefix_from_label(str(label))
+    if "mini code" in title.lower() or "mini-code" in title.lower():
+        return "MCA"
+    return _prefix_from_label(title)
+
+
+def _normalize_prefix(value: str) -> str:
+    cleaned = "".join(char for char in value.upper() if char.isalnum())
+    return cleaned[:4] or "PRJ"
+
+
+def _prefix_from_label(value: str) -> str:
+    if "mini code" in value.lower() or "mini-code" in value.lower():
+        return "MCA"
+    words = ["".join(char for char in word.upper() if char.isalnum()) for word in value.replace("-", " ").split()]
+    letters = "".join(word[0] for word in words if word)
+    return (letters or "PRJ")[:4]
+
+
+def _is_mini_code_context(title: str, north_star: str, context: IssueFactoryContext) -> bool:
+    haystack = " ".join(
+        [
+            title,
+            north_star,
+            *[source.title + " " + source.path_or_url for source in context.sources],
+        ]
+    ).lower()
     return any(token in haystack for token in ["mini code", "mini-code", "mini-swe", "minimal-agent"])
 
 
-def _dogfood_tasks() -> list[dict[str, object]]:
+def _mini_code_agent_tasks() -> list[dict[str, object]]:
     return [
         _task(
-            "Define Mini Code Agent product contract",
-            "Lock the builder-facing contract for a local mini code agent before implementation.",
+            "Bootstrap Python package and CLI",
+            "A minimal coding agent needs an executable package and command-line entrypoint before higher-level agent behavior can be tested.",
             "high",
-            ["docs/product/mini-code-agent-contract.md"],
+            ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py"],
         ),
         _task(
-            "Implement Mini Code Agent workspace model",
-            "Represent a folder-backed builder project with goal, sources, issue set, and execution state.",
+            "Add DeepSeek-backed LLM client configuration",
+            "The target agent needs a real upstream model client and local configuration path instead of demo responses.",
             "high",
-            ["mini_code_agent/workspace.py", "tests/test_workspace.py"],
+            ["mini_code_agent/llm.py", "mini_code_agent/config.py", "tests/test_llm_config.py"],
         ),
         _task(
-            "Implement external knowledge ingestion for Mini Code Agent",
-            "Accept blog, GitHub repo notes, and markdown snippets as first-class project sources.",
+            "Define tool protocol and model action schema",
+            "Reference projects converge on a model-action-observation loop, so the target needs a typed protocol before tool execution.",
             "high",
-            ["mini_code_agent/knowledge.py", "tests/test_knowledge.py"],
+            ["mini_code_agent/protocol.py", "tests/test_protocol.py"],
         ),
         _task(
-            "Implement Issue Factory for Mini Code Agent",
-            "Generate versioned issue deltas from goal, knowledge, codebase state, and feedback.",
+            "Implement shell command tool with allowlist",
+            "Coding agents need shell access, but the first version must restrict commands to an explicit allowlist.",
             "high",
-            ["mini_code_agent/issues.py", "tests/test_issue_factory.py"],
+            ["mini_code_agent/tools/shell.py", "tests/test_shell_tool.py"],
         ),
         _task(
-            "Implement Codex and Claude execution adapter surface",
-            "Route approved issues to real coding backends through safety-gated adapters.",
+            "Implement file read and patch tools with review-before-write safety",
+            "Reference agents expose file operations, but Ariadne should dogfood review-before-write safety in the target agent.",
             "high",
-            ["mini_code_agent/runtime.py", "tests/test_runtime.py"],
+            ["mini_code_agent/tools/files.py", "tests/test_file_tools.py"],
         ),
         _task(
-            "Show trajectory, diff, tests, and review evidence",
-            "Persist and expose the evidence a builder needs to trust each agent run.",
+            "Implement agent loop: prompt -> action -> observation -> repeat",
+            "The core agent value is the loop that turns model actions into tool observations until the task is complete or blocked.",
+            "high",
+            ["mini_code_agent/agent_loop.py", "tests/test_agent_loop.py"],
+        ),
+        _task(
+            "Persist session trace and run summary",
+            "AI Builders need inspectable trajectories to debug and improve the mini code agent.",
             "medium",
+            ["mini_code_agent/trace.py", "tests/test_trace.py"],
+        ),
+        _task(
+            "Capture git diff and test result",
+            "The target agent must report changed files, diff, and tests so the builder can review output.",
+            "high",
             ["mini_code_agent/evidence.py", "tests/test_evidence.py"],
+        ),
+        _task(
+            "Add minimal reviewer checks for task completion",
+            "A conservative reviewer pass is needed before a run can be considered usable.",
+            "medium",
+            ["mini_code_agent/reviewer.py", "tests/test_reviewer.py"],
+        ),
+        _task(
+            "Write README quickstart and usage examples",
+            "A v0.1 is not usable unless an AI Builder can install it, run it, and inspect output.",
+            "medium",
+            ["README.md", "docs/quickstart.md"],
         ),
     ]
 
@@ -217,13 +287,16 @@ def _task(title: str, reason: str, priority: str, affected_modules: list[str]) -
             "Tests cover the new behavior without external credentials.",
         ],
         "affected_modules": affected_modules,
+        "risks": ["Scope should stay small enough for one issue-sized coding pass."],
+        "assumptions": ["The target project is a local Python package managed from the Ariadne Workbench."],
     }
 
 
 def _source_for_task(
     primary: SourceDocument,
     task: dict[str, object],
-    target_project_id: str | None,
+    context: IssueFactoryContext,
+    evidence_refs: list[str],
 ) -> SourceDocument:
     content = f"{primary.id}\n{task['title']}\n{task['reason']}"
     return SourceDocument(
@@ -236,7 +309,10 @@ def _source_for_task(
         metadata={
             "entrypoint": "web_issue_factory",
             "parent_source_id": primary.id,
-            "target_project_id": target_project_id,
+            "target_project_id": context.manifest.target_project_id,
+            "build_context_id": context.manifest.id,
+            "source_artifact_ids": context.manifest.source_artifact_ids,
+            "evidence_refs": evidence_refs,
             "evidence_snippets": [str(task["reason"])],
         },
     )

@@ -475,6 +475,19 @@ class SourceArtifact(AriadneModel):
     created_at: datetime | str = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class BuildContextManifest(AriadneModel):
+    id: str
+    goal_id: str
+    target_project_id: str
+    source_document_ids: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    codebase_snapshot_artifact_id: str | None = None
+    base_ticket_fingerprint: str
+    context_fingerprint: str
+    created_at: str = Field(default_factory=utc_now)
+
+
 class AgentProfile(AriadneModel):
     id: str
     name: str

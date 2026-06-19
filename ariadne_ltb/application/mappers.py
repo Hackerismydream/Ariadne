@@ -187,11 +187,17 @@ def runtime_capability_dto(capability: RuntimeCapability) -> RuntimeCapabilityDT
 
 
 def target_project_dto(resource: ProjectResource, available: bool = True, reason: str = "") -> TargetProjectDTO:
+    metadata = {
+        key: value
+        for key, value in resource.resource_ref.items()
+        if key in {"local_path", "daemon_id", "label", "test_command", "issue_prefix"}
+    }
     return TargetProjectDTO(
         id=resource.id,
         label=resource.label or resource.resource_ref.get("label") or resource.id,
         available=available,
         disabled_reason=reason,
+        metadata=metadata,
     )
 
 
@@ -317,6 +323,30 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
         owner_agent=operation.metadata.get("owner_agent"),
         build_decision=operation.metadata.get("build_decision"),
         evidence_refs=[str(item) for item in operation.metadata.get("evidence_refs", [])],
+        affected_modules=[str(item) for item in operation.metadata.get("affected_modules", [])],
+        acceptance_criteria=[str(item) for item in operation.metadata.get("acceptance_criteria", [])],
+        source_artifact_ids=[str(item) for item in operation.metadata.get("source_artifact_ids", [])],
+        build_context_id=operation.metadata.get("build_context_id"),
+        target_project_id=operation.metadata.get("target_project_id"),
+        goal_reason=operation.metadata.get("goal_reason"),
+        metadata={
+            key: value
+            for key, value in operation.metadata.items()
+            if key
+            in {
+                "build_context_id",
+                "source_document_ids",
+                "source_artifact_ids",
+                "evidence_refs",
+                "affected_modules",
+                "acceptance_criteria",
+                "goal_reason",
+                "target_project_id",
+                "risks",
+                "assumptions",
+                "test_command",
+            }
+        },
     )
 
 

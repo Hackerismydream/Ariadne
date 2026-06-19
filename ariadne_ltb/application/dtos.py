@@ -14,6 +14,7 @@ class TargetProjectDTO(AriadneDTO):
     label: str
     available: bool
     disabled_reason: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuntimeCapabilityDTO(AriadneDTO):
@@ -227,6 +228,13 @@ class BacklogOperationDTO(AriadneDTO):
     owner_agent: str | None = None
     build_decision: str | None = None
     evidence_refs: list[str] = Field(default_factory=list)
+    affected_modules: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    build_context_id: str | None = None
+    target_project_id: str | None = None
+    goal_reason: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class BacklogPreviewDTO(AriadneDTO):
@@ -262,6 +270,10 @@ class WorkbenchDTO(AriadneDTO):
 class RegisterTargetProjectInput(AriadneDTO):
     path: str
     label: str | None = None
+    create_if_missing: bool = False
+    init_git: bool = False
+    test_command: str | None = None
+    issue_prefix: str | None = None
 
 
 class CreateProjectGoalInput(AriadneDTO):

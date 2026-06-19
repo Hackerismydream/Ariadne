@@ -25,6 +25,7 @@ from ariadne_ltb.models import (
     BacklogUpdate,
     BackendSmokeEvidence,
     BuildPacket,
+    BuildContextManifest,
     BuildTeam,
     BuildTicket,
     CommentAuthorType,
@@ -86,6 +87,7 @@ class AriadneStore:
         self.project_dir = self.base / "project"
         self.source_artifacts_dir = self.project_dir / "source_artifacts"
         self.source_evidence_path = self.project_dir / "source_evidence.jsonl"
+        self.build_contexts_dir = self.project_dir / "build_contexts"
         self.runtimes_dir = self.base / "runtimes"
         self.locks_dir = self.base / "locks"
         self.worktrees_dir = self.base / "worktrees"
@@ -123,6 +125,7 @@ class AriadneStore:
             self.runs_dir,
             self.sources_dir,
             self.source_artifacts_dir,
+            self.build_contexts_dir,
             self.skill_materializations_dir,
             self.build_packets_dir,
             self.execution_results_dir,
@@ -851,6 +854,18 @@ class AriadneStore:
         if source_document_id is not None:
             artifacts = [artifact for artifact in artifacts if artifact.source_document_id == source_document_id]
         return artifacts
+
+    def save_build_context_manifest(self, manifest: BuildContextManifest) -> None:
+        self._write_model(self.build_contexts_dir / f"{manifest.id}.json", manifest)
+
+    def load_build_context_manifest(self, manifest_id: str) -> BuildContextManifest:
+        return self._read_model(self.build_contexts_dir / f"{manifest_id}.json", BuildContextManifest)
+
+    def list_build_context_manifests(self) -> list[BuildContextManifest]:
+        return [
+            self._read_model(path, BuildContextManifest)
+            for path in sorted(self.build_contexts_dir.glob("*.json"))
+        ]
 
     def save_execution_result(self, result: ExecutionResult) -> None:
         self._write_model(self.execution_results_dir / f"{result.id}.json", result)
