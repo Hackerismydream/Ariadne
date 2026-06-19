@@ -6292,3 +6292,95 @@ Browser-found fixes:
 
 - Frontend assignment selection now prioritizes `ticket.latestAssignmentId`; this prevents stale assignment/token mismatches when a ticket has many historical assignments.
 - Assignment event streams now exclude unrelated ticket-level runtime events, comments, and run messages so the control panel follows the current assignment instead of replaying old ticket history.
+
+## 2026-06-19 Typed Source-to-Issue Compiler Dogfood Slice
+
+Branch: `codex/typed-source-to-issue-dogfood`
+
+Implemented in this branch:
+
+- Added source-side typed artifact foundations:
+  - `SourceEvidence`
+  - `SourceArtifact`
+  - `BuildContextManifest`
+  - `source_asset_from_document`
+- Added JSON/JSONL persistence for source artifacts, source evidence, and build context manifests.
+- Added `SourceAnalysisService`:
+  - text/markdown/blog sources produce `knowledge_card` artifacts;
+  - GitHub/local reference repositories produce `reference_project_profile` artifacts;
+  - target codebases produce `codebase_snapshot` artifacts;
+  - reference project analysis records license risk, entrypoints, test paths, repo map, behavior patterns, reuse notes, and avoid notes.
+- Changed Web source creation so new sources start with `analysis_status=pending` instead of pretending manual content is finished ingestion.
+- Added `/api/sources/{source_id}/analyze`.
+- Extended `/api/workbench` projection with source artifacts and source evidence.
+- Replaced the Mini Code Agent hard-coded `ARI-*` demo task path with typed source-to-issue compilation.
+- The Mini Code Agent dogfood now generates `MCA-001` through `MCA-010` from the goal, source artifacts, evidence refs, and target codebase snapshot.
+- Added `issue_delta_validation` so generated code tasks require evidence refs, affected modules, acceptance criteria, target project binding, and build context.
+- Added recoverable stale preview handling: `/api/issue-factory/{preview_id}/apply` now returns `409 stale_preview` instead of leaking a `ValueError` as a 500.
+- Added target project setup support for:
+  - creating a missing local folder;
+  - initializing git;
+  - storing `test_command`;
+  - storing `issue_prefix`.
+- Changed assignment claim semantics:
+  - `queued` means created but not claimable;
+  - user run approval transitions the assignment to `ready_to_claim`;
+  - daemon claim only accepts `ready_to_claim` assignments with readiness metadata.
+- Extended frontend API contracts and adapter fields for:
+  - source role;
+  - source analysis status;
+  - source artifacts;
+  - source evidence;
+  - target project metadata;
+  - assignment readiness.
+- Changed the Workbench main navigation to the four-step product path:
+  - Project
+  - Sources
+  - Tasks
+  - Ready to Run
+- Added a dedicated `TasksPage` for the Issue Factory / Source-to-Issue Compiler instead of reusing the Sources page body.
+- Changed assignment readiness so assigning through CLI, HTTP, or backend smoke paths can create `ready_to_claim` assignments when route/target metadata is available.
+- Preserved stale lease reclaim only for previously ready assignments with complete readiness metadata.
+- Stopped exposing full local target paths in browser-safe target project DTOs.
+- Fixed source evidence to artifact back-links so source-side evidence points at the generated typed artifact.
+
+Current boundaries:
+
+- Sources page still needs a visible browser action for per-source analysis; the analyzer exists behind `/api/sources/{source_id}/analyze` and is covered by automated and browser-context dogfood runs.
+- `ready_to_claim` currently receives route/handoff readiness metadata, but real persisted `RouteDecision` and immutable handoff packet generation still need to be completed before this is a full execution handoff.
+- Browser acceptance for the source-to-issue dogfood path passed:
+  - registered a Mini Code Agent target project;
+  - created `Build Mini Code Agent v0.1` goal;
+  - added and analyzed 4 sources;
+  - generated `MCA-001` through `MCA-010`;
+  - verified every generated operation carried 4 source artifact refs and 4 evidence refs;
+  - clicked `应用任务变更` in the Workbench;
+  - verified Ready page showed `MCA-001` and `MCA-010`.
+- Real Codex/Claude execution remains gated and is not claimed as successful in this slice.
+
+Verification added:
+
+- `tests/test_source_assets.py`
+- `tests/test_source_analysis.py`
+- `tests/test_issue_factory_compiler.py`
+- `tests/test_issue_factory_http_errors.py`
+- `tests/test_web_project_setup.py`
+- `tests/test_assignment_claim_state_machine.py`
+- strengthened `tests/test_web_dogfood_product_path.py`
+- strengthened `tests/test_frontend_api_contract_static.py`
+
+Verification run:
+
+- `python3.11 -m pytest`: passed, `356 passed`.
+- `ruff check .`: passed.
+- `cd frontend/ariadne-workbench && npm run build`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed as offline regression fixture.
+- `python3.11 -m ariadne_ltb.cli export board`: passed and wrote `.ariadne/board/index.md`.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude commands were found, external execution was unset, and no secrets were printed.
+- Browser QA used system Chrome through Playwright against `ari workbench serve --host 127.0.0.1 --port 8767`.
+
+Known follow-ups:
+
+- Add a browser-visible Analyze Source action for each source row.
+- Persist real `RouteDecision` and immutable handoff packet before assignment readiness.
+- Continue the next slice from `ready_to_claim` into real Codex/Claude execution feedback.

@@ -46,8 +46,11 @@ def test_markdown_source_analysis_writes_knowledge_card(tmp_path) -> None:
     artifacts = store.list_source_artifacts(source.id)
     assert artifacts[0].artifact_type == "knowledge_card"
     payload = store.load_source_artifact_payload(artifacts[0].id)
+    evidence = store.list_source_evidence(source.id)
     assert "query model" in payload["summary"].lower()
-    assert store.list_source_evidence(source.id)
+    assert evidence
+    assert evidence[0].artifact_id == artifacts[0].id
+    assert evidence[0].id in artifacts[0].evidence_ids
 
 
 def test_github_repo_analysis_writes_reference_project_profile(tmp_path) -> None:
@@ -78,8 +81,11 @@ def test_github_repo_analysis_writes_reference_project_profile(tmp_path) -> None
     SourceAnalysisService(store).analyze_source(source.id)
 
     artifact = store.list_source_artifacts(source.id)[0]
+    evidence = store.list_source_evidence(source.id)
     payload = store.load_source_artifact_payload(artifact.id)
     assert artifact.artifact_type == "reference_project_profile"
+    assert evidence[0].artifact_id == artifact.id
+    assert evidence[0].id in artifact.evidence_ids
     assert payload["license"]["detected"] == "MIT"
     assert payload["license_risk"] == "green"
     assert payload["entrypoints"]

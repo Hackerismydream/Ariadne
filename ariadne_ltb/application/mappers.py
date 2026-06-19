@@ -198,7 +198,7 @@ def target_project_dto(resource: ProjectResource, available: bool = True, reason
     metadata = {
         key: value
         for key, value in resource.resource_ref.items()
-        if key in {"local_path", "daemon_id", "label", "test_command", "issue_prefix"}
+        if key in {"daemon_id", "label", "test_command", "issue_prefix"}
     }
     return TargetProjectDTO(
         id=resource.id,

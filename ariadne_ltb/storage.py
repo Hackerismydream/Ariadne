@@ -436,6 +436,12 @@ class AriadneStore:
             )
             return None
         metadata = assignment.metadata
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            metadata = metadata | {
+                "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
+                "lease_reclaimed_from_status": assignment.status.value,
+                "lease_reclaimed_at": utc_now(),
+            }
         claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
         claimed = claimed.model_copy(
             deep=True,
@@ -470,7 +476,12 @@ class AriadneStore:
         target_project_id: str | None = None,
         allowed_backends: list[str] | None = None,
     ) -> bool:
-        if assignment.status is not AssignmentStatus.READY_TO_CLAIM:
+        if assignment.status is AssignmentStatus.READY_TO_CLAIM:
+            pass
+        elif assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            if not is_assignment_lease_expired(assignment):
+                return False
+        else:
             return False
         metadata = assignment.metadata
         if target_project_id is not None and metadata.get("target_project_id") != target_project_id:
@@ -817,8 +828,16 @@ class AriadneStore:
                 msg = f"missing_source_artifact:{evidence.artifact_id}"
                 raise ValueError(msg) from exc
         self.source_evidence_path.parent.mkdir(parents=True, exist_ok=True)
-        existing_ids = {item.id for item in self.list_source_evidence()}
-        if evidence.id in existing_ids:
+        existing_items = self.list_source_evidence()
+        existing_by_id = {item.id: item for item in existing_items}
+        if evidence.id in existing_by_id:
+            existing = existing_by_id[evidence.id]
+            if existing.artifact_id is None and evidence.artifact_id is not None:
+                replaced = [evidence if item.id == evidence.id else item for item in existing_items]
+                self.source_evidence_path.write_text(
+                    "".join(item.model_dump_json(exclude_none=False) + "\n" for item in replaced),
+                    encoding="utf-8",
+                )
             return
         with self.source_evidence_path.open("a", encoding="utf-8") as handle:
             handle.write(evidence.model_dump_json(exclude_none=False) + "\n")

@@ -110,7 +110,7 @@ def test_service_test_source_can_run_fallback_backend_against_registered_target(
     )
 
     assert run_payload.did_work is False
-    assert run_payload.assignment.status == "queued"
+    assert run_payload.assignment.status == "ready_to_claim"
     assert run_payload.ticket_run_result is None
     daemon_result = LocalDaemonWorker(store, runtime_id="test-daemon").run_once(
         confirm_execution=True,

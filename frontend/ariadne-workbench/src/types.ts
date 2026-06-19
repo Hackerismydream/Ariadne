@@ -334,6 +334,12 @@ export type BacklogChange = {
   appliedUpdateId?: string | null;
   conflictCount?: number;
   evidenceRefs?: string[];
+  affectedModules?: string[];
+  acceptanceCriteria?: string[];
+  sourceArtifactIds?: string[];
+  buildContextId?: string | null;
+  targetProjectId?: string | null;
+  goalReason?: string | null;
 };
 
 export type TraceStep = {

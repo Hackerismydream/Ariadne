@@ -413,7 +413,7 @@ function PageFrame({
 }) {
   if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
   if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
-  if (page === "tasks") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "tasks") return <TasksPage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
   if (page === "ready") {
     return (
       <IssuesPage
@@ -902,6 +902,183 @@ function KnowledgePage({
         <span className="unsafe">不安全 {data.backlogMutationPreview.unsafe}</span>
         <em>{previewStatusLabel(previewStatus)}</em>
       </footer>
+    </section>
+  );
+}
+
+function TasksPage({
+  data,
+  dataSource,
+  onRefresh,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  onRefresh: () => Promise<void>;
+}) {
+  const [selectedChangeId, setSelectedChangeId] = useState(data.backlogChanges[0]?.id ?? "");
+  const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
+  const [actionStatus, setActionStatus] = useState("");
+  const selectedChange = data.backlogChanges.find((change) => change.id === selectedChangeId)
+    ?? data.backlogChanges[0];
+  const groupedChanges = groupBacklogChanges(data.backlogChanges);
+  const activeGoal = data.goal.id !== "GOAL-NOT-CREATED" ? data.goal : undefined;
+  const activeProject = data.projectResources?.find((resource) => resource.id === activeGoal?.targetProjectId && resource.available)
+    ?? data.projectResources?.find((resource) => resource.available)
+    ?? data.projectResources?.[0];
+  const activePreviewId = data.backlogMutationPreview.previewId;
+  const traceSteps = selectedChange
+    ? data.traceSteps.filter((step) => !step.backlogChangeId || step.backlogChangeId === selectedChange.id)
+    : data.traceSteps.slice(0, 8);
+
+  useEffect(() => {
+    if (!data.backlogChanges.some((change) => change.id === selectedChangeId)) {
+      setSelectedChangeId(data.backlogChanges[0]?.id ?? "");
+    }
+    setPreviewStatus(data.backlogMutationPreview.status);
+  }, [data.backlogChanges, data.backlogMutationPreview.status, selectedChangeId]);
+
+  async function generateIssues() {
+    if (!activeGoal) {
+      setActionStatus("请先在项目页创建目标。");
+      return;
+    }
+    setActionStatus("正在从目标、输入和代码库快照生成任务变更...");
+    try {
+      const result = await createIssueFactoryPreview({
+        goal_id: activeGoal.id,
+        source_ids: data.sources.map((source) => source.id),
+        target_project_id: activeProject?.id ?? null,
+      });
+      await onRefresh();
+      setSelectedChangeId(result.preview.operations[0]?.id ?? "");
+      setActionStatus(`已生成 ${result.preview.operations.length} 个任务变更。`);
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "任务预览生成失败。");
+    }
+  }
+
+  async function applyPreview() {
+    if (!activePreviewId) {
+      setActionStatus("还没有可应用的任务预览。");
+      return;
+    }
+    setActionStatus("正在应用任务变更...");
+    try {
+      await applyIssueFactoryPreview(activePreviewId);
+      await onRefresh();
+      setPreviewStatus("applied");
+      setActionStatus("任务变更已应用，新的项目 issue 已写入任务列表。");
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "应用任务变更失败。");
+    }
+  }
+
+  return (
+    <section className="page full-bleed tasks-page">
+      <PageHeader
+        icon={<ListTodo size={17} />}
+        title="任务工厂"
+        count={data.backlogChanges.length}
+        action={
+          <div className="toolbar">
+            <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>
+              生成任务变更
+            </button>
+            <button disabled={dataSource !== "api" || !activePreviewId || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
+              {previewStatus === "applied" ? "已应用" : "应用任务变更"}
+            </button>
+          </div>
+        }
+      />
+      <section className="panel compiler-summary">
+        <div>
+          <h2>Source-to-Issue Compiler</h2>
+          <p>输入：项目目标、{data.sources.length} 个来源、{data.sourceArtifacts?.length ?? 0} 个 typed artifact、{data.sourceEvidence?.length ?? 0} 条证据。</p>
+        </div>
+        <div className="summary-metrics">
+          <span>新增 {data.backlogMutationPreview.added}</span>
+          <span>更新 {data.backlogMutationPreview.updated}</span>
+          <span>延后 {data.backlogMutationPreview.deferred}</span>
+          <span>不安全 {data.backlogMutationPreview.unsafe}</span>
+          <em>{previewStatusLabel(previewStatus)}</em>
+        </div>
+        {actionStatus ? <p className="action-message">{actionStatus}</p> : null}
+      </section>
+      <div className="knowledge-layout">
+        <section className="knowledge-column changes-column">
+          <ColumnHeader title="任务变更" meta={data.backlogMutationPreview.previewId ?? "还没有预览"} />
+          <BacklogChangeGroup title="新增" emptyLabel="新增" kind="added" changes={groupedChanges.added} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="更新" emptyLabel="更新" kind="updated" changes={groupedChanges.updated} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="延后" emptyLabel="延后" kind="deferred" changes={groupedChanges.deferred} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="拒绝" emptyLabel="拒绝" kind="rejected" changes={groupedChanges.rejected} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+        </section>
+
+        <section className="knowledge-column cards-column">
+          <ColumnHeader title="选中任务约束" meta={selectedChange?.ticketKey ?? "未选择"} />
+          {selectedChange ? (
+            <article className="knowledge-card selected">
+              <header>
+                <div>
+                  <strong>{selectedChange.title}</strong>
+                  <small>{selectedChange.ticketKey} · {buildDecisionLabel(selectedChange.buildDecision)}</small>
+                </div>
+                <span className="primary-badge">{selectedChange.priority}</span>
+              </header>
+              <section>
+                <h3>生成原因</h3>
+                <p>{selectedChange.goalReason || selectedChange.reason}</p>
+              </section>
+              <section>
+                <h3>证据引用</h3>
+                <div className="evidence-list">
+                  {(selectedChange.evidenceRefs ?? []).map((item) => <code key={item}>{item}</code>)}
+                </div>
+              </section>
+              <section>
+                <h3>验收标准</h3>
+                <ul className="risk-list">
+                  {(selectedChange.acceptanceCriteria ?? []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </section>
+              <section>
+                <h3>受影响模块</h3>
+                <div className="module-row">
+                  {(selectedChange.affectedModules ?? []).map((item) => <span key={item}>{item}</span>)}
+                </div>
+              </section>
+              <div className="card-meta-grid">
+                <section>
+                  <h3>Build Context</h3>
+                  <code>{selectedChange.buildContextId ?? "未记录"}</code>
+                </section>
+                <section>
+                  <h3>Source Artifacts</h3>
+                  <p>{(selectedChange.sourceArtifactIds ?? []).length} 个 artifact 参与编译。</p>
+                </section>
+              </div>
+            </article>
+          ) : (
+            <p className="empty-column">还没有任务变更。先添加输入并生成任务。</p>
+          )}
+        </section>
+
+        <aside className="knowledge-column trace-column">
+          <ColumnHeader title="编译追踪" meta={selectedChange?.ticketKey ?? "全部"} />
+          <ol className="trace-list">
+            {traceSteps.length ? traceSteps.map((step) => (
+              <li key={step.id}>
+                <span className="trace-dot" />
+                <div>
+                  <h3>{traceLabel(step.label)}</h3>
+                  <p>{step.summary}</p>
+                  <code>{step.artifactPath}</code>
+                  <small>{step.timestamp}</small>
+                </div>
+              </li>
+            )) : <li className="trace-empty">还没有编译追踪。生成任务后会显示 Source {"->"} Evidence {"->"} Ticket Delta。</li>}
+          </ol>
+        </aside>
+      </div>
     </section>
   );
 }

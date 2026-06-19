@@ -871,6 +871,12 @@ function adaptBacklogOperation(preview: ApiBacklogPreview, operation: ApiBacklog
     appliedUpdateId: preview.applied_update_id,
     conflictCount: preview.conflict_count,
     evidenceRefs: operation.evidence_refs,
+    affectedModules: operation.affected_modules,
+    acceptanceCriteria: operation.acceptance_criteria,
+    sourceArtifactIds: operation.source_artifact_ids,
+    buildContextId: operation.build_context_id,
+    targetProjectId: operation.target_project_id,
+    goalReason: operation.goal_reason,
   };
 }
 

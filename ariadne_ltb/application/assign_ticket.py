@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_claim
 from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.dtos import AssignTicketInput, AssignTicketOutput
 from ariadne_ltb.application.errors import NotFoundError, ValidationAppError
@@ -68,6 +69,14 @@ class AssignTicketService:
                 payload.target_project_id,
                 target_repo_path,
             )
+            assignment = prepare_assignment_for_claim(
+                self.store,
+                assignment,
+                ticket,
+                route_decision_id=routed.route_decision.id,
+                handoff_packet_id=assignment.metadata.get("handoff_packet_id"),
+                permission_profile_id=routed.route_decision.permission_profile_id,
+            )
             route_path = routed.route_artifact.path
         elif payload.assignee_kind == "agent":
             try:
@@ -83,6 +92,7 @@ class AssignTicketService:
                 backlog_planner_name=runtime_values.backlog_planner_name,
             )
             assignment = self._with_target_metadata(assignment, payload.target_project_id, target_repo_path)
+            assignment = prepare_assignment_for_claim(self.store, assignment, ticket)
             status = (
                 TicketStatus.READY_FOR_EXECUTION
                 if (assignment.backend_name or agent.backend_name) == OFFLINE_TEST_BACKEND

@@ -440,6 +440,47 @@ button:disabled {
   margin-top: 12px;
 }
 
+.tasks-page {
+  padding-bottom: 24px;
+}
+
+.compiler-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.compiler-summary h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.compiler-summary p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.summary-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.summary-metrics span,
+.summary-metrics em {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 7px 9px;
+  color: var(--foreground);
+  font-size: 12px;
+  font-style: normal;
+}
+
 .wide-field {
   grid-column: 1 / -1;
 }

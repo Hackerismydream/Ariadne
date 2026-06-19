@@ -230,6 +230,60 @@ This dogfood requires Ariadne to add or complete these web-facing capabilities:
    - Convert blockers or review failures into repair issues.
    - Re-run or supersede issues from the Workbench.
 
+## 2026-06-19 Source-to-Issue Compiler Refinement
+
+This dogfood must not treat `Knowledge Card` as the universal abstraction.
+
+The accepted internal chain is now:
+
+```text
+SourceDocument / Source Asset
+  -> SourceEvidence
+  -> SourceArtifact
+  -> BuildContextManifest
+  -> BacklogPreview / Issue Delta
+  -> BuildTicket + BuildPacket
+  -> Assignment readiness
+```
+
+User-facing pages should stay simple:
+
+```text
+Project
+Sources
+Tasks
+Ready to Run
+```
+
+GitHub repositories are reference projects, not ordinary text notes. A GitHub
+reference must produce a `reference_project_profile` artifact with at least:
+
+- license and license risk;
+- entrypoints;
+- test paths;
+- repo map;
+- behavior patterns;
+- reuse notes;
+- avoid notes.
+
+Text/blog/markdown sources may produce `knowledge_card` artifacts, but those are
+only one artifact type.
+
+The first accepted issue set for this dogfood is `MCA-001` through `MCA-010`.
+Generating `ARI-*` issues for the target `mini-code-agent` project is a product
+bug.
+
+The source-to-issue compiler slice is accepted when:
+
+- source records are created from the Workbench/API with `analysis_status`;
+- source analysis writes source artifacts and source evidence;
+- issue factory consumes typed artifacts and build context;
+- preview operations include evidence refs, affected modules, acceptance
+  criteria, and `target_project_id`;
+- stale previews return a recoverable `409 stale_preview`;
+- daemon/runtime cannot claim plain queued assignments;
+- assignment must enter `ready_to_claim` before daemon claim.
+
 ## Non-Goals
 
 Do not build these in the dogfood MVP:
@@ -344,4 +398,3 @@ Confirm target project CLI works
 
 The manual acceptance must be done through the browser. CLI-only completion is
 not accepted for this dogfood case.
-
