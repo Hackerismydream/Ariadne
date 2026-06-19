@@ -53,6 +53,8 @@ from ariadne_ltb.application.assignment_readiness import (
     ensure_assignment_target_resource,
     prepare_assignment_for_claim,
 )
+from ariadne_ltb.application.assignment_routing import prepare_direct_agent_assignment
+from ariadne_ltb.application.handoff_packets import create_handoff_packet
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
@@ -66,6 +68,7 @@ from ariadne_ltb.models import (
     ArtifactType,
     BacklogUpdate,
     BackendSmokeEvidence,
+    BuildDecision,
     CommentAuthorType,
     CommentKind,
     ExecutionContext,
@@ -75,6 +78,7 @@ from ariadne_ltb.models import (
     ReviewReport,
     ResumeSafety,
     RuntimeCapability,
+    RouteDecision,
     TicketComment,
     TicketStatus,
     stable_id,
@@ -1072,10 +1076,63 @@ def backend_smoke_test(
             }
         },
     )
+    selected_packet = store.load_build_packet(selected.build_packet_id) if selected.build_packet_id else None
+    selected_for_handoff = selected.model_copy(
+        deep=True,
+        update={
+            "metadata": selected.metadata
+            | {
+                "target_project_id": "ariadne-local",
+                "target_repo_path": str(target_repo),
+                "affected_modules": selected_packet.affected_modules if selected_packet else [],
+                "acceptance_criteria": selected_packet.acceptance_criteria if selected_packet else [],
+                "test_command": target_test_command(),
+            }
+        },
+    )
+    route_decision = RouteDecision(
+        id=stable_id("route", selected.id, backend, str(target_repo), assignment.id),
+        ticket_id=selected.id,
+        ticket_key=selected.key,
+        planner_name="llm" if selected_agent_runtime == "llm" else "deterministic",
+        agent_runtime=selected_agent_runtime,
+        backlog_planner_name=selected_backlog_planner,
+        backend_name=backend,
+        selected_agent_id=backend,
+        selected_agent_name=backend,
+        target_repo_path=str(target_repo),
+        build_decision=selected_packet.build_decision if selected_packet else BuildDecision.CODE_TASK,
+        reason=f"Real {backend} smoke test route.",
+        external_execution_enabled=True,
+        confirm_execution=True,
+    )
+    store.save_route_decision(route_decision)
+    handoff_packet = create_handoff_packet(
+        store,
+        ticket=selected_for_handoff,
+        route_decision=route_decision,
+        target_project_id="ariadne-local",
+        target_repo_path=str(target_repo),
+    )
+    assignment = assignment.model_copy(
+        deep=True,
+        update={
+            "metadata": assignment.metadata
+            | {
+                "route_decision_id": route_decision.id,
+                "handoff_packet_id": handoff_packet.id,
+                "handoff_packet_path": handoff_packet.markdown_path,
+                "handoff_hash": handoff_packet.packet_hash,
+            }
+        },
+    )
+    store.save_assignment(assignment)
     assignment = prepare_assignment_for_claim(
         store,
         assignment,
         selected,
+        route_decision_id=route_decision.id,
+        handoff_packet_id=handoff_packet.id,
         authorization_id=stable_id("runtime_authorization", assignment.id, selected.id),
     )
     updated = store.load_ticket(selected.id).with_status(
@@ -1457,11 +1514,13 @@ def ticket_assign(
             }
         },
     )
-    assignment = prepare_assignment_for_claim(
+    assignment = prepare_direct_agent_assignment(
         store,
-        assignment,
-        ticket,
-        authorization_id=stable_id("runtime_authorization", assignment.id, ticket.id),
+        ticket=ticket,
+        assignment=assignment,
+        agent=agent,
+        target_project_id="ariadne-local",
+        target_repo_path=str(target_repo_path),
     )
     status = (
         TicketStatus.READY_FOR_EXECUTION
@@ -1481,6 +1540,7 @@ def ticket_assign(
     typer.echo(f"planner: {assignment.planner_name}")
     typer.echo(f"agent runtime: {assignment.agent_runtime}")
     typer.echo(f"backlog planner: {assignment.backlog_planner_name}")
+    typer.echo(f"status: {assignment.status.value}")
 
 
 @ticket_app.command("comment")

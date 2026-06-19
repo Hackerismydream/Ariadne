@@ -965,7 +965,7 @@ function adaptBacklogMutationPreview(preview?: ApiBacklogPreview): WorkbenchData
 }
 
 function adaptSourceType(sourceType: string): WorkbenchData["sources"][number]["sourceType"] {
-  if (sourceType === "github_repo") return "github_readme";
+  if (sourceType === "github_repo") return "github_repo";
   if (sourceType === "note") return "manual_note";
   if (sourceType === "review") return "review_feedback";
   if (sourceType === "paper" || sourceType === "blog") return sourceType;

@@ -343,6 +343,7 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
             if key
             in {
                 "build_context_id",
+                "context_fingerprint",
                 "source_document_ids",
                 "source_artifact_ids",
                 "evidence_refs",

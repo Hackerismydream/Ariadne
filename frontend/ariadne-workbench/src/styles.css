@@ -440,6 +440,30 @@ button:disabled {
   margin-top: 12px;
 }
 
+.source-cta-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.source-cta-sequence li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.source-cta-sequence li.active,
+.source-cta-sequence li.done {
+  border-color: var(--brand);
+  color: var(--foreground);
+  background: var(--muted);
+}
+
 .tasks-page {
   padding-bottom: 24px;
 }
@@ -880,6 +904,26 @@ button:disabled {
   display: grid;
   gap: 18px;
   padding: 16px;
+}
+
+.source-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.timeline-row time {
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }
 
 .understanding-panel header {

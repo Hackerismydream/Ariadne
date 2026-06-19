@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_claim
+from ariadne_ltb.application.handoff_packets import create_handoff_packet
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
     Artifact,
@@ -31,6 +32,7 @@ class BuildTeamRouteResult:
     assignment: TicketAssignment
     route_decision: RouteDecision
     route_artifact: Artifact
+    handoff_packet_id: str | None = None
 
 
 def route_ticket_to_build_team(
@@ -42,6 +44,7 @@ def route_ticket_to_build_team(
     agent_runtime: str | None = None,
     backlog_planner_name: str | None = None,
     target_repo_path: str | None = None,
+    target_project_id: str | None = None,
 ) -> BuildTeamRouteResult:
     lead = store.resolve_agent_profile(team.lead_agent_id)
     implementer = store.resolve_agent_profile(team.implementer_agent_id)
@@ -52,13 +55,16 @@ def route_ticket_to_build_team(
         backlog_planner_name or team.backlog_planner_name or implementer.backlog_planner_name
     )
     target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(store.root)
+    resolved_target_project_id = target_project_id or str(ticket.metadata.get("target_project_id") or "ariadne-local")
     runtime_capability_path = store.save_runtime_capabilities(collect_runtime_capabilities())
+    existing_resources = store.load_project_resources()
     project_resources = [
+        *existing_resources,
         ProjectResource.local_directory(
-            "ariadne-local",
+            resolved_target_project_id,
             target_repo,
             label=f"{ticket.key} target repository",
-        )
+        ),
     ]
     project_resources_path = store.save_project_resources(project_resources)
     skill_refs = [
@@ -115,6 +121,7 @@ def route_ticket_to_build_team(
             "project_resources_path": str(project_resources_path),
         },
     )
+    store.save_route_decision(route_decision, artifact_id=route_artifact.id)
     assignment = store.create_assignment(
         ticket,
         implementer,
@@ -137,18 +144,39 @@ def route_ticket_to_build_team(
                 "lead_agent_id": lead.id,
                 "route_decision_artifact_id": route_artifact.id,
                 "route_decision_id": route_decision.id,
-                "target_project_id": "ariadne-local",
+                "target_project_id": resolved_target_project_id,
                 "target_repo_path": str(target_repo),
                 "agent_runtime": selected_agent_runtime,
                 "backlog_planner_name": selected_backlog_planner,
             },
         },
     )
+    store.save_assignment(assignment)
+    handoff_packet = create_handoff_packet(
+        store,
+        ticket=ticket,
+        route_decision=route_decision,
+        target_project_id=resolved_target_project_id,
+        target_repo_path=str(target_repo),
+    )
+    assignment = assignment.model_copy(
+        deep=True,
+        update={
+            "metadata": assignment.metadata
+            | {
+                "handoff_packet_id": handoff_packet.id,
+                "handoff_packet_path": handoff_packet.markdown_path,
+                "handoff_hash": handoff_packet.packet_hash,
+            }
+        },
+    )
+    store.save_assignment(assignment)
     assignment = prepare_assignment_for_claim(
         store,
         assignment,
         ticket,
         route_decision_id=route_decision.id,
+        handoff_packet_id=handoff_packet.id,
         permission_profile_id=route_decision.permission_profile_id,
         authorization_id=stable_id("runtime_authorization", assignment.id, route_decision.id),
     )
@@ -179,6 +207,7 @@ def route_ticket_to_build_team(
                     "assigned_agent_name": implementer.name,
                     "latest_assignment_id": assignment.id,
                     "latest_route_decision_artifact_id": route_artifact.id,
+                    "latest_handoff_packet_id": handoff_packet.id,
                 }
             },
         )
@@ -209,7 +238,8 @@ def route_ticket_to_build_team(
                 "agent_runtime": selected_agent_runtime,
                 "backlog_planner_name": selected_backlog_planner,
                 "reason": route_decision.reason,
+                "handoff_packet_id": handoff_packet.id,
             },
         )
     )
-    return BuildTeamRouteResult(team, assignment, route_decision, route_artifact)
+    return BuildTeamRouteResult(team, assignment, route_decision, route_artifact, handoff_packet.id)

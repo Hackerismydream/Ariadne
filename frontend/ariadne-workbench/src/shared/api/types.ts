@@ -175,7 +175,7 @@ export type ApiSourceDocument = {
 export type ApiSourceArtifact = {
   id: string;
   source_document_id: string;
-  artifact_type: "knowledge_card" | "reference_project_profile" | "codebase_snapshot";
+  artifact_type: "knowledge_card" | "text_understanding" | "reference_project_profile" | "repository_understanding" | "codebase_snapshot" | "target_codebase_snapshot" | "execution_feedback" | "review_feedback";
   payload_hash: string;
   payload_path: string;
   evidence_ids: string[];

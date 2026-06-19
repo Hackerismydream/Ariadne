@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_claim
 from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.dtos import RunAssignmentInput, RunAssignmentOutput
+from ariadne_ltb.application.errors import ValidationAppError
 from ariadne_ltb.application.idempotency import IdempotencyStore
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.journal import runtime_event
-from ariadne_ltb.models import CommentAuthorType, CommentKind
+from ariadne_ltb.models import AssignmentStatus, CommentAuthorType, CommentKind
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -30,7 +30,41 @@ class RunAssignmentService:
         assignment = self.store.load_assignment(assignment_id)
         ConfirmationTokenService(self.store).verify(assignment, payload.confirmation_token)
         ticket = self.store.load_ticket(assignment.ticket_id)
-        ready_assignment = prepare_assignment_for_claim(self.store, assignment, ticket)
+        if assignment.status is AssignmentStatus.READY_TO_CLAIM:
+            ready_assignment = assignment
+        elif assignment.metadata.get("route_decision_id") and assignment.metadata.get("handoff_packet_id"):
+            ready_assignment = assignment.mark_ready_to_claim(
+                {
+                    "route_decision_id": str(assignment.metadata["route_decision_id"]),
+                    "handoff_packet_id": str(assignment.metadata["handoff_packet_id"]),
+                    "target_project_id": str(
+                        assignment.metadata.get("target_project_id") or ticket.metadata.get("target_project_id") or ""
+                    ),
+                    "target_repo_path": str(assignment.metadata.get("target_repo_path") or ""),
+                    "permission_profile_id": str(
+                        assignment.metadata.get("permission_profile_id") or "local_workbench_default"
+                    ),
+                    "runtime_authorization_id": str(
+                        assignment.metadata.get("runtime_authorization_id")
+                        or assignment.metadata.get("confirmation_id")
+                        or ""
+                    ),
+                    "handoff_hash": str(assignment.metadata.get("handoff_hash") or ""),
+                    "expected_git_head": str(assignment.metadata.get("expected_git_head") or "unknown"),
+                }
+            )
+            self.store.save_assignment(ready_assignment)
+        else:
+            raise ValidationAppError(
+                "assignment_not_ready_for_run",
+                {
+                    "missing": [
+                        key
+                        for key in ["route_decision_id", "handoff_packet_id"]
+                        if not assignment.metadata.get(key)
+                    ]
+                },
+            )
         self.store.add_comment(
             ticket,
             CommentAuthorType.SYSTEM,

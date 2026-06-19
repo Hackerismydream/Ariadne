@@ -53,7 +53,7 @@ def test_markdown_source_analysis_writes_knowledge_card(tmp_path) -> None:
     assert evidence[0].id in artifacts[0].evidence_ids
 
 
-def test_github_repo_analysis_writes_reference_project_profile(tmp_path) -> None:
+def test_github_repo_analysis_writes_repository_understanding(tmp_path) -> None:
     repo = tmp_path / "reference"
     repo.mkdir()
     (repo / "README.md").write_text(
@@ -83,11 +83,12 @@ def test_github_repo_analysis_writes_reference_project_profile(tmp_path) -> None
     artifact = store.list_source_artifacts(source.id)[0]
     evidence = store.list_source_evidence(source.id)
     payload = store.load_source_artifact_payload(artifact.id)
-    assert artifact.artifact_type == "reference_project_profile"
+    assert artifact.artifact_type == "repository_understanding"
     assert evidence[0].artifact_id == artifact.id
     assert evidence[0].id in artifact.evidence_ids
     assert payload["license"]["detected"] == "MIT"
     assert payload["license_risk"] == "green"
+    assert payload["manifests"] == ["pyproject.toml"]
     assert payload["entrypoints"]
     assert payload["tests"]["paths"] == ["tests/test_cli.py"]
     assert payload["behavior_patterns"]

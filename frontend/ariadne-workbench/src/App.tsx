@@ -683,9 +683,17 @@ function KnowledgePage({
     ?? data.projectResources?.find((resource) => resource.available)
     ?? data.projectResources?.[0];
   const activePreviewId = data.backlogMutationPreview.previewId;
-  const analyzedSourceIds = data.sourceUnderstandings
-    .filter((item) => item.analysisLabel === "分析完成")
-    .map((item) => item.sourceId);
+  const analyzedSourceIds = data.sources
+    .filter((source) => ["analyzed", "partial"].includes(source.analysisStatus ?? source.status))
+    .filter((source) => (source.artifactIds?.length ?? 0) > 0)
+    .map((source) => source.id);
+  const selectedSourceEvents = selectedSource
+    ? data.sourceEvents.filter((event) => event.sourceId === selectedSource.id)
+    : [];
+  const selectedOutputs = selectedSource
+    ? (data.sourceArtifacts ?? []).filter((artifact) => artifact.sourceDocumentId === selectedSource.id)
+    : [];
+  const selectedSourceHasFetch = selectedSourceEvents.some((event) => event.eventType.startsWith("source.fetch."));
 
   async function addSource() {
     if (!sourceUrl.trim()) return;
@@ -782,6 +790,13 @@ function KnowledgePage({
       <section className="panel source-input-panel">
         <h2>添加项目输入</h2>
         <p className="panel-subtitle">粘贴链接、GitHub 仓库、本地路径、论文或笔记。Ariadne 会自动分析并提取可用于生成任务的证据。</p>
+        <ol className="source-cta-sequence">
+          <li className={data.sources.length ? "done" : "active"}>添加并分析</li>
+          <li className={analyzedSourceIds.length ? "active" : ""}>查看任务建议</li>
+          <li className={activePreviewId ? "active" : ""}>应用任务变更</li>
+          <li className={previewStatus === "applied" ? "active" : ""}>打开新任务</li>
+          <li>分配给智能体</li>
+        </ol>
         <div className="form-grid">
           <label>
             <span>类型</span>
@@ -817,7 +832,12 @@ function KnowledgePage({
             {data.sources.map((source) => (
               (() => {
                 const understanding = data.sourceUnderstandings.find((item) => item.sourceId === source.id);
-                const analysis = understanding?.analysisLabel ?? sourceAnalysisLabel(source.analysisStatus ?? source.status);
+                const sourceEvents = data.sourceEvents.filter((event) => event.sourceId === source.id);
+                const hasFetch = sourceEvents.some((event) => event.eventType.startsWith("source.fetch."));
+                const hasArtifacts = (source.artifactIds?.length ?? 0) > 0;
+                const analysis = source.sourceType === "github_repo" && !hasFetch && !hasArtifacts
+                  ? "已添加，尚未抓取仓库"
+                  : understanding?.analysisLabel ?? sourceAnalysisLabel(source.analysisStatus ?? source.status);
                 return (
               <button
                 className={`source-row ${source.id === selectedSource?.id ? "selected" : ""}`}
@@ -828,7 +848,7 @@ function KnowledgePage({
               >
                 <span className={`source-type ${source.sourceType}`}>{sourceTypeLabel(source.sourceType)}</span>
                 <strong>{source.title}</strong>
-                <em className={`source-status ${source.status}`}>{analysis}</em>
+                <em className={`source-status ${source.analysisStatus ?? source.status}`}>{analysis}</em>
                 <small>{source.ingestedAt}</small>
               </button>
                 );
@@ -847,6 +867,25 @@ function KnowledgePage({
                   <span>{selectedUnderstanding.kindLabel} · {selectedUnderstanding.roleLabel} · 许可证 {selectedUnderstanding.licenseRiskLabel}</span>
                 </div>
               </header>
+              <section>
+                <h3>处理过程</h3>
+                {selectedSourceEvents.length ? (
+                  <div className="source-timeline">
+                    {selectedSourceEvents.map((event) => (
+                      <div className="timeline-row" key={event.id}>
+                        <span>{event.label}</span>
+                        <time>{event.createdAt}</time>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-column">
+                    {selectedSource?.sourceType === "github_repo" && !selectedSourceHasFetch
+                      ? "已添加，尚未抓取仓库。点击重新分析会触发仓库抓取和结构化理解。"
+                      : "还没有处理事件。"}
+                  </p>
+                )}
+              </section>
               <section>
                 <h3>Ariadne 理解到</h3>
                 <ul>
@@ -883,12 +922,13 @@ function KnowledgePage({
                 <h3>已生成产物</h3>
                 <div className="module-row">
                   {selectedUnderstanding.generatedOutputs.map((item) => <span key={item}>{item}</span>)}
+                  {selectedOutputs.length === 0 ? <span>尚未生成结构化产物</span> : null}
                 </div>
               </section>
               <div className="apply-row compact-actions">
                 <button disabled={!selectedSource} type="button" onClick={() => void analyzeSelectedSource()}>重新分析</button>
-                <button disabled={!selectedSource} type="button" onClick={() => setActionStatus("已标记为重要。后续任务生成会优先使用这个输入。")}>标记重要</button>
-                <button disabled={!selectedSource} type="button" onClick={() => setActionStatus("已忽略。后续应从任务生成输入中排除。")}>忽略</button>
+                <button disabled type="button" title="此动作还未接入后端">标记重要</button>
+                <button disabled type="button" title="此动作还未接入后端">忽略</button>
               </div>
             </article>
           ) : <p className="empty-column">选择一个输入查看 Ariadne 的理解结果。</p>}

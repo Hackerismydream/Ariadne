@@ -155,6 +155,7 @@ def source_document_from_path(path: Path) -> SourceDocument:
         content_hash=content_hash,
         summary=summary,
         metadata={
+            "entrypoint": "offline_regression_fixture" if _is_offline_regression_path(path) else "local_source_ingest",
             "filename": path.name,
             "headings": extract_headings(content),
             "action_verbs": extract_action_verbs(content),
@@ -250,8 +251,10 @@ def ticket_from_source(source: SourceDocument, key: str) -> BuildTicket:
 
 
 def title_for_ticket(source: SourceDocument) -> str:
-    if source.source_type is SourceType.GITHUB_REPO:
+    if source.source_type is SourceType.GITHUB_REPO and _is_offline_regression_source(source):
         return "Add JSON export command to demo target CLI"
+    if source.source_type is SourceType.GITHUB_REPO:
+        return f"Extract implementation tasks from {source.title}"
     if source.source_type is SourceType.PAPER:
         return "Evaluate Build Packet quality from evidence-backed agent workflow notes"
     if source.source_type is SourceType.BLOG:
@@ -334,8 +337,10 @@ def decision_for_source(source: SourceDocument) -> BuildDecision:
 
 
 def insight_for_source(source: SourceDocument) -> str:
-    if source.source_type is SourceType.GITHUB_REPO:
+    if source.source_type is SourceType.GITHUB_REPO and _is_offline_regression_source(source):
         return "A small CLI can add value through a focused JSON export command with tests."
+    if source.source_type is SourceType.GITHUB_REPO:
+        return "Repository input should inform target project structure and implementation tasks without copying source code."
     if source.source_type is SourceType.PAPER:
         return "Agent workflow quality should be evaluated through evidence coverage and acceptance clarity."
     if source.source_type is SourceType.BLOG:
@@ -344,8 +349,10 @@ def insight_for_source(source: SourceDocument) -> str:
 
 
 def relevance_for_source(source: SourceDocument) -> str:
-    if source.source_type is SourceType.GITHUB_REPO:
+    if source.source_type is SourceType.GITHUB_REPO and _is_offline_regression_source(source):
         return "Maps directly to the demo target project feature `demo-todo export-json`."
+    if source.source_type is SourceType.GITHUB_REPO:
+        return "Provides reference architecture, behavior patterns, tests, and reuse constraints for the target project."
     if source.source_type is SourceType.PAPER:
         return "Informs a future Build Packet quality evaluator."
     if source.source_type is SourceType.BLOG:
@@ -354,7 +361,7 @@ def relevance_for_source(source: SourceDocument) -> str:
 
 
 def packet_work_items(source: SourceDocument) -> tuple[list[str], list[str], list[str]]:
-    if source.source_type is SourceType.GITHUB_REPO:
+    if source.source_type is SourceType.GITHUB_REPO and _is_offline_regression_source(source):
         return (
             ["Add `demo-todo export-json` to the demo target CLI.", "Add tests for JSON output."],
             [
@@ -364,6 +371,19 @@ def packet_work_items(source: SourceDocument) -> tuple[list[str], list[str], lis
                 "Changed files stay inside the target project.",
             ],
             ["demo_todo/cli.py", "tests/test_cli.py"],
+        )
+    if source.source_type is SourceType.GITHUB_REPO:
+        return (
+            [
+                "Analyze repository structure and extract transferable implementation patterns.",
+                "Turn repository understanding into target-project issue candidates with acceptance criteria.",
+            ],
+            [
+                "Repository analysis captures manifests, entrypoints, tests, and reuse constraints.",
+                "Generated work items cite source evidence and avoid copying reference source code.",
+                "Affected modules are target-project paths, not demo fixture paths.",
+            ],
+            ["src/", "tests/"],
         )
     if source.source_type is SourceType.PAPER:
         return (
@@ -378,3 +398,12 @@ def packet_work_items(source: SourceDocument) -> tuple[list[str], list[str], lis
             ["ariadne_ltb/board.py"],
         )
     return (["Archive source for future review."], ["Source remains visible in memory."], ["docs/"])
+
+
+def _is_offline_regression_path(path: Path) -> bool:
+    parts = set(path.resolve().parts)
+    return "examples" in parts and "sources" in parts
+
+
+def _is_offline_regression_source(source: SourceDocument) -> bool:
+    return str(source.metadata.get("entrypoint") or "") == "offline_regression_fixture"

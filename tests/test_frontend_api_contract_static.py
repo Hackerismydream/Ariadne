@@ -188,3 +188,16 @@ def test_frontend_adapter_consumes_typed_source_outputs() -> None:
     assert "apiData.source_evidence.map" in text
     assert "analysisStatus: source.analysis_status" in text
     assert "artifactIds: source.artifact_ids" in text
+
+
+def test_sources_page_does_not_label_unfetched_github_as_analyzed() -> None:
+    app = APP.read_text(encoding="utf-8")
+    model = (ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "project-inputs" / "model.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert "已添加，尚未抓取仓库" in app
+    assert "处理过程" in app
+    assert "source.fetch." in app
+    assert "抓取中" in model
+    assert "已阻塞" in model

@@ -6,6 +6,12 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Protocol
 
+from ariadne_ltb.application.repository_scanner import infer_test_commands, scan_repository
+from ariadne_ltb.application.source_repository import (
+    GitRepositoryFetcher,
+    RepositoryFetcher,
+    fetch_record_from_result,
+)
 from ariadne_ltb.models import SourceArtifact, SourceDocument, SourceEvidence, SourceType, stable_id, utc_now
 from ariadne_ltb.storage import AriadneStore
 
@@ -32,18 +38,26 @@ class RequestsSourceFetcher:
 
 
 class SourceAnalysisService:
-    def __init__(self, store: AriadneStore, fetcher: SourceFetcher | None = None) -> None:
+    def __init__(
+        self,
+        store: AriadneStore,
+        fetcher: SourceFetcher | None = None,
+        repository_fetcher: RepositoryFetcher | None = None,
+    ) -> None:
         self.store = store
         self.fetcher = fetcher or RequestsSourceFetcher()
+        self.repository_fetcher = repository_fetcher or GitRepositoryFetcher()
 
     def analyze_source(self, source_id: str) -> SourceAnalysisResult:
         source = self.store.load_source_document(source_id)
         try:
+            if source.source_type is SourceType.GITHUB_REPO and source.path_or_url.startswith("https://github.com/"):
+                return self._analyze_github_repository(source)
             if source.source_type in {SourceType.GITHUB_REPO, SourceType.LOCAL_FOLDER} and (
                 source.metadata.get("source_role") == "reference_project"
                 or source.source_type is SourceType.GITHUB_REPO
             ):
-                return self._analyze_reference_project(source)
+                return self._analyze_repository_path(source, Path(source.path_or_url).expanduser())
             if source.source_type is SourceType.TARGET_CODEBASE:
                 return self._analyze_target_codebase(source)
             return self._analyze_text_source(source)
@@ -80,6 +94,31 @@ class SourceAnalysisService:
         self._link_evidence_to_artifact(evidence, artifact.id)
         self._mark_analyzed(source, [artifact.id], "unknown")
         return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [evidence.id])
+
+    def _analyze_github_repository(self, source: SourceDocument) -> SourceAnalysisResult:
+        cache_root = self.store.root / ".ariadne" / "sources" / "git"
+        fetch_result = self.repository_fetcher.fetch(source.path_or_url, cache_root)
+        self.store.save_source_fetch_record(fetch_record_from_result(source.id, fetch_result))
+        if fetch_result.status != "cached" or not fetch_result.cache_path:
+            error = fetch_result.error or "repository_fetch_failed"
+            self._update_source_metadata(
+                source,
+                {
+                    "analysis_status": "blocked",
+                    "analysis_error": error,
+                    "snapshot": {
+                        "fetched_at": utc_now(),
+                        "source_url": fetch_result.source_url,
+                    },
+                },
+            )
+            return SourceAnalysisResult(source.id, "blocked", [], [], error)
+        return self._analyze_repository_path(
+            source,
+            Path(fetch_result.cache_path),
+            remote_url=fetch_result.source_url,
+            commit_sha=fetch_result.commit_sha,
+        )
 
     def _analyze_reference_project(self, source: SourceDocument) -> SourceAnalysisResult:
         repo_path = Path(source.path_or_url).expanduser()
@@ -131,6 +170,72 @@ class SourceAnalysisService:
         artifact = self._save_artifact(source, "reference_project_profile", payload, [evidence.id])
         self._link_evidence_to_artifact(evidence, artifact.id)
         self._mark_analyzed(source, [artifact.id], license_risk, {"commit_sha": commit_sha})
+        return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [evidence.id])
+
+    def _analyze_repository_path(
+        self,
+        source: SourceDocument,
+        repo_path: Path,
+        *,
+        remote_url: str | None = None,
+        commit_sha: str | None = None,
+    ) -> SourceAnalysisResult:
+        scan = scan_repository(repo_path)
+        license_text, license_path = _read_license(repo_path)
+        license_name, license_risk = _classify_license(license_text)
+        resolved_commit = commit_sha or _git_commit(repo_path)
+        evidence = self._save_evidence(
+            source,
+            artifact_id=None,
+            locator="README.md" if (repo_path / "README.md").exists() else str(repo_path),
+            quote_or_summary=scan.summary[:240],
+            claim="repository structure informs target project issue generation",
+        )
+        payload = {
+            "repo_summary": scan.summary,
+            "identity": {
+                "name": repo_path.name if repo_path.exists() else source.title,
+                "remote_url": remote_url or source.path_or_url,
+                "commit_sha": resolved_commit,
+                "primary_language": _primary_language(scan.manifests),
+                "package_manager": _package_manager(scan.manifests),
+                "frameworks": [],
+            },
+            "license": {
+                "detected": license_name,
+                "confidence": "high" if license_name != "unknown" else "low",
+                "license_file_path": license_path,
+            },
+            "license_risk": license_risk,
+            "manifests": scan.manifests,
+            "entrypoints": scan.entrypoints,
+            "repo_map": {
+                "top_level": scan.top_level,
+                "selected_files": scan.selected_files,
+                "core_modules": [item for item in scan.top_level if item not in {"tests", "docs", ".git"}],
+                "test_modules": sorted({Path(path).parts[0] for path in scan.test_paths if Path(path).parts}),
+            },
+            "tests": {
+                "paths": scan.test_paths,
+                "commands": infer_test_commands(scan.manifests, scan.test_paths),
+            },
+            "behavior_patterns": _behavior_patterns(scan.summary, scan.entrypoints, scan.test_paths),
+            "reuse_notes": ["Reuse architecture ideas and task decomposition, not source code."],
+            "avoid_notes": ["Do not copy implementation files directly from the reference project."],
+            "scan_warnings": scan.warnings,
+        }
+        artifact = self._save_artifact(source, "repository_understanding", payload, [evidence.id])
+        self._link_evidence_to_artifact(evidence, artifact.id)
+        self._mark_analyzed(
+            source,
+            [artifact.id],
+            license_risk,
+            {
+                "commit_sha": resolved_commit,
+                "source_url": remote_url or source.path_or_url,
+                "scan_warnings": scan.warnings,
+            },
+        )
         return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [evidence.id])
 
     def _analyze_target_codebase(self, source: SourceDocument) -> SourceAnalysisResult:
@@ -270,6 +375,32 @@ def _classify_license(text: str) -> tuple[str, str]:
     if "bsd" in normalized:
         return "BSD", "green"
     return "unknown", "yellow"
+
+
+def _primary_language(manifests: list[str]) -> str:
+    if "pyproject.toml" in manifests or "requirements.txt" in manifests:
+        return "python"
+    if "package.json" in manifests:
+        return "javascript"
+    if "go.mod" in manifests:
+        return "go"
+    if "Cargo.toml" in manifests:
+        return "rust"
+    return "unknown"
+
+
+def _package_manager(manifests: list[str]) -> str:
+    if "uv.lock" in manifests:
+        return "uv"
+    if "pyproject.toml" in manifests:
+        return "python"
+    if "package.json" in manifests:
+        return "npm"
+    if "go.mod" in manifests:
+        return "go"
+    if "Cargo.toml" in manifests:
+        return "cargo"
+    return "unknown"
 
 
 def _top_level(root: Path) -> list[str]:

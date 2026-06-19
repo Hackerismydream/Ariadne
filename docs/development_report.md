@@ -6444,3 +6444,96 @@ Current boundaries:
 - GitHub repository analysis is still a shallow local-safe profile for URL inputs when the repo has not been cloned locally; deep GitHub repository crawling remains a follow-up.
 - `标记重要` and `忽略` are still lightweight frontend status actions, not persisted source metadata.
 - The next product slice should carry the generated MCA task set into assignment, route decision, handoff, daemon claim, real Codex/Claude execution feedback, tests, review, memory, and Workbench evidence.
+
+## 2026-06-19 17:54 Real Source-to-Agent Compiler
+
+Branch: `codex/real-source-to-agent-compiler-plan`
+
+Implemented in this branch:
+
+- Added the source-to-issue compiler contract:
+  - `docs/architecture/source_to_issue_compiler_contract.md`
+- Added real source fetch and repository scan foundations:
+  - `SourceFetchRecord`
+  - `SourceAnalysisStatus`
+  - `ariadne_ltb/application/source_repository.py`
+  - `ariadne_ltb/application/repository_scanner.py`
+- Changed GitHub URL analysis so it uses a fetch/cache layer and writes `repository_understanding` artifacts.
+- Added repository scanner output for README summary, manifests, entrypoints, selected files, tests, license risk, reuse notes, and avoid notes.
+- Added `ariadne_ltb/application/issue_compiler.py` and wired Issue Factory to compile from typed artifacts instead of source-title templates.
+- Added readiness checks so Issue Factory refuses selected sources that are not analyzed or partial, or that have no source artifacts.
+- Strengthened issue delta validation:
+  - required target project id;
+  - required build context id and context fingerprint;
+  - required source document ids;
+  - required source artifact ids;
+  - required evidence refs;
+  - required affected modules and acceptance criteria;
+  - rejected product issues that leak `demo_todo` or `export-json` paths.
+- Quarantined demo-oriented ingest/planner behavior:
+  - `demo_todo export-json` remains available only for offline regression fixtures under `examples/sources`;
+  - ordinary GitHub/readme source ingestion produces generic project tasks instead of demo target tasks.
+- Added `HandoffPacket` and route decision persistence:
+  - `.ariadne/routes/<route_decision_id>.json`
+  - `.ariadne/handoffs/packets/<ticket_key>-<packet_id>.md`
+- Changed assignment readiness so assignments cannot become `ready_to_claim` without a persisted route decision and handoff packet.
+- Changed build-team assignment to persist route and handoff before marking an assignment claimable.
+- Changed runtime/orchestrator/backend behavior so assignment runs consume the frozen handoff packet when present.
+- Changed CodexBackend and ClaudeCodeBackend scaffold behavior so existing persisted handoff files are reused and missing persisted handoff files block as invalid resources.
+- Updated Workbench project-input UX:
+  - GitHub sources that have not been fetched show `已添加，尚未抓取仓库`;
+  - source events show fetch/cache/blocked records;
+  - Sources page shows `处理过程`;
+  - source CTA sequence is explicit: `添加并分析 -> 查看任务建议 -> 应用任务变更 -> 打开新任务 -> 分配给智能体`;
+  - fake source actions are disabled with a tooltip instead of mutating local-only UI state.
+
+Verification added or strengthened:
+
+- `tests/test_source_repository_fetch.py`
+- `tests/test_repository_scanner.py`
+- `tests/test_handoff_packet_readiness.py`
+- `tests/helpers.py`
+- strengthened `tests/test_source_analysis.py`
+- strengthened `tests/test_issue_factory_compiler.py`
+- strengthened `tests/test_web_dogfood_product_path.py`
+- strengthened `tests/test_real_backend_gates.py`
+- strengthened `tests/test_frontend_api_contract_static.py`
+- strengthened assignment/daemon tests to route through build-team handoff readiness.
+
+Verification run so far in this slice:
+
+- `python3.11 -m pytest tests/test_repository_scanner.py tests/test_source_repository_fetch.py tests/test_source_analysis.py -q`: passed.
+- `python3.11 -m pytest tests/test_issue_factory_compiler.py tests/test_web_dogfood_product_path.py -q`: passed.
+- `python3.11 -m pytest tests/test_handoff_packet_readiness.py tests/test_assignment_claim_state_machine.py tests/test_assign_ticket_service.py -q`: passed.
+- `python3.11 -m pytest tests/test_real_backend_gates.py -q`: passed.
+- `python3.11 -m pytest tests/test_cli_product_defaults.py tests/test_v1_planner_quality.py tests/test_issue_factory_compiler.py -q`: passed.
+- `python3.11 -m pytest tests/test_frontend_api_contract_static.py tests/test_web_source_auto_analysis.py tests/test_web_dogfood_product_path.py -q`: passed.
+- `python3.11 -m pytest tests/test_backlog_update_loop.py tests/test_assignment_claim_lease.py tests/test_failure_pipeline.py tests/test_agent_teammate_mode.py tests/test_worktree_isolation.py tests/test_backend_smoke_cli.py -q`: passed.
+- `ruff check` on the touched focused modules: passed.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+
+Current boundaries:
+
+- This slice does not claim successful real Codex or Claude execution.
+- Automated tests still avoid network, Codex, Claude, DeepSeek, Feishu, GitHub tokens, and browser login state.
+- Repository understanding is scan-based and deterministic; a deeper Repo Understanding Agent remains a follow-up.
+- `标记重要` and `忽略` are intentionally disabled until persisted source metadata actions exist.
+- Next recommended ticket: implement a real Repo Understanding Agent pass that can inspect cloned repository files within budget, summarize architecture and behavior patterns, and feed those typed findings into Issue Factory and HandoffPacket evidence.
+
+Final verification:
+
+- `python3.11 -m pytest`: passed, `373 passed in 114.02s`.
+- `ruff check .`: passed.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed as offline regression fixture.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed without printing secret values; local `.env` was correctly redacted and reported as a secret-scan finding.
+- `uv run ari export board`: passed.
+- `uv run ari backend doctor`: passed with the same redacted `.env` finding.
+- Browser QA against `http://127.0.0.1:8771/?v=real-source-to-agent-compiler#sources`: passed.
+  - pasted `https://github.com/e10nMa2k/cc-mini`;
+  - title auto-filled as `e10nMa2k/cc-mini`;
+  - source type displayed as `GitHub 仓库`;
+  - source analysis completed;
+  - source timeline showed cached commit and file count;
+  - understanding panel showed README summary, manifest, tests, evidence, risk, and `仓库理解`.

@@ -8,6 +8,7 @@ from ariadne_ltb.application.dtos import (
     IssueFactoryApplyOutput,
     IssueFactoryPreviewInput,
 )
+from ariadne_ltb.application.issue_compiler import CompiledIssueSpec, compile_issue_specs
 from ariadne_ltb.application.issue_delta_validation import validate_issue_delta_operations
 from ariadne_ltb.application.mappers import backlog_preview_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
@@ -86,13 +87,12 @@ class IssueFactoryService:
         north_star: str,
         context: IssueFactoryContext,
     ) -> list[BacklogOperation]:
-        tasks = _mini_code_agent_tasks() if _is_mini_code_context(title, north_star, context) else _generic_tasks(title)
+        tasks = compile_issue_specs(self.store, title=title, north_star=north_star, context=context)
         operations: list[BacklogOperation] = []
         existing_keys = {ticket.key for ticket in self.store.list_tickets()}
         prefix = _issue_prefix(self.store, context.manifest.target_project_id, title)
         next_index = _next_ticket_index(existing_keys, prefix)
         primary_source = context.sources[0] if context.sources else _synthetic_source(title, north_star)
-        evidence_refs = context.manifest.evidence_ids or [primary_source.id]
         source_artifact_ids = context.manifest.source_artifact_ids
         source_document_ids = context.manifest.source_document_ids
         for task in tasks:
@@ -100,36 +100,37 @@ class IssueFactoryService:
                 next_index += 1
             ticket_key = f"{prefix}-{next_index:03d}"
             existing_keys.add(ticket_key)
+            evidence_refs = task.evidence_refs or context.manifest.evidence_ids or [primary_source.id]
             source_doc = _source_for_task(primary_source, task, context, evidence_refs)
             ticket_id = stable_id("ticket", source_doc.id, ticket_key)
             operations.append(
                 BacklogOperation(
-                    id=stable_id("backlog_op", ticket_id, task["title"]),
+                    id=stable_id("backlog_op", ticket_id, task.title),
                     operation_type=BacklogOperationType.ADD_TICKET,
                     ticket_id=ticket_id,
                     ticket_key=ticket_key,
-                    title=task["title"],
-                    description=task["reason"],
+                    title=task.title,
+                    description=task.reason,
                     source_type=source_doc.source_type.value,
                     source_ref=source_doc.path_or_url,
-                    priority=task["priority"],
+                    priority=task.priority,
                     status=TicketStatus.PLANNING,
-                    reason=task["reason"],
+                    reason=task.reason,
                     metadata={
                         "source_document": source_doc.model_dump(mode="json"),
-                        "owner_agent": task["owner_agent"],
-                        "build_decision": task["build_decision"],
-                        "acceptance_criteria": task["acceptance_criteria"],
-                        "affected_modules": task["affected_modules"],
+                        "owner_agent": task.owner_agent,
+                        "build_decision": task.build_decision,
+                        "acceptance_criteria": task.acceptance_criteria,
+                        "affected_modules": task.affected_modules,
                         "evidence_refs": evidence_refs,
                         "source_document_ids": source_document_ids,
                         "source_artifact_ids": source_artifact_ids,
                         "build_context_id": context.manifest.id,
                         "context_fingerprint": context.manifest.context_fingerprint,
                         "target_project_id": context.manifest.target_project_id,
-                        "goal_reason": task["reason"],
-                        "risks": task.get("risks", []),
-                        "assumptions": task.get("assumptions", []),
+                        "goal_reason": task.reason,
+                        "risks": task.risks,
+                        "assumptions": task.assumptions,
                     },
                 )
             )
@@ -294,18 +295,18 @@ def _task(title: str, reason: str, priority: str, affected_modules: list[str]) -
 
 def _source_for_task(
     primary: SourceDocument,
-    task: dict[str, object],
+    task: CompiledIssueSpec,
     context: IssueFactoryContext,
     evidence_refs: list[str],
 ) -> SourceDocument:
-    content = f"{primary.id}\n{task['title']}\n{task['reason']}"
+    content = f"{primary.id}\n{task.title}\n{task.reason}"
     return SourceDocument(
-        id=stable_id("source", primary.id, task["title"]),
+        id=stable_id("source", primary.id, task.title),
         source_type=primary.source_type,
-        title=str(task["title"]),
+        title=task.title,
         path_or_url=primary.path_or_url,
         content_hash=sha256(content.encode("utf-8")).hexdigest(),
-        summary=str(task["reason"]),
+        summary=task.reason,
         metadata={
             "entrypoint": "web_issue_factory",
             "parent_source_id": primary.id,
@@ -313,7 +314,7 @@ def _source_for_task(
             "build_context_id": context.manifest.id,
             "source_artifact_ids": context.manifest.source_artifact_ids,
             "evidence_refs": evidence_refs,
-            "evidence_snippets": [str(task["reason"])],
+            "evidence_snippets": [task.reason],
         },
     )
 

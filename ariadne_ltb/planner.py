@@ -63,6 +63,7 @@ class DeterministicPlanner:
     def plan_ticket(self, store: AriadneStore, ticket: BuildTicket) -> PlannerResult:
         source = _load_source(store, ticket)
         packet = build_packet_from_source(ticket, source)
+        packet = _attach_ticket_build_context(ticket, packet)
         packet = _attach_memory_evidence(store, ticket, source, packet, self.use_memory)
         store.save_build_packet(packet)
 
@@ -124,6 +125,7 @@ class LLMPlanner:
         try:
             data = client.complete_json(_llm_prompt(ticket, source), "ariadne_build_packet")
             packet = _packet_from_llm_json(ticket, source, data)
+            packet = _attach_ticket_build_context(ticket, packet)
             packet = _attach_memory_evidence(store, ticket, source, packet, self.use_memory)
         except (
             LLMClientError,
@@ -330,6 +332,50 @@ def _attach_memory_evidence(
             "metadata": updated.metadata | {"quality": quality}
         }
     )
+
+
+def _attach_ticket_build_context(ticket: BuildTicket, packet: BuildPacket) -> BuildPacket:
+    metadata = ticket.metadata
+    affected_modules = [str(item) for item in metadata.get("affected_modules") or []]
+    acceptance_criteria = [str(item) for item in metadata.get("acceptance_criteria") or []]
+    if affected_modules and _contains_product_demo_path(affected_modules, metadata):
+        msg = "demo_path_not_allowed_in_product_build_packet"
+        raise ValueError(msg)
+    update: dict[str, object] = {
+        "metadata": packet.metadata
+        | {
+            "target_project_id": metadata.get("target_project_id"),
+            "build_context_id": metadata.get("build_context_id"),
+            "context_fingerprint": metadata.get("context_fingerprint"),
+            "source_document_ids": metadata.get("source_document_ids", []),
+            "source_artifact_ids": metadata.get("source_artifact_ids", []),
+            "evidence_refs": metadata.get("evidence_refs", []),
+            "planner_input": "ticket_build_context" if metadata.get("build_context_id") else "source_document",
+        }
+    }
+    if affected_modules:
+        update["affected_modules"] = affected_modules
+    if acceptance_criteria:
+        update["acceptance_criteria"] = acceptance_criteria
+    tasks = [ticket.title]
+    if ticket.description:
+        tasks.append(ticket.description)
+    if metadata.get("goal_reason"):
+        tasks.append(str(metadata["goal_reason"]))
+    update["tasks"] = tasks
+    return packet.model_copy(update=update)
+
+
+def _contains_product_demo_path(modules: list[str], metadata: dict[str, object]) -> bool:
+    target_project_id = str(metadata.get("target_project_id") or "").lower()
+    if "demo" in target_project_id:
+        return False
+    source_document = metadata.get("source_document")
+    source_metadata = source_document.get("metadata", {}) if isinstance(source_document, dict) else {}
+    entrypoint = str(source_metadata.get("entrypoint") or "").lower() if isinstance(source_metadata, dict) else ""
+    if entrypoint == "offline_regression_fixture":
+        return False
+    return any("demo_todo" in module or "export-json" in module for module in modules)
 
 
 def _memory_query(ticket: BuildTicket, source: SourceDocument, packet: BuildPacket) -> str:

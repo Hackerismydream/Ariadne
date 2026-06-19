@@ -33,6 +33,15 @@ def assemble_issue_factory_context(
     if target_project_id is None:
         msg = "missing_target_project_id"
         raise ValueError(msg)
+    not_ready = [
+        source.id
+        for source in sources
+        if str(source.metadata.get("analysis_status") or "pending") not in {"analyzed", "partial"}
+        or not store.list_source_artifacts(source.id)
+    ]
+    if not_ready:
+        msg = f"source_not_ready_for_issue_factory:{','.join(not_ready)}"
+        raise ValueError(msg)
     artifacts = [
         artifact
         for source in sources
