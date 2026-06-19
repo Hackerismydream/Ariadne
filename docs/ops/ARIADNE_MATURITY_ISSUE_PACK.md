@@ -1,7 +1,7 @@
 # Ariadne Maturity Issue Pack
 
-Generated: 2026-06-20 Asia/Shanghai  
-Branch: `codex/ariadne-maturity-campaign`  
+Generated: 2026-06-20 Asia/Shanghai
+Branch: `codex/ariadne-maturity-campaign`
 Repository: `Hackerismydream/Ariadne`
 
 ## Scope
@@ -134,15 +134,25 @@ stale-doc-only cleanup.
 - Priority: P1
 - Labels: `enhancement`, `maturity-campaign`, `priority:P1`,
   `area:workbench`
-- Status: open.
+- Status: completed on `codex/ariadne-maturity-campaign`.
 - Problem: blockers are visible, but users need direct repair, rerun,
   acknowledge, and evidence actions.
+- Implementation:
+  - Added local HTTP inbox action APIs for repair ticket creation, linked
+    assignment rerun, acknowledge, and resolve.
+  - Added a Workbench inbox action surface with Chinese labels and visible
+    evidence references.
+  - Repair/rerun/acknowledge/resolve actions append recovery comments and
+    ticket events back to the source ticket.
+  - Repair ticket creation is idempotent and existing repair tickets are reused
+    instead of creating duplicate repair spam.
 - Acceptance:
-  - Workbench inbox supports create repair issue, rerun linked assignment,
+  - Done: Workbench inbox supports create repair issue, rerun linked assignment,
     acknowledge/resolve, and evidence view.
-  - Backend APIs enforce typed failure reasons and avoid duplicate repair spam.
-  - Repair actions append comments/events to the source ticket.
-  - Tests cover API actions and frontend contract.
+  - Done: Backend APIs enforce typed failure reasons and avoid duplicate repair
+    spam.
+  - Done: Repair actions append comments/events to the source ticket.
+  - Done: tests cover API actions and frontend contract.
 
 ### MAT-006: Reconcile real source-to-agent compiler PR into maturity baseline
 

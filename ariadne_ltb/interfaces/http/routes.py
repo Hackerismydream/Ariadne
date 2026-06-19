@@ -12,6 +12,7 @@ from ariadne_ltb.application.dtos import (
     CreateProjectGoalInput,
     CreateSourceInput,
     DaemonStartInput,
+    InboxActionInput,
     IssueFactoryPreviewInput,
     RegisterTargetProjectInput,
     RunAssignmentInput,
@@ -19,8 +20,16 @@ from ariadne_ltb.application.dtos import (
 from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.errors import ApplicationError
 from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
+from ariadne_ltb.application.inbox_actions import InboxActionService
 from ariadne_ltb.application.issue_factory import IssueFactoryService
-from ariadne_ltb.application.mappers import source_artifact_dto, source_document_dto, source_evidence_dto
+from ariadne_ltb.application.mappers import (
+    assignment_dto,
+    inbox_item_dto,
+    source_artifact_dto,
+    source_document_dto,
+    source_evidence_dto,
+    ticket_summary,
+)
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.run_events import AssignmentEventCache, RunEventService
@@ -266,6 +275,61 @@ def ticket_timeline(ticket_id_or_key: str, store: AriadneStore = Depends(get_sto
 @router.get("/api/evidence")
 def evidence_projection(store: AriadneStore = Depends(get_store)) -> dict:
     return EvidenceProjectionService(store).snapshot().model_dump(mode="json")
+
+
+def _inbox_action_payload(store: AriadneStore, result) -> dict:
+    return {
+        "inbox_item": inbox_item_dto(store, result.inbox_item).model_dump(mode="json"),
+        "action": result.action,
+        "message": result.message,
+        "ticket": ticket_summary(store, result.ticket).model_dump(mode="json") if result.ticket else None,
+        "assignment": assignment_dto(result.assignment).model_dump(mode="json") if result.assignment else None,
+        "already_exists": result.already_exists,
+    }
+
+
+@router.post("/api/inbox/{item_id}/repair")
+def inbox_create_repair(
+    item_id: str,
+    payload: InboxActionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    result = InboxActionService(store).create_repair_ticket(item_id, priority=payload.priority)
+    return _inbox_action_payload(store, result)
+
+
+@router.post("/api/inbox/{item_id}/rerun")
+def inbox_rerun_assignment(
+    item_id: str,
+    payload: InboxActionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    result = InboxActionService(store).rerun_linked_assignment(
+        item_id,
+        reason=payload.reason,
+        force=payload.force,
+    )
+    return _inbox_action_payload(store, result)
+
+
+@router.post("/api/inbox/{item_id}/acknowledge")
+def inbox_acknowledge(
+    item_id: str,
+    payload: InboxActionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    result = InboxActionService(store).acknowledge(item_id, note=payload.note)
+    return _inbox_action_payload(store, result)
+
+
+@router.post("/api/inbox/{item_id}/resolve")
+def inbox_resolve(
+    item_id: str,
+    payload: InboxActionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    result = InboxActionService(store).resolve(item_id, note=payload.note)
+    return _inbox_action_payload(store, result)
 
 
 @router.post("/api/tickets/{ticket_id_or_key}/comments")

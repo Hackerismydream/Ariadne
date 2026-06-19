@@ -50,7 +50,7 @@ class WorkbenchProjectionService:
             runtime_capabilities=RuntimeStatusService(self.store).snapshot(include_internal_backends),
             target_projects=TargetProjectRegistry(self.store).list(),
             skills=[build_skill_dto(skill) for skill in discover_build_skills(self.store.root)],
-            inbox=[inbox_item_dto(item) for item in inbox_items],
+            inbox=[inbox_item_dto(self.store, item) for item in inbox_items],
             backlog_previews=[
                 backlog_preview_dto(preview)
                 for preview in self.store.list_backlog_previews()[-10:]

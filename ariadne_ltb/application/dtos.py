@@ -101,6 +101,9 @@ class AssignmentDTO(AriadneDTO):
     blocked_reason: str | None = None
     runtime_scope: str | None = None
     target_project_id: str | None = None
+    parent_assignment_id: str | None = None
+    retry_reason: str | None = None
+    retry_policy: str | None = None
     created_at: str
     started_at: str | None = None
     ended_at: str | None = None
@@ -423,6 +426,22 @@ class CreateCommentInput(AriadneDTO):
     reply_to: str | None = None
     assignment_id: str | None = None
     idempotency_key: str | None = None
+
+
+class InboxActionInput(AriadneDTO):
+    note: str = Field(default="", max_length=2000)
+    priority: str = Field(default="high", max_length=40)
+    reason: str = Field(default="", max_length=2000)
+    force: bool = False
+
+
+class InboxActionOutput(AriadneDTO):
+    inbox_item: "InboxItemDTO"
+    action: str
+    message: str = ""
+    ticket: "TicketSummaryDTO | None" = None
+    assignment: "AssignmentDTO | None" = None
+    already_exists: bool = False
 
 
 class CommentDTO(AriadneDTO):

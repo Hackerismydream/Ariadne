@@ -299,7 +299,7 @@ button:disabled {
 .goal-hero,
 .panel,
 .table-card,
-.inbox-list button {
+.inbox-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--card);
@@ -1723,11 +1723,21 @@ button:disabled {
   padding: 20px;
 }
 
-.inbox-list button {
+.inbox-card {
   position: relative;
   display: grid;
   gap: 6px;
   padding: 14px 16px;
+  text-align: left;
+}
+
+.inbox-main {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   text-align: left;
 }
 
@@ -1766,13 +1776,33 @@ button:disabled {
   color: var(--muted-foreground);
 }
 
-.inbox-list em {
+.inbox-card em {
   position: absolute;
   right: 16px;
   top: 14px;
   color: var(--muted-foreground);
   font-style: normal;
   font-size: 12px;
+}
+
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inbox-actions button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.inbox-actions button:disabled {
+  opacity: 0.45;
 }
 
 .inbox-kind {

@@ -7,6 +7,8 @@ import type {
   AssignTicketRequest,
   CreateProjectGoalRequest,
   CreateSourceRequest,
+  InboxActionRequest,
+  InboxActionResponse,
   IssueFactoryPreviewRequest,
   RegisterTargetProjectRequest,
   DaemonStartRequest,
@@ -154,6 +156,34 @@ export function addTicketComment(ticketIdOrKey: string, payload: AddTicketCommen
   return requestJson(`/api/tickets/${encodeURIComponent(ticketIdOrKey)}/comments`, {
     method: "POST",
     headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createInboxRepairTicket(itemId: string, payload: InboxActionRequest = {}) {
+  return requestJson<InboxActionResponse>(`/api/inbox/${encodeURIComponent(itemId)}/repair`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function rerunInboxAssignment(itemId: string, payload: InboxActionRequest = {}) {
+  return requestJson<InboxActionResponse>(`/api/inbox/${encodeURIComponent(itemId)}/rerun`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function acknowledgeInboxItem(itemId: string, payload: InboxActionRequest = {}) {
+  return requestJson<InboxActionResponse>(`/api/inbox/${encodeURIComponent(itemId)}/acknowledge`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function resolveInboxItem(itemId: string, payload: InboxActionRequest = {}) {
+  return requestJson<InboxActionResponse>(`/api/inbox/${encodeURIComponent(itemId)}/resolve`, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }

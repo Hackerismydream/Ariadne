@@ -26,10 +26,14 @@ import { selectableProductionRuntimes } from "./entities/runtime/lib";
 import {
   analyzeSource,
   applyIssueFactoryPreview,
+  acknowledgeInboxItem,
   createIssueFactoryPreview,
+  createInboxRepairTicket,
   createProjectGoal,
   createSource,
   registerTargetProject,
+  rerunInboxAssignment,
+  resolveInboxItem,
 } from "./shared/api/client";
 import type {
   AriadneTicket,
@@ -439,7 +443,13 @@ function PageFrame({
       />
       <AgentsPage data={data} />
       <SkillsPage data={data} />
-      <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />
+      <InboxPage
+        data={data}
+        readOnly={readOnly}
+        onNavigate={onNavigate}
+        onRefresh={onRefresh}
+        onTicketSelect={onTicketSelect}
+      />
     </>
   );
 }
@@ -1988,32 +1998,62 @@ function SkillsPage({ data }: { data: WorkbenchData }) {
 
 function InboxPage({
   data,
+  readOnly,
   onNavigate,
+  onRefresh,
   onTicketSelect,
 }: {
   data: WorkbenchData;
+  readOnly: boolean;
   onNavigate: (page: PageKey) => void;
+  onRefresh: (preferredTicketRef?: string) => Promise<void>;
   onTicketSelect: (ticketId: string) => void;
 }) {
+  const [actionStatus, setActionStatus] = useState("");
+
+  function openTicketForItem(item: WorkbenchData["inbox"][number], index: number) {
+    const fallbackTicket = data.tickets[index % data.tickets.length];
+    const targetTicketId = item.repairTicketId ?? item.ticketId;
+    const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
+    if (ticket) onTicketSelect(ticket.id);
+    onNavigate("ready");
+  }
+
+  async function runInboxAction(
+    item: WorkbenchData["inbox"][number],
+    label: string,
+    action: () => Promise<{ ticket?: { key: string } | null; assignment?: { ticket_key?: string } | null; message?: string }>,
+  ) {
+    if (readOnly) {
+      setActionStatus("未连接本地控制面，无法处理收件箱。");
+      return;
+    }
+    setActionStatus(`${label}...`);
+    try {
+      const result = await action();
+      const ticketRef = result.ticket?.key ?? result.assignment?.ticket_key ?? item.ticketKey;
+      setActionStatus(result.message || `${label}完成`);
+      await onRefresh(ticketRef);
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : `${label}失败`);
+    }
+  }
+
   return (
     <section className="page">
       <PageHeader icon={<Inbox size={17} />} title="收件箱" count={data.inbox.length} />
+      {actionStatus ? <p className="action-status">{actionStatus}</p> : null}
       <div className="inbox-list">
         {data.inbox.map((item, index) => (
-          <button
+          <article
+            className="inbox-card"
             key={item.id}
-            type="button"
-            onClick={() => {
-              const fallbackTicket = data.tickets[index % data.tickets.length];
-              const targetTicketId = item.repairTicketId ?? item.ticketId;
-              const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
-              if (ticket) onTicketSelect(ticket.id);
-              onNavigate("ready");
-            }}
           >
-            <span className={`inbox-kind ${item.kind}`}>{statusLabel(item.kind)}</span>
-            <strong>{item.title}</strong>
-            <p>{item.body}</p>
+            <button type="button" className="inbox-main" onClick={() => openTicketForItem(item, index)}>
+              <span className={`inbox-kind ${item.kind}`}>{statusLabel(item.kind)}</span>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </button>
             <div className="inbox-meta">
               <span>{statusLabel(item.status ?? "open")}</span>
               <span>{statusLabel(item.severity ?? "medium")}</span>
@@ -2024,8 +2064,38 @@ function InboxPage({
             {item.recommendedAction ? <p className="inbox-action">{item.recommendedAction}</p> : null}
             {item.evidenceRef ? <code>{item.evidenceRef}</code> : null}
             {item.resolutionNote ? <small>{item.resolutionNote}</small> : null}
+            <div className="inbox-actions">
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "创建修复任务", () => createInboxRepairTicket(item.id))}
+              >
+                创建修复任务
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "重跑关联任务", () => rerunInboxAssignment(item.id))}
+              >
+                重跑
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "确认已读", () => acknowledgeInboxItem(item.id))}
+              >
+                确认已读
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "标记已解决", () => resolveInboxItem(item.id))}
+              >
+                标记已解决
+              </button>
+            </div>
             <em>{item.time}</em>
-          </button>
+          </article>
         ))}
       </div>
     </section>

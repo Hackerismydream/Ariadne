@@ -139,6 +139,30 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert "external_execution_authorized: true" in control
 
 
+def test_frontend_inbox_exposes_repair_rerun_acknowledge_resolve_actions() -> None:
+    api_client = (ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    api_types = API_TYPES.read_text(encoding="utf-8")
+    app = APP.read_text(encoding="utf-8")
+
+    for endpoint in [
+        "/api/inbox/${encodeURIComponent(itemId)}/repair",
+        "/api/inbox/${encodeURIComponent(itemId)}/rerun",
+        "/api/inbox/${encodeURIComponent(itemId)}/acknowledge",
+        "/api/inbox/${encodeURIComponent(itemId)}/resolve",
+    ]:
+        assert endpoint in api_client
+    assert "export type InboxActionRequest" in api_types
+    assert "export type InboxActionResponse" in api_types
+    for label in ["创建修复任务", "重跑", "确认已读", "标记已解决"]:
+        assert label in app
+    assert "createInboxRepairTicket(item.id)" in app
+    assert "rerunInboxAssignment(item.id)" in app
+    assert "acknowledgeInboxItem(item.id)" in app
+    assert "resolveInboxItem(item.id)" in app
+
+
 def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
     text = DATA.read_text(encoding="utf-8")
     disconnected_block = text.split("if (!offlineFallbackEnabled())", 1)[1].split("try {", 1)[0]

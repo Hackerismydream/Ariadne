@@ -86,6 +86,9 @@ export type ApiAssignmentSummary = {
   blocked_reason?: string | null;
   runtime_scope?: string | null;
   target_project_id?: string | null;
+  parent_assignment_id?: string | null;
+  retry_reason?: string | null;
+  retry_policy?: string | null;
   created_at?: string | null;
   blocker?: string | null;
   failure_reason?: string | null;
@@ -275,6 +278,22 @@ export type ApiInboxItem = {
   repair_ticket_key?: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type InboxActionRequest = {
+  note?: string;
+  priority?: string;
+  reason?: string;
+  force?: boolean;
+};
+
+export type InboxActionResponse = {
+  inbox_item: ApiInboxItem;
+  action: string;
+  message: string;
+  ticket?: ApiWorkbench["tickets"][number] | null;
+  assignment?: ApiAssignmentSummary | null;
+  already_exists: boolean;
 };
 
 export type ApiBacklogOperation = {

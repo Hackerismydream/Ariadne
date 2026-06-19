@@ -17,6 +17,7 @@ from ariadne_ltb.application.dtos import (
     TicketSummaryDTO,
 )
 from ariadne_ltb.domain.runtime_policy import browser_safe_runtime_capability
+from ariadne_ltb.inbox import find_repair_ticket_for_inbox_item
 from ariadne_ltb.models import (
     AgentProfile,
     BacklogOperation,
@@ -167,6 +168,9 @@ def assignment_dto(assignment: TicketAssignment) -> AssignmentDTO:
         blocked_reason=assignment.blocker,
         runtime_scope=assignment.metadata.get("target_project_id"),
         target_project_id=assignment.metadata.get("target_project_id"),
+        parent_assignment_id=assignment.parent_assignment_id,
+        retry_reason=assignment.retry_reason,
+        retry_policy=assignment.retry_policy,
         created_at=assignment.created_at,
         started_at=assignment.started_at,
         ended_at=assignment.ended_at,
@@ -293,7 +297,8 @@ def build_skill_dto(skill: BuildSkill) -> BuildSkillDTO:
     )
 
 
-def inbox_item_dto(item: InboxItem) -> InboxItemDTO:
+def inbox_item_dto(store: AriadneStore, item: InboxItem) -> InboxItemDTO:
+    repair_ticket = find_repair_ticket_for_inbox_item(store, item.id)
     return InboxItemDTO(
         id=item.id,
         source_type=item.source_type,
@@ -308,8 +313,8 @@ def inbox_item_dto(item: InboxItem) -> InboxItemDTO:
         evidence_ref=item.evidence_ref,
         recommended_action=item.recommended_action,
         resolution_note=item.resolution_note,
-        repair_ticket_id=None,
-        repair_ticket_key=None,
+        repair_ticket_id=repair_ticket.id if repair_ticket else None,
+        repair_ticket_key=repair_ticket.key if repair_ticket else None,
         created_at=item.created_at,
         updated_at=item.updated_at,
     )
