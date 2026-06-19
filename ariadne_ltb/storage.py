@@ -369,6 +369,7 @@ class AriadneStore:
             if assignment.status
             in {
                 AssignmentStatus.QUEUED,
+                AssignmentStatus.READY_TO_CLAIM,
                 AssignmentStatus.CLAIMED,
                 AssignmentStatus.RUNNING,
             }
@@ -378,10 +379,18 @@ class AriadneStore:
         self,
         runtime_id: str,
         lease_seconds: int = 600,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
             for assignment in sorted(self.list_assignments(), key=lambda item: item.created_at):
-                claimed = self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+                claimed = self._claim_assignment_locked(
+                    assignment,
+                    runtime_id,
+                    lease_seconds,
+                    target_project_id=target_project_id,
+                    allowed_backends=allowed_backends,
+                )
                 if claimed is not None:
                     return claimed
         return None
@@ -391,21 +400,31 @@ class AriadneStore:
         assignment_id: str,
         runtime_id: str,
         lease_seconds: int = 600,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
             try:
                 assignment = self.load_assignment(assignment_id)
             except FileNotFoundError:
                 return None
-            return self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+            return self._claim_assignment_locked(
+                assignment,
+                runtime_id,
+                lease_seconds,
+                target_project_id=target_project_id,
+                allowed_backends=allowed_backends,
+            )
 
     def _claim_assignment_locked(
         self,
         assignment: TicketAssignment,
         runtime_id: str,
         lease_seconds: int,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
-        if not self._claimable_assignment(assignment):
+        if not self._claimable_assignment(assignment, target_project_id, allowed_backends):
             return None
         try:
             ticket = self.load_ticket(assignment.ticket_id)
@@ -417,12 +436,6 @@ class AriadneStore:
             )
             return None
         metadata = assignment.metadata
-        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
-            metadata = metadata | {
-                "lease_reclaimed_at": utc_now(),
-                "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
-                "lease_reclaimed_from_status": assignment.status.value,
-            }
         claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
         claimed = claimed.model_copy(
             deep=True,
@@ -451,12 +464,31 @@ class AriadneStore:
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-    def _claimable_assignment(self, assignment: TicketAssignment) -> bool:
-        if assignment.status is AssignmentStatus.QUEUED:
-            return True
-        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
-            return is_assignment_lease_expired(assignment)
-        return False
+    def _claimable_assignment(
+        self,
+        assignment: TicketAssignment,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
+    ) -> bool:
+        if assignment.status is not AssignmentStatus.READY_TO_CLAIM:
+            return False
+        metadata = assignment.metadata
+        if target_project_id is not None and metadata.get("target_project_id") != target_project_id:
+            return False
+        if allowed_backends and assignment.backend_name not in allowed_backends:
+            return False
+        required = [
+            "target_project_id",
+            "route_decision_id",
+            "handoff_packet_id",
+            "permission_profile_id",
+            "handoff_hash",
+            "target_repo_path",
+            "expected_git_head",
+        ]
+        if not (metadata.get("confirmation_id") or metadata.get("runtime_authorization_id")):
+            return False
+        return all(metadata.get(key) for key in required)
 
     def find_latest_assignment_for_ticket(self, ticket_id: str) -> TicketAssignment | None:
         assignments = self.list_assignments_for_ticket(ticket_id)

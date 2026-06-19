@@ -89,7 +89,12 @@ class BacklogConflictType(str, Enum):
 
 
 class AssignmentStatus(str, Enum):
+    DRAFT = "draft"
     QUEUED = "queued"
+    ROUTED = "routed"
+    HANDOFF_READY = "handoff_ready"
+    AWAITING_USER_APPROVAL = "awaiting_user_approval"
+    READY_TO_CLAIM = "ready_to_claim"
     CLAIMED = "claimed"
     RUNNING = "running"
     BLOCKED = "blocked"
@@ -558,6 +563,13 @@ class TicketAssignment(AriadneModel):
         assignment.claimed_by_runtime_id = runtime_id
         assignment.claimed_at = assignment.claimed_at or utc_now()
         assignment.lease_expires_at = utc_after(lease_seconds)
+        return assignment
+
+    def mark_ready_to_claim(self, metadata: dict[str, Any] | None = None) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.READY_TO_CLAIM
+        if metadata:
+            assignment.metadata = assignment.metadata | metadata
         return assignment
 
     def mark_running(self) -> TicketAssignment:
