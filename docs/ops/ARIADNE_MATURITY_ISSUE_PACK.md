@@ -54,7 +54,7 @@ stale-doc-only cleanup.
 - Priority: P0
 - Labels: `enhancement`, `maturity-campaign`, `priority:P0`,
   `area:workbench`, `area:runtime`
-- Status: open.
+- Status: in progress.
 - Problem: the browser product must show assignment dispatch, daemon claim,
   execution result, diff, tests, review, memory, and next actions without
   requiring CLI inspection.
@@ -65,6 +65,13 @@ stale-doc-only cleanup.
     result, reviewer verdict, memory path, and next-ticket path.
   - Blocked execution appears as typed blocked result in the page.
   - Browser QA proves local API usage, not static fixtures.
+- 2026-06-20 slice:
+  - `AgentRun` now records `assignment_id` and `runtime_id` metadata.
+  - Assignment event streams now include same-assignment artifact events for
+    execution log, diff, changed files, tests, review, memory, Feishu plan, and
+    next tickets.
+  - Workbench refreshes its snapshot when WebSocket/HTTP assignment events
+    include artifact/result/blocker/done signals.
 
 ### MAT-003: Product readiness needs guided release evidence regeneration
 

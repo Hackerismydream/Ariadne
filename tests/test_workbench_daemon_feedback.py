@@ -76,9 +76,25 @@ def test_run_now_claims_assignment_and_projects_blocked_codex_evidence(tmp_path:
 
     events = client.get(f"/api/assignments/{assignment_id}/events")
     assert events.status_code == 200, events.text
-    event_summaries = "\n".join(event["summary"] for event in events.json()["events"])
+    event_payload = events.json()["events"]
+    event_summaries = "\n".join(event["summary"] for event in event_payload)
     assert "claim" in event_summaries
     assert "blocked" in event_summaries.lower()
+    artifact_stages = {
+        event["stage"]
+        for event in event_payload
+        if event["source"] == "artifact"
+    }
+    assert {
+        "execution_log",
+        "git_diff",
+        "changed_files",
+        "test_output",
+        "review_report",
+        "memory_record",
+        "feishu_write_plan",
+        "next_tickets",
+    }.issubset(artifact_stages)
 
     workbench = client.get("/api/workbench")
     assert workbench.status_code == 200, workbench.text

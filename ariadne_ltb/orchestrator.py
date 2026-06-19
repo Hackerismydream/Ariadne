@@ -403,7 +403,15 @@ class TicketRunOrchestrator:
         )
         self.store.save_ticket(ticket)
         self._progress(ticket, "route", "succeeded", f"Build Lead selected `{backend_name}`.")
-        execution_run = _start_run(self.store, ticket, "Execution", "execution", backend_name)
+        execution_run = _start_run(
+            self.store,
+            ticket,
+            "Execution",
+            "execution",
+            backend_name,
+            assignment_id=self.assignment_id,
+            runtime_id=self.runtime_id,
+        )
         context = ExecutionContext(
             ticket_id=ticket.id,
             ticket_key=ticket.key,
@@ -542,7 +550,14 @@ class TicketRunOrchestrator:
         )
 
         ticket_for_review = self.store.load_ticket(ticket.id)
-        review_run = _start_run(self.store, ticket_for_review, "Reviewer", "reviewer")
+        review_run = _start_run(
+            self.store,
+            ticket_for_review,
+            "Reviewer",
+            "reviewer",
+            assignment_id=self.assignment_id,
+            runtime_id=self.runtime_id,
+        )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "review_started",
             "Reviewer",
@@ -622,7 +637,14 @@ class TicketRunOrchestrator:
         ticket = ticket.with_status(_status_for_review(review.verdict), "Reviewer")
         self.store.save_ticket(ticket)
 
-        memory_run = _start_run(self.store, ticket, "Memory / Feishu", "memory_feishu")
+        memory_run = _start_run(
+            self.store,
+            ticket,
+            "Memory / Feishu",
+            "memory_feishu",
+            assignment_id=self.assignment_id,
+            runtime_id=self.runtime_id,
+        )
         memory, memory_path = write_memory_record(self.store, ticket, packet, execution, review)
         feishu_plan, feishu_path = generate_feishu_plan(self.store, ticket, packet, execution, review)
         memory_artifact = _write_memory_artifact(self.store, ticket.id, memory_run.id, memory, memory_path)
@@ -1129,6 +1151,8 @@ def _start_run(
     agent_name: str,
     agent_role: str,
     backend_name: str | None = None,
+    assignment_id: str | None = None,
+    runtime_id: str | None = None,
 ) -> AgentRun:
     for run_id in ticket.agent_run_ids:
         existing = store.load_run(run_id)
@@ -1151,6 +1175,15 @@ def _start_run(
         input_summary=f"{agent_name} for {ticket.key}.",
         attempt=attempt,
         backend_name=backend_name,
+        runtime_id=runtime_id,
+        metadata={
+            key: value
+            for key, value in {
+                "assignment_id": assignment_id,
+                "runtime_id": runtime_id,
+            }.items()
+            if value
+        },
     ).mark_running()
     store.save_run(run)
     store.reset_run_messages(run.id)

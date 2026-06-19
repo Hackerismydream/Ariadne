@@ -6478,6 +6478,42 @@ Next recommended Build Ticket:
 
 - MAT-002: make Workbench show daemon execution feedback end to end.
 
+## 2026-06-20 Maturity Campaign: Workbench Assignment Artifact Events
+
+Implemented a bounded MAT-002 slice.
+
+Files changed:
+
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/application/run_events.py`
+- `frontend/ariadne-workbench/src/features/agent-control/model.ts`
+- `tests/test_workbench_daemon_feedback.py`
+- `tests/test_frontend_api_contract_static.py`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+
+What changed:
+
+- `AgentRun` records `assignment_id` and `runtime_id` metadata for runs started
+  through an assignment-backed orchestrator invocation.
+- Assignment event streams now include artifact events for execution logs, git
+  diff, changed files, test output, review report, memory record, Feishu plan,
+  and next-ticket artifacts.
+- Event cache invalidation now includes artifact index/content changes.
+- The Workbench control hook refreshes the ticket snapshot when assignment
+  events include artifact/result/blocker/done signals, so the execution
+  evidence panel can update after daemon work without a manual page refresh.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_workbench_daemon_feedback.py tests/test_frontend_api_contract_static.py tests/test_agent_teammate_mode.py::test_daemon_run_once_claims_assignment_and_writes_teammate_trace`
+- `ruff check ariadne_ltb/application/run_events.py ariadne_ltb/orchestrator.py tests/test_workbench_daemon_feedback.py tests/test_frontend_api_contract_static.py`
+- `npm --prefix frontend/ariadne-workbench run build`
+
+Known limitation:
+
+- MAT-002 remains open until browser QA proves a user-visible Workbench path from
+  assignment through daemon run to rendered execution evidence.
+
 ## 2026-06-19 17:54 Real Source-to-Agent Compiler
 
 Branch: `codex/real-source-to-agent-compiler-plan`

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ariadne_ltb.application.dtos import AssignmentEventDTO, AssignmentEventsDTO, AssignmentEventStreamDTO
 from ariadne_ltb.application.mappers import assignment_dto
+from ariadne_ltb.models import AgentRun
 from ariadne_ltb.models import TicketAssignment
 from ariadne_ltb.storage import AriadneStore
 
@@ -153,8 +154,41 @@ class RunEventService:
                         ref_id=message.artifact_ref or message.result_ref,
                     )
                 )
+        assignment_runs = self._assignment_runs(ticket.agent_run_ids, assignment.id)
+        assignment_run_ids = set(assignment_runs)
+        for artifact in self.store.list_artifacts_for_ticket(ticket.id):
+            if artifact.agent_run_id not in assignment_run_ids:
+                continue
+            run = assignment_runs.get(artifact.agent_run_id)
+            events.append(
+                AssignmentEventDTO(
+                    id=f"artifact:{artifact.id}",
+                    source="artifact",
+                    cursor=f"artifact:{artifact.created_at}:{artifact.id}",
+                    timestamp=artifact.created_at,
+                    assignment_id=assignment.id,
+                    ticket_id=ticket.id,
+                    ticket_key=ticket.key,
+                    stage=artifact.artifact_type.value,
+                    event_type="written",
+                    actor=run.agent_name if run else "Ariadne",
+                    summary=f"{artifact.artifact_type.value}: {artifact.summary}",
+                    ref_id=artifact.id,
+                )
+            )
         ordered = sorted(events, key=lambda item: (item.timestamp, item.cursor))
         return ordered
+
+    def _assignment_runs(self, run_ids: list[str], assignment_id: str) -> dict[str, AgentRun]:
+        runs: dict[str, AgentRun] = {}
+        for run_id in run_ids:
+            try:
+                run = self.store.load_run(run_id)
+            except FileNotFoundError:
+                continue
+            if run.metadata.get("assignment_id") == assignment_id:
+                runs[run.id] = run
+        return runs
 
     def _event_signature(self, assignment_id: str) -> tuple[tuple[str, int, int], ...]:
         assignment = self.store.load_assignment(assignment_id)
@@ -167,6 +201,9 @@ class RunEventService:
         for run_id in ticket.agent_run_ids:
             paths.append(self.store.run_messages_path(run_id))
             paths.append(self.store.runs_dir / f"{run_id}.json")
+        for artifact in self.store.list_artifacts_for_ticket(ticket.id):
+            paths.append(self.store.artifact_index_dir / f"{artifact.id}.json")
+            paths.append(Path(artifact.path))
         signature: list[tuple[str, int, int]] = []
         for path in paths:
             try:

@@ -108,6 +108,7 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     api_types = API_TYPES.read_text(encoding="utf-8")
     app = APP.read_text(encoding="utf-8")
     data = DATA.read_text(encoding="utf-8")
+    control = AGENT_CONTROL.read_text(encoding="utf-8")
 
     assert "export type ApiDaemonStatus" in api_types
     assert "export type ApiTicketEvidenceBundle" in api_types
@@ -118,6 +119,9 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     assert "分配后由运行时自动 claim" in app
     assert "adaptTicketEvidence" in data
     assert "daemonStatus:" in data
+    assert "assignmentEventsNeedWorkbenchRefresh" in control
+    assert 'event.source === "artifact"' in control
+    assert "void onRefresh(ticket.key)" in control
 
 
 def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
