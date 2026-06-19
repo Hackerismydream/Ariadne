@@ -15,6 +15,7 @@ from ariadne_ltb.application.mappers import (
 )
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
+from ariadne_ltb.application.source_understanding import build_source_events, build_source_understandings
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.skills import discover_build_skills
@@ -38,6 +39,8 @@ class WorkbenchProjectionService:
                 source_evidence_dto(evidence)
                 for evidence in self.store.list_source_evidence()
             ],
+            source_understandings=build_source_understandings(self.store),
+            source_events=build_source_events(self.store),
             tickets=[ticket_summary(self.store, ticket) for ticket in self.store.list_tickets()],
             assignments=[assignment_dto(assignment) for assignment in self.store.list_assignments()],
             agents=[
@@ -54,3 +57,6 @@ class WorkbenchProjectionService:
             ],
             daemon_status=DaemonControlService(self.store).status(),
         )
+
+    def snapshot(self, include_internal_backends: bool = False) -> WorkbenchDTO:
+        return self.get(include_internal_backends)

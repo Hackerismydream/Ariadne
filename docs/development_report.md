@@ -6384,3 +6384,63 @@ Known follow-ups:
 - Add a browser-visible Analyze Source action for each source row.
 - Persist real `RouteDecision` and immutable handoff packet before assignment readiness.
 - Continue the next slice from `ready_to_claim` into real Codex/Claude execution feedback.
+
+## 2026-06-19 Project Inputs Understanding UX
+
+Branch: `codex/project-inputs-understanding-ux`
+
+Implemented in this branch:
+
+- Added a product-level Project Input Understanding projection for Workbench:
+  - `SourceUnderstandingDTO`
+  - `SourceEvidenceItemDTO`
+  - `SourceInputEventDTO`
+  - `ariadne_ltb/application/source_understanding.py`
+- Extended `/api/workbench` with:
+  - `source_understandings`
+  - `source_events`
+- Changed web source creation so `POST /api/sources` can perform `auto_analyze`.
+- Added duplicate GitHub source detection using normalized repository URLs.
+- Added frontend Project Inputs helpers:
+  - URL-only inference for GitHub repos, PDFs/blogs, and local/manual sources;
+  - analysis status labels.
+- Reframed the old Sources page as `项目输入`:
+  - main action is now `添加并分析`;
+  - users can paste only a link and Ariadne fills title/type;
+  - the newly added source is selected immediately;
+  - the page shows `Ariadne 理解`, `关键证据`, `风险`, `已生成产物`, and `影响的任务`;
+  - internal model names are hidden from user-facing copy.
+- Changed task suggestion generation to use only analyzed project inputs and tell users that pending/failed inputs are skipped.
+- Kept deterministic tests and offline fixture behavior; `fake-codex` was not promoted into the product path.
+
+Verification added:
+
+- `tests/test_source_understanding_projection.py`
+- `tests/test_web_source_auto_analysis.py`
+- `tests/test_project_inputs_static.py`
+
+Verification run:
+
+- `python3.11 -m pytest`: passed, `362 passed`.
+- `ruff check .`: passed.
+- `cd frontend/ariadne-workbench && npm run build`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed as offline regression fixture.
+- `python3.11 -m ariadne_ltb.cli export board`: passed and wrote `.ariadne/board/index.md`.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed; Codex and Claude commands were found, external execution was unset, and no secrets were printed.
+- Browser acceptance used the in-app browser against `python3.11 -m ariadne_ltb.cli workbench serve --host 127.0.0.1 --port 8768`:
+  - registered `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`;
+  - created `Build Mini Code Agent v0.1`;
+  - pasted `https://github.com/SWE-agent/mini-swe-agent/`;
+  - verified title auto-filled as `SWE-agent/mini-swe-agent`;
+  - verified type auto-selected as `GitHub 仓库`;
+  - clicked `添加并分析`;
+  - verified `分析完成`, `Ariadne 理解`, `关键证据`, and risk output;
+  - clicked `查看任务建议`;
+  - verified 10 task suggestions and `MCA-001` through `MCA-010` were visible.
+
+Current boundaries:
+
+- This slice improves project input understanding and source-to-issue UX; it does not claim real Codex/Claude execution against the Mini Code Agent target project.
+- GitHub repository analysis is still a shallow local-safe profile for URL inputs when the repo has not been cloned locally; deep GitHub repository crawling remains a follow-up.
+- `标记重要` and `忽略` are still lightweight frontend status actions, not persisted source metadata.
+- The next product slice should carry the generated MCA task set into assignment, route decision, handoff, daemon claim, real Codex/Claude execution feedback, tests, review, memory, and Workbench evidence.

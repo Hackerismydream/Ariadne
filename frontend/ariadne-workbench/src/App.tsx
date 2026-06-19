@@ -21,8 +21,10 @@ import { assignTicketButtonLabel } from "./features/assign-ticket/ui";
 import { runAssignmentButtonLabel } from "./features/run-assignment/ui";
 import { watchRunEventsButtonLabel } from "./features/watch-run-events/ui";
 import { useTicketAgentControl } from "./features/agent-control/model";
+import { inferSourceInput, sourceAnalysisLabel, type SourceFormType } from "./features/project-inputs/model";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
 import {
+  analyzeSource,
   applyIssueFactoryPreview,
   createIssueFactoryPreview,
   createProjectGoal,
@@ -43,7 +45,6 @@ import type {
 } from "./types";
 
 type PageKey = "project" | "sources" | "tasks" | "ready" | "diagnostics";
-type SourceFormType = "blog" | "paper" | "github_repo" | "note";
 
 function parseHashRoute(hash = globalThis.location?.hash ?? "") {
   const value = hash.replace(/^#/, "").trim();
@@ -169,34 +170,6 @@ function sourceTypeLabel(sourceType: WorkbenchData["sources"][number]["sourceTyp
     manual_note: "手动笔记",
   };
   return labels[sourceType];
-}
-
-function inferSourceInput(rawValue: string): { title: string; sourceType: SourceFormType; summary: string } {
-  const value = rawValue.trim();
-  if (!value) return { title: "", sourceType: "blog", summary: "" };
-  try {
-    const url = new URL(value);
-    const host = url.hostname.replace(/^www\./, "");
-    const parts = url.pathname.split("/").filter(Boolean);
-    if (host === "github.com" && parts.length >= 2) {
-      const owner = parts[0];
-      const repo = parts[1].replace(/\\.git$/, "");
-      return {
-        title: `${owner}/${repo}`,
-        sourceType: "github_repo",
-        summary: `${owner}/${repo} reference repository. Use it as external implementation context; do not copy code directly.`,
-      };
-    }
-    if (value.toLowerCase().endsWith(".pdf") || host.includes("arxiv.org")) {
-      const title = parts.at(-1)?.replace(/[-_]/g, " ") || host;
-      return { title, sourceType: "paper", summary: `${host} paper or PDF source.` };
-    }
-    const title = parts.at(-1)?.replace(/[-_]/g, " ") || host;
-    return { title, sourceType: "blog", summary: `${host} web source.` };
-  } catch {
-    const pathName = value.split(/[\\/]/).filter(Boolean).at(-1) || value;
-    return { title: pathName.replace(/[-_]/g, " "), sourceType: "note", summary: "Local or manual source." };
-  }
 }
 
 function buildDecisionLabel(decision: string) {
@@ -441,7 +414,7 @@ function PageFrame({
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
   if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
-  if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onNavigate={onNavigate} onRefresh={onRefresh} />;
   if (page === "tasks") return <TasksPage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
   if (page === "ready") {
     return (
@@ -661,10 +634,12 @@ function GoalPage({
 function KnowledgePage({
   data,
   dataSource,
+  onNavigate,
   onRefresh,
 }: {
   data: WorkbenchData;
   dataSource: WorkbenchDataSource;
+  onNavigate: (page: PageKey) => void;
   onRefresh: () => Promise<void>;
 }) {
   const [selectedSourceId, setSelectedSourceId] = useState(data.sources[0]?.id ?? "");
@@ -673,38 +648,24 @@ function KnowledgePage({
   const [sourceType, setSourceType] = useState<SourceFormType>("blog");
   const [sourceContent, setSourceContent] = useState("");
   const [actionStatus, setActionStatus] = useState("");
-  const sourceCards = data.knowledgeCards.filter((card) => card.sourceId === selectedSourceId);
-  const fallbackCard = sourceCards[0] ?? data.knowledgeCards[0];
-  const [selectedCardId, setSelectedCardId] = useState(fallbackCard?.id ?? "");
   const selectedSource = data.sources.find((source) => source.id === selectedSourceId) ?? data.sources[0];
-  const selectedCard = data.knowledgeCards.find((card) => card.id === selectedCardId && card.sourceId === selectedSourceId)
-    ?? fallbackCard;
-  const cardChanges = selectedCard
-    ? data.backlogChanges.filter((change) => change.knowledgeCardId === selectedCard.id)
-    : [];
-  const [selectedChangeId, setSelectedChangeId] = useState(cardChanges[0]?.id ?? "");
-  const selectedChange = cardChanges.find((change) => change.id === selectedChangeId) ?? cardChanges[0];
+  const selectedUnderstanding = data.sourceUnderstandings.find((item) => item.sourceId === selectedSourceId);
+  const [selectedChangeId, setSelectedChangeId] = useState(data.backlogChanges[0]?.id ?? "");
+  const selectedChange = data.backlogChanges.find((change) => change.id === selectedChangeId) ?? data.backlogChanges[0];
   const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
 
   useEffect(() => {
     if (!data.sources.some((source) => source.id === selectedSourceId)) {
       setSelectedSourceId(data.sources[0]?.id ?? "");
     }
+    if (!data.backlogChanges.some((change) => change.id === selectedChangeId)) {
+      setSelectedChangeId(data.backlogChanges[0]?.id ?? "");
+    }
     setPreviewStatus(data.backlogMutationPreview.status);
-  }, [data.sources, data.backlogMutationPreview.status, selectedSourceId]);
+  }, [data.sources, data.backlogChanges, data.backlogMutationPreview.status, selectedSourceId, selectedChangeId]);
 
   function selectSource(sourceId: string) {
-    const nextCard = data.knowledgeCards.find((card) => card.sourceId === sourceId) ?? data.knowledgeCards[0];
-    const nextChange = nextCard ? data.backlogChanges.find((change) => change.knowledgeCardId === nextCard.id) : undefined;
     setSelectedSourceId(sourceId);
-    setSelectedCardId(nextCard?.id ?? "");
-    setSelectedChangeId(nextChange?.id ?? "");
-  }
-
-  function selectCard(cardId: string) {
-    const nextChange = data.backlogChanges.find((change) => change.knowledgeCardId === cardId);
-    setSelectedCardId(cardId);
-    setSelectedChangeId(nextChange?.id ?? "");
   }
 
   function updateSourceUrl(value: string) {
@@ -716,40 +677,40 @@ function KnowledgePage({
     setSourceType(inferred.sourceType);
   }
 
-  const groupedChanges = groupBacklogChanges(cardChanges);
-  const traceSteps = data.traceSteps.filter((step) => {
-    if (!selectedCard) return false;
-    if (step.knowledgeCardId !== selectedCard.id) return false;
-    return !step.backlogChangeId || !selectedChange || step.backlogChangeId === selectedChange.id;
-  });
+  const groupedChanges = groupBacklogChanges(data.backlogChanges);
   const activeGoal = data.goal.id !== "GOAL-NOT-CREATED" ? data.goal : undefined;
   const activeProject = data.projectResources?.find((resource) => resource.id === activeGoal?.targetProjectId && resource.available)
     ?? data.projectResources?.find((resource) => resource.available)
     ?? data.projectResources?.[0];
   const activePreviewId = data.backlogMutationPreview.previewId;
+  const analyzedSourceIds = data.sourceUnderstandings
+    .filter((item) => item.analysisLabel === "分析完成")
+    .map((item) => item.sourceId);
 
   async function addSource() {
     if (!sourceUrl.trim()) return;
     const inferred = inferSourceInput(sourceUrl);
     const title = sourceTitle.trim() || inferred.title || sourceUrl.trim();
     const summary = sourceContent.trim() || inferred.summary;
-    setActionStatus("正在添加来源...");
+    setActionStatus("正在添加并分析输入...");
     try {
-      await createSource({
+      const result = await createSource({
         title,
-        source_type: sourceType,
-        source_role: sourceType === "github_repo" ? "reference_project" : "background_knowledge",
+        source_type: sourceType || inferred.sourceType,
+        source_role: inferred.sourceRole,
         path_or_url: sourceUrl.trim(),
         content: sourceContent.trim(),
         summary,
+        auto_analyze: true,
       });
       setSourceTitle("");
       setSourceUrl("");
       setSourceContent("");
       await onRefresh();
-      setActionStatus("来源已添加。");
+      setSelectedSourceId(result.source.id);
+      setActionStatus(result.duplicate ? "这个输入已经存在，已打开现有记录。" : "分析完成。Ariadne 已生成理解结果和证据。");
     } catch (error) {
-      setActionStatus(error instanceof Error ? error.message : "来源添加失败。");
+      setActionStatus(error instanceof Error ? error.message : "添加或分析失败。");
     }
   }
 
@@ -758,18 +719,34 @@ function KnowledgePage({
       setActionStatus("请先在目标页创建目标。");
       return;
     }
-    setActionStatus("正在生成任务预览...");
+    if (!analyzedSourceIds.length) {
+      setActionStatus("还没有分析完成的输入。请先添加并分析项目输入。");
+      return;
+    }
+    setActionStatus(`将使用 ${analyzedSourceIds.length} 个已分析输入生成任务，跳过未分析输入。`);
     try {
       const result = await createIssueFactoryPreview({
         goal_id: activeGoal.id,
-        source_ids: data.sources.map((source) => source.id),
+        source_ids: analyzedSourceIds,
         target_project_id: activeProject?.id ?? null,
       });
       await onRefresh();
       setSelectedChangeId(result.preview.operations[0]?.id ?? "");
-      setActionStatus(`已生成 ${result.preview.operations.length} 个任务变更。`);
+      setActionStatus(`已生成 ${result.preview.operations.length} 个任务建议。请查看任务建议后应用。`);
     } catch (error) {
-      setActionStatus(error instanceof Error ? error.message : "任务预览生成失败。");
+      setActionStatus(error instanceof Error ? error.message : "任务建议生成失败。");
+    }
+  }
+
+  async function analyzeSelectedSource() {
+    if (!selectedSource) return;
+    setActionStatus("正在重新分析...");
+    try {
+      await analyzeSource(selectedSource.id);
+      await onRefresh();
+      setActionStatus("重新分析完成。");
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "重新分析失败。");
     }
   }
 
@@ -783,7 +760,7 @@ function KnowledgePage({
       await applyIssueFactoryPreview(activePreviewId);
       await onRefresh();
       setPreviewStatus("applied");
-      setActionStatus("任务变更已应用，新的 issue 已写入任务列表。");
+      setActionStatus("任务建议已应用，新的项目 issue 已写入任务列表。");
     } catch (error) {
       setActionStatus(error instanceof Error ? error.message : "应用任务变更失败。");
     }
@@ -793,19 +770,18 @@ function KnowledgePage({
     <section className="page full-bleed knowledge-page">
       <PageHeader
         icon={<BookOpenText size={17} />}
-        title="知识"
+        title="项目输入"
         count={data.sources.length}
         action={
           <div className="toolbar">
-            <button type="button" onClick={() => setActionStatus("请在下方表单填写来源并保存。")}>添加来源</button>
-            <button type="button" onClick={() => setActionStatus("文件夹导入会复用来源表单；当前版本先登记路径或 URL。")}>导入文件夹</button>
-            <button type="button" onClick={() => setActionStatus("仓库扫描会复用来源表单；当前版本先登记仓库 URL。")}>扫描仓库</button>
-            <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>生成任务</button>
+            <button type="button" onClick={() => setActionStatus("粘贴 URL、GitHub 仓库、本地路径或笔记，然后点击添加并分析。")}>添加项目输入</button>
+            <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>查看任务建议</button>
           </div>
         }
       />
       <section className="panel source-input-panel">
-        <h2>添加外部知识</h2>
+        <h2>添加项目输入</h2>
+        <p className="panel-subtitle">粘贴链接、GitHub 仓库、本地路径、论文或笔记。Ariadne 会自动分析并提取可用于生成任务的证据。</p>
         <div className="form-grid">
           <label>
             <span>类型</span>
@@ -829,16 +805,20 @@ function KnowledgePage({
             <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="可选。留空时 Ariadne 会先根据链接生成基础摘要，分析阶段再提取证据。" />
           </label>
           <button disabled={dataSource !== "api" || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
-            保存来源
+            添加并分析
           </button>
         </div>
         {actionStatus ? <p className="action-message">{actionStatus}</p> : null}
       </section>
       <div className="knowledge-layout">
         <section className="knowledge-column source-column">
-          <ColumnHeader title="来源收件箱" meta={`${data.sources.length} 个输入`} />
+          <ColumnHeader title="项目输入" meta={`${data.sources.length} 个材料`} />
           <div className="source-list">
             {data.sources.map((source) => (
+              (() => {
+                const understanding = data.sourceUnderstandings.find((item) => item.sourceId === source.id);
+                const analysis = understanding?.analysisLabel ?? sourceAnalysisLabel(source.analysisStatus ?? source.status);
+                return (
               <button
                 className={`source-row ${source.id === selectedSource?.id ? "selected" : ""}`}
                 data-source-id={source.id}
@@ -848,69 +828,85 @@ function KnowledgePage({
               >
                 <span className={`source-type ${source.sourceType}`}>{sourceTypeLabel(source.sourceType)}</span>
                 <strong>{source.title}</strong>
-                <em className={`source-status ${source.status}`}>{statusLabel(source.status)}</em>
+                <em className={`source-status ${source.status}`}>{analysis}</em>
                 <small>{source.ingestedAt}</small>
               </button>
+                );
+              })()
             ))}
           </div>
         </section>
 
-        <section className="knowledge-column cards-column">
-          <ColumnHeader title="知识卡片" meta="排序：最新" />
-          <div className="knowledge-card-list">
-            {sourceCards.length ? sourceCards.map((card) => (
-              <button
-                className={`knowledge-card ${card.id === selectedCard?.id ? "selected" : ""}`}
-                data-card-id={card.id}
-                key={card.id}
-                type="button"
-                onClick={() => selectCard(card.id)}
-              >
-                <header>
-                  <div>
-                    <strong>{card.title}</strong>
-                    <small>来源：{selectedSource?.title ?? "未知"}</small>
-                  </div>
-                  <span className={card.primary ? "primary-badge" : "secondary-badge"}>{card.primary ? "主要" : "次要"}</span>
-                </header>
-                <section>
-                  <h3>摘要</h3>
-                  <p>{card.sourceSummary}</p>
-                </section>
-                <section>
-                  <h3>证据</h3>
-                  <div className="evidence-list">
-                    {card.evidence.map((item) => <code key={item}>{item}</code>)}
-                  </div>
-                </section>
-                <div className="card-meta-grid">
-                  <section>
-                    <h3>项目相关性</h3>
-                    <p>{card.projectRelevance}</p>
-                  </section>
-                  <section>
-                    <h3>构建决策</h3>
-                    <span className={`decision-pill ${card.buildDecision}`}>{buildDecisionLabel(card.buildDecision)}</span>
-                  </section>
+        <section className="knowledge-column understanding-column">
+          <ColumnHeader title="Ariadne 理解" meta={selectedUnderstanding?.analysisLabel ?? "已添加"} />
+          {selectedUnderstanding ? (
+            <article className="understanding-panel">
+              <header>
+                <div>
+                  <strong>{selectedUnderstanding.displayTitle}</strong>
+                  <span>{selectedUnderstanding.kindLabel} · {selectedUnderstanding.roleLabel} · 许可证 {selectedUnderstanding.licenseRiskLabel}</span>
                 </div>
-                <div className="module-row">
-                  {card.affectedModules.map((module) => <span key={module}>{module}</span>)}
-                  <em>{Math.round(card.confidence * 100)}%</em>
-                </div>
-                <ul className="risk-list">
-                  {card.risks.map((risk) => <li key={risk}>{risk}</li>)}
+              </header>
+              <section>
+                <h3>Ariadne 理解到</h3>
+                <ul>
+                  {selectedUnderstanding.whatAriadneUnderstood.map((item) => <li key={item}>{item}</li>)}
                 </ul>
-              </button>
-            )) : <p className="empty-column">这个来源还没有提取出的知识卡片。</p>}
-          </div>
+              </section>
+              <section>
+                <h3>关键证据</h3>
+                {selectedUnderstanding.evidenceItems.length ? selectedUnderstanding.evidenceItems.map((item) => (
+                  <div className="evidence-row" key={`${item.locator}-${item.claim}`}>
+                    <code>{item.locator}</code>
+                    <p>{item.summary}</p>
+                    <small>{item.claim} · 可信度 {item.confidenceLabel}</small>
+                  </div>
+                )) : <p className="empty-column">还没有证据。点击重新分析。</p>}
+              </section>
+              <section>
+                <h3>影响的任务</h3>
+                <div className="module-row">
+                  {selectedUnderstanding.impactedTicketKeys.length ? selectedUnderstanding.impactedTicketKeys.map((key) => (
+                    <button type="button" key={key} onClick={() => onNavigate("ready")}>{key}</button>
+                  )) : <span>还没有生成任务建议</span>}
+                </div>
+              </section>
+              <section>
+                <h3>风险</h3>
+                {selectedUnderstanding.risks.length ? (
+                  <ul className="risk-list">
+                    {selectedUnderstanding.risks.map((risk) => <li key={risk}>{risk}</li>)}
+                  </ul>
+                ) : <p className="empty-column">暂未发现明显风险。</p>}
+              </section>
+              <section>
+                <h3>已生成产物</h3>
+                <div className="module-row">
+                  {selectedUnderstanding.generatedOutputs.map((item) => <span key={item}>{item}</span>)}
+                </div>
+              </section>
+              <div className="apply-row compact-actions">
+                <button disabled={!selectedSource} type="button" onClick={() => void analyzeSelectedSource()}>重新分析</button>
+                <button disabled={!selectedSource} type="button" onClick={() => setActionStatus("已标记为重要。后续任务生成会优先使用这个输入。")}>标记重要</button>
+                <button disabled={!selectedSource} type="button" onClick={() => setActionStatus("已忽略。后续应从任务生成输入中排除。")}>忽略</button>
+              </div>
+            </article>
+          ) : <p className="empty-column">选择一个输入查看 Ariadne 的理解结果。</p>}
         </section>
 
         <section className="knowledge-column changes-column">
-          <ColumnHeader title="任务列表变更" meta="由任务工厂生成" />
+          <ColumnHeader title="任务建议" meta={`${analyzedSourceIds.length} 个已分析输入`} />
+          <p className="hint-text">将使用已分析输入生成任务；跳过未分析输入。</p>
           <BacklogChangeGroup title="新增" emptyLabel="新增" kind="added" changes={groupedChanges.added} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
           <BacklogChangeGroup title="更新" emptyLabel="更新" kind="updated" changes={groupedChanges.updated} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
           <BacklogChangeGroup title="延后" emptyLabel="延后" kind="deferred" changes={groupedChanges.deferred} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
           <BacklogChangeGroup title="拒绝" emptyLabel="拒绝" kind="rejected" changes={groupedChanges.rejected} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <div className="apply-row">
+            <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>
+              查看任务建议
+            </button>
+            <span>将使用已分析输入生成任务；跳过未分析输入。</span>
+          </div>
           <div className="apply-row">
             <button disabled={dataSource !== "api" || !activePreviewId || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
               {previewStatus === "applied" ? "已应用" : "应用任务变更"}
@@ -918,23 +914,6 @@ function KnowledgePage({
             <span>{previewStatusLabel(previewStatus)} · 最近预览：{data.backlogMutationPreview.lastPreviewAt}</span>
           </div>
         </section>
-
-        <aside className="knowledge-column trace-column">
-          <ColumnHeader title="追踪" meta={selectedChange?.ticketKey ?? selectedCard?.title ?? "未选择"} />
-          <ol className="trace-list">
-            {traceSteps.length ? traceSteps.map((step) => (
-              <li key={step.id}>
-                <span className="trace-dot" />
-                <div>
-                  <h3>{traceLabel(step.label)}</h3>
-                  <p>{step.summary}</p>
-                  <code>{step.artifactPath}</code>
-                  <small>{step.timestamp}</small>
-                </div>
-              </li>
-            )) : <li className="trace-empty">当前选择还没有追踪产物。</li>}
-          </ol>
-        </aside>
       </div>
       <footer className="mutation-preview">
         <strong>任务变更预览</strong>
@@ -969,6 +948,9 @@ function TasksPage({
     ?? data.projectResources?.find((resource) => resource.available)
     ?? data.projectResources?.[0];
   const activePreviewId = data.backlogMutationPreview.previewId;
+  const analyzedSourceIds = data.sourceUnderstandings
+    .filter((item) => item.analysisLabel === "分析完成")
+    .map((item) => item.sourceId);
   const traceSteps = selectedChange
     ? data.traceSteps.filter((step) => !step.backlogChangeId || step.backlogChangeId === selectedChange.id)
     : data.traceSteps.slice(0, 8);
@@ -985,18 +967,22 @@ function TasksPage({
       setActionStatus("请先在项目页创建目标。");
       return;
     }
-    setActionStatus("正在从目标、输入和代码库快照生成任务变更...");
+    if (!analyzedSourceIds.length) {
+      setActionStatus("还没有分析完成的输入。请先到项目输入页添加并分析。");
+      return;
+    }
+    setActionStatus(`将使用 ${analyzedSourceIds.length} 个已分析输入生成任务，跳过未分析输入。`);
     try {
       const result = await createIssueFactoryPreview({
         goal_id: activeGoal.id,
-        source_ids: data.sources.map((source) => source.id),
+        source_ids: analyzedSourceIds,
         target_project_id: activeProject?.id ?? null,
       });
       await onRefresh();
       setSelectedChangeId(result.preview.operations[0]?.id ?? "");
-      setActionStatus(`已生成 ${result.preview.operations.length} 个任务变更。`);
+      setActionStatus(`已生成 ${result.preview.operations.length} 个任务建议。`);
     } catch (error) {
-      setActionStatus(error instanceof Error ? error.message : "任务预览生成失败。");
+      setActionStatus(error instanceof Error ? error.message : "任务建议生成失败。");
     }
   }
 
@@ -1025,7 +1011,7 @@ function TasksPage({
         action={
           <div className="toolbar">
             <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>
-              生成任务变更
+              查看任务建议
             </button>
             <button disabled={dataSource !== "api" || !activePreviewId || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
               {previewStatus === "applied" ? "已应用" : "应用任务变更"}
@@ -1035,8 +1021,8 @@ function TasksPage({
       />
       <section className="panel compiler-summary">
         <div>
-          <h2>Source-to-Issue Compiler</h2>
-          <p>输入：项目目标、{data.sources.length} 个来源、{data.sourceArtifacts?.length ?? 0} 个 typed artifact、{data.sourceEvidence?.length ?? 0} 条证据。</p>
+          <h2>任务建议生成器</h2>
+          <p>输入：项目目标、{analyzedSourceIds.length} 个已分析项目输入、{data.sourceArtifacts?.length ?? 0} 个结构化产物、{data.sourceEvidence?.length ?? 0} 条证据。将使用已分析输入生成任务；跳过未分析输入。</p>
         </div>
         <div className="summary-metrics">
           <span>新增 {data.backlogMutationPreview.added}</span>

@@ -3,6 +3,8 @@ export type ApiWorkbench = {
   sources: ApiSourceDocument[];
   source_artifacts: ApiSourceArtifact[];
   source_evidence: ApiSourceEvidence[];
+  source_understandings: ApiSourceUnderstanding[];
+  source_events: ApiSourceInputEvent[];
   tickets: ApiTicketSummary[];
   assignments: ApiAssignmentSummary[];
   agents: ApiAgentProfile[];
@@ -192,6 +194,36 @@ export type ApiSourceEvidence = {
   created_at: string;
 };
 
+export type ApiSourceEvidenceItem = {
+  locator: string;
+  summary: string;
+  claim: string;
+  confidence_label: string;
+};
+
+export type ApiSourceUnderstanding = {
+  source_id: string;
+  display_title: string;
+  kind_label: string;
+  role_label: string;
+  analysis_label: string;
+  license_risk_label: string;
+  what_ariadne_understood: string[];
+  evidence_items: ApiSourceEvidenceItem[];
+  generated_outputs: string[];
+  risks: string[];
+  impacted_ticket_keys: string[];
+  next_actions: string[];
+};
+
+export type ApiSourceInputEvent = {
+  id: string;
+  source_id: string;
+  event_type: string;
+  label: string;
+  created_at: string;
+};
+
 export type CreateSourceRequest = {
   title: string;
   source_type: "blog" | "paper" | "github_repo" | "github_readme" | "note" | "manual_note" | "repo_note" | "local_markdown" | "local_folder" | "target_codebase";
@@ -200,6 +232,7 @@ export type CreateSourceRequest = {
   content?: string;
   summary?: string;
   evidence_snippets?: string[];
+  auto_analyze?: boolean;
 };
 
 export type ApiAgentProfile = {

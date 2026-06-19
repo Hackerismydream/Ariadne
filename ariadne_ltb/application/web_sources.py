@@ -11,6 +11,13 @@ class WebSourceService:
     def __init__(self, store: AriadneStore) -> None:
         self.store = store
 
+    def find_duplicate(self, path_or_url: str) -> SourceDocument | None:
+        incoming_ref = normalized_source_ref(path_or_url)
+        for existing in self.store.list_source_documents():
+            if normalized_source_ref(existing.path_or_url) == incoming_ref:
+                return existing
+        return None
+
     def create(self, payload: CreateSourceInput) -> SourceDocument:
         now = utc_now()
         content = payload.content.strip()
@@ -42,6 +49,15 @@ class WebSourceService:
         )
         self.store.save_source_document(source)
         return source
+
+
+def normalized_source_ref(value: str) -> str:
+    stripped = value.strip()
+    lowered = stripped.lower()
+    if lowered.startswith("https://github.com/") or lowered.startswith("http://github.com/"):
+        normalized = lowered.removeprefix("http://").removeprefix("https://")
+        return f"https://{normalized.removesuffix('/').removesuffix('.git')}"
+    return stripped.removesuffix("/")
 
 
 def _source_type(value: str) -> SourceType:

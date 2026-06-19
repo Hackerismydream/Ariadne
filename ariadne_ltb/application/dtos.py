@@ -179,6 +179,36 @@ class SourceEvidenceDTO(AriadneDTO):
     created_at: str
 
 
+class SourceEvidenceItemDTO(AriadneDTO):
+    locator: str
+    summary: str
+    claim: str
+    confidence_label: str
+
+
+class SourceUnderstandingDTO(AriadneDTO):
+    source_id: str
+    display_title: str
+    kind_label: str
+    role_label: str
+    analysis_label: str
+    license_risk_label: str = "未知"
+    what_ariadne_understood: list[str] = Field(default_factory=list)
+    evidence_items: list[SourceEvidenceItemDTO] = Field(default_factory=list)
+    generated_outputs: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    impacted_ticket_keys: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+
+
+class SourceInputEventDTO(AriadneDTO):
+    id: str
+    source_id: str
+    event_type: str
+    label: str
+    created_at: str
+
+
 class AgentProfileDTO(AriadneDTO):
     id: str
     name: str
@@ -264,6 +294,8 @@ class WorkbenchDTO(AriadneDTO):
     sources: list[SourceDocumentDTO] = Field(default_factory=list)
     source_artifacts: list[SourceArtifactDTO] = Field(default_factory=list)
     source_evidence: list[SourceEvidenceDTO] = Field(default_factory=list)
+    source_understandings: list[SourceUnderstandingDTO] = Field(default_factory=list)
+    source_events: list[SourceInputEventDTO] = Field(default_factory=list)
     tickets: list[TicketSummaryDTO]
     assignments: list[AssignmentDTO]
     agents: list[AgentProfileDTO] = Field(default_factory=list)
@@ -320,6 +352,7 @@ class CreateSourceInput(AriadneDTO):
     content: str = Field(default="", max_length=120_000)
     summary: str = Field(default="", max_length=4000)
     evidence_snippets: list[str] = Field(default_factory=list)
+    auto_analyze: bool = False
 
 
 class IssueFactoryPreviewInput(AriadneDTO):
