@@ -10,6 +10,8 @@ from ariadne_ltb.application.dtos import (
     InboxItemDTO,
     RuntimeCapabilityDTO,
     SourceDocumentDTO,
+    SourceArtifactDTO,
+    SourceEvidenceDTO,
     TargetProjectDTO,
     TicketEvidenceBundleDTO,
     TicketSummaryDTO,
@@ -23,7 +25,9 @@ from ariadne_ltb.models import (
     InboxItem,
     ProjectResource,
     RuntimeCapability,
+    SourceArtifact,
     SourceDocument,
+    SourceEvidence,
     TicketAssignment,
     TicketComment,
 )
@@ -197,17 +201,56 @@ def source_document_dto(store: AriadneStore, source: SourceDocument) -> SourceDo
         if ticket.metadata.get("source_document_id") == source.id or ticket.source_ref == source.path_or_url
     )
     evidence = source.metadata.get("evidence_snippets")
+    artifact_ids = source.metadata.get("artifact_ids")
     return SourceDocumentDTO(
         id=source.id,
         source_type=source.source_type.value,
+        source_role=str(source.metadata.get("source_role") or _default_source_role(source.source_type.value)),
         title=source.title,
         path_or_url=source.path_or_url,
         summary=source.summary,
-        status="linked" if linked_count else "new",
+        status="linked" if linked_count else str(source.metadata.get("analysis_status") or "new"),
+        analysis_status=str(source.metadata.get("analysis_status") or "pending"),
         linked_ticket_count=linked_count,
         created_at=source.created_at,
         evidence_snippets=[str(item) for item in evidence] if isinstance(evidence, list) else [],
+        artifact_ids=[str(item) for item in artifact_ids] if isinstance(artifact_ids, list) else [],
+        license_risk=str(source.metadata.get("license_risk") or "unknown"),
     )
+
+
+def source_artifact_dto(artifact: SourceArtifact) -> SourceArtifactDTO:
+    return SourceArtifactDTO(
+        id=artifact.id,
+        source_document_id=artifact.source_document_id,
+        artifact_type=artifact.artifact_type,
+        payload_hash=artifact.payload_hash,
+        payload_path=artifact.payload_path,
+        evidence_ids=artifact.evidence_ids,
+        created_at=str(artifact.created_at),
+    )
+
+
+def source_evidence_dto(evidence: SourceEvidence) -> SourceEvidenceDTO:
+    return SourceEvidenceDTO(
+        id=evidence.id,
+        source_document_id=evidence.source_document_id,
+        artifact_id=evidence.artifact_id,
+        locator=evidence.locator,
+        quote_or_summary=evidence.quote_or_summary,
+        claim=evidence.claim,
+        confidence=evidence.confidence,
+        content_hash=evidence.content_hash,
+        created_at=str(evidence.created_at),
+    )
+
+
+def _default_source_role(source_type: str) -> str:
+    if source_type == "github_repo":
+        return "reference_project"
+    if source_type == "target_codebase":
+        return "target_codebase"
+    return "background_knowledge"
 
 
 def agent_profile_dto(store: AriadneStore, profile: AgentProfile) -> AgentProfileDTO:

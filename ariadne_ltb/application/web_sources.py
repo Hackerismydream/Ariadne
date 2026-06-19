@@ -30,6 +30,14 @@ class WebSourceService:
                 "entrypoint": "web_workbench",
                 "content": content,
                 "evidence_snippets": evidence,
+                "source_role": payload.source_role,
+                "analysis_status": "pending",
+                "artifact_ids": [],
+                "license_risk": "unknown",
+                "snapshot": {
+                    "content_hash": sha256((payload.path_or_url + "\n" + content).encode("utf-8")).hexdigest(),
+                    "fetched_at": now,
+                },
             },
         )
         self.store.save_source_document(source)
@@ -41,6 +49,12 @@ def _source_type(value: str) -> SourceType:
         return SourceType.GITHUB_REPO
     if value in {"manual_note", "repo_note", "note"}:
         return SourceType.NOTE
+    if value == "local_markdown":
+        return SourceType.LOCAL_MARKDOWN
+    if value == "local_folder":
+        return SourceType.LOCAL_FOLDER
+    if value == "target_codebase":
+        return SourceType.TARGET_CODEBASE
     return SourceType(value)
 
 

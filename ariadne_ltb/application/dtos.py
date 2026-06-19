@@ -135,13 +135,39 @@ class ProjectGoalDTO(AriadneDTO):
 class SourceDocumentDTO(AriadneDTO):
     id: str
     source_type: str
+    source_role: str = "background_knowledge"
     title: str
     path_or_url: str
     summary: str
     status: str = "new"
+    analysis_status: str = "pending"
     linked_ticket_count: int = 0
     created_at: str
     evidence_snippets: list[str] = Field(default_factory=list)
+    artifact_ids: list[str] = Field(default_factory=list)
+    license_risk: str = "unknown"
+
+
+class SourceArtifactDTO(AriadneDTO):
+    id: str
+    source_document_id: str
+    artifact_type: str
+    payload_hash: str
+    payload_path: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+class SourceEvidenceDTO(AriadneDTO):
+    id: str
+    source_document_id: str
+    artifact_id: str | None = None
+    locator: str
+    quote_or_summary: str
+    claim: str
+    confidence: float
+    content_hash: str
+    created_at: str
 
 
 class AgentProfileDTO(AriadneDTO):
@@ -220,6 +246,8 @@ class WorkbenchDTO(AriadneDTO):
     schema_version: Literal["ariadne.workbench.v1"] = "ariadne.workbench.v1"
     goals: list[ProjectGoalDTO] = Field(default_factory=list)
     sources: list[SourceDocumentDTO] = Field(default_factory=list)
+    source_artifacts: list[SourceArtifactDTO] = Field(default_factory=list)
+    source_evidence: list[SourceEvidenceDTO] = Field(default_factory=list)
     tickets: list[TicketSummaryDTO]
     assignments: list[AssignmentDTO]
     agents: list[AgentProfileDTO] = Field(default_factory=list)
@@ -248,7 +276,26 @@ class CreateProjectGoalInput(AriadneDTO):
 
 class CreateSourceInput(AriadneDTO):
     title: str = Field(min_length=1, max_length=240)
-    source_type: Literal["blog", "paper", "github_repo", "github_readme", "note", "manual_note", "repo_note"] = "note"
+    source_type: Literal[
+        "blog",
+        "paper",
+        "github_repo",
+        "github_readme",
+        "note",
+        "manual_note",
+        "repo_note",
+        "local_markdown",
+        "local_folder",
+        "target_codebase",
+    ] = "note"
+    source_role: Literal[
+        "reference_project",
+        "requirement_source",
+        "background_knowledge",
+        "design_constraint",
+        "implementation_example",
+        "target_codebase",
+    ] = "background_knowledge"
     path_or_url: str = Field(min_length=1, max_length=2000)
     content: str = Field(default="", max_length=120_000)
     summary: str = Field(default="", max_length=4000)
