@@ -9,6 +9,40 @@ export type ApiWorkbench = {
   skills: ApiBuildSkill[];
   inbox: ApiInboxItem[];
   backlog_previews: ApiBacklogPreview[];
+  daemon_status: ApiDaemonStatus;
+};
+
+export type ApiTicketEvidenceBundle = {
+  assignment_id?: string | null;
+  assignment_status?: string | null;
+  assignment_blocker?: string | null;
+  assignment_failure_reason?: string | null;
+  execution_result_id?: string | null;
+  backend_name?: string | null;
+  dry_run?: boolean | null;
+  blocked?: boolean | null;
+  block_reason?: string | null;
+  failure_reason?: string | null;
+  command?: string | null;
+  exit_code?: number | null;
+  stdout_excerpt: string;
+  stderr_excerpt: string;
+  changed_files: string[];
+  diff_artifact_id?: string | null;
+  diff_artifact_path?: string | null;
+  execution_log_artifact_id?: string | null;
+  execution_log_artifact_path?: string | null;
+  handoff_file?: string | null;
+  test_command: string;
+  test_exit_code?: number | null;
+  test_stdout_excerpt: string;
+  test_stderr_excerpt: string;
+  review_report_id?: string | null;
+  review_verdict?: string | null;
+  memory_path?: string | null;
+  feishu_plan_path?: string | null;
+  next_tickets_path?: string | null;
+  warnings: string[];
 };
 
 export type ApiTicketSummary = {
@@ -28,6 +62,7 @@ export type ApiTicketSummary = {
   affected_modules?: string[];
   source_ref?: string | null;
   target_project_id?: string | null;
+  evidence?: ApiTicketEvidenceBundle | null;
 };
 
 export type ApiAssignmentSummary = {
@@ -56,6 +91,25 @@ export type ApiRuntimeCapability = {
   confirm_execution_required: boolean;
   disabled_reasons: string[];
   notes: string[];
+};
+
+export type ApiDaemonStatus = {
+  runtime_id: string;
+  status: string;
+  background_running: boolean;
+  external_execution_authorized: boolean;
+  stale?: boolean | null;
+  current_assignment_id?: string | null;
+  current_ticket_key?: string | null;
+  current_stage?: string | null;
+  heartbeat_at?: string | null;
+  last_event_id?: string | null;
+  last_error?: string | null;
+  open_assignment_count: number;
+  claimable_assignment_count: number;
+  running_assignment_count: number;
+  blocked_assignment_count: number;
+  last_message: string;
 };
 
 export type ApiTargetProject = {
@@ -206,6 +260,14 @@ export type RunAssignmentRequest = {
   confirmation_token: string;
   timeout_seconds?: number;
   idempotency_key?: string;
+};
+
+export type DaemonStartRequest = {
+  runtime_id?: string;
+  interval_seconds?: number;
+  max_iterations?: number | null;
+  timeout_seconds?: number | null;
+  external_execution_authorized?: boolean;
 };
 
 export type AddTicketCommentRequest = {

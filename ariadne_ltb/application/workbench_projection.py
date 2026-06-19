@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ariadne_ltb.application.dtos import WorkbenchDTO
+from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.mappers import (
     agent_profile_dto,
     assignment_dto,
@@ -41,4 +42,5 @@ class WorkbenchProjectionService:
                 backlog_preview_dto(preview)
                 for preview in self.store.list_backlog_previews()[-10:]
             ],
+            daemon_status=DaemonControlService(self.store).status(),
         )

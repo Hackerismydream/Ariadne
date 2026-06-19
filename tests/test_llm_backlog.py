@@ -148,4 +148,4 @@ def test_orchestrator_llm_backlog_success_drives_followup_ticket(
     assert manifest["backlog_planner_name"] == "llm"
     assert manifest["backlog_planner_artifact_id"]
     assert manifest["artifacts"]["backlog_planner_artifact_path"] == result.backlog_planner_artifact_path
-    assert transport.payload["model"] == "deepseek-v4-pro"
+    assert transport.payload["model"] == client.model

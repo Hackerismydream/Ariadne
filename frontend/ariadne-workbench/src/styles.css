@@ -259,6 +259,26 @@ button:disabled {
   color: white;
 }
 
+.daemon-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.daemon-strip strong {
+  color: var(--foreground);
+}
+
+.daemon-strip span {
+  font-size: 12px;
+}
+
 .action-message {
   border-left: 3px solid oklch(0.57 0.18 255);
   margin: 0;
@@ -1125,6 +1145,32 @@ button:disabled {
   margin-top: 10px;
 }
 
+.execution-evidence-panel .wide-code {
+  display: block;
+  margin-top: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.log-grid pre {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--muted);
+  color: var(--foreground);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 .github-panel a,
 .smoke-panel code,
 .check-summary span,
@@ -1392,6 +1438,10 @@ button:disabled {
   gap: 10px;
   max-width: 920px;
   margin-top: 18px;
+}
+
+.daemon-runtime-status {
+  margin-top: 12px;
 }
 
 .runtime-capability div,

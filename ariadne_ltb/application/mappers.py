@@ -11,6 +11,7 @@ from ariadne_ltb.application.dtos import (
     RuntimeCapabilityDTO,
     SourceDocumentDTO,
     TargetProjectDTO,
+    TicketEvidenceBundleDTO,
     TicketSummaryDTO,
 )
 from ariadne_ltb.domain.runtime_policy import browser_safe_runtime_capability
@@ -61,7 +62,87 @@ def ticket_summary(store: AriadneStore, ticket_id_or_obj) -> TicketSummaryDTO:  
         affected_modules=packet.affected_modules if packet else [],
         source_ref=ticket.source_ref,
         target_project_id=ticket.metadata.get("target_project_id"),
+        evidence=ticket_evidence_bundle(store, ticket.id),
     )
+
+
+def ticket_evidence_bundle(store: AriadneStore, ticket_id: str) -> TicketEvidenceBundleDTO | None:
+    ticket = store.load_ticket(ticket_id)
+    assignment = store.find_latest_assignment_for_ticket(ticket.id)
+    execution = _latest_execution_result(store, ticket)
+    review_id = ticket.metadata.get("review_report_id")
+    review_verdict = None
+    if review_id:
+        try:
+            review_verdict = store.load_review_report(review_id).verdict.value
+        except FileNotFoundError:
+            review_verdict = None
+    if assignment is None and execution is None and review_id is None:
+        return None
+    diff_path = _artifact_path(store, execution.diff_artifact_id if execution else None)
+    log_path = _artifact_path(store, execution.execution_log_artifact_id if execution else None)
+    return TicketEvidenceBundleDTO(
+        assignment_id=assignment.id if assignment else None,
+        assignment_status=assignment.status.value if assignment else None,
+        assignment_blocker=assignment.blocker if assignment else None,
+        assignment_failure_reason=assignment.failure_reason.value if assignment and assignment.failure_reason else None,
+        execution_result_id=execution.id if execution else ticket.metadata.get("execution_result_id"),
+        backend_name=execution.backend_name if execution else None,
+        dry_run=execution.dry_run if execution else None,
+        blocked=execution.blocked if execution else None,
+        block_reason=execution.block_reason if execution else None,
+        failure_reason=execution.failure_reason.value if execution and execution.failure_reason else None,
+        command=execution.command if execution else None,
+        exit_code=execution.exit_code if execution else None,
+        stdout_excerpt=_excerpt(execution.stdout) if execution else "",
+        stderr_excerpt=_excerpt(execution.stderr) if execution else "",
+        changed_files=execution.changed_files if execution else [],
+        diff_artifact_id=execution.diff_artifact_id if execution else None,
+        diff_artifact_path=diff_path,
+        execution_log_artifact_id=execution.execution_log_artifact_id if execution else None,
+        execution_log_artifact_path=log_path,
+        handoff_file=execution.handoff_file if execution else None,
+        test_command=execution.test_command if execution else "",
+        test_exit_code=execution.test_exit_code if execution else None,
+        test_stdout_excerpt=_excerpt(execution.test_stdout) if execution else "",
+        test_stderr_excerpt=_excerpt(execution.test_stderr) if execution else "",
+        review_report_id=review_id,
+        review_verdict=review_verdict,
+        memory_path=str(store.memory_dir / "tickets" / f"{ticket.id}.json")
+        if (store.memory_dir / "tickets" / f"{ticket.id}.json").exists()
+        else ticket.metadata.get("memory_path"),
+        feishu_plan_path=ticket.metadata.get("feishu_plan_path"),
+        next_tickets_path=ticket.metadata.get("next_tickets_path"),
+        warnings=execution.warnings if execution else [],
+    )
+
+
+def _latest_execution_result(store: AriadneStore, ticket) -> object | None:  # noqa: ANN001
+    result_id = ticket.metadata.get("execution_result_id")
+    if result_id:
+        try:
+            return store.load_execution_result(result_id)
+        except FileNotFoundError:
+            pass
+    results = [result for result in store.list_execution_results() if result.ticket_id == ticket.id]
+    if not results:
+        return None
+    return sorted(results, key=lambda result: result.ended_at)[-1]
+
+
+def _artifact_path(store: AriadneStore, artifact_id: str | None) -> str | None:
+    if not artifact_id:
+        return None
+    try:
+        return store.load_artifact(artifact_id).path
+    except FileNotFoundError:
+        return None
+
+
+def _excerpt(value: str, limit: int = 1200) -> str:
+    if len(value) <= limit:
+        return value
+    return value[:limit] + "\n..."
 
 
 def assignment_dto(assignment: TicketAssignment) -> AssignmentDTO:

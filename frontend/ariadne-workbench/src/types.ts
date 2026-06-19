@@ -26,10 +26,42 @@ export type AriadneTicket = {
   nextTicketsPath?: string;
   github?: GitHubTicketEvidence;
   backendSmoke?: BackendSmokeEvidence;
+  executionEvidence?: TicketExecutionEvidence;
   llmAgents?: LLMAgentEvidence[];
   feishu?: FeishuTicketEvidence;
   releaseEvidence?: ReleaseEvidenceSummary;
   acceptance: string[];
+};
+
+export type TicketExecutionEvidence = {
+  assignmentId?: string | null;
+  assignmentStatus?: string | null;
+  assignmentBlocker?: string | null;
+  assignmentFailureReason?: string | null;
+  executionResultId?: string | null;
+  backendName?: string | null;
+  dryRun?: boolean | null;
+  blocked?: boolean | null;
+  blockReason?: string | null;
+  failureReason?: string | null;
+  command?: string | null;
+  exitCode?: number | null;
+  stdoutExcerpt: string;
+  stderrExcerpt: string;
+  changedFiles: string[];
+  diffArtifactPath?: string | null;
+  executionLogArtifactPath?: string | null;
+  handoffFile?: string | null;
+  testCommand: string;
+  testExitCode?: number | null;
+  testStdoutExcerpt: string;
+  testStderrExcerpt: string;
+  reviewReportId?: string | null;
+  reviewVerdict?: string | null;
+  memoryPath?: string | null;
+  feishuPlanPath?: string | null;
+  nextTicketsPath?: string | null;
+  warnings: string[];
 };
 
 export type BackendSmokeEvidence = {
@@ -181,6 +213,25 @@ export type RuntimeInfo = {
   checkedAt?: string;
 };
 
+export type DaemonStatus = {
+  runtimeId: string;
+  status: string;
+  backgroundRunning: boolean;
+  externalExecutionAuthorized: boolean;
+  stale?: boolean | null;
+  currentAssignmentId?: string | null;
+  currentTicketKey?: string | null;
+  currentStage?: string | null;
+  heartbeatAt?: string | null;
+  lastEventId?: string | null;
+  lastError?: string | null;
+  openAssignmentCount: number;
+  claimableAssignmentCount: number;
+  runningAssignmentCount: number;
+  blockedAssignmentCount: number;
+  lastMessage: string;
+};
+
 export type ProjectResource = {
   id: string;
   label: string;
@@ -310,6 +361,7 @@ export type WorkbenchData = {
   backlogMutationPreview: BacklogMutationPreview;
   agents: AgentRole[];
   runtimes: RuntimeInfo[];
+  daemonStatus: DaemonStatus;
   assignments?: AssignmentSummary[];
   projectResources?: ProjectResource[];
   backendSmokeEvidence?: BackendSmokeEvidence[];

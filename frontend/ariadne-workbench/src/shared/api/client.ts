@@ -8,6 +8,7 @@ import type {
   CreateSourceRequest,
   IssueFactoryPreviewRequest,
   RegisterTargetProjectRequest,
+  DaemonStartRequest,
   RunAssignmentRequest,
 } from "./types";
 import { AriadneApiError } from "./errors";
@@ -81,6 +82,32 @@ export function assignTicket(ticketIdOrKey: string, payload: AssignTicketRequest
 
 export function runAssignment(assignmentId: string, payload: RunAssignmentRequest) {
   return requestJson(`/api/assignments/${encodeURIComponent(assignmentId)}/run`, {
+    method: "POST",
+    headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getDaemonStatus() {
+  return requestJson<ApiWorkbench["daemon_status"]>("/api/daemon/status");
+}
+
+export function startDaemon(payload: DaemonStartRequest = {}) {
+  return requestJson("/api/daemon/start", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function stopDaemon() {
+  return requestJson("/api/daemon/stop", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function runAssignmentNow(assignmentId: string, payload: RunAssignmentRequest) {
+  return requestJson(`/api/assignments/${encodeURIComponent(assignmentId)}/run-now`, {
     method: "POST",
     headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
     body: JSON.stringify(payload),
