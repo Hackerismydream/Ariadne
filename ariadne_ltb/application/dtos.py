@@ -92,6 +92,14 @@ class AssignmentDTO(AriadneDTO):
     agent_name: str
     backend_name: str | None = None
     status: str
+    readiness_status: str | None = None
+    claimable: bool | None = None
+    route_decision_id: str | None = None
+    handoff_packet_id: str | None = None
+    handoff_hash: str | None = None
+    build_context_id: str | None = None
+    blocked_reason: str | None = None
+    runtime_scope: str | None = None
     target_project_id: str | None = None
     created_at: str
     started_at: str | None = None

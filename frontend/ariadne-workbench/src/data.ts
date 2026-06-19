@@ -577,6 +577,14 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       agentName: assignment.agent_name,
       backendName: assignment.backend_name,
       status: assignment.status,
+      readinessStatus: assignment.readiness_status,
+      claimable: assignment.claimable,
+      routeDecisionId: assignment.route_decision_id,
+      handoffPacketId: assignment.handoff_packet_id,
+      handoffHash: assignment.handoff_hash,
+      buildContextId: assignment.build_context_id,
+      blockedReason: assignment.blocked_reason,
+      runtimeScope: assignment.runtime_scope,
       targetProjectId: assignment.target_project_id,
       createdAt: assignment.created_at,
       blocker: assignment.blocker,
@@ -607,6 +615,29 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       resourceType: "local_directory",
       available: project.available,
       disabledReason: project.disabled_reason,
+      localPath: typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined,
+      testCommand: typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined,
+      issuePrefix: typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined,
+    })),
+    sourceArtifacts: apiData.source_artifacts.map((artifact) => ({
+      id: artifact.id,
+      sourceDocumentId: artifact.source_document_id,
+      artifactType: artifact.artifact_type,
+      payloadHash: artifact.payload_hash,
+      payloadPath: artifact.payload_path,
+      evidenceIds: artifact.evidence_ids,
+      createdAt: artifact.created_at,
+    })),
+    sourceEvidence: apiData.source_evidence.map((evidence) => ({
+      id: evidence.id,
+      sourceDocumentId: evidence.source_document_id,
+      artifactId: evidence.artifact_id,
+      locator: evidence.locator,
+      quoteOrSummary: evidence.quote_or_summary,
+      claim: evidence.claim,
+      confidence: evidence.confidence,
+      contentHash: evidence.content_hash,
+      createdAt: evidence.created_at,
     })),
     backendSmokeEvidence: [],
     releaseEvidence: undefined,
@@ -774,12 +805,24 @@ function adaptSource(source: ApiSourceDocument): WorkbenchData["sources"][number
   return {
     id: source.id,
     sourceType: adaptSourceType(source.source_type),
+    sourceRole: source.source_role,
     title: source.title,
-    status: source.status === "linked" ? "linked" : source.status === "applied" ? "applied" : "new",
+    status: adaptSourceStatus(source.status, source.analysis_status),
+    analysisStatus: source.analysis_status,
     ingestedAt: source.created_at,
     pathOrUrl: source.path_or_url,
     linkedTicketCount: source.linked_ticket_count,
+    artifactIds: source.artifact_ids,
+    licenseRisk: source.license_risk,
   };
+}
+
+function adaptSourceStatus(status: string, analysisStatus: string): WorkbenchData["sources"][number]["status"] {
+  if (status === "linked" || status === "applied" || status === "archived" || status === "failed") return status;
+  if (analysisStatus === "analyzed") return "analyzed";
+  if (analysisStatus === "blocked") return "blocked";
+  if (analysisStatus === "pending") return "pending";
+  return "new";
 }
 
 function adaptKnowledgeCard(source: ApiSourceDocument): WorkbenchData["knowledgeCards"][number] {

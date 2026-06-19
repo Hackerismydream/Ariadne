@@ -42,15 +42,25 @@ import type {
   WorkbenchData,
 } from "./types";
 
-type PageKey = "goal" | "knowledge" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
+type PageKey = "project" | "sources" | "tasks" | "ready" | "diagnostics";
 
 function parseHashRoute(hash = globalThis.location?.hash ?? "") {
   const value = hash.replace(/^#/, "").trim();
   if (!value) return {};
   const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
-  if (issueMatch) return { page: "issues" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
-  if (value === "runtime") return { page: "runtimes" as PageKey };
-  if (["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(value)) {
+  if (issueMatch) return { page: "ready" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
+  const legacyMap: Record<string, PageKey> = {
+    goal: "project",
+    knowledge: "sources",
+    issues: "ready",
+    agents: "diagnostics",
+    runtimes: "diagnostics",
+    runtime: "diagnostics",
+    skills: "diagnostics",
+    inbox: "diagnostics",
+  };
+  if (legacyMap[value]) return { page: legacyMap[value] };
+  if (["project", "sources", "tasks", "ready", "diagnostics"].includes(value)) {
     return { page: value as PageKey };
   }
   return {};
@@ -70,33 +80,21 @@ function issueHash(ticket: AriadneTicket) {
 
 const navGroups: Array<{
   label: string;
-  items: Array<{ key: PageKey | "projects" | "automation" | "squads" | "usage" | "settings"; label: string; icon: typeof Inbox }>;
+  items: Array<{ key: PageKey; label: string; icon: typeof Inbox }>;
 }> = [
   {
-    label: "个人",
+    label: "产品路径",
     items: [
-      { key: "inbox", label: "收件箱", icon: Inbox },
-      { key: "goal", label: "当前目标", icon: Target },
+      { key: "project", label: "项目", icon: Target },
+      { key: "sources", label: "输入", icon: BookOpenText },
+      { key: "tasks", label: "任务", icon: ListTodo },
+      { key: "ready", label: "准备运行", icon: Monitor },
     ],
   },
   {
-    label: "工作区",
+    label: "诊断",
     items: [
-      { key: "knowledge", label: "知识", icon: BookOpenText },
-      { key: "issues", label: "任务", icon: ListTodo },
-      { key: "projects", label: "目标库", icon: FolderKanban },
-      { key: "automation", label: "自动化", icon: Zap },
-      { key: "agents", label: "智能体", icon: Bot },
-      { key: "squads", label: "小队", icon: Users },
-      { key: "usage", label: "用量", icon: Sparkles },
-    ],
-  },
-  {
-    label: "配置",
-    items: [
-      { key: "runtimes", label: "运行时", icon: Monitor },
-      { key: "skills", label: "技能", icon: BookOpenText },
-      { key: "settings", label: "设置", icon: Settings },
+      { key: "diagnostics", label: "运行诊断", icon: Settings },
     ],
   },
 ];
@@ -158,8 +156,12 @@ function sourceTypeLabel(sourceType: WorkbenchData["sources"][number]["sourceTyp
   const labels: Record<WorkbenchData["sources"][number]["sourceType"], string> = {
     blog: "博客",
     paper: "论文",
+    github_repo: "GitHub 仓库",
     github_readme: "GitHub README",
     repo_note: "仓库笔记",
+    local_markdown: "本地 Markdown",
+    local_folder: "本地文件夹",
+    target_codebase: "目标代码库",
     codebase_scan: "代码库扫描",
     review_feedback: "评审反馈",
     execution_result: "执行结果",
@@ -219,7 +221,7 @@ function resultLabel(ok: boolean, blocked = false) {
 
 export function App() {
   const initialRoute = parseHashRoute();
-  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "knowledge");
+  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "project");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
   const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
@@ -239,13 +241,13 @@ export function App() {
     const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
     if (route.page) setPage(route.page);
     if (preferredTicket) {
-      setPage("issues");
+      setPage("ready");
       setSelectedTicketId(preferredTicket.id);
       if (globalThis.location?.hash !== issueHash(preferredTicket)) {
         globalThis.history?.replaceState(null, "", issueHash(preferredTicket));
       }
     } else if (routeTicket) {
-      setPage("issues");
+      setPage("ready");
       setSelectedTicketId(routeTicket.id);
     } else {
       setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
@@ -268,7 +270,7 @@ export function App() {
     const ticket = data.tickets.find((candidate) => candidate.id === ticketId);
     if (!ticket) return;
     setSelectedTicketId(ticket.id);
-    setPage("issues");
+    setPage("ready");
     if (globalThis.location?.hash !== issueHash(ticket)) {
       globalThis.history?.replaceState(null, "", issueHash(ticket));
     }
@@ -290,7 +292,7 @@ export function App() {
       if (route.page) setPage(route.page);
       const routeTicket = findTicketByRef(data.tickets, route.ticketRef);
       if (routeTicket) {
-        setPage("issues");
+        setPage("ready");
         setSelectedTicketId(routeTicket.id);
       }
     }
@@ -315,7 +317,7 @@ export function App() {
           onRefresh={refreshWorkbenchData}
         />
       </main>
-      {page === "knowledge" ? null : (
+      {page === "sources" ? null : (
         <AgentDock
           compactDefault={true}
           runtimes={data.runtimes}
@@ -362,7 +364,7 @@ function Sidebar({
           <p>{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
-            const enabled = ["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(item.key);
+            const enabled = ["project", "sources", "tasks", "ready", "diagnostics"].includes(item.key);
             const active = item.key === page;
             return (
               <button
@@ -375,7 +377,7 @@ function Sidebar({
               >
                 <Icon size={16} />
                 <span>{item.label}</span>
-                {item.key === "inbox" ? <em>{data.inbox.length}</em> : null}
+                {item.key === "diagnostics" ? <em>{data.inbox.length}</em> : null}
               </button>
             );
           })}
@@ -409,9 +411,10 @@ function PageFrame({
   onTicketSelect: (ticketId: string) => void;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  if (page === "goal") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
-  if (page === "knowledge") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
-  if (page === "issues") {
+  if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
+  if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "tasks") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "ready") {
     return (
       <IssuesPage
         data={data}
@@ -424,19 +427,19 @@ function PageFrame({
       />
     );
   }
-  if (page === "agents") return <AgentsPage data={data} />;
-  if (page === "runtimes") {
-    return (
+  return (
+    <>
       <RuntimesPage
         data={data}
         dataSource={dataSource}
         selectedRuntime={selectedRuntime}
         onRuntimeSelect={onRuntimeSelect}
       />
-    );
-  }
-  if (page === "skills") return <SkillsPage data={data} />;
-  return <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />;
+      <AgentsPage data={data} />
+      <SkillsPage data={data} />
+      <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />
+    </>
+  );
 }
 
 function PageHeader({
@@ -1736,7 +1739,7 @@ function InboxPage({
               const targetTicketId = item.repairTicketId ?? item.ticketId;
               const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
               if (ticket) onTicketSelect(ticket.id);
-              onNavigate("issues");
+              onNavigate("ready");
             }}
           >
             <span className={`inbox-kind ${item.kind}`}>{statusLabel(item.kind)}</span>
