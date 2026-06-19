@@ -43,6 +43,7 @@ import type {
 } from "./types";
 
 type PageKey = "project" | "sources" | "tasks" | "ready" | "diagnostics";
+type SourceFormType = "blog" | "paper" | "github_repo" | "note";
 
 function parseHashRoute(hash = globalThis.location?.hash ?? "") {
   const value = hash.replace(/^#/, "").trim();
@@ -168,6 +169,34 @@ function sourceTypeLabel(sourceType: WorkbenchData["sources"][number]["sourceTyp
     manual_note: "手动笔记",
   };
   return labels[sourceType];
+}
+
+function inferSourceInput(rawValue: string): { title: string; sourceType: SourceFormType; summary: string } {
+  const value = rawValue.trim();
+  if (!value) return { title: "", sourceType: "blog", summary: "" };
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (host === "github.com" && parts.length >= 2) {
+      const owner = parts[0];
+      const repo = parts[1].replace(/\\.git$/, "");
+      return {
+        title: `${owner}/${repo}`,
+        sourceType: "github_repo",
+        summary: `${owner}/${repo} reference repository. Use it as external implementation context; do not copy code directly.`,
+      };
+    }
+    if (value.toLowerCase().endsWith(".pdf") || host.includes("arxiv.org")) {
+      const title = parts.at(-1)?.replace(/[-_]/g, " ") || host;
+      return { title, sourceType: "paper", summary: `${host} paper or PDF source.` };
+    }
+    const title = parts.at(-1)?.replace(/[-_]/g, " ") || host;
+    return { title, sourceType: "blog", summary: `${host} web source.` };
+  } catch {
+    const pathName = value.split(/[\\/]/).filter(Boolean).at(-1) || value;
+    return { title: pathName.replace(/[-_]/g, " "), sourceType: "note", summary: "Local or manual source." };
+  }
 }
 
 function buildDecisionLabel(decision: string) {
@@ -641,7 +670,7 @@ function KnowledgePage({
   const [selectedSourceId, setSelectedSourceId] = useState(data.sources[0]?.id ?? "");
   const [sourceTitle, setSourceTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [sourceType, setSourceType] = useState<"blog" | "paper" | "github_repo" | "note">("blog");
+  const [sourceType, setSourceType] = useState<SourceFormType>("blog");
   const [sourceContent, setSourceContent] = useState("");
   const [actionStatus, setActionStatus] = useState("");
   const sourceCards = data.knowledgeCards.filter((card) => card.sourceId === selectedSourceId);
@@ -678,6 +707,15 @@ function KnowledgePage({
     setSelectedChangeId(nextChange?.id ?? "");
   }
 
+  function updateSourceUrl(value: string) {
+    setSourceUrl(value);
+    const inferred = inferSourceInput(value);
+    if (inferred.title && !sourceTitle.trim()) {
+      setSourceTitle(inferred.title);
+    }
+    setSourceType(inferred.sourceType);
+  }
+
   const groupedChanges = groupBacklogChanges(cardChanges);
   const traceSteps = data.traceSteps.filter((step) => {
     if (!selectedCard) return false;
@@ -691,14 +729,19 @@ function KnowledgePage({
   const activePreviewId = data.backlogMutationPreview.previewId;
 
   async function addSource() {
-    if (!sourceTitle.trim() || !sourceUrl.trim()) return;
+    if (!sourceUrl.trim()) return;
+    const inferred = inferSourceInput(sourceUrl);
+    const title = sourceTitle.trim() || inferred.title || sourceUrl.trim();
+    const summary = sourceContent.trim() || inferred.summary;
     setActionStatus("正在添加来源...");
     try {
       await createSource({
-        title: sourceTitle.trim(),
+        title,
         source_type: sourceType,
+        source_role: sourceType === "github_repo" ? "reference_project" : "background_knowledge",
         path_or_url: sourceUrl.trim(),
         content: sourceContent.trim(),
+        summary,
       });
       setSourceTitle("");
       setSourceUrl("");
@@ -775,17 +818,17 @@ function KnowledgePage({
           </label>
           <label>
             <span>标题</span>
-            <input disabled={dataSource !== "api"} value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="minimal-agent 博客" />
+            <input disabled={dataSource !== "api"} value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="自动从链接生成，可手动修改" />
           </label>
           <label>
             <span>路径或 URL</span>
-            <input disabled={dataSource !== "api"} value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://minimal-agent.com/" />
+            <input disabled={dataSource !== "api"} value={sourceUrl} onChange={(event) => updateSourceUrl(event.target.value)} placeholder="粘贴 URL，例如 https://github.com/SWE-agent/mini-swe-agent/" />
           </label>
           <label className="wide-field">
             <span>摘要或摘录</span>
-            <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="粘贴关键观点，Ariadne 会把它作为 issue factory 的证据。" />
+            <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="可选。留空时 Ariadne 会先根据链接生成基础摘要，分析阶段再提取证据。" />
           </label>
-          <button disabled={dataSource !== "api" || !sourceTitle.trim() || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
+          <button disabled={dataSource !== "api" || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
             保存来源
           </button>
         </div>
