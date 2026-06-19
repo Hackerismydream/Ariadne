@@ -239,6 +239,8 @@ export type ProjectResource = {
   available?: boolean;
   disabledReason?: string;
   localPath?: string;
+  testCommand?: string;
+  issuePrefix?: string;
 };
 
 export type AssignmentSummary = {
@@ -249,6 +251,14 @@ export type AssignmentSummary = {
   agentName: string;
   backendName?: string | null;
   status: string;
+  readinessStatus?: string | null;
+  claimable?: boolean | null;
+  routeDecisionId?: string | null;
+  handoffPacketId?: string | null;
+  handoffHash?: string | null;
+  buildContextId?: string | null;
+  blockedReason?: string | null;
+  runtimeScope?: string | null;
   targetProjectId?: string | null;
   createdAt?: string | null;
   blocker?: string | null;
@@ -257,12 +267,38 @@ export type AssignmentSummary = {
 
 export type SourceDocument = {
   id: string;
-  sourceType: "blog" | "paper" | "github_readme" | "repo_note" | "codebase_scan" | "review_feedback" | "execution_result" | "manual_note";
+  sourceType: "blog" | "paper" | "github_readme" | "github_repo" | "repo_note" | "codebase_scan" | "review_feedback" | "execution_result" | "manual_note" | "local_markdown" | "local_folder" | "target_codebase";
+  sourceRole?: string;
   title: string;
-  status: "new" | "extracted" | "linked" | "applied" | "archived" | "failed";
+  status: "new" | "pending" | "analyzed" | "extracted" | "linked" | "applied" | "archived" | "failed" | "blocked";
+  analysisStatus?: string;
   ingestedAt: string;
   pathOrUrl: string;
   linkedTicketCount: number;
+  artifactIds?: string[];
+  licenseRisk?: string;
+};
+
+export type SourceArtifact = {
+  id: string;
+  sourceDocumentId: string;
+  artifactType: "knowledge_card" | "reference_project_profile" | "codebase_snapshot";
+  payloadHash: string;
+  payloadPath: string;
+  evidenceIds: string[];
+  createdAt: string;
+};
+
+export type SourceEvidence = {
+  id: string;
+  sourceDocumentId: string;
+  artifactId?: string | null;
+  locator: string;
+  quoteOrSummary: string;
+  claim: string;
+  confidence: number;
+  contentHash: string;
+  createdAt: string;
 };
 
 export type KnowledgeCard = {
@@ -298,6 +334,12 @@ export type BacklogChange = {
   appliedUpdateId?: string | null;
   conflictCount?: number;
   evidenceRefs?: string[];
+  affectedModules?: string[];
+  acceptanceCriteria?: string[];
+  sourceArtifactIds?: string[];
+  buildContextId?: string | null;
+  targetProjectId?: string | null;
+  goalReason?: string | null;
 };
 
 export type TraceStep = {
@@ -355,6 +397,8 @@ export type WorkbenchData = {
   goal: AriadneGoal;
   tickets: AriadneTicket[];
   sources: SourceDocument[];
+  sourceArtifacts?: SourceArtifact[];
+  sourceEvidence?: SourceEvidence[];
   knowledgeCards: KnowledgeCard[];
   backlogChanges: BacklogChange[];
   traceSteps: TraceStep[];

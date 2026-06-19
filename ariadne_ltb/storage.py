@@ -4,6 +4,7 @@ import fcntl
 import json
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from typing import Iterator
@@ -24,6 +25,7 @@ from ariadne_ltb.models import (
     BacklogUpdate,
     BackendSmokeEvidence,
     BuildPacket,
+    BuildContextManifest,
     BuildTeam,
     BuildTicket,
     CommentAuthorType,
@@ -43,7 +45,9 @@ from ariadne_ltb.models import (
     RunMessage,
     RunMessageType,
     RuntimeCapability,
+    SourceArtifact,
     SourceDocument,
+    SourceEvidence,
     TicketAssignment,
     TicketStatus,
     TicketComment,
@@ -81,6 +85,9 @@ class AriadneStore:
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
         self.project_dir = self.base / "project"
+        self.source_artifacts_dir = self.project_dir / "source_artifacts"
+        self.source_evidence_path = self.project_dir / "source_evidence.jsonl"
+        self.build_contexts_dir = self.project_dir / "build_contexts"
         self.runtimes_dir = self.base / "runtimes"
         self.locks_dir = self.base / "locks"
         self.worktrees_dir = self.base / "worktrees"
@@ -117,6 +124,8 @@ class AriadneStore:
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
+            self.source_artifacts_dir,
+            self.build_contexts_dir,
             self.skill_materializations_dir,
             self.build_packets_dir,
             self.execution_results_dir,
@@ -360,6 +369,7 @@ class AriadneStore:
             if assignment.status
             in {
                 AssignmentStatus.QUEUED,
+                AssignmentStatus.READY_TO_CLAIM,
                 AssignmentStatus.CLAIMED,
                 AssignmentStatus.RUNNING,
             }
@@ -369,10 +379,18 @@ class AriadneStore:
         self,
         runtime_id: str,
         lease_seconds: int = 600,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
             for assignment in sorted(self.list_assignments(), key=lambda item: item.created_at):
-                claimed = self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+                claimed = self._claim_assignment_locked(
+                    assignment,
+                    runtime_id,
+                    lease_seconds,
+                    target_project_id=target_project_id,
+                    allowed_backends=allowed_backends,
+                )
                 if claimed is not None:
                     return claimed
         return None
@@ -382,21 +400,31 @@ class AriadneStore:
         assignment_id: str,
         runtime_id: str,
         lease_seconds: int = 600,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
             try:
                 assignment = self.load_assignment(assignment_id)
             except FileNotFoundError:
                 return None
-            return self._claim_assignment_locked(assignment, runtime_id, lease_seconds)
+            return self._claim_assignment_locked(
+                assignment,
+                runtime_id,
+                lease_seconds,
+                target_project_id=target_project_id,
+                allowed_backends=allowed_backends,
+            )
 
     def _claim_assignment_locked(
         self,
         assignment: TicketAssignment,
         runtime_id: str,
         lease_seconds: int,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
-        if not self._claimable_assignment(assignment):
+        if not self._claimable_assignment(assignment, target_project_id, allowed_backends):
             return None
         try:
             ticket = self.load_ticket(assignment.ticket_id)
@@ -410,9 +438,9 @@ class AriadneStore:
         metadata = assignment.metadata
         if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
             metadata = metadata | {
-                "lease_reclaimed_at": utc_now(),
                 "lease_reclaimed_from_runtime_id": assignment.claimed_by_runtime_id,
                 "lease_reclaimed_from_status": assignment.status.value,
+                "lease_reclaimed_at": utc_now(),
             }
         claimed = assignment.mark_claimed(runtime_id, lease_seconds=lease_seconds)
         claimed = claimed.model_copy(
@@ -442,12 +470,36 @@ class AriadneStore:
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-    def _claimable_assignment(self, assignment: TicketAssignment) -> bool:
-        if assignment.status is AssignmentStatus.QUEUED:
-            return True
-        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
-            return is_assignment_lease_expired(assignment)
-        return False
+    def _claimable_assignment(
+        self,
+        assignment: TicketAssignment,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
+    ) -> bool:
+        if assignment.status is AssignmentStatus.READY_TO_CLAIM:
+            pass
+        elif assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+            if not is_assignment_lease_expired(assignment):
+                return False
+        else:
+            return False
+        metadata = assignment.metadata
+        if target_project_id is not None and metadata.get("target_project_id") != target_project_id:
+            return False
+        if allowed_backends and assignment.backend_name not in allowed_backends:
+            return False
+        required = [
+            "target_project_id",
+            "route_decision_id",
+            "handoff_packet_id",
+            "permission_profile_id",
+            "handoff_hash",
+            "target_repo_path",
+            "expected_git_head",
+        ]
+        if not (metadata.get("confirmation_id") or metadata.get("runtime_authorization_id")):
+            return False
+        return all(metadata.get(key) for key in required)
 
     def find_latest_assignment_for_ticket(self, ticket_id: str) -> TicketAssignment | None:
         assignments = self.list_assignments_for_ticket(ticket_id)
@@ -758,6 +810,112 @@ class AriadneStore:
         return [
             self._read_model(path, SourceDocument)
             for path in sorted(self.sources_dir.glob("*.json"))
+        ]
+
+    def source_artifact_payload_path(self, artifact_id: str) -> Path:
+        return self.source_artifacts_dir / f"{artifact_id}.payload.json"
+
+    def save_source_evidence(self, evidence: SourceEvidence) -> None:
+        try:
+            self.load_source_document(evidence.source_document_id)
+        except FileNotFoundError as exc:
+            msg = f"missing_source_document:{evidence.source_document_id}"
+            raise ValueError(msg) from exc
+        if evidence.artifact_id is not None:
+            try:
+                self.load_source_artifact(evidence.artifact_id)
+            except FileNotFoundError as exc:
+                msg = f"missing_source_artifact:{evidence.artifact_id}"
+                raise ValueError(msg) from exc
+        self.source_evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        existing_items = self.list_source_evidence()
+        existing_by_id = {item.id: item for item in existing_items}
+        if evidence.id in existing_by_id:
+            existing = existing_by_id[evidence.id]
+            if existing.artifact_id is None and evidence.artifact_id is not None:
+                replaced = [evidence if item.id == evidence.id else item for item in existing_items]
+                self.source_evidence_path.write_text(
+                    "".join(item.model_dump_json(exclude_none=False) + "\n" for item in replaced),
+                    encoding="utf-8",
+                )
+            return
+        with self.source_evidence_path.open("a", encoding="utf-8") as handle:
+            handle.write(evidence.model_dump_json(exclude_none=False) + "\n")
+
+    def load_source_evidence(self, evidence_id: str) -> SourceEvidence:
+        for evidence in self.list_source_evidence():
+            if evidence.id == evidence_id:
+                return evidence
+        raise FileNotFoundError(evidence_id)
+
+    def list_source_evidence(self, source_document_id: str | None = None) -> list[SourceEvidence]:
+        if not self.source_evidence_path.exists():
+            return []
+        evidence = [
+            SourceEvidence.model_validate_json(line)
+            for line in self.source_evidence_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if source_document_id is not None:
+            evidence = [item for item in evidence if item.source_document_id == source_document_id]
+        return evidence
+
+    def save_source_artifact(self, artifact: SourceArtifact, payload: dict[str, Any]) -> SourceArtifact:
+        try:
+            self.load_source_document(artifact.source_document_id)
+        except FileNotFoundError as exc:
+            msg = f"missing_source_document:{artifact.source_document_id}"
+            raise ValueError(msg) from exc
+        payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        payload_hash = sha256(payload_json.encode("utf-8")).hexdigest()
+        payload_path = self.source_artifact_payload_path(artifact.id)
+        saved = artifact.model_copy(
+            update={
+                "payload_hash": payload_hash,
+                "payload_path": str(payload_path.relative_to(self.base)),
+            }
+        )
+        self._write_model(self.source_artifacts_dir / f"{saved.id}.json", saved)
+        payload_path.write_text(payload_json, encoding="utf-8")
+        return saved
+
+    def load_source_artifact(self, artifact_id: str) -> SourceArtifact:
+        return self._read_model(self.source_artifacts_dir / f"{artifact_id}.json", SourceArtifact)
+
+    def load_source_artifact_payload(self, artifact_id: str) -> dict[str, Any]:
+        artifact = self.load_source_artifact(artifact_id)
+        payload_path = self.source_artifact_payload_path(artifact_id)
+        payload_text = payload_path.read_text(encoding="utf-8")
+        payload_hash = sha256(payload_text.encode("utf-8")).hexdigest()
+        if payload_hash != artifact.payload_hash:
+            msg = f"source_artifact_payload_hash_mismatch:{artifact_id}"
+            raise ValueError(msg)
+        data = json.loads(payload_text)
+        if not isinstance(data, dict):
+            msg = f"source_artifact_payload_not_object:{artifact_id}"
+            raise ValueError(msg)
+        return data
+
+    def list_source_artifacts(self, source_document_id: str | None = None) -> list[SourceArtifact]:
+        artifacts = [
+            self._read_model(path, SourceArtifact)
+            for path in sorted(self.source_artifacts_dir.glob("*.json"))
+            if not path.name.endswith(".payload.json")
+        ]
+        if source_document_id is not None:
+            artifacts = [artifact for artifact in artifacts if artifact.source_document_id == source_document_id]
+        return artifacts
+
+    def save_build_context_manifest(self, manifest: BuildContextManifest) -> None:
+        self._write_model(self.build_contexts_dir / f"{manifest.id}.json", manifest)
+
+    def load_build_context_manifest(self, manifest_id: str) -> BuildContextManifest:
+        return self._read_model(self.build_contexts_dir / f"{manifest_id}.json", BuildContextManifest)
+
+    def list_build_context_manifests(self) -> list[BuildContextManifest]:
+        return [
+            self._read_model(path, BuildContextManifest)
+            for path in sorted(self.build_contexts_dir.glob("*.json"))
         ]
 
     def save_execution_result(self, result: ExecutionResult) -> None:

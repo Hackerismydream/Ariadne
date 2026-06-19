@@ -14,6 +14,7 @@ class TargetProjectDTO(AriadneDTO):
     label: str
     available: bool
     disabled_reason: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuntimeCapabilityDTO(AriadneDTO):
@@ -91,6 +92,14 @@ class AssignmentDTO(AriadneDTO):
     agent_name: str
     backend_name: str | None = None
     status: str
+    readiness_status: str | None = None
+    claimable: bool | None = None
+    route_decision_id: str | None = None
+    handoff_packet_id: str | None = None
+    handoff_hash: str | None = None
+    build_context_id: str | None = None
+    blocked_reason: str | None = None
+    runtime_scope: str | None = None
     target_project_id: str | None = None
     created_at: str
     started_at: str | None = None
@@ -135,13 +144,39 @@ class ProjectGoalDTO(AriadneDTO):
 class SourceDocumentDTO(AriadneDTO):
     id: str
     source_type: str
+    source_role: str = "background_knowledge"
     title: str
     path_or_url: str
     summary: str
     status: str = "new"
+    analysis_status: str = "pending"
     linked_ticket_count: int = 0
     created_at: str
     evidence_snippets: list[str] = Field(default_factory=list)
+    artifact_ids: list[str] = Field(default_factory=list)
+    license_risk: str = "unknown"
+
+
+class SourceArtifactDTO(AriadneDTO):
+    id: str
+    source_document_id: str
+    artifact_type: str
+    payload_hash: str
+    payload_path: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+class SourceEvidenceDTO(AriadneDTO):
+    id: str
+    source_document_id: str
+    artifact_id: str | None = None
+    locator: str
+    quote_or_summary: str
+    claim: str
+    confidence: float
+    content_hash: str
+    created_at: str
 
 
 class AgentProfileDTO(AriadneDTO):
@@ -201,6 +236,13 @@ class BacklogOperationDTO(AriadneDTO):
     owner_agent: str | None = None
     build_decision: str | None = None
     evidence_refs: list[str] = Field(default_factory=list)
+    affected_modules: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    build_context_id: str | None = None
+    target_project_id: str | None = None
+    goal_reason: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class BacklogPreviewDTO(AriadneDTO):
@@ -220,6 +262,8 @@ class WorkbenchDTO(AriadneDTO):
     schema_version: Literal["ariadne.workbench.v1"] = "ariadne.workbench.v1"
     goals: list[ProjectGoalDTO] = Field(default_factory=list)
     sources: list[SourceDocumentDTO] = Field(default_factory=list)
+    source_artifacts: list[SourceArtifactDTO] = Field(default_factory=list)
+    source_evidence: list[SourceEvidenceDTO] = Field(default_factory=list)
     tickets: list[TicketSummaryDTO]
     assignments: list[AssignmentDTO]
     agents: list[AgentProfileDTO] = Field(default_factory=list)
@@ -234,6 +278,10 @@ class WorkbenchDTO(AriadneDTO):
 class RegisterTargetProjectInput(AriadneDTO):
     path: str
     label: str | None = None
+    create_if_missing: bool = False
+    init_git: bool = False
+    test_command: str | None = None
+    issue_prefix: str | None = None
 
 
 class CreateProjectGoalInput(AriadneDTO):
@@ -248,7 +296,26 @@ class CreateProjectGoalInput(AriadneDTO):
 
 class CreateSourceInput(AriadneDTO):
     title: str = Field(min_length=1, max_length=240)
-    source_type: Literal["blog", "paper", "github_repo", "github_readme", "note", "manual_note", "repo_note"] = "note"
+    source_type: Literal[
+        "blog",
+        "paper",
+        "github_repo",
+        "github_readme",
+        "note",
+        "manual_note",
+        "repo_note",
+        "local_markdown",
+        "local_folder",
+        "target_codebase",
+    ] = "note"
+    source_role: Literal[
+        "reference_project",
+        "requirement_source",
+        "background_knowledge",
+        "design_constraint",
+        "implementation_example",
+        "target_codebase",
+    ] = "background_knowledge"
     path_or_url: str = Field(min_length=1, max_length=2000)
     content: str = Field(default="", max_length=120_000)
     summary: str = Field(default="", max_length=4000)

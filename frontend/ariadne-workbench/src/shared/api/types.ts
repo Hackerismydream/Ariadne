@@ -1,6 +1,8 @@
 export type ApiWorkbench = {
   goals: ApiProjectGoal[];
   sources: ApiSourceDocument[];
+  source_artifacts: ApiSourceArtifact[];
+  source_evidence: ApiSourceEvidence[];
   tickets: ApiTicketSummary[];
   assignments: ApiAssignmentSummary[];
   agents: ApiAgentProfile[];
@@ -73,6 +75,14 @@ export type ApiAssignmentSummary = {
   agent_name: string;
   backend_name?: string | null;
   status: string;
+  readiness_status?: string | null;
+  claimable?: boolean | null;
+  route_decision_id?: string | null;
+  handoff_packet_id?: string | null;
+  handoff_hash?: string | null;
+  build_context_id?: string | null;
+  blocked_reason?: string | null;
+  runtime_scope?: string | null;
   target_project_id?: string | null;
   created_at?: string | null;
   blocker?: string | null;
@@ -117,6 +127,7 @@ export type ApiTargetProject = {
   label: string;
   available: boolean;
   disabled_reason: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type ApiProjectGoal = {
@@ -146,18 +157,45 @@ export type CreateProjectGoalRequest = {
 export type ApiSourceDocument = {
   id: string;
   source_type: string;
+  source_role: string;
   title: string;
   path_or_url: string;
   summary: string;
   status: string;
+  analysis_status: string;
   linked_ticket_count: number;
   created_at: string;
   evidence_snippets: string[];
+  artifact_ids: string[];
+  license_risk: string;
+};
+
+export type ApiSourceArtifact = {
+  id: string;
+  source_document_id: string;
+  artifact_type: "knowledge_card" | "reference_project_profile" | "codebase_snapshot";
+  payload_hash: string;
+  payload_path: string;
+  evidence_ids: string[];
+  created_at: string;
+};
+
+export type ApiSourceEvidence = {
+  id: string;
+  source_document_id: string;
+  artifact_id?: string | null;
+  locator: string;
+  quote_or_summary: string;
+  claim: string;
+  confidence: number;
+  content_hash: string;
+  created_at: string;
 };
 
 export type CreateSourceRequest = {
   title: string;
-  source_type: "blog" | "paper" | "github_repo" | "github_readme" | "note" | "manual_note" | "repo_note";
+  source_type: "blog" | "paper" | "github_repo" | "github_readme" | "note" | "manual_note" | "repo_note" | "local_markdown" | "local_folder" | "target_codebase";
+  source_role?: "reference_project" | "requirement_source" | "background_knowledge" | "design_constraint" | "implementation_example" | "target_codebase";
   path_or_url: string;
   content?: string;
   summary?: string;
@@ -221,6 +259,13 @@ export type ApiBacklogOperation = {
   owner_agent?: string | null;
   build_decision?: string | null;
   evidence_refs: string[];
+  affected_modules: string[];
+  acceptance_criteria: string[];
+  source_artifact_ids: string[];
+  build_context_id?: string | null;
+  target_project_id?: string | null;
+  goal_reason?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export type ApiBacklogPreview = {
@@ -234,6 +279,11 @@ export type ApiBacklogPreview = {
   created_at: string;
   applied_at?: string | null;
   applied_update_id?: string | null;
+  build_context_manifest_id?: string | null;
+  context_fingerprint?: string | null;
+  source_document_ids?: string[];
+  source_artifact_ids?: string[];
+  codebase_snapshot_artifact_id?: string | null;
 };
 
 export type IssueFactoryPreviewRequest = {
@@ -245,6 +295,10 @@ export type IssueFactoryPreviewRequest = {
 export type RegisterTargetProjectRequest = {
   path: string;
   label?: string | null;
+  create_if_missing?: boolean;
+  init_git?: boolean;
+  test_command?: string | null;
+  issue_prefix?: string | null;
 };
 
 export type AssignTicketRequest = {

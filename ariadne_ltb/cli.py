@@ -49,6 +49,10 @@ from ariadne_ltb.inbox import (
     refresh_inbox,
 )
 from ariadne_ltb.ingest import ingest_sources
+from ariadne_ltb.application.assignment_readiness import (
+    ensure_assignment_target_resource,
+    prepare_assignment_for_claim,
+)
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.journal import build_resume_plan
 from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
@@ -1041,7 +1045,13 @@ def backend_smoke_test(
     )
 
     store = AriadneStore(state.root)
-    ensure_demo_target_project(state.root)
+    target_repo = ensure_demo_target_project(state.root)
+    ensure_assignment_target_resource(
+        store,
+        str(target_repo),
+        target_project_id="ariadne-local",
+        label="backend smoke target repository",
+    )
     tickets = ingest_sources(store, default_source_fixtures())
     selected = select_code_task_ticket(store, tickets)
     assignment = store.create_assignment(
@@ -1052,10 +1062,26 @@ def backend_smoke_test(
         backlog_planner_name=selected_backlog_planner,
         assigned_by="backend smoke-test",
     )
+    assignment = assignment.model_copy(
+        deep=True,
+        update={
+            "metadata": assignment.metadata
+            | {
+                "target_project_id": "ariadne-local",
+                "target_repo_path": str(target_repo),
+            }
+        },
+    )
+    assignment = prepare_assignment_for_claim(
+        store,
+        assignment,
+        selected,
+        authorization_id=stable_id("runtime_authorization", assignment.id, selected.id),
+    )
     updated = store.load_ticket(selected.id).with_status(
         TicketStatus.READY_FOR_EXECUTION,
         "Ariadne",
-        f"Real {backend} smoke test assignment queued.",
+        f"Real {backend} smoke test assignment ready for runtime claim.",
     )
     store.save_ticket(updated)
     daemon_result = LocalDaemonWorker(store, runtime_id=f"smoke-{backend}").run_once(
@@ -1413,6 +1439,29 @@ def ticket_assign(
         planner_name=selected_planner,
         agent_runtime=selected_agent_runtime,
         backlog_planner_name=selected_backlog_planner,
+    )
+    target_repo_path = ensure_demo_target_project(store.root)
+    ensure_assignment_target_resource(
+        store,
+        str(target_repo_path),
+        target_project_id="ariadne-local",
+        label=f"{ticket.key} target repository",
+    )
+    assignment = assignment.model_copy(
+        deep=True,
+        update={
+            "metadata": assignment.metadata
+            | {
+                "target_project_id": "ariadne-local",
+                "target_repo_path": str(target_repo_path),
+            }
+        },
+    )
+    assignment = prepare_assignment_for_claim(
+        store,
+        assignment,
+        ticket,
+        authorization_id=stable_id("runtime_authorization", assignment.id, ticket.id),
     )
     status = (
         TicketStatus.READY_FOR_EXECUTION

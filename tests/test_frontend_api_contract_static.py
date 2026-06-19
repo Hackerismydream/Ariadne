@@ -142,3 +142,49 @@ def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
     assert 'source: "disconnected"' in disconnected_block
     assert 'source: "fixture"' not in disconnected_block
     assert "offlineFallbackEnabled" in text
+
+
+def test_frontend_product_path_is_four_step_compiler_flow() -> None:
+    text = APP.read_text(encoding="utf-8")
+    page_key_block = text.split("type PageKey", 1)[1].split(";", 1)[0]
+
+    for page in ['"project"', '"sources"', '"tasks"', '"ready"']:
+        assert page in page_key_block
+    assert '"knowledge"' not in page_key_block
+    assert '"agents"' not in page_key_block
+    assert 'initialRoute.page ?? "project"' in text
+
+
+def test_frontend_api_contract_exposes_source_analysis_artifacts_and_evidence() -> None:
+    text = API_TYPES.read_text(encoding="utf-8")
+
+    assert "export type ApiSourceArtifact" in text
+    assert "export type ApiSourceEvidence" in text
+    assert "source_artifacts: ApiSourceArtifact[]" in text
+    assert "source_evidence: ApiSourceEvidence[]" in text
+    for field in ["analysis_status", "artifact_ids", "source_role", "license_risk"]:
+        assert field in text
+
+
+def test_frontend_api_contract_exposes_assignment_readiness() -> None:
+    text = API_TYPES.read_text(encoding="utf-8")
+    assignment_block = text.split("export type ApiAssignmentSummary", 1)[1].split("};", 1)[0]
+
+    for field in [
+        "readiness_status",
+        "claimable",
+        "route_decision_id",
+        "handoff_packet_id",
+        "handoff_hash",
+        "build_context_id",
+    ]:
+        assert field in assignment_block
+
+
+def test_frontend_adapter_consumes_typed_source_outputs() -> None:
+    text = DATA.read_text(encoding="utf-8")
+
+    assert "apiData.source_artifacts.map" in text
+    assert "apiData.source_evidence.map" in text
+    assert "analysisStatus: source.analysis_status" in text
+    assert "artifactIds: source.artifact_ids" in text

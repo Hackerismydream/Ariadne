@@ -10,6 +10,8 @@ from ariadne_ltb.application.dtos import (
     InboxItemDTO,
     RuntimeCapabilityDTO,
     SourceDocumentDTO,
+    SourceArtifactDTO,
+    SourceEvidenceDTO,
     TargetProjectDTO,
     TicketEvidenceBundleDTO,
     TicketSummaryDTO,
@@ -23,7 +25,9 @@ from ariadne_ltb.models import (
     InboxItem,
     ProjectResource,
     RuntimeCapability,
+    SourceArtifact,
     SourceDocument,
+    SourceEvidence,
     TicketAssignment,
     TicketComment,
 )
@@ -154,6 +158,14 @@ def assignment_dto(assignment: TicketAssignment) -> AssignmentDTO:
         agent_name=assignment.agent_name,
         backend_name=assignment.backend_name,
         status=assignment.status.value,
+        readiness_status=assignment.status.value,
+        claimable=assignment.status.value == "ready_to_claim",
+        route_decision_id=assignment.metadata.get("route_decision_id"),
+        handoff_packet_id=assignment.metadata.get("handoff_packet_id"),
+        handoff_hash=assignment.metadata.get("handoff_hash"),
+        build_context_id=assignment.metadata.get("build_context_id"),
+        blocked_reason=assignment.blocker,
+        runtime_scope=assignment.metadata.get("target_project_id"),
         target_project_id=assignment.metadata.get("target_project_id"),
         created_at=assignment.created_at,
         started_at=assignment.started_at,
@@ -183,11 +195,17 @@ def runtime_capability_dto(capability: RuntimeCapability) -> RuntimeCapabilityDT
 
 
 def target_project_dto(resource: ProjectResource, available: bool = True, reason: str = "") -> TargetProjectDTO:
+    metadata = {
+        key: value
+        for key, value in resource.resource_ref.items()
+        if key in {"daemon_id", "label", "test_command", "issue_prefix"}
+    }
     return TargetProjectDTO(
         id=resource.id,
         label=resource.label or resource.resource_ref.get("label") or resource.id,
         available=available,
         disabled_reason=reason,
+        metadata=metadata,
     )
 
 
@@ -197,17 +215,56 @@ def source_document_dto(store: AriadneStore, source: SourceDocument) -> SourceDo
         if ticket.metadata.get("source_document_id") == source.id or ticket.source_ref == source.path_or_url
     )
     evidence = source.metadata.get("evidence_snippets")
+    artifact_ids = source.metadata.get("artifact_ids")
     return SourceDocumentDTO(
         id=source.id,
         source_type=source.source_type.value,
+        source_role=str(source.metadata.get("source_role") or _default_source_role(source.source_type.value)),
         title=source.title,
         path_or_url=source.path_or_url,
         summary=source.summary,
-        status="linked" if linked_count else "new",
+        status="linked" if linked_count else str(source.metadata.get("analysis_status") or "new"),
+        analysis_status=str(source.metadata.get("analysis_status") or "pending"),
         linked_ticket_count=linked_count,
         created_at=source.created_at,
         evidence_snippets=[str(item) for item in evidence] if isinstance(evidence, list) else [],
+        artifact_ids=[str(item) for item in artifact_ids] if isinstance(artifact_ids, list) else [],
+        license_risk=str(source.metadata.get("license_risk") or "unknown"),
     )
+
+
+def source_artifact_dto(artifact: SourceArtifact) -> SourceArtifactDTO:
+    return SourceArtifactDTO(
+        id=artifact.id,
+        source_document_id=artifact.source_document_id,
+        artifact_type=artifact.artifact_type,
+        payload_hash=artifact.payload_hash,
+        payload_path=artifact.payload_path,
+        evidence_ids=artifact.evidence_ids,
+        created_at=str(artifact.created_at),
+    )
+
+
+def source_evidence_dto(evidence: SourceEvidence) -> SourceEvidenceDTO:
+    return SourceEvidenceDTO(
+        id=evidence.id,
+        source_document_id=evidence.source_document_id,
+        artifact_id=evidence.artifact_id,
+        locator=evidence.locator,
+        quote_or_summary=evidence.quote_or_summary,
+        claim=evidence.claim,
+        confidence=evidence.confidence,
+        content_hash=evidence.content_hash,
+        created_at=str(evidence.created_at),
+    )
+
+
+def _default_source_role(source_type: str) -> str:
+    if source_type == "github_repo":
+        return "reference_project"
+    if source_type == "target_codebase":
+        return "target_codebase"
+    return "background_knowledge"
 
 
 def agent_profile_dto(store: AriadneStore, profile: AgentProfile) -> AgentProfileDTO:
@@ -274,6 +331,30 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
         owner_agent=operation.metadata.get("owner_agent"),
         build_decision=operation.metadata.get("build_decision"),
         evidence_refs=[str(item) for item in operation.metadata.get("evidence_refs", [])],
+        affected_modules=[str(item) for item in operation.metadata.get("affected_modules", [])],
+        acceptance_criteria=[str(item) for item in operation.metadata.get("acceptance_criteria", [])],
+        source_artifact_ids=[str(item) for item in operation.metadata.get("source_artifact_ids", [])],
+        build_context_id=operation.metadata.get("build_context_id"),
+        target_project_id=operation.metadata.get("target_project_id"),
+        goal_reason=operation.metadata.get("goal_reason"),
+        metadata={
+            key: value
+            for key, value in operation.metadata.items()
+            if key
+            in {
+                "build_context_id",
+                "source_document_ids",
+                "source_artifact_ids",
+                "evidence_refs",
+                "affected_modules",
+                "acceptance_criteria",
+                "goal_reason",
+                "target_project_id",
+                "risks",
+                "assumptions",
+                "test_command",
+            }
+        },
     )
 
 

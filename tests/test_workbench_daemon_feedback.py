@@ -30,7 +30,7 @@ def test_daemon_status_endpoint_reports_queue_without_running_daemon(tmp_path: P
     assert payload["status"] == "unknown"
     assert payload["background_running"] is False
     assert payload["open_assignment_count"] == 1
-    assert payload["claimable_assignment_count"] == 1
+    assert payload["claimable_assignment_count"] == 0
     assert "sk-" not in response.text
 
 

@@ -4,7 +4,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from hashlib import sha256
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -89,7 +89,12 @@ class BacklogConflictType(str, Enum):
 
 
 class AssignmentStatus(str, Enum):
+    DRAFT = "draft"
     QUEUED = "queued"
+    ROUTED = "routed"
+    HANDOFF_READY = "handoff_ready"
+    AWAITING_USER_APPROVAL = "awaiting_user_approval"
+    READY_TO_CLAIM = "ready_to_claim"
     CLAIMED = "claimed"
     RUNNING = "running"
     BLOCKED = "blocked"
@@ -195,6 +200,9 @@ class SourceType(str, Enum):
     BLOG = "blog"
     GITHUB_REPO = "github_repo"
     NOTE = "note"
+    LOCAL_MARKDOWN = "local_markdown"
+    LOCAL_FOLDER = "local_folder"
+    TARGET_CODEBASE = "target_codebase"
     OFFICE_HOUR = "office_hour"
     REVIEW = "review"
 
@@ -446,6 +454,45 @@ class SourceDocument(AriadneModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class SourceEvidence(AriadneModel):
+    id: str
+    source_document_id: str
+    artifact_id: str | None = None
+    locator: str
+    quote_or_summary: str
+    claim: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    content_hash: str
+    created_at: datetime | str = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class SourceArtifact(AriadneModel):
+    id: str
+    source_document_id: str
+    artifact_type: Literal[
+        "knowledge_card",
+        "reference_project_profile",
+        "codebase_snapshot",
+    ]
+    payload_hash: str
+    payload_path: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    created_at: datetime | str = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class BuildContextManifest(AriadneModel):
+    id: str
+    goal_id: str
+    target_project_id: str
+    source_document_ids: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    codebase_snapshot_artifact_id: str | None = None
+    base_ticket_fingerprint: str
+    context_fingerprint: str
+    created_at: str = Field(default_factory=utc_now)
+
+
 class AgentProfile(AriadneModel):
     id: str
     name: str
@@ -516,6 +563,13 @@ class TicketAssignment(AriadneModel):
         assignment.claimed_by_runtime_id = runtime_id
         assignment.claimed_at = assignment.claimed_at or utc_now()
         assignment.lease_expires_at = utc_after(lease_seconds)
+        return assignment
+
+    def mark_ready_to_claim(self, metadata: dict[str, Any] | None = None) -> TicketAssignment:
+        assignment = self.model_copy(deep=True)
+        assignment.status = AssignmentStatus.READY_TO_CLAIM
+        if metadata:
+            assignment.metadata = assignment.metadata | metadata
         return assignment
 
     def mark_running(self) -> TicketAssignment:

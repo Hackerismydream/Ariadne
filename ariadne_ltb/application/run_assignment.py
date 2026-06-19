@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_claim
 from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.dtos import RunAssignmentInput, RunAssignmentOutput
 from ariadne_ltb.application.idempotency import IdempotencyStore
@@ -29,14 +30,15 @@ class RunAssignmentService:
         assignment = self.store.load_assignment(assignment_id)
         ConfirmationTokenService(self.store).verify(assignment, payload.confirmation_token)
         ticket = self.store.load_ticket(assignment.ticket_id)
+        ready_assignment = prepare_assignment_for_claim(self.store, assignment, ticket)
         self.store.add_comment(
             ticket,
             CommentAuthorType.SYSTEM,
             "Ariadne",
             CommentKind.PROGRESS,
             f"Run requested from Workbench for {ticket.key}; waiting for a local daemon runtime to claim it.",
-            payload_ref=assignment.id,
-            thread_id=assignment.id,
+            payload_ref=ready_assignment.id,
+            thread_id=ready_assignment.id,
         )
         event = runtime_event(
             ticket,
@@ -44,11 +46,12 @@ class RunAssignmentService:
             "dispatch",
             "requested",
             "Ariadne",
-            assignment_id=assignment.id,
-            payload_ref=assignment.id,
+            assignment_id=ready_assignment.id,
+            payload_ref=ready_assignment.id,
             metadata={
                 "timeout_seconds": payload.timeout_seconds,
                 "execution_owner": "daemon-runtime",
+                "assignment_status": ready_assignment.status.value,
             },
         )
         self.store.append_runtime_event(event)
@@ -56,18 +59,18 @@ class RunAssignmentService:
         self.idempotency.set(
             payload.idempotency_key,
             {
-                "assignment_id": assignment.id,
+                "assignment_id": ready_assignment.id,
                 "did_work": False,
-                "status": assignment.status.value,
+                "status": ready_assignment.status.value,
                 "message": message,
                 "ticket_run_result": None,
             },
             "run_assignment",
         )
         return RunAssignmentOutput(
-            assignment=assignment_dto(assignment),
+            assignment=assignment_dto(ready_assignment),
             did_work=False,
-            status=assignment.status.value,
+            status=ready_assignment.status.value,
             message=message,
             ticket_run_result=None,
         )

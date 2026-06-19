@@ -42,15 +42,26 @@ import type {
   WorkbenchData,
 } from "./types";
 
-type PageKey = "goal" | "knowledge" | "issues" | "agents" | "runtimes" | "skills" | "inbox";
+type PageKey = "project" | "sources" | "tasks" | "ready" | "diagnostics";
+type SourceFormType = "blog" | "paper" | "github_repo" | "note";
 
 function parseHashRoute(hash = globalThis.location?.hash ?? "") {
   const value = hash.replace(/^#/, "").trim();
   if (!value) return {};
   const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
-  if (issueMatch) return { page: "issues" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
-  if (value === "runtime") return { page: "runtimes" as PageKey };
-  if (["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(value)) {
+  if (issueMatch) return { page: "ready" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
+  const legacyMap: Record<string, PageKey> = {
+    goal: "project",
+    knowledge: "sources",
+    issues: "ready",
+    agents: "diagnostics",
+    runtimes: "diagnostics",
+    runtime: "diagnostics",
+    skills: "diagnostics",
+    inbox: "diagnostics",
+  };
+  if (legacyMap[value]) return { page: legacyMap[value] };
+  if (["project", "sources", "tasks", "ready", "diagnostics"].includes(value)) {
     return { page: value as PageKey };
   }
   return {};
@@ -70,33 +81,21 @@ function issueHash(ticket: AriadneTicket) {
 
 const navGroups: Array<{
   label: string;
-  items: Array<{ key: PageKey | "projects" | "automation" | "squads" | "usage" | "settings"; label: string; icon: typeof Inbox }>;
+  items: Array<{ key: PageKey; label: string; icon: typeof Inbox }>;
 }> = [
   {
-    label: "个人",
+    label: "产品路径",
     items: [
-      { key: "inbox", label: "收件箱", icon: Inbox },
-      { key: "goal", label: "当前目标", icon: Target },
+      { key: "project", label: "项目", icon: Target },
+      { key: "sources", label: "输入", icon: BookOpenText },
+      { key: "tasks", label: "任务", icon: ListTodo },
+      { key: "ready", label: "准备运行", icon: Monitor },
     ],
   },
   {
-    label: "工作区",
+    label: "诊断",
     items: [
-      { key: "knowledge", label: "知识", icon: BookOpenText },
-      { key: "issues", label: "任务", icon: ListTodo },
-      { key: "projects", label: "目标库", icon: FolderKanban },
-      { key: "automation", label: "自动化", icon: Zap },
-      { key: "agents", label: "智能体", icon: Bot },
-      { key: "squads", label: "小队", icon: Users },
-      { key: "usage", label: "用量", icon: Sparkles },
-    ],
-  },
-  {
-    label: "配置",
-    items: [
-      { key: "runtimes", label: "运行时", icon: Monitor },
-      { key: "skills", label: "技能", icon: BookOpenText },
-      { key: "settings", label: "设置", icon: Settings },
+      { key: "diagnostics", label: "运行诊断", icon: Settings },
     ],
   },
 ];
@@ -158,14 +157,46 @@ function sourceTypeLabel(sourceType: WorkbenchData["sources"][number]["sourceTyp
   const labels: Record<WorkbenchData["sources"][number]["sourceType"], string> = {
     blog: "博客",
     paper: "论文",
+    github_repo: "GitHub 仓库",
     github_readme: "GitHub README",
     repo_note: "仓库笔记",
+    local_markdown: "本地 Markdown",
+    local_folder: "本地文件夹",
+    target_codebase: "目标代码库",
     codebase_scan: "代码库扫描",
     review_feedback: "评审反馈",
     execution_result: "执行结果",
     manual_note: "手动笔记",
   };
   return labels[sourceType];
+}
+
+function inferSourceInput(rawValue: string): { title: string; sourceType: SourceFormType; summary: string } {
+  const value = rawValue.trim();
+  if (!value) return { title: "", sourceType: "blog", summary: "" };
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (host === "github.com" && parts.length >= 2) {
+      const owner = parts[0];
+      const repo = parts[1].replace(/\\.git$/, "");
+      return {
+        title: `${owner}/${repo}`,
+        sourceType: "github_repo",
+        summary: `${owner}/${repo} reference repository. Use it as external implementation context; do not copy code directly.`,
+      };
+    }
+    if (value.toLowerCase().endsWith(".pdf") || host.includes("arxiv.org")) {
+      const title = parts.at(-1)?.replace(/[-_]/g, " ") || host;
+      return { title, sourceType: "paper", summary: `${host} paper or PDF source.` };
+    }
+    const title = parts.at(-1)?.replace(/[-_]/g, " ") || host;
+    return { title, sourceType: "blog", summary: `${host} web source.` };
+  } catch {
+    const pathName = value.split(/[\\/]/).filter(Boolean).at(-1) || value;
+    return { title: pathName.replace(/[-_]/g, " "), sourceType: "note", summary: "Local or manual source." };
+  }
 }
 
 function buildDecisionLabel(decision: string) {
@@ -219,7 +250,7 @@ function resultLabel(ok: boolean, blocked = false) {
 
 export function App() {
   const initialRoute = parseHashRoute();
-  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "knowledge");
+  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "project");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
   const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
@@ -239,13 +270,13 @@ export function App() {
     const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
     if (route.page) setPage(route.page);
     if (preferredTicket) {
-      setPage("issues");
+      setPage("ready");
       setSelectedTicketId(preferredTicket.id);
       if (globalThis.location?.hash !== issueHash(preferredTicket)) {
         globalThis.history?.replaceState(null, "", issueHash(preferredTicket));
       }
     } else if (routeTicket) {
-      setPage("issues");
+      setPage("ready");
       setSelectedTicketId(routeTicket.id);
     } else {
       setSelectedTicketId((current) => result.data.tickets.some((ticket) => ticket.id === current) ? current : result.data.tickets[0]?.id ?? "");
@@ -268,7 +299,7 @@ export function App() {
     const ticket = data.tickets.find((candidate) => candidate.id === ticketId);
     if (!ticket) return;
     setSelectedTicketId(ticket.id);
-    setPage("issues");
+    setPage("ready");
     if (globalThis.location?.hash !== issueHash(ticket)) {
       globalThis.history?.replaceState(null, "", issueHash(ticket));
     }
@@ -290,7 +321,7 @@ export function App() {
       if (route.page) setPage(route.page);
       const routeTicket = findTicketByRef(data.tickets, route.ticketRef);
       if (routeTicket) {
-        setPage("issues");
+        setPage("ready");
         setSelectedTicketId(routeTicket.id);
       }
     }
@@ -315,7 +346,7 @@ export function App() {
           onRefresh={refreshWorkbenchData}
         />
       </main>
-      {page === "knowledge" ? null : (
+      {page === "sources" ? null : (
         <AgentDock
           compactDefault={true}
           runtimes={data.runtimes}
@@ -362,7 +393,7 @@ function Sidebar({
           <p>{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
-            const enabled = ["goal", "knowledge", "issues", "agents", "runtimes", "skills", "inbox"].includes(item.key);
+            const enabled = ["project", "sources", "tasks", "ready", "diagnostics"].includes(item.key);
             const active = item.key === page;
             return (
               <button
@@ -375,7 +406,7 @@ function Sidebar({
               >
                 <Icon size={16} />
                 <span>{item.label}</span>
-                {item.key === "inbox" ? <em>{data.inbox.length}</em> : null}
+                {item.key === "diagnostics" ? <em>{data.inbox.length}</em> : null}
               </button>
             );
           })}
@@ -409,9 +440,10 @@ function PageFrame({
   onTicketSelect: (ticketId: string) => void;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  if (page === "goal") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
-  if (page === "knowledge") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
-  if (page === "issues") {
+  if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
+  if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "tasks") return <TasksPage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "ready") {
     return (
       <IssuesPage
         data={data}
@@ -424,19 +456,19 @@ function PageFrame({
       />
     );
   }
-  if (page === "agents") return <AgentsPage data={data} />;
-  if (page === "runtimes") {
-    return (
+  return (
+    <>
       <RuntimesPage
         data={data}
         dataSource={dataSource}
         selectedRuntime={selectedRuntime}
         onRuntimeSelect={onRuntimeSelect}
       />
-    );
-  }
-  if (page === "skills") return <SkillsPage data={data} />;
-  return <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />;
+      <AgentsPage data={data} />
+      <SkillsPage data={data} />
+      <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />
+    </>
+  );
 }
 
 function PageHeader({
@@ -638,7 +670,7 @@ function KnowledgePage({
   const [selectedSourceId, setSelectedSourceId] = useState(data.sources[0]?.id ?? "");
   const [sourceTitle, setSourceTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [sourceType, setSourceType] = useState<"blog" | "paper" | "github_repo" | "note">("blog");
+  const [sourceType, setSourceType] = useState<SourceFormType>("blog");
   const [sourceContent, setSourceContent] = useState("");
   const [actionStatus, setActionStatus] = useState("");
   const sourceCards = data.knowledgeCards.filter((card) => card.sourceId === selectedSourceId);
@@ -675,6 +707,15 @@ function KnowledgePage({
     setSelectedChangeId(nextChange?.id ?? "");
   }
 
+  function updateSourceUrl(value: string) {
+    setSourceUrl(value);
+    const inferred = inferSourceInput(value);
+    if (inferred.title && !sourceTitle.trim()) {
+      setSourceTitle(inferred.title);
+    }
+    setSourceType(inferred.sourceType);
+  }
+
   const groupedChanges = groupBacklogChanges(cardChanges);
   const traceSteps = data.traceSteps.filter((step) => {
     if (!selectedCard) return false;
@@ -688,14 +729,19 @@ function KnowledgePage({
   const activePreviewId = data.backlogMutationPreview.previewId;
 
   async function addSource() {
-    if (!sourceTitle.trim() || !sourceUrl.trim()) return;
+    if (!sourceUrl.trim()) return;
+    const inferred = inferSourceInput(sourceUrl);
+    const title = sourceTitle.trim() || inferred.title || sourceUrl.trim();
+    const summary = sourceContent.trim() || inferred.summary;
     setActionStatus("正在添加来源...");
     try {
       await createSource({
-        title: sourceTitle.trim(),
+        title,
         source_type: sourceType,
+        source_role: sourceType === "github_repo" ? "reference_project" : "background_knowledge",
         path_or_url: sourceUrl.trim(),
         content: sourceContent.trim(),
+        summary,
       });
       setSourceTitle("");
       setSourceUrl("");
@@ -772,17 +818,17 @@ function KnowledgePage({
           </label>
           <label>
             <span>标题</span>
-            <input disabled={dataSource !== "api"} value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="minimal-agent 博客" />
+            <input disabled={dataSource !== "api"} value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="自动从链接生成，可手动修改" />
           </label>
           <label>
             <span>路径或 URL</span>
-            <input disabled={dataSource !== "api"} value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://minimal-agent.com/" />
+            <input disabled={dataSource !== "api"} value={sourceUrl} onChange={(event) => updateSourceUrl(event.target.value)} placeholder="粘贴 URL，例如 https://github.com/SWE-agent/mini-swe-agent/" />
           </label>
           <label className="wide-field">
             <span>摘要或摘录</span>
-            <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="粘贴关键观点，Ariadne 会把它作为 issue factory 的证据。" />
+            <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="可选。留空时 Ariadne 会先根据链接生成基础摘要，分析阶段再提取证据。" />
           </label>
-          <button disabled={dataSource !== "api" || !sourceTitle.trim() || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
+          <button disabled={dataSource !== "api" || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
             保存来源
           </button>
         </div>
@@ -899,6 +945,183 @@ function KnowledgePage({
         <span className="unsafe">不安全 {data.backlogMutationPreview.unsafe}</span>
         <em>{previewStatusLabel(previewStatus)}</em>
       </footer>
+    </section>
+  );
+}
+
+function TasksPage({
+  data,
+  dataSource,
+  onRefresh,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  onRefresh: () => Promise<void>;
+}) {
+  const [selectedChangeId, setSelectedChangeId] = useState(data.backlogChanges[0]?.id ?? "");
+  const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
+  const [actionStatus, setActionStatus] = useState("");
+  const selectedChange = data.backlogChanges.find((change) => change.id === selectedChangeId)
+    ?? data.backlogChanges[0];
+  const groupedChanges = groupBacklogChanges(data.backlogChanges);
+  const activeGoal = data.goal.id !== "GOAL-NOT-CREATED" ? data.goal : undefined;
+  const activeProject = data.projectResources?.find((resource) => resource.id === activeGoal?.targetProjectId && resource.available)
+    ?? data.projectResources?.find((resource) => resource.available)
+    ?? data.projectResources?.[0];
+  const activePreviewId = data.backlogMutationPreview.previewId;
+  const traceSteps = selectedChange
+    ? data.traceSteps.filter((step) => !step.backlogChangeId || step.backlogChangeId === selectedChange.id)
+    : data.traceSteps.slice(0, 8);
+
+  useEffect(() => {
+    if (!data.backlogChanges.some((change) => change.id === selectedChangeId)) {
+      setSelectedChangeId(data.backlogChanges[0]?.id ?? "");
+    }
+    setPreviewStatus(data.backlogMutationPreview.status);
+  }, [data.backlogChanges, data.backlogMutationPreview.status, selectedChangeId]);
+
+  async function generateIssues() {
+    if (!activeGoal) {
+      setActionStatus("请先在项目页创建目标。");
+      return;
+    }
+    setActionStatus("正在从目标、输入和代码库快照生成任务变更...");
+    try {
+      const result = await createIssueFactoryPreview({
+        goal_id: activeGoal.id,
+        source_ids: data.sources.map((source) => source.id),
+        target_project_id: activeProject?.id ?? null,
+      });
+      await onRefresh();
+      setSelectedChangeId(result.preview.operations[0]?.id ?? "");
+      setActionStatus(`已生成 ${result.preview.operations.length} 个任务变更。`);
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "任务预览生成失败。");
+    }
+  }
+
+  async function applyPreview() {
+    if (!activePreviewId) {
+      setActionStatus("还没有可应用的任务预览。");
+      return;
+    }
+    setActionStatus("正在应用任务变更...");
+    try {
+      await applyIssueFactoryPreview(activePreviewId);
+      await onRefresh();
+      setPreviewStatus("applied");
+      setActionStatus("任务变更已应用，新的项目 issue 已写入任务列表。");
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : "应用任务变更失败。");
+    }
+  }
+
+  return (
+    <section className="page full-bleed tasks-page">
+      <PageHeader
+        icon={<ListTodo size={17} />}
+        title="任务工厂"
+        count={data.backlogChanges.length}
+        action={
+          <div className="toolbar">
+            <button className="primary-action" disabled={dataSource !== "api"} type="button" onClick={() => void generateIssues()}>
+              生成任务变更
+            </button>
+            <button disabled={dataSource !== "api" || !activePreviewId || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
+              {previewStatus === "applied" ? "已应用" : "应用任务变更"}
+            </button>
+          </div>
+        }
+      />
+      <section className="panel compiler-summary">
+        <div>
+          <h2>Source-to-Issue Compiler</h2>
+          <p>输入：项目目标、{data.sources.length} 个来源、{data.sourceArtifacts?.length ?? 0} 个 typed artifact、{data.sourceEvidence?.length ?? 0} 条证据。</p>
+        </div>
+        <div className="summary-metrics">
+          <span>新增 {data.backlogMutationPreview.added}</span>
+          <span>更新 {data.backlogMutationPreview.updated}</span>
+          <span>延后 {data.backlogMutationPreview.deferred}</span>
+          <span>不安全 {data.backlogMutationPreview.unsafe}</span>
+          <em>{previewStatusLabel(previewStatus)}</em>
+        </div>
+        {actionStatus ? <p className="action-message">{actionStatus}</p> : null}
+      </section>
+      <div className="knowledge-layout">
+        <section className="knowledge-column changes-column">
+          <ColumnHeader title="任务变更" meta={data.backlogMutationPreview.previewId ?? "还没有预览"} />
+          <BacklogChangeGroup title="新增" emptyLabel="新增" kind="added" changes={groupedChanges.added} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="更新" emptyLabel="更新" kind="updated" changes={groupedChanges.updated} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="延后" emptyLabel="延后" kind="deferred" changes={groupedChanges.deferred} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+          <BacklogChangeGroup title="拒绝" emptyLabel="拒绝" kind="rejected" changes={groupedChanges.rejected} selectedId={selectedChange?.id} onSelect={setSelectedChangeId} />
+        </section>
+
+        <section className="knowledge-column cards-column">
+          <ColumnHeader title="选中任务约束" meta={selectedChange?.ticketKey ?? "未选择"} />
+          {selectedChange ? (
+            <article className="knowledge-card selected">
+              <header>
+                <div>
+                  <strong>{selectedChange.title}</strong>
+                  <small>{selectedChange.ticketKey} · {buildDecisionLabel(selectedChange.buildDecision)}</small>
+                </div>
+                <span className="primary-badge">{selectedChange.priority}</span>
+              </header>
+              <section>
+                <h3>生成原因</h3>
+                <p>{selectedChange.goalReason || selectedChange.reason}</p>
+              </section>
+              <section>
+                <h3>证据引用</h3>
+                <div className="evidence-list">
+                  {(selectedChange.evidenceRefs ?? []).map((item) => <code key={item}>{item}</code>)}
+                </div>
+              </section>
+              <section>
+                <h3>验收标准</h3>
+                <ul className="risk-list">
+                  {(selectedChange.acceptanceCriteria ?? []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </section>
+              <section>
+                <h3>受影响模块</h3>
+                <div className="module-row">
+                  {(selectedChange.affectedModules ?? []).map((item) => <span key={item}>{item}</span>)}
+                </div>
+              </section>
+              <div className="card-meta-grid">
+                <section>
+                  <h3>Build Context</h3>
+                  <code>{selectedChange.buildContextId ?? "未记录"}</code>
+                </section>
+                <section>
+                  <h3>Source Artifacts</h3>
+                  <p>{(selectedChange.sourceArtifactIds ?? []).length} 个 artifact 参与编译。</p>
+                </section>
+              </div>
+            </article>
+          ) : (
+            <p className="empty-column">还没有任务变更。先添加输入并生成任务。</p>
+          )}
+        </section>
+
+        <aside className="knowledge-column trace-column">
+          <ColumnHeader title="编译追踪" meta={selectedChange?.ticketKey ?? "全部"} />
+          <ol className="trace-list">
+            {traceSteps.length ? traceSteps.map((step) => (
+              <li key={step.id}>
+                <span className="trace-dot" />
+                <div>
+                  <h3>{traceLabel(step.label)}</h3>
+                  <p>{step.summary}</p>
+                  <code>{step.artifactPath}</code>
+                  <small>{step.timestamp}</small>
+                </div>
+              </li>
+            )) : <li className="trace-empty">还没有编译追踪。生成任务后会显示 Source {"->"} Evidence {"->"} Ticket Delta。</li>}
+          </ol>
+        </aside>
+      </div>
     </section>
   );
 }
@@ -1736,7 +1959,7 @@ function InboxPage({
               const targetTicketId = item.repairTicketId ?? item.ticketId;
               const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
               if (ticket) onTicketSelect(ticket.id);
-              onNavigate("issues");
+              onNavigate("ready");
             }}
           >
             <span className={`inbox-kind ${item.kind}`}>{statusLabel(item.kind)}</span>

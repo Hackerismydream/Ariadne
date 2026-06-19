@@ -71,7 +71,7 @@ def test_run_once_can_claim_specific_assignment(tmp_path: Path) -> None:
     assert second.exit_code == 0, second.output
     assert result.exit_code == 0, result.output
     assert f"Assignment claimed: {second_id}" in result.output
-    assert store.load_assignment(first_id).status.value == "queued"
+    assert store.load_assignment(first_id).status.value == "ready_to_claim"
     assert store.load_assignment(second_id).status.value == "done"
 
 

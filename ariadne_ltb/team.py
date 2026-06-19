@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_claim
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
     Artifact,
@@ -135,12 +136,22 @@ def route_ticket_to_build_team(
                 "build_team_name": team.name,
                 "lead_agent_id": lead.id,
                 "route_decision_artifact_id": route_artifact.id,
+                "route_decision_id": route_decision.id,
+                "target_project_id": "ariadne-local",
+                "target_repo_path": str(target_repo),
                 "agent_runtime": selected_agent_runtime,
                 "backlog_planner_name": selected_backlog_planner,
             },
         },
     )
-    store.save_assignment(assignment)
+    assignment = prepare_assignment_for_claim(
+        store,
+        assignment,
+        ticket,
+        route_decision_id=route_decision.id,
+        permission_profile_id=route_decision.permission_profile_id,
+        authorization_id=stable_id("runtime_authorization", assignment.id, route_decision.id),
+    )
     routed_ticket = (
         store.load_ticket(ticket.id)
         .with_artifacts([route_artifact])

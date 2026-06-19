@@ -91,7 +91,7 @@ class DaemonControlService:
             last_error=heartbeat.last_error if heartbeat else None,
             open_assignment_count=len(open_assignments),
             claimable_assignment_count=sum(
-                1 for assignment in open_assignments if assignment.status is AssignmentStatus.QUEUED
+                1 for assignment in open_assignments if assignment.status is AssignmentStatus.READY_TO_CLAIM
             ),
             running_assignment_count=sum(
                 1 for assignment in open_assignments if assignment.status is AssignmentStatus.RUNNING

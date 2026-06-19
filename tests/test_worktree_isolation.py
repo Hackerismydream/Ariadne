@@ -5,6 +5,10 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from ariadne_ltb.application.assignment_readiness import (
+    ensure_assignment_target_resource,
+    prepare_assignment_for_claim,
+)
 from ariadne_ltb.cli import app
 from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.git_utils import git_status, run_git
@@ -18,6 +22,26 @@ from ariadne_ltb.worktrees import branch_binding_for_ticket, prepare_isolated_wo
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
+
+
+def _ready_assignment(store: AriadneStore, ticket, assignment, target: Path):  # noqa: ANN001
+    ensure_assignment_target_resource(
+        store,
+        str(target),
+        target_project_id="ariadne-local",
+        label=f"{ticket.key} target repository",
+    )
+    assignment = assignment.model_copy(
+        deep=True,
+        update={
+            "metadata": assignment.metadata
+            | {
+                "target_project_id": "ariadne-local",
+                "target_repo_path": str(target),
+            }
+        },
+    )
+    return prepare_assignment_for_claim(store, assignment, ticket)
 
 
 def test_cli_ticket_run_isolate_worktree_creates_and_records_worktree(tmp_path: Path) -> None:
@@ -120,7 +144,12 @@ def test_daemon_assignment_runs_ticket_in_isolated_worktree(tmp_path: Path) -> N
     target = ensure_demo_target_project(tmp_path)
     base_sha = run_git(target, "rev-parse", "HEAD").stdout.strip()
     ticket = store.resolve_ticket("ARI-003")
-    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    assignment = _ready_assignment(
+        store,
+        ticket,
+        store.create_assignment(ticket, store.resolve_agent_profile("fake-codex")),
+        target,
+    )
 
     result = LocalDaemonWorker(store).run_once()
 
@@ -143,12 +172,12 @@ def test_daemon_assignments_get_distinct_isolated_worktrees(tmp_path: Path) -> N
     target = ensure_demo_target_project(tmp_path)
     ticket = store.resolve_ticket("ARI-003")
     agent = store.resolve_agent_profile("fake-codex")
-    first = store.create_assignment(ticket, agent)
+    first = _ready_assignment(store, ticket, store.create_assignment(ticket, agent), target)
 
     first_result = LocalDaemonWorker(store).run_once(assignment_id=first.id)
 
     second_ticket = store.load_ticket(ticket.id)
-    second = store.create_assignment(second_ticket, agent)
+    second = _ready_assignment(store, second_ticket, store.create_assignment(second_ticket, agent), target)
     second_result = LocalDaemonWorker(store).run_once(assignment_id=second.id)
     records = store.list_worktree_isolations()
     paths = {record.worktree_path for record in records}

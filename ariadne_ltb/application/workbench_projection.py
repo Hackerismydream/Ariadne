@@ -8,7 +8,9 @@ from ariadne_ltb.application.mappers import (
     backlog_preview_dto,
     build_skill_dto,
     inbox_item_dto,
+    source_artifact_dto,
     source_document_dto,
+    source_evidence_dto,
     ticket_summary,
 )
 from ariadne_ltb.application.project_goals import ProjectGoalService
@@ -28,6 +30,14 @@ class WorkbenchProjectionService:
         return WorkbenchDTO(
             goals=ProjectGoalService(self.store).list(),
             sources=[source_document_dto(self.store, source) for source in self.store.list_source_documents()],
+            source_artifacts=[
+                source_artifact_dto(artifact)
+                for artifact in self.store.list_source_artifacts()
+            ],
+            source_evidence=[
+                source_evidence_dto(evidence)
+                for evidence in self.store.list_source_evidence()
+            ],
             tickets=[ticket_summary(self.store, ticket) for ticket in self.store.list_tickets()],
             assignments=[assignment_dto(assignment) for assignment in self.store.list_assignments()],
             agents=[

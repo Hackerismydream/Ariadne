@@ -7,18 +7,48 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.board import export_board
 from ariadne_ltb.cli import app
+from ariadne_ltb.application.assignment_readiness import (
+    ensure_assignment_target_resource,
+    prepare_assignment_for_claim,
+)
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import AssignmentStatus, StoreInvariantReason
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.target_project import ensure_demo_target_project
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
 
 
+def _ready_assignment(store: AriadneStore, ticket, assignment):  # noqa: ANN001
+    target_repo = ensure_demo_target_project(store.root)
+    ensure_assignment_target_resource(
+        store,
+        str(target_repo),
+        target_project_id="ariadne-local",
+        label=f"{ticket.key} target repository",
+    )
+    assignment = assignment.model_copy(
+        deep=True,
+        update={
+            "metadata": assignment.metadata
+            | {
+                "target_project_id": "ariadne-local",
+                "target_repo_path": str(target_repo),
+            }
+        },
+    )
+    return prepare_assignment_for_claim(store, assignment, ticket)
+
+
 def test_atomic_claim_prevents_duplicate_assignment_claim(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
-    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    assignment = _ready_assignment(
+        store,
+        ticket,
+        store.create_assignment(ticket, store.resolve_agent_profile("fake-codex")),
+    )
 
     def claim(runtime_id: str) -> str | None:
         claimed = AriadneStore(tmp_path).claim_next_assignment(runtime_id, lease_seconds=300)
@@ -40,7 +70,11 @@ def test_atomic_claim_prevents_duplicate_assignment_claim(tmp_path: Path) -> Non
 def test_stale_assignment_lease_can_be_reclaimed(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
-    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    assignment = _ready_assignment(
+        store,
+        ticket,
+        store.create_assignment(ticket, store.resolve_agent_profile("fake-codex")),
+    )
     claimed = assignment.mark_claimed("old-worker").model_copy(
         update={"lease_expires_at": "2000-01-01T00:00:00Z"}
     )
@@ -59,7 +93,11 @@ def test_stale_assignment_lease_can_be_reclaimed(tmp_path: Path) -> None:
 def test_store_doctor_reports_stale_assignment_lease_as_warning(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
-    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    assignment = _ready_assignment(
+        store,
+        ticket,
+        store.create_assignment(ticket, store.resolve_agent_profile("fake-codex")),
+    )
     store.save_assignment(
         assignment.mark_claimed("old-worker").model_copy(
             update={"lease_expires_at": "2000-01-01T00:00:00Z"}
