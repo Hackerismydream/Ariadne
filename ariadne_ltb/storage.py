@@ -4,6 +4,7 @@ import fcntl
 import json
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from typing import Iterator
@@ -43,7 +44,9 @@ from ariadne_ltb.models import (
     RunMessage,
     RunMessageType,
     RuntimeCapability,
+    SourceArtifact,
     SourceDocument,
+    SourceEvidence,
     TicketAssignment,
     TicketStatus,
     TicketComment,
@@ -81,6 +84,8 @@ class AriadneStore:
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
         self.project_dir = self.base / "project"
+        self.source_artifacts_dir = self.project_dir / "source_artifacts"
+        self.source_evidence_path = self.project_dir / "source_evidence.jsonl"
         self.runtimes_dir = self.base / "runtimes"
         self.locks_dir = self.base / "locks"
         self.worktrees_dir = self.base / "worktrees"
@@ -117,6 +122,7 @@ class AriadneStore:
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
+            self.source_artifacts_dir,
             self.skill_materializations_dir,
             self.build_packets_dir,
             self.execution_results_dir,
@@ -759,6 +765,92 @@ class AriadneStore:
             self._read_model(path, SourceDocument)
             for path in sorted(self.sources_dir.glob("*.json"))
         ]
+
+    def source_artifact_payload_path(self, artifact_id: str) -> Path:
+        return self.source_artifacts_dir / f"{artifact_id}.payload.json"
+
+    def save_source_evidence(self, evidence: SourceEvidence) -> None:
+        try:
+            self.load_source_document(evidence.source_document_id)
+        except FileNotFoundError as exc:
+            msg = f"missing_source_document:{evidence.source_document_id}"
+            raise ValueError(msg) from exc
+        if evidence.artifact_id is not None:
+            try:
+                self.load_source_artifact(evidence.artifact_id)
+            except FileNotFoundError as exc:
+                msg = f"missing_source_artifact:{evidence.artifact_id}"
+                raise ValueError(msg) from exc
+        self.source_evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        existing_ids = {item.id for item in self.list_source_evidence()}
+        if evidence.id in existing_ids:
+            return
+        with self.source_evidence_path.open("a", encoding="utf-8") as handle:
+            handle.write(evidence.model_dump_json(exclude_none=False) + "\n")
+
+    def load_source_evidence(self, evidence_id: str) -> SourceEvidence:
+        for evidence in self.list_source_evidence():
+            if evidence.id == evidence_id:
+                return evidence
+        raise FileNotFoundError(evidence_id)
+
+    def list_source_evidence(self, source_document_id: str | None = None) -> list[SourceEvidence]:
+        if not self.source_evidence_path.exists():
+            return []
+        evidence = [
+            SourceEvidence.model_validate_json(line)
+            for line in self.source_evidence_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if source_document_id is not None:
+            evidence = [item for item in evidence if item.source_document_id == source_document_id]
+        return evidence
+
+    def save_source_artifact(self, artifact: SourceArtifact, payload: dict[str, Any]) -> SourceArtifact:
+        try:
+            self.load_source_document(artifact.source_document_id)
+        except FileNotFoundError as exc:
+            msg = f"missing_source_document:{artifact.source_document_id}"
+            raise ValueError(msg) from exc
+        payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        payload_hash = sha256(payload_json.encode("utf-8")).hexdigest()
+        payload_path = self.source_artifact_payload_path(artifact.id)
+        saved = artifact.model_copy(
+            update={
+                "payload_hash": payload_hash,
+                "payload_path": str(payload_path.relative_to(self.base)),
+            }
+        )
+        self._write_model(self.source_artifacts_dir / f"{saved.id}.json", saved)
+        payload_path.write_text(payload_json, encoding="utf-8")
+        return saved
+
+    def load_source_artifact(self, artifact_id: str) -> SourceArtifact:
+        return self._read_model(self.source_artifacts_dir / f"{artifact_id}.json", SourceArtifact)
+
+    def load_source_artifact_payload(self, artifact_id: str) -> dict[str, Any]:
+        artifact = self.load_source_artifact(artifact_id)
+        payload_path = self.source_artifact_payload_path(artifact_id)
+        payload_text = payload_path.read_text(encoding="utf-8")
+        payload_hash = sha256(payload_text.encode("utf-8")).hexdigest()
+        if payload_hash != artifact.payload_hash:
+            msg = f"source_artifact_payload_hash_mismatch:{artifact_id}"
+            raise ValueError(msg)
+        data = json.loads(payload_text)
+        if not isinstance(data, dict):
+            msg = f"source_artifact_payload_not_object:{artifact_id}"
+            raise ValueError(msg)
+        return data
+
+    def list_source_artifacts(self, source_document_id: str | None = None) -> list[SourceArtifact]:
+        artifacts = [
+            self._read_model(path, SourceArtifact)
+            for path in sorted(self.source_artifacts_dir.glob("*.json"))
+            if not path.name.endswith(".payload.json")
+        ]
+        if source_document_id is not None:
+            artifacts = [artifact for artifact in artifacts if artifact.source_document_id == source_document_id]
+        return artifacts
 
     def save_execution_result(self, result: ExecutionResult) -> None:
         self._write_model(self.execution_results_dir / f"{result.id}.json", result)

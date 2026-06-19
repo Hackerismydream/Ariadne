@@ -4,7 +4,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from hashlib import sha256
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -195,6 +195,9 @@ class SourceType(str, Enum):
     BLOG = "blog"
     GITHUB_REPO = "github_repo"
     NOTE = "note"
+    LOCAL_MARKDOWN = "local_markdown"
+    LOCAL_FOLDER = "local_folder"
+    TARGET_CODEBASE = "target_codebase"
     OFFICE_HOUR = "office_hour"
     REVIEW = "review"
 
@@ -444,6 +447,32 @@ class SourceDocument(AriadneModel):
     summary: str
     created_at: str = Field(default_factory=utc_now)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceEvidence(AriadneModel):
+    id: str
+    source_document_id: str
+    artifact_id: str | None = None
+    locator: str
+    quote_or_summary: str
+    claim: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    content_hash: str
+    created_at: datetime | str = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class SourceArtifact(AriadneModel):
+    id: str
+    source_document_id: str
+    artifact_type: Literal[
+        "knowledge_card",
+        "reference_project_profile",
+        "codebase_snapshot",
+    ]
+    payload_hash: str
+    payload_path: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    created_at: datetime | str = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AgentProfile(AriadneModel):
