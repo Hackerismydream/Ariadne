@@ -2,6 +2,7 @@ import type {
   AddTicketCommentRequest,
   AssignmentEvent,
   AssignmentEventStream,
+  ApiSourceDocument,
   ApiWorkbench,
   AssignTicketRequest,
   CreateProjectGoalRequest,
@@ -52,9 +53,16 @@ export function createProjectGoal(payload: CreateProjectGoalRequest) {
 }
 
 export function createSource(payload: CreateSourceRequest) {
-  return requestJson("/api/sources", {
+  return requestJson<{ source: ApiSourceDocument; duplicate?: boolean }>("/api/sources", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function analyzeSource(sourceId: string) {
+  return requestJson(`/api/sources/${encodeURIComponent(sourceId)}/analyze`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

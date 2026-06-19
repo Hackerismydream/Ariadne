@@ -37,3 +37,24 @@
 - Persist real `RouteDecision` and immutable handoff packet before assignment enters `ready_to_claim`.
 - Add browser action for source analysis rather than requiring API calls.
 - Continue from `MCA-001` assignment into real Codex/Claude execution feedback.
+
+## Project Inputs UX Browser Result
+
+- Date: 2026-06-19
+- Branch: `codex/project-inputs-understanding-ux`
+- URL: `http://127.0.0.1:8768/?v=project-inputs-ux#sources`
+- Target project registered through browser: `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`
+- Goal created through browser: `Build Mini Code Agent v0.1`
+- Input pasted: `https://github.com/SWE-agent/mini-swe-agent/`
+- Auto title: `SWE-agent/mini-swe-agent`
+- Auto type: `GitHub 仓库`
+- Primary action: `添加并分析`
+- Auto analyze result: passed; page showed `分析完成。Ariadne 已生成理解结果和证据。`
+- Understanding panel visible: passed; page showed `Ariadne 理解`, `这是一个参考项目：SWE-agent/mini-swe-agent`, and reuse/avoid notes.
+- Evidence visible: passed; page showed `README.md` evidence with confidence `高`.
+- Risk visible: passed; page showed license/reuse boundary risk.
+- Task impact visible: passed after task suggestion generation; page showed `MCA-001` through `MCA-008` impact pills in the understanding panel.
+- Task suggestion generation: passed; browser action generated 10 suggestions and the page contained `MCA-001` through `MCA-010`.
+- Duplicate behavior: covered by automated tests, not manually repeated in this browser run.
+- Failures: none in the Project Inputs UX browser path after rebuilding the frontend bundle.
+- Follow-up: continue from generated MCA tasks into real Codex/Claude execution feedback; this slice did not claim real target-project execution.

@@ -301,6 +301,36 @@ export type SourceEvidence = {
   createdAt: string;
 };
 
+export type ProjectInputEvidence = {
+  locator: string;
+  summary: string;
+  claim: string;
+  confidenceLabel: string;
+};
+
+export type ProjectInputUnderstanding = {
+  sourceId: string;
+  displayTitle: string;
+  kindLabel: string;
+  roleLabel: string;
+  analysisLabel: string;
+  licenseRiskLabel: string;
+  whatAriadneUnderstood: string[];
+  evidenceItems: ProjectInputEvidence[];
+  generatedOutputs: string[];
+  risks: string[];
+  impactedTicketKeys: string[];
+  nextActions: string[];
+};
+
+export type ProjectInputEvent = {
+  id: string;
+  sourceId: string;
+  eventType: string;
+  label: string;
+  createdAt: string;
+};
+
 export type KnowledgeCard = {
   id: string;
   sourceId: string;
@@ -399,6 +429,8 @@ export type WorkbenchData = {
   sources: SourceDocument[];
   sourceArtifacts?: SourceArtifact[];
   sourceEvidence?: SourceEvidence[];
+  sourceUnderstandings: ProjectInputUnderstanding[];
+  sourceEvents: ProjectInputEvent[];
   knowledgeCards: KnowledgeCard[];
   backlogChanges: BacklogChange[];
   traceSteps: TraceStep[];

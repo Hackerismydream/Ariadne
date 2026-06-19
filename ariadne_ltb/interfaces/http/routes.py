@@ -119,8 +119,18 @@ def create_source(
     payload: CreateSourceInput,
     store: AriadneStore = Depends(get_store),
 ) -> dict:
-    source = WebSourceService(store).create(payload)
-    return {"source": source_document_dto(store, source).model_dump(mode="json")}
+    service = WebSourceService(store)
+    source = service.find_duplicate(payload.path_or_url)
+    duplicate = source is not None
+    if source is None:
+        source = service.create(payload)
+    if payload.auto_analyze and str(source.metadata.get("analysis_status") or "pending") != "analyzed":
+        SourceAnalysisService(store).analyze_source(source.id)
+        source = store.load_source_document(source.id)
+    return {
+        "source": source_document_dto(store, source).model_dump(mode="json"),
+        "duplicate": duplicate,
+    }
 
 
 @router.post("/api/sources/{source_id}/analyze")
