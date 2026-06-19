@@ -222,11 +222,8 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             real_evidence["llm_agents"],
             "DeepSeek-backed Build Lead, Knowledge, Memory, planner, reviewer, and backlog agents have successful evidence.",
             (
-                "Run `ari llm run-agent build_lead --ticket <ticket> --confirm-external`, "
-                "`ari llm run-agent knowledge --ticket <ticket> --confirm-external`, "
-                "`ari llm run-agent memory --ticket <ticket> --confirm-external`, "
-                "`ari ticket plan --planner llm`, `ari review run --reviewer llm`, "
-                "and `ari ticket run --backlog-planner llm`, then regenerate release evidence."
+                "Run `ari llm proof --ticket <ticket> --confirm-external` after a ticket execution, "
+                "then regenerate release evidence."
             ),
         ),
         _product_evidence_check(

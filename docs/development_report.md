@@ -6713,3 +6713,77 @@ Known limitations:
 - Running `ari evidence packet` and `ari doctor product` concurrently can briefly
   show the previous packet state. The intended path is sequential:
   `ari evidence packet` then `ari doctor product`.
+
+## 2026-06-20 Maturity Campaign: MAT-004 DeepSeek LLM Agent Proof Flow
+
+Branch: `codex/ariadne-maturity-campaign`
+
+GitHub issue: https://github.com/Hackerismydream/Ariadne/issues/19
+
+Implemented:
+
+- Added `ariadne_ltb/llm_proof.py` with a reusable proof service for future
+  Workbench actions.
+- Added `ari llm proof --ticket <ticket> --confirm-external`.
+- The proof command runs the required DeepSeek-backed operations for one ticket:
+  - Build Lead role agent;
+  - Knowledge role agent;
+  - Memory role agent;
+  - LLM planner;
+  - LLM reviewer;
+  - LLM backlog planner.
+- The command requires an existing execution result for the ticket before
+  reviewer/backlog proof. This prevents Ariadne from fabricating execution
+  evidence just to satisfy product doctor.
+- The proof runner writes a redacted `llm_proof.json` artifact, while each
+  sub-operation continues writing its existing provider/model/ticket evidence
+  artifact or report.
+
+Files changed:
+
+- `ariadne_ltb/llm_proof.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/review.py`
+- `tests/test_llm_agents.py`
+- `tests/test_review_risk_scoring.py`
+- `README.md`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+- `docs/development_report.md`
+
+Verification:
+
+- `python3.11 -m pytest tests/test_llm_agents.py tests/test_v1_doctor_release.py::test_doctor_product_reports_acceptance_readiness_without_external_writes tests/test_release_evidence.py`: passed, `15 passed`.
+- `python3.11 -m pytest tests/test_review_risk_scoring.py tests/test_llm_agents.py tests/test_v1_doctor_release.py tests/test_release_evidence.py`: passed, `30 passed`.
+- `ruff check ariadne_ltb/llm_proof.py ariadne_ltb/review.py ariadne_ltb/doctor.py ariadne_ltb/cli.py tests/test_llm_agents.py tests/test_review_risk_scoring.py`: passed.
+- `python3.11 -m ariadne_ltb.cli llm proof --ticket ARI-003`: passed as a gate
+  check by refusing without `--confirm-external`.
+- `python3.11 -m ariadne_ltb.cli llm proof --ticket ARI-003 --confirm-external`:
+  real DeepSeek proof attempted. The first run reached DeepSeek and completed
+  five of six operations, then exposed that the LLM reviewer parser rejected
+  extra fields when DeepSeek returned a full review-report-like object.
+- `ariadne_ltb/review.py` was fixed to select allowed LLM reviewer fields before
+  schema validation.
+- `python3.11 -m ariadne_ltb.cli llm proof --ticket ARI-003 --confirm-external`:
+  passed after the parser fix.
+  - proof run: `run_36ca6ff675f9`
+  - proof artifact: `.ariadne/artifacts/ticket_91c283a19122/llm_proof.json`
+  - operations: `build_lead`, `knowledge`, `memory`, `planner`, `reviewer`,
+    `backlog` all succeeded.
+- The final real proof run was verified in the ticket timeline:
+  `run_36ca6ff675f9`, attempt `1`, status `succeeded`.
+- `python3.11 -m ariadne_ltb.cli evidence packet && python3.11 -m ariadne_ltb.cli doctor product`: passed.
+  `real_llm_agent_evidence` reported `ready`; product readiness moved from
+  `blocked` to `action_required` because remaining blockers are gated real
+  Claude Code, Feishu, GitHub, landing gate, and run-gate evidence.
+- Final full verification:
+  - `python3.11 -m pytest`: passed, `380 passed`.
+  - `ruff check .`: passed.
+
+Known limitations:
+
+- `ari llm proof` is a real external DeepSeek path and requires
+  `--confirm-external`.
+- The command proves LLM agent evidence only for tickets that already have
+  execution evidence. It does not run Codex or Claude by itself.
+- Automated tests use fake transports and do not require network or a DeepSeek
+  key.

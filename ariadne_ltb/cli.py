@@ -61,6 +61,7 @@ from ariadne_ltb.landing_gate import evaluate_landing_gate_for_ticket
 from ariadne_ltb.local_search import search_local_evidence
 from ariadne_ltb.llm import DeepSeekClient, LLMClientError, llm_doctor_status, load_local_env
 from ariadne_ltb.llm_agents import LLMAgentRole, run_ticket_llm_agent
+from ariadne_ltb.llm_proof import run_llm_proof_sequence
 from ariadne_ltb.local_safety import clear_stale_locks, list_locks
 from ariadne_ltb.memory import generate_feishu_plan, search_memory, write_memory_record
 from ariadne_ltb.models import (
@@ -710,6 +711,38 @@ def llm_run_agent(
     typer.echo(f"usage total tokens: {result.usage.total_tokens}")
     if not result.succeeded:
         typer.echo(f"error: {result.error}")
+        raise typer.Exit(2)
+
+
+@llm_app.command("proof")
+def llm_proof(
+    ticket_id: Annotated[str, typer.Option("--ticket", help="Ticket id or key.")],
+    confirm_external: Annotated[
+        bool,
+        typer.Option("--confirm-external", help="Allow real external DeepSeek proof requests."),
+    ] = False,
+) -> None:
+    """Run the full DeepSeek LLM proof sequence for one already-executed ticket."""
+    if not confirm_external:
+        typer.echo("Refusing LLM proof: --confirm-external is required.")
+        raise typer.Exit(2)
+    result = run_llm_proof_sequence(AriadneStore(state.root), ticket_id)
+    typer.echo(f"ticket: {result.ticket_key} ({result.ticket_id})")
+    typer.echo(f"provider: {result.provider}")
+    typer.echo(f"succeeded: {str(result.succeeded).lower()}")
+    typer.echo(f"proof run: {result.proof_run_id}")
+    typer.echo(f"proof artifact: {result.proof_artifact_path or ''}")
+    for name, operation in sorted(result.operations.items()):
+        status = "ok" if operation.succeeded else "blocked"
+        typer.echo(
+            f"{name}: {status}\tartifact={operation.artifact_path or ''}\t"
+            f"report={operation.report_id or ''}\tmodel={operation.model or ''}"
+        )
+        if operation.error:
+            typer.echo(f"  error: {operation.error}")
+    if not result.succeeded:
+        if result.error:
+            typer.echo(f"error: {result.error}")
         raise typer.Exit(2)
 
 

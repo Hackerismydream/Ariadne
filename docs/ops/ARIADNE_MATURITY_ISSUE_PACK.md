@@ -105,16 +105,28 @@ stale-doc-only cleanup.
 - Priority: P1
 - Labels: `enhancement`, `maturity-campaign`, `priority:P1`,
   `area:integrations`
-- Status: open.
+- Status: completed on `codex/ariadne-maturity-campaign`.
 - Problem: product doctor can require LLM role evidence, but there is no
   bounded proof flow for Build Lead, Knowledge, Memory, planner, reviewer, and
   backlog agents.
+- Implementation:
+  - Added `ari llm proof --ticket <ticket> --confirm-external`.
+  - The proof command requires an existing ticket execution result before
+    running reviewer/backlog proof so Ariadne does not fabricate inputs.
+  - The proof sequence runs Build Lead, Knowledge, Memory, LLM planner, LLM
+    reviewer, and LLM backlog planning for one ticket.
+  - The command writes a redacted proof artifact and each sub-operation writes
+    its normal provider/model/ticket evidence.
+  - Real DeepSeek proof was run for `ARI-003`; all six operations succeeded and
+    product doctor reported `real_llm_agent_evidence: ready`.
 - Acceptance:
-  - One command or Workbench action runs the required LLM proof sequence for
+  - Done: one command runs the required LLM proof sequence for
     one ticket behind explicit external-confirmation gates.
-  - Artifacts persist provider/model/ticket metadata and redacted failures.
-  - Product doctor consumes those artifacts.
-  - Tests cover no-key blocked path and recorded-success path without network.
+  - Done: artifacts persist provider/model/ticket metadata and redacted
+    failures.
+  - Done: product doctor consumes those artifacts.
+  - Done: tests cover no-key blocked path and recorded-success path without
+    network.
 
 ### MAT-005: Make inbox blockers actionable from Workbench
 
