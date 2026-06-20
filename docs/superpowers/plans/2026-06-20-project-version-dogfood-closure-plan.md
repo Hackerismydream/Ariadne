@@ -6,7 +6,7 @@
 
 **Architecture:** Keep Ariadne local-first, single-user, Python/FastAPI/React, JSON/JSONL, and ticket-centered. Add the missing Project Version Delivery spine: `ProjectVersion`, `VersionIssueSet`, `AssignmentDispatch`, `RuntimeAuthorization`, and `ResultEvidenceBundle`. The Workbench becomes the acceptance surface; CLI/API tests remain support tools, not product proof.
 
-**Tech Stack:** Python 3.11+, Pydantic v2, FastAPI, Typer, local git subprocess, Codex/Claude CLI adapters, JSON persistence, React/Vite Workbench, Playwright browser dogfood, pytest, ruff.
+**Tech Stack:** Python 3.11+, Pydantic v2, FastAPI, Typer, local git subprocess, Codex/Claude CLI adapters, JSON persistence, React/Vite Workbench, Playwright browser dogfood. Focused tests may be used as development guardrails, but they are not dogfood acceptance.
 
 ---
 
@@ -16,7 +16,7 @@ This plan was reviewed by independent subagents from product, backend architectu
 
 1. **Do not do one giant rewrite.** Implement a compatibility-first control-plane spine first, then the browser journey and semantic agent upgrades.
 2. **Do not trust UI projection as execution proof.** Real closure requires a `RuntimeExecutionProof` correlated to the current dispatch and emitted by the real Codex/Claude adapter.
-3. **Do not let blocked evidence count as closure.** Blocked-path acceptance is useful, but the final status is `blocked-verified`, not `real-closed`, unless real Codex/Claude execution changes or explicitly validates the target project.
+3. **Do not let blocked evidence count as closure.** Blocked-path rehearsal is useful for proving recovery UX, but the final status is `blocked-verified`, not `real-closed`, unless real Codex/Claude execution changes or explicitly validates the target project.
 
 ## Why This Plan Exists
 
@@ -50,7 +50,9 @@ Four read-only subagents reviewed the current Ariadne state before this plan:
 
 - Product acceptance is browser-only through the Workbench.
 - API/CLI/manual JSON can be used for setup, tests, and debugging only.
-- `fake-codex` is valid only for CI-safe fallback and blocked-path tests.
+- `pytest`, `ruff`, backend doctor, product doctor, and evidence packet commands are engineering guardrails only. They cannot prove product closure.
+- Do not spend cycles on broad test sweeps until the browser dogfood path has a concrete blocker or result. Efficiency comes from forcing the real user path, not from expanding test matrices.
+- `fake-codex` is valid only for CI-safe fallback and blocked-path implementation checks. It is never dogfood evidence.
 - A blocked real runtime is acceptable only if Workbench clearly shows the blocker and recovery action.
 - Real success cannot be claimed unless Codex or Claude actually runs and Workbench records non-fake execution evidence.
 - The target project is `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`, not the Ariadne repo.
@@ -67,9 +69,8 @@ Do this in two phases.
 2. Add persistent runtime authorization as the single Workbench execution authority.
 3. Add assignment dispatch binding and daemon claim scoping.
 4. Add projection-first result evidence bundle and runtime execution proof.
-5. Add backend doctor checks for orphaned versions, dispatches, bundles, and authorizations.
 
-Do not start Phase B until Phase A passes migration, legacy CLI, race, and fake/dry-run rejection tests.
+Do not start Phase B because a test matrix looks green. Start Phase B when the current browser issue can be bound to one target project, one handoff, one dispatch, one runtime authorization, and one visible blocked or real execution evidence record.
 
 **Phase B: Browser product journey and dogfood closure**
 
@@ -89,7 +90,6 @@ Do not try to solve general autonomous project building first. First make Mini C
 - Modify: `docs/dogfood/2026-06-18-mini-code-agent-web-dogfood.md`
 - Modify: `docs/ops/V1_RELEASE_CHECKLIST.md`
 - Modify: `docs/development_report.md`
-- Add: `tests/test_dogfood_closure_invariants.py`
 
 **Invariants:**
 
@@ -109,15 +109,13 @@ Do not try to solve general autonomous project building first. First make Mini C
 **Steps:**
 
 - [ ] Add docs language that blocked-path acceptance cannot be described as closure.
-- [ ] Add tests that reject fake/dry-run/static/snapshot evidence as dogfood success.
-- [ ] Add tests that reject target-version pass when evidence comes from Ariadne release evidence instead of `ProjectVersion` and `ResultEvidenceBundle`.
-- [ ] Add tests that require real closure to include runtime proof and target repo progress evidence.
+- [ ] Update release/dogfood language so broad tests, doctor commands, docs, API checks, and fixture runs cannot be described as closure.
+- [ ] Put the single acceptance rule in bold: browser-only source -> issue -> assignment -> real Codex/Claude target repo execution -> evidence -> version progress.
+- [ ] If a future engineer wants tests for these invariants, they may add focused tests as implementation guardrails, but they must not list those tests as dogfood acceptance.
 
-**Verification:**
+**Acceptance:**
 
-```bash
-python3.11 -m pytest tests/test_dogfood_closure_invariants.py -q
-```
+Read the updated docs and confirm they no longer allow test/doctor/API/demo evidence to stand in for the browser dogfood chain.
 
 ---
 
@@ -132,8 +130,6 @@ python3.11 -m pytest tests/test_dogfood_closure_invariants.py -q
 - Modify: `ariadne_ltb/application/dtos.py`
 - Modify: `ariadne_ltb/application/mappers.py`
 - Modify: `ariadne_ltb/application/workbench_projection.py`
-- Add: `tests/test_project_version_state_machine.py`
-- Add: `tests/test_issue_set_version_binding.py`
 
 **Model additions:**
 
@@ -183,14 +179,13 @@ python3.11 -m pytest tests/test_dogfood_closure_invariants.py -q
 - [ ] Update `IssueFactoryService.apply` so applied issue deltas create or update a `VersionIssueSet` when `target_project_id` and `goal_id` exist.
 - [ ] Backfill current `ProjectVersion` projection from existing `ProjectGoal.target_project_id`, `ProjectResource` metadata, and applied `BacklogPreview` when explicit version records are missing.
 - [ ] Old stores with no `.ariadne/project_versions/`, `.ariadne/version_issue_sets/`, or `.ariadne/version_progress/` must load without mutation and return empty arrays rather than 500.
-- [ ] Test that a backlog preview applied for Mini Code Agent creates a version issue set with `MCA-*` tickets and source evidence refs.
-- [ ] Test that version progress transitions from `draft` to `issues_ready` after issue-set apply.
+- [ ] Use the browser dogfood path to confirm that applying a backlog preview creates a version issue set with `MCA-*` tickets and source evidence refs.
+- [ ] Use the Workbench version panel to confirm that version progress transitions from `draft` to `issues_ready` after issue-set apply.
 
-**Verification:**
+**Development guardrail, not acceptance:**
 
 ```bash
-python3.11 -m pytest tests/test_project_version_state_machine.py tests/test_issue_set_version_binding.py -q
-ruff check ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/application/dtos.py ariadne_ltb/application/mappers.py
+Run only focused checks for files changed in this task if implementation breaks.
 ```
 
 ---
@@ -209,9 +204,6 @@ ruff check ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/application/
 - Modify: `ariadne_ltb/interfaces/http/routes.py`
 - Modify: `ariadne_ltb/application/dtos.py`
 - Modify: `ariadne_ltb/application/mappers.py`
-- Add: `tests/test_runtime_authorization.py`
-- Modify: `tests/test_real_backend_gates.py`
-- Modify: `tests/test_frontend_api_contract_static.py`
 
 **Model additions:**
 
@@ -247,13 +239,12 @@ ruff check ariadne_ltb/models.py ariadne_ltb/storage.py ariadne_ltb/application/
 - [ ] Add HTTP routes and DTOs.
 - [ ] Make `DaemonControlService.run_now` load authorization instead of relying only on in-memory daemon handle confirmation.
 - [ ] Keep CLI `--confirm-execution` behavior intact for non-Workbench use.
-- [ ] Add tests for active, blocked, expired, revoked, and scoped-to-current-assignment authorization.
+- [ ] From the Workbench, show active, blocked, expired, revoked, and scoped-to-current-assignment authorization states in the runtime panel.
 
-**Verification:**
+**Development guardrail, not acceptance:**
 
 ```bash
-python3.11 -m pytest tests/test_runtime_authorization.py tests/test_real_backend_gates.py tests/test_frontend_api_contract_static.py -q
-ruff check ariadne_ltb/application/runtime_authorization.py ariadne_ltb/application/daemon_control.py ariadne_ltb/interfaces/http/routes.py
+Run only focused checks for runtime authorization files if implementation breaks.
 ```
 
 ---
@@ -271,10 +262,6 @@ ruff check ariadne_ltb/application/runtime_authorization.py ariadne_ltb/applicat
 - Modify: `ariadne_ltb/application/assign_ticket.py`
 - Modify: `ariadne_ltb/daemon.py`
 - Modify: `ariadne_ltb/orchestrator.py`
-- Add: `tests/test_assignment_dispatch_binding.py`
-- Add: `tests/test_daemon_dispatch_claim_scope.py`
-- Modify: `tests/test_assignment_claim_state_machine.py`
-- Modify: `tests/test_workbench_daemon_feedback.py`
 
 **Model additions:**
 
@@ -317,14 +304,13 @@ ruff check ariadne_ltb/application/runtime_authorization.py ariadne_ltb/applicat
 - [ ] Keep old `daemon run-once` behavior for CLI, but make it skip assignments whose dispatch scope does not match current runtime/backend.
 - [ ] Pass frozen dispatch/handoff information into `TicketRunOrchestrator.run_ticket`.
 - [ ] In dispatch path, orchestrator must not recompute critical execution inputs; it must verify and use the frozen route decision, permission profile, target repo, handoff packet, and runtime authorization.
-- [ ] Add tests that old queued assignments are not claimed when the user runs a new current assignment.
-- [ ] Add race tests for two daemons trying to claim the same dispatch.
+- [ ] In the Workbench, prove old queued assignments are not claimed when the user runs a new current assignment.
+- [ ] If claim races appear during implementation, add focused checks, but do not treat them as dogfood acceptance.
 
-**Verification:**
+**Development guardrail, not acceptance:**
 
 ```bash
-python3.11 -m pytest tests/test_assignment_dispatch_binding.py tests/test_daemon_dispatch_claim_scope.py tests/test_assignment_claim_state_machine.py tests/test_workbench_daemon_feedback.py -q
-ruff check ariadne_ltb/application/run_assignment.py ariadne_ltb/daemon.py ariadne_ltb/orchestrator.py
+Run only focused checks for dispatch/daemon files if implementation breaks.
 ```
 
 ---
@@ -342,11 +328,6 @@ ruff check ariadne_ltb/application/run_assignment.py ariadne_ltb/daemon.py ariad
 - Modify: `ariadne_ltb/application/workbench_projection.py`
 - Modify: `ariadne_ltb/application/dtos.py`
 - Modify: `ariadne_ltb/application/mappers.py`
-- Add: `tests/test_result_evidence_bundle.py`
-- Add: `tests/test_runtime_execution_proof.py`
-- Add: `tests/test_target_repo_progress_invariant.py`
-- Modify: `tests/test_evidence_projection.py`
-- Modify: `tests/test_release_evidence.py`
 
 **Model additions:**
 
@@ -415,13 +396,12 @@ ruff check ariadne_ltb/application/run_assignment.py ariadne_ltb/daemon.py ariad
 - [ ] Expand `/api/evidence` and `/api/workbench` ticket evidence so the frontend can show exact real/fake/dry-run status.
 - [ ] Make release/product evidence reject `fake-codex`, dry-run, and static snapshot as production success.
 - [ ] Add target repo progress invariant: real success requires target repo git head/diff evidence, runtime-run tests, and acceptance review coverage.
-- [ ] Add tests for passed execution, blocked real backend, failed tests, and evidence projection.
+- [ ] In the Workbench, show passed execution, blocked real backend, failed target tests, and evidence projection as distinct user-visible states.
 
-**Verification:**
+**Development guardrail, not acceptance:**
 
 ```bash
-python3.11 -m pytest tests/test_result_evidence_bundle.py tests/test_runtime_execution_proof.py tests/test_target_repo_progress_invariant.py tests/test_evidence_projection.py tests/test_release_evidence.py -q
-ruff check ariadne_ltb/application/evidence_projection.py ariadne_ltb/application/workbench_projection.py
+Run only focused checks for evidence/proof files if implementation breaks.
 ```
 
 ---
@@ -441,8 +421,6 @@ ruff check ariadne_ltb/application/evidence_projection.py ariadne_ltb/applicatio
 - Modify: `frontend/ariadne-workbench/src/features/run-assignment/model.ts`
 - Modify: `frontend/ariadne-workbench/src/features/run-assignment/api.ts`
 - Modify: `frontend/ariadne-workbench/src/styles.css`
-- Modify: `tests/test_project_inputs_static.py`
-- Modify: `tests/test_frontend_control_plane_e2e.py`
 
 **UI changes:**
 
@@ -495,13 +473,12 @@ ruff check ariadne_ltb/application/evidence_projection.py ariadne_ltb/applicatio
 - [ ] Add source state timeline and make "where did it go?" visible after save/analyze.
 - [ ] Add version progress panel.
 - [ ] Add stale preview recovery UI for `stale_preview` instead of exposing raw JSON or generic server error.
-- [ ] Update static frontend tests to enforce that product pages do not present fake/static/demo as default product success.
+- [ ] Remove or demote any static frontend acceptance language that presents fake/static/demo as default product success.
 
-**Verification:**
+**Acceptance:**
 
 ```bash
-python3.11 -m pytest tests/test_project_inputs_static.py tests/test_frontend_control_plane_e2e.py tests/test_frontend_api_contract_static.py -q
-cd frontend/ariadne-workbench && npm run build
+Open the Workbench in a real browser and complete Project -> Sources -> Tasks -> Ready to Run -> Evidence -> Version without CLI/API shortcuts.
 ```
 
 ---
@@ -520,9 +497,6 @@ cd frontend/ariadne-workbench && npm run build
 - Modify: `ariadne_ltb/llm_agents.py`
 - Modify: `ariadne_ltb/review.py`
 - Modify: `ariadne_ltb/memory.py`
-- Add: `tests/test_llm_source_understanding.py`
-- Add: `tests/test_issue_factory_non_template.py`
-- Add: `tests/test_semantic_review_acceptance.py`
 
 **Steps:**
 
@@ -533,15 +507,15 @@ cd frontend/ariadne-workbench && npm run build
 - [ ] For production dogfood, each generated issue must show whether DeepSeek was called, the model/provider evidence id, and fallback reason if no live LLM was used.
 - [ ] Deterministic fallback may pass blocked-path tests, but cannot be counted as semantic production source understanding.
 - [ ] Replace mini-code-agent hidden hardcoding with an explicit artifact-derived issue compiler output. If deterministic templates are used, label them `compiler_strategy=deterministic_template` and show sources that triggered each issue.
-- [ ] Add a non-mini-code fixture to prove Issue Factory is not only dogfood-shaped.
+- [ ] Prove in the browser that generated mini-code-agent issues show source evidence, compiler strategy, and whether DeepSeek was used or a fallback was used.
+- [ ] Separately verify with one non-mini-code source/goal only if the mini-code-agent path still smells hardcoded.
 - [ ] Make reviewer produce acceptance criteria coverage: each criterion gets `met | failed | unproven`, evidence refs, and reviewer reason.
 - [ ] Make memory write version-level lessons and next issue implications.
 
-**Verification:**
+**Acceptance:**
 
 ```bash
-python3.11 -m pytest tests/test_llm_source_understanding.py tests/test_issue_factory_non_template.py tests/test_semantic_review_acceptance.py tests/test_source_analysis.py tests/test_issue_factory_compiler.py -q
-ruff check ariadne_ltb/application/source_analysis.py ariadne_ltb/application/issue_compiler.py ariadne_ltb/review.py ariadne_ltb/memory.py
+Workbench shows source understanding strategy, evidence-backed issue reasons, handoff quality, acceptance criteria coverage, and version-level memory for the dogfood path.
 ```
 
 ---
@@ -555,7 +529,6 @@ ruff check ariadne_ltb/application/source_analysis.py ariadne_ltb/application/is
 - Modify: `frontend/ariadne-workbench/package.json`
 - Add: `frontend/ariadne-workbench/e2e/mini-code-agent-dogfood.spec.ts`
 - Add: `scripts/verify_dogfood_browser.sh`
-- Modify: `scripts/verify_v1.sh`
 - Add: `docs/dogfood/results/2026-06-20-project-version-dogfood-result.md`
 
 **Harness rules:**
@@ -596,18 +569,19 @@ ruff check ariadne_ltb/application/source_analysis.py ariadne_ltb/application/is
 16. Assert Workbench shows handoff, execution result, diff or blocked reason, tests, review, memory, and next issues.
 17. Assert Version panel shows target version status.
 
-**Verification:**
+**Blocked-path rehearsal, not closure:**
 
 ```bash
-cd frontend/ariadne-workbench && npm run build
 scripts/verify_dogfood_browser.sh --blocked-ok
 ```
 
-When Codex or Claude is locally available and env gates are configured:
+**Real dogfood acceptance:**
 
 ```bash
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
 ```
+
+If this real command cannot run because Codex/Claude, login, quota, or gates are unavailable, record the result as `BLOCKED_NOT_CLOSED`.
 
 ---
 
@@ -655,16 +629,9 @@ python3.11 -m pytest
   - next tickets path;
   - browser evidence URL/screenshot if available.
 
-**Verification:**
+**Engineering guardrails after dogfood, not before:**
 
 ```bash
-python3.11 -m pytest
-ruff check .
-cd frontend/ariadne-workbench && npm run build
-python3.11 -m ariadne_ltb.cli backend doctor
-python3.11 -m ariadne_ltb.cli doctor store
-python3.11 -m ariadne_ltb.cli doctor product --require-acceptance-ready
-python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready
 python3.11 -m ariadne_ltb.cli doctor project-version \
   --target-project /Users/martinlos/code/ariadne-dogfood/mini-code-agent \
   --target-version v0.1 \
@@ -683,11 +650,10 @@ python3.11 -m ariadne_ltb.cli doctor project-version \
 3. Task 2: RuntimeAuthorization as single Workbench execution authority.
 4. Task 3: AssignmentDispatch claim and stale repo handling.
 5. Task 4: Projection-first ResultEvidenceBundle and RuntimeExecutionProof.
-6. Focused backend tests: migration, legacy CLI compatibility, race tests, fake/dry-run rejection.
-7. Task 5: Workbench journey.
-8. Task 7: Browser dogfood harness.
-9. Task 6: Agent capability boundaries and issue compiler honesty.
-10. Task 8: Real dogfood evidence.
+6. Task 5: Workbench journey.
+7. Task 7: Browser dogfood harness.
+8. Task 6: Agent capability boundaries and issue compiler honesty.
+9. Task 8: Real dogfood evidence.
 
 Do not start semantic agent upgrades before Tasks 1-4 are stable. Stronger agents without a reliable version/run spine will produce more impressive but still non-closed output.
 
@@ -705,7 +671,7 @@ This plan is complete only when:
 - Workbench shows diff/tests/review/memory/next issues.
 - Version panel shows target version progress.
 - Browser-only dogfood evidence is recorded.
-- Tests, ruff, frontend build, and product doctor are run.
+- Engineering checks may be run after the dogfood path exposes a concrete implementation problem, but they are not closure evidence.
 - If real Codex/Claude path is unavailable, final status is `blocked-verified`, not `real-closed`.
 - `real-closed` requires target project git head/diff evidence plus target project verification command output.
 - Product doctor must reject stale Ariadne release evidence as a substitute for ProjectVersion evidence.
