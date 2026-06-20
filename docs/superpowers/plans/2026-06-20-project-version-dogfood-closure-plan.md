@@ -20,9 +20,50 @@
 - Focused checks are allowed only as local guardrails after the browser path exposes a concrete implementation blocker.
 - `fake-codex` is allowed only for offline implementation checks. It is never dogfood evidence.
 - `--blocked-ok` style flows are blocker rehearsals only. They are never closure.
+- A blocker is not an endpoint unless it is an external-state blocker the agent cannot resolve: missing login, quota exhaustion, unavailable Codex/Claude CLI, missing human authorization, or locked target repo access.
+- Product/code blockers must be fixed immediately in the same execution loop. Recording them is not enough.
+- Do not stop because a harness exists, `--blocked-ok` succeeded, docs were updated, a focused check passed, a branch was pushed, or a blocker was recorded.
 - Real closure requires `CodexBackend` or `ClaudeCodeBackend` to run from Workbench-triggered execution against `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`.
-- If real Codex/Claude cannot run because login, quota, command, env gate, or configuration is missing, record `BLOCKED_NOT_CLOSED`.
+- If real Codex/Claude cannot run because login, quota, command, env gate, or configuration is missing, record `BLOCKED_NOT_CLOSED` and treat the task as paused, not done.
 - The target project must move toward runnable v0.1. Ariadne improving itself is not sufficient.
+
+## Execution Loop: Blocker Repair Is Mandatory
+
+This plan is not a checklist where each phase can be closed independently. It is a dogfood loop.
+
+Every implementation pass must follow this loop:
+
+```text
+run browser dogfood
+  -> if real closure succeeds: record real_closed and stop
+  -> if blocker appears:
+       classify blocker
+       if product/code/harness blocker:
+         fix it immediately
+         rerun the same browser dogfood
+       if external-state blocker:
+         record BLOCKED_NOT_CLOSED with exact evidence
+         stop only because user action or external state is required
+```
+
+Blocker classification:
+
+- **Harness blocker:** selector, timing, browser dependency, stale test assumption. Fix the harness and rerun.
+- **Product UX blocker:** user cannot recover, raw JSON, ambiguous state, missing next action, wrong page state. Fix the product and rerun.
+- **Backend/state blocker:** stale preview, wrong assignment, old daemon claim, missing dispatch binding, evidence projection gap. Fix backend/state and rerun.
+- **Agent quality blocker:** source understanding, issue factory, handoff, review, or memory content is too weak for Codex/Claude. Fix the responsible agent layer and rerun.
+- **External-state blocker:** Codex/Claude login, quota, command unavailable, OS permission, target repo unavailable, explicit human authorization. Record `BLOCKED_NOT_CLOSED`; do not claim closure.
+
+Forbidden stopping points:
+
+- `scripts/verify_dogfood_browser.sh --blocked-ok` exits 0.
+- The harness reaches evidence inspection but not real execution.
+- The branch is committed or pushed.
+- The stale preview or any single blocker is fixed.
+- Unit tests, build, lint, doctor, or API checks pass.
+- A result document says `BLOCKED_NOT_CLOSED`.
+
+The next step after any non-external blocker is always: fix, rerun, advance.
 
 ## Single Acceptance Chain
 
@@ -219,7 +260,9 @@ Fields:
 
 **Acceptance for this phase:**
 
-The phase is complete when the harness produces a concrete browser-path blocker or a real execution result. A blocker is acceptable here. A passing unit test is irrelevant.
+Phase 1 is complete only as a tooling milestone when the harness can produce a concrete browser-path blocker or a real execution result. It is not a valid endpoint for the overall task.
+
+After Phase 1 produces a blocker, the worker must immediately enter the **Execution Loop: Blocker Repair Is Mandatory** above. A blocker is acceptable only as input to the next fix, not as final delivery. A passing unit test is irrelevant.
 
 **Do not do:**
 
@@ -418,7 +461,8 @@ After running `MCA-001`, Workbench shows either a real Codex/Claude execution pr
 - [ ] Start Workbench.
 - [ ] Use browser only for product actions.
 - [ ] Run the dogfood path against `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`.
-- [ ] If a blocker occurs, record `BLOCKED_NOT_CLOSED` with browser step, visible state, dispatch id, authorization id, and blocker reason.
+- [ ] If a blocker occurs, classify it. Product/code/harness/backend/agent blockers must be fixed and rerun immediately. Only external-state blockers may be recorded as `BLOCKED_NOT_CLOSED`.
+- [ ] If an external-state blocker occurs, record `BLOCKED_NOT_CLOSED` with browser step, visible state, dispatch id, authorization id, and blocker reason.
 - [ ] If real Codex/Claude runs, record:
   - source ids and artifacts;
   - issue keys;
@@ -460,17 +504,21 @@ This command can prove blocked UX, but it cannot close the task.
 ## Rollout Order
 
 1. Phase 1: build failing browser dogfood harness.
-2. Phase 2: fix project/source/issue browser path until the harness reaches `MCA-001`.
-3. Phase 3: add dispatch and runtime authorization until the harness reaches daemon claim.
-4. Phase 4: add execution proof and evidence until the harness shows real or blocked execution.
-5. Phase 5: improve source/issue/handoff/review/memory quality only where the harness exposes weakness.
-6. Phase 6: run real dogfood and record closure evidence.
+2. Run the harness. Classify the first blocker.
+3. Fix the blocker in the owning layer and rerun the same browser dogfood.
+4. Repeat fix/rerun until the harness reaches `MCA-001`, then daemon claim, then real execution, then evidence projection.
+5. Improve source/issue/handoff/review/memory quality only where the harness exposes weakness.
+6. Run real dogfood and record closure evidence.
+
+Do not advance by calendar phase if the previous browser blocker remains unresolved. Phase labels are for ownership, not stopping points.
 
 ## Definition of Done
 
-This plan is complete only when the browser dogfood path records `real-closed` or `BLOCKED_NOT_CLOSED`.
+This plan is complete only when the browser dogfood path records `real_closed`.
 
-`real-closed` requires:
+`BLOCKED_NOT_CLOSED` is not done. It is a paused state allowed only for external-state blockers that require user action or external system recovery.
+
+`real_closed` requires:
 
 - browser-created target project, goal, sources, issue set, assignment, dispatch, and runtime authorization;
 - real Codex or Claude backend;
@@ -488,6 +536,8 @@ This plan is complete only when the browser dogfood path records `real-closed` o
 - browser evidence of where the path blocked;
 - exact blocker reason;
 - no claim that dogfood is closed.
+- explanation of why the blocker is external-state and cannot be fixed by the agent;
+- exact user or external action needed before the next run.
 
 ## Explicit Non-Success Conditions
 
