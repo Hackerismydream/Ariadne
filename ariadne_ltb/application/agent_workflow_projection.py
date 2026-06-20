@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from ariadne_ltb.application.dtos import AgentActivityDTO, AgentWorkflowStepDTO, ArtifactRefDTO
 from ariadne_ltb.models import Artifact, BuildTicket, RuntimeEvent
 from ariadne_ltb.storage import AriadneStore
@@ -20,15 +22,33 @@ STEP_DEFS = [
 
 def build_agent_workflows(store: AriadneStore) -> tuple[list[AgentWorkflowStepDTO], list[AgentActivityDTO]]:
     tickets = store.list_tickets()
-    activities = _activities(store)
+    ticket_key_by_id = {ticket.id: ticket.key for ticket in tickets}
+    activities = _activities(store, ticket_key_by_id)
+    artifacts_by_ticket = _artifacts_by_ticket(store)
+    source_artifacts = store.list_source_artifacts()
+    backlog_previews = store.list_backlog_previews()
+    assignments_by_ticket = {
+        ticket_id: assignments[-1]
+        for ticket_id, assignments in _assignments_by_ticket(store).items()
+        if assignments
+    }
+    handoffs_by_ticket = _handoffs_by_ticket(store)
     steps: list[AgentWorkflowStepDTO] = []
     for ticket in tickets:
         ticket_activities = [item for item in activities if item.ticket_id == ticket.id]
+        assignment = assignments_by_ticket.get(ticket.id)
+        ticket_artifacts = artifacts_by_ticket.get(ticket.id, [])
         for index, (step_kind, agent_name, agent_role, next_agent) in enumerate(STEP_DEFS, start=1):
-            output_refs = _output_refs(store, ticket, step_kind)
+            output_refs = _output_refs(
+                ticket,
+                step_kind,
+                source_artifacts,
+                backlog_previews,
+                ticket_artifacts,
+                handoffs_by_ticket.get(ticket.id, []),
+            )
             latest = _latest_activity(ticket_activities, step_kind)
             status = _step_status(output_refs, latest)
-            assignment = store.find_latest_assignment_for_ticket(ticket.id)
             steps.append(
                 AgentWorkflowStepDTO(
                     id=f"{ticket.id}:{step_kind}",
@@ -53,7 +73,36 @@ def build_agent_workflows(store: AriadneStore) -> tuple[list[AgentWorkflowStepDT
     return steps, activities
 
 
-def _activities(store: AriadneStore) -> list[AgentActivityDTO]:
+def _artifacts_by_ticket(store: AriadneStore) -> dict[str, list[Artifact]]:
+    result: dict[str, list[Artifact]] = defaultdict(list)
+    for path in sorted(store.artifact_index_dir.glob("*.json")):
+        try:
+            artifact = store.load_artifact(path.stem)
+        except (OSError, ValueError):
+            continue
+        result[artifact.ticket_id].append(artifact)
+    return result
+
+
+def _assignments_by_ticket(store: AriadneStore):
+    result = defaultdict(list)
+    for assignment in store.list_assignments():
+        result[assignment.ticket_id].append(assignment)
+    return result
+
+
+def _handoffs_by_ticket(store: AriadneStore):
+    result = defaultdict(list)
+    for path in sorted(store.handoffs_dir.glob("*.json")):
+        try:
+            handoff = store.load_handoff(path.stem)
+        except (OSError, ValueError):
+            continue
+        result[handoff.ticket_id].append(handoff)
+    return result
+
+
+def _activities(store: AriadneStore, ticket_key_by_id: dict[str, str]) -> list[AgentActivityDTO]:
     result: list[AgentActivityDTO] = []
     for event in store.list_runtime_events():
         result.append(_event_activity(event))
@@ -62,7 +111,7 @@ def _activities(store: AriadneStore) -> list[AgentActivityDTO]:
             AgentActivityDTO(
                 id=f"run:{run.id}",
                 ticket_id=run.ticket_id,
-                ticket_key=_ticket_key(store, run.ticket_id),
+                ticket_key=ticket_key_by_id.get(run.ticket_id),
                 assignment_id=str(run.metadata.get("assignment_id") or "") or None,
                 run_id=run.id,
                 agent_name=run.agent_name,
@@ -90,13 +139,6 @@ def _event_activity(event: RuntimeEvent) -> AgentActivityDTO:
         timestamp=event.timestamp,
         ref_id=event.payload_ref,
     )
-
-
-def _ticket_key(store: AriadneStore, ticket_id: str) -> str | None:
-    try:
-        return store.load_ticket(ticket_id).key
-    except FileNotFoundError:
-        return None
 
 
 def _latest_activity(activities: list[AgentActivityDTO], step_kind: str) -> AgentActivityDTO | None:
@@ -129,10 +171,17 @@ def _input_refs(store: AriadneStore, ticket: BuildTicket, step_kind: str) -> lis
     return []
 
 
-def _output_refs(store: AriadneStore, ticket: BuildTicket, step_kind: str) -> list[ArtifactRefDTO]:
+def _output_refs(
+    ticket: BuildTicket,
+    step_kind: str,
+    source_artifacts,
+    backlog_previews,
+    ticket_artifacts: list[Artifact],
+    handoffs,
+) -> list[ArtifactRefDTO]:
     refs: list[ArtifactRefDTO] = []
     if step_kind in {"knowledge", "repo_understanding"}:
-        for artifact in store.list_source_artifacts():
+        for artifact in source_artifacts:
             if artifact.id in ticket.metadata.get("source_artifact_ids", []):
                 refs.append(
                     ArtifactRefDTO(
@@ -144,7 +193,7 @@ def _output_refs(store: AriadneStore, ticket: BuildTicket, step_kind: str) -> li
                     )
                 )
     elif step_kind == "issue_factory":
-        for preview in store.list_backlog_previews():
+        for preview in backlog_previews:
             if any(op.ticket_id == ticket.id for op in preview.operations):
                 refs.append(ArtifactRefDTO(id=preview.id, artifact_type="backlog_preview", summary=preview.rationale, created_at=preview.created_at))
     elif step_kind == "build_lead":
@@ -152,7 +201,7 @@ def _output_refs(store: AriadneStore, ticket: BuildTicket, step_kind: str) -> li
         if route_id:
             refs.append(ArtifactRefDTO(id=str(route_id), artifact_type="route_decision", summary="Route decision"))
     elif step_kind == "handoff":
-        refs.extend(_artifact_refs(store.list_handoffs_for_ticket(ticket.id), "handoff"))
+        refs.extend(_artifact_refs(handoffs, "handoff"))
     elif step_kind == "implementer":
         execution_id = ticket.metadata.get("execution_result_id")
         if execution_id:
@@ -166,7 +215,7 @@ def _output_refs(store: AriadneStore, ticket: BuildTicket, step_kind: str) -> li
             if ticket.metadata.get(key):
                 refs.append(ArtifactRefDTO(id=f"{ticket.id}:{key}", artifact_type=key, path=str(ticket.metadata[key]), summary=key))
     if not refs:
-        refs.extend(_ticket_artifact_refs(store, ticket, step_kind))
+        refs.extend(_ticket_artifact_refs(ticket_artifacts, step_kind))
     return refs
 
 
@@ -184,9 +233,9 @@ def _artifact_refs(items: object, artifact_type: str) -> list[ArtifactRefDTO]:
     return refs
 
 
-def _ticket_artifact_refs(store: AriadneStore, ticket: BuildTicket, step_kind: str) -> list[ArtifactRefDTO]:
+def _ticket_artifact_refs(artifacts: list[Artifact], step_kind: str) -> list[ArtifactRefDTO]:
     result: list[ArtifactRefDTO] = []
-    for artifact in store.list_artifacts_for_ticket(ticket.id):
+    for artifact in artifacts:
         if _artifact_matches_step(artifact, step_kind):
             result.append(
                 ArtifactRefDTO(
