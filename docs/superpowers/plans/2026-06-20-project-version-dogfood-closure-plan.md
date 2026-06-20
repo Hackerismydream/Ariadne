@@ -196,16 +196,16 @@ Fields:
 
 **Steps:**
 
-- [ ] Add a browser harness that opens the real Workbench, not a fixture page.
-- [ ] The harness may start the Workbench server, but after startup it may mutate Ariadne only through browser UI events.
-- [ ] Forbid `page.request`, direct API calls, CLI state mutation, and manual `.ariadne` edits inside the product path.
-- [ ] Make the harness record the first blocker with:
+- [x] Add a browser harness that opens the real Workbench, not a fixture page.
+- [x] The harness may start the Workbench server, but after startup it may mutate Ariadne only through browser UI events.
+- [x] Forbid `page.request`, direct API calls, CLI state mutation, and manual `.ariadne` edits inside the product path.
+- [x] Make the harness record the first blocker with:
   - browser step name;
   - visible page state;
   - screenshot or trace path;
   - server log path;
   - whether Workbench is connected or in snapshot/offline mode.
-- [ ] Use the harness to walk:
+- [x] Use the harness to walk:
   - create/select target project;
   - set goal and version;
   - add three sources;

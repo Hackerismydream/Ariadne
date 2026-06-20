@@ -23,6 +23,7 @@ import { watchRunEventsButtonLabel } from "./features/watch-run-events/ui";
 import { useTicketAgentControl } from "./features/agent-control/model";
 import { inferSourceInput, sourceAnalysisLabel, type SourceFormType } from "./features/project-inputs/model";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
+import { AriadneApiError } from "./shared/api/errors";
 import {
   analyzeSource,
   applyIssueFactoryPreview,
@@ -223,6 +224,16 @@ function resultLabel(ok: boolean, blocked = false) {
   if (ok) return "通过";
   if (blocked) return "已阻塞";
   return "失败";
+}
+
+function apiErrorCode(error: unknown) {
+  if (!(error instanceof AriadneApiError)) return undefined;
+  try {
+    const body = JSON.parse(error.body) as { error?: { code?: string } };
+    return body.error?.code;
+  } catch {
+    return undefined;
+  }
 }
 
 export function App() {
@@ -663,6 +674,7 @@ function KnowledgePage({
   const [selectedChangeId, setSelectedChangeId] = useState(data.backlogChanges[0]?.id ?? "");
   const selectedChange = data.backlogChanges.find((change) => change.id === selectedChangeId) ?? data.backlogChanges[0];
   const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
+  const [currentPreviewId, setCurrentPreviewId] = useState(data.backlogMutationPreview.previewId ?? "");
 
   useEffect(() => {
     if (!data.sources.some((source) => source.id === selectedSourceId)) {
@@ -672,6 +684,9 @@ function KnowledgePage({
       setSelectedChangeId(data.backlogChanges[0]?.id ?? "");
     }
     setPreviewStatus(data.backlogMutationPreview.status);
+    if (data.backlogMutationPreview.previewId) {
+      setCurrentPreviewId(data.backlogMutationPreview.previewId);
+    }
   }, [data.sources, data.backlogChanges, data.backlogMutationPreview.status, selectedSourceId, selectedChangeId]);
 
   function selectSource(sourceId: string) {
@@ -749,6 +764,7 @@ function KnowledgePage({
         target_project_id: activeProject?.id ?? null,
       });
       await onRefresh();
+      setCurrentPreviewId(result.preview.id);
       setSelectedChangeId(result.preview.operations[0]?.id ?? "");
       setActionStatus(`已生成 ${result.preview.operations.length} 个任务建议。请查看任务建议后应用。`);
     } catch (error) {
@@ -769,17 +785,37 @@ function KnowledgePage({
   }
 
   async function applyPreview() {
-    if (!activePreviewId) {
+    const previewId = currentPreviewId || activePreviewId;
+    if (!previewId) {
       setActionStatus("还没有可应用的任务预览。");
       return;
     }
     setActionStatus("正在应用任务变更...");
     try {
-      await applyIssueFactoryPreview(activePreviewId);
+      await applyIssueFactoryPreview(previewId);
       await onRefresh();
       setPreviewStatus("applied");
       setActionStatus("任务建议已应用，新的项目 issue 已写入任务列表。");
     } catch (error) {
+      if (apiErrorCode(error) === "stale_preview" && activeGoal) {
+        setPreviewStatus("preview_only");
+        setActionStatus("任务列表已变化，正在重新生成最新任务建议...");
+        try {
+          const result = await createIssueFactoryPreview({
+            goal_id: activeGoal.id,
+            source_ids: analyzedSourceIds,
+            target_project_id: activeProject?.id ?? null,
+          });
+          await onRefresh();
+          setCurrentPreviewId(result.preview.id);
+          setSelectedChangeId(result.preview.operations[0]?.id ?? "");
+          setActionStatus("任务列表已变化，已刷新最新任务建议。请再次点击“应用任务变更”。");
+          return;
+        } catch (refreshError) {
+          setActionStatus(refreshError instanceof Error ? refreshError.message : "任务建议刷新失败。");
+          return;
+        }
+      }
       setActionStatus(error instanceof Error ? error.message : "应用任务变更失败。");
     }
   }
@@ -989,6 +1025,7 @@ function TasksPage({
 }) {
   const [selectedChangeId, setSelectedChangeId] = useState(data.backlogChanges[0]?.id ?? "");
   const [previewStatus, setPreviewStatus] = useState(data.backlogMutationPreview.status);
+  const [currentPreviewId, setCurrentPreviewId] = useState(data.backlogMutationPreview.previewId ?? "");
   const [actionStatus, setActionStatus] = useState("");
   const selectedChange = data.backlogChanges.find((change) => change.id === selectedChangeId)
     ?? data.backlogChanges[0];
@@ -1010,6 +1047,9 @@ function TasksPage({
       setSelectedChangeId(data.backlogChanges[0]?.id ?? "");
     }
     setPreviewStatus(data.backlogMutationPreview.status);
+    if (data.backlogMutationPreview.previewId) {
+      setCurrentPreviewId(data.backlogMutationPreview.previewId);
+    }
   }, [data.backlogChanges, data.backlogMutationPreview.status, selectedChangeId]);
 
   async function generateIssues() {
@@ -1029,6 +1069,7 @@ function TasksPage({
         target_project_id: activeProject?.id ?? null,
       });
       await onRefresh();
+      setCurrentPreviewId(result.preview.id);
       setSelectedChangeId(result.preview.operations[0]?.id ?? "");
       setActionStatus(`已生成 ${result.preview.operations.length} 个任务建议。`);
     } catch (error) {
@@ -1037,17 +1078,37 @@ function TasksPage({
   }
 
   async function applyPreview() {
-    if (!activePreviewId) {
+    const previewId = currentPreviewId || activePreviewId;
+    if (!previewId) {
       setActionStatus("还没有可应用的任务预览。");
       return;
     }
     setActionStatus("正在应用任务变更...");
     try {
-      await applyIssueFactoryPreview(activePreviewId);
+      await applyIssueFactoryPreview(previewId);
       await onRefresh();
       setPreviewStatus("applied");
       setActionStatus("任务变更已应用，新的项目 issue 已写入任务列表。");
     } catch (error) {
+      if (apiErrorCode(error) === "stale_preview" && activeGoal) {
+        setPreviewStatus("preview_only");
+        setActionStatus("任务列表已变化，正在重新生成最新任务建议...");
+        try {
+          const result = await createIssueFactoryPreview({
+            goal_id: activeGoal.id,
+            source_ids: analyzedSourceIds,
+            target_project_id: activeProject?.id ?? null,
+          });
+          await onRefresh();
+          setCurrentPreviewId(result.preview.id);
+          setSelectedChangeId(result.preview.operations[0]?.id ?? "");
+          setActionStatus("任务列表已变化，已刷新最新任务建议。请再次点击“应用任务变更”。");
+          return;
+        } catch (refreshError) {
+          setActionStatus(refreshError instanceof Error ? refreshError.message : "任务建议刷新失败。");
+          return;
+        }
+      }
       setActionStatus(error instanceof Error ? error.message : "应用任务变更失败。");
     }
   }
