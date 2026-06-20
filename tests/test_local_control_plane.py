@@ -200,6 +200,33 @@ def test_daemon_start_replaces_loop_when_allowed_assignment_changes(tmp_path: Pa
     assert stopped.status == "stopped"
 
 
+def test_daemon_start_replaces_unscoped_loop_with_assignment_scoped_loop(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    service = DaemonControlService(store)
+
+    first = service.start(
+        DaemonStartInput(
+            runtime_id="workbench-local",
+            interval_seconds=10,
+            max_iterations=100,
+            allowed_assignment_id=None,
+        )
+    )
+    second = service.start(
+        DaemonStartInput(
+            runtime_id="workbench-local",
+            interval_seconds=10,
+            max_iterations=100,
+            allowed_assignment_id="assignment_current",
+        )
+    )
+    stopped = service.stop()
+
+    assert first.status == "started"
+    assert second.status == "started"
+    assert stopped.status == "stopped"
+
+
 def test_http_product_assign_rejects_fallback_backend(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)

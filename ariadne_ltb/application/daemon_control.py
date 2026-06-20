@@ -111,13 +111,14 @@ class DaemonControlService:
         existing = _DAEMON_HANDLES.get(self.store.root)
         heartbeat = self._latest_heartbeat(payload.runtime_id)
         heartbeat_stale = is_stale_heartbeat(heartbeat) if heartbeat else False
-        assignment_changed = bool(
-            payload.allowed_assignment_id
-            and existing
-            and existing.allowed_assignment_id
-            and existing.allowed_assignment_id != payload.allowed_assignment_id
+        daemon_scope_changed = bool(
+            existing
+            and (
+                existing.runtime_id != payload.runtime_id
+                or existing.allowed_assignment_id != payload.allowed_assignment_id
+            )
         )
-        if existing and existing.alive and not heartbeat_stale and not assignment_changed:
+        if existing and existing.alive and not heartbeat_stale and not daemon_scope_changed:
             return DaemonControlOutput(
                 daemon=self.status(existing.runtime_id),
                 did_work=False,
