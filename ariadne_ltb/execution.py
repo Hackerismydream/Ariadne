@@ -353,6 +353,15 @@ class CodexBackend(ShellBackend):
     def execute(self, context: ExecutionContext) -> ExecutionResult:
         repo = Path(context.target_repo_path)
         started = utc_now()
+        if context.handoff_file and _is_persisted_handoff_packet_path(Path(context.handoff_file)) and not Path(context.handoff_file).exists():
+            return _blocked_result(
+                context,
+                self.name,
+                f"Persisted handoff file is missing: {context.handoff_file}",
+                started,
+                repo,
+                failure_reason=FailureReason.INVALID_RESOURCE,
+            )
         handoff_file = self.write_handoff_file(context)
         prepared = context.model_copy(update={"handoff_file": str(handoff_file)})
         command = self.render_command(prepared)
@@ -491,6 +500,8 @@ class CodexBackend(ShellBackend):
 
     def write_handoff_file(self, context: ExecutionContext) -> Path:
         handoff_file = Path(context.handoff_file) if context.handoff_file else self._handoff_file_path(context)
+        if context.handoff_file and _is_persisted_handoff_packet_path(handoff_file) and handoff_file.exists():
+            return handoff_file
         handoff_file.parent.mkdir(parents=True, exist_ok=True)
         handoff_file.write_text(context.handoff_prompt, encoding="utf-8")
         return handoff_file
@@ -533,6 +544,10 @@ def backend_for_name(name: str) -> ExecutionBackend:
         msg = f"unknown backend: {name}"
         raise ValueError(msg)
     return backends[name]
+
+
+def _is_persisted_handoff_packet_path(path: Path) -> bool:
+    return path.parent.name == "packets" and path.parent.parent.name == "handoffs"
 
 
 def _timeout_stream(value: str | bytes | None) -> str:

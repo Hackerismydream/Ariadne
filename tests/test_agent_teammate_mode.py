@@ -6,10 +6,6 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
-from ariadne_ltb.application.assignment_readiness import (
-    ensure_assignment_target_resource,
-    prepare_assignment_for_claim,
-)
 from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.journal import build_resume_plan
@@ -23,6 +19,7 @@ from ariadne_ltb.models import (
 )
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
+from tests.helpers import ready_assignment_with_handoff
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,7 +86,19 @@ def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) ->
 
     result = runner.invoke(
         app,
-        ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "fake-codex"],
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "build-team",
+            "--backend",
+            "fake-codex",
+            "--runtime-profile",
+            "deterministic",
+        ],
     )
 
     ticket = store.resolve_ticket("ARI-003")
@@ -98,10 +107,10 @@ def test_ticket_assign_creates_assignment_comment_and_journal(tmp_path: Path) ->
     events = store.list_runtime_events_for_ticket(ticket.id)
 
     assert result.exit_code == 0, result.output
-    assert "Assignment created" in result.output
+    assert "Build Team routed" in result.output
     assert assignment is not None
     assert assignment.status is AssignmentStatus.READY_TO_CLAIM
-    assert ticket.metadata["assigned_agent_id"] == "fake-codex"
+    assert assignment.backend_name == "fake-codex"
     assert ticket.metadata["latest_assignment_id"] == assignment.id
     assert assignment.metadata["target_project_id"] == "ariadne-local"
     assert assignment.metadata["handoff_packet_id"]
@@ -124,7 +133,11 @@ def test_ticket_assign_records_runtime_strategy_overrides(tmp_path: Path) -> Non
             "assign",
             "ARI-003",
             "--to",
+            "build-team",
+            "--backend",
             "fake-codex",
+            "--runtime-profile",
+            "deterministic",
             "--planner",
             "llm",
             "--agent-runtime",
@@ -337,7 +350,19 @@ def test_daemon_run_once_claims_assignment_and_writes_teammate_trace(tmp_path: P
     runner = CliRunner()
     assign = runner.invoke(
         app,
-        ["--root", str(tmp_path), "ticket", "assign", "ARI-003", "--to", "fake-codex"],
+        [
+            "--root",
+            str(tmp_path),
+            "ticket",
+            "assign",
+            "ARI-003",
+            "--to",
+            "build-team",
+            "--backend",
+            "fake-codex",
+            "--runtime-profile",
+            "deterministic",
+        ],
     )
     assert assign.exit_code == 0, assign.output
 
@@ -382,7 +407,11 @@ def test_daemon_run_once_can_run_assignment_with_llm_agent_runtime(
             "assign",
             "ARI-003",
             "--to",
+            "build-team",
+            "--backend",
             "fake-codex",
+            "--runtime-profile",
+            "deterministic",
             "--agent-runtime",
             "llm",
         ],
@@ -429,7 +458,11 @@ def test_daemon_llm_agent_runtime_blocks_assignment_when_key_missing(
             "assign",
             "ARI-003",
             "--to",
+            "build-team",
+            "--backend",
             "fake-codex",
+            "--runtime-profile",
+            "deterministic",
             "--agent-runtime",
             "llm",
         ],
@@ -462,23 +495,7 @@ def test_daemon_blocks_assignment_when_backend_blocks(tmp_path: Path) -> None:
     ticket = ingest_sources(store, [SOURCE_FIXTURES[0]])[0]
     assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
     target_repo = ensure_demo_target_project(tmp_path)
-    ensure_assignment_target_resource(
-        store,
-        str(target_repo),
-        target_project_id="ariadne-local",
-        label=f"{ticket.key} target repository",
-    )
-    assignment = assignment.model_copy(
-        deep=True,
-        update={
-            "metadata": assignment.metadata
-            | {
-                "target_project_id": "ariadne-local",
-                "target_repo_path": str(target_repo),
-            }
-        },
-    )
-    assignment = prepare_assignment_for_claim(store, assignment, ticket)
+    assignment = ready_assignment_with_handoff(store, ticket, assignment, target_repo)
     result = LocalDaemonWorker(store).run_once()
 
     comments = store.list_comments(ticket.id)

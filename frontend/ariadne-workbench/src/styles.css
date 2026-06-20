@@ -299,7 +299,7 @@ button:disabled {
 .goal-hero,
 .panel,
 .table-card,
-.inbox-list button {
+.inbox-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--card);
@@ -438,6 +438,30 @@ button:disabled {
 .goal-form,
 .source-input-panel {
   margin-top: 12px;
+}
+
+.source-cta-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.source-cta-sequence li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.source-cta-sequence li.active,
+.source-cta-sequence li.done {
+  border-color: var(--brand);
+  color: var(--foreground);
+  background: var(--muted);
 }
 
 .tasks-page {
@@ -880,6 +904,26 @@ button:disabled {
   display: grid;
   gap: 18px;
   padding: 16px;
+}
+
+.source-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.timeline-row time {
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }
 
 .understanding-panel header {
@@ -1356,6 +1400,32 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.next-actions {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--muted);
+}
+
+.next-actions.warning {
+  border-color: color-mix(in oklch, var(--warning), var(--border) 45%);
+}
+
+.next-actions strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.next-actions ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .commit-sha {
   display: block;
   margin-top: 10px;
@@ -1653,11 +1723,21 @@ button:disabled {
   padding: 20px;
 }
 
-.inbox-list button {
+.inbox-card {
   position: relative;
   display: grid;
   gap: 6px;
   padding: 14px 16px;
+  text-align: left;
+}
+
+.inbox-main {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   text-align: left;
 }
 
@@ -1696,13 +1776,33 @@ button:disabled {
   color: var(--muted-foreground);
 }
 
-.inbox-list em {
+.inbox-card em {
   position: absolute;
   right: 16px;
   top: 14px;
   color: var(--muted-foreground);
   font-style: normal;
   font-size: 12px;
+}
+
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inbox-actions button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.inbox-actions button:disabled {
+  opacity: 0.45;
 }
 
 .inbox-kind {

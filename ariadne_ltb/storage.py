@@ -34,6 +34,7 @@ from ariadne_ltb.models import (
     FeishuWriteResult,
     FeishuWritePlan,
     GitHubIntegrationResult,
+    HandoffPacket,
     InboxItem,
     InboxStatus,
     MemoryRecord,
@@ -45,9 +46,11 @@ from ariadne_ltb.models import (
     RunMessage,
     RunMessageType,
     RuntimeCapability,
+    RouteDecision,
     SourceArtifact,
     SourceDocument,
     SourceEvidence,
+    SourceFetchRecord,
     TicketAssignment,
     TicketStatus,
     TicketComment,
@@ -77,10 +80,14 @@ class AriadneStore:
         self.daemon_heartbeats_dir = self.daemon_dir / "heartbeats"
         self.daemon_state_path = self.daemon_dir / "state.json"
         self.handoffs_dir = self.base / "handoffs"
+        self.handoff_packets_dir = self.handoffs_dir / "packets"
+        self.handoff_packet_index_dir = self.handoff_packets_dir / "index"
+        self.routes_dir = self.base / "routes"
         self.tickets_dir = self.base / "tickets"
         self.runs_dir = self.base / "runs"
         self.build_packets_dir = self.base / "build_packets"
         self.sources_dir = self.base / "sources"
+        self.source_fetch_records_path = self.sources_dir / "fetch_records.jsonl"
         self.skill_materializations_dir = self.base / "skills"
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
@@ -121,6 +128,9 @@ class AriadneStore:
             self.daemon_dir,
             self.daemon_heartbeats_dir,
             self.handoffs_dir,
+            self.handoff_packets_dir,
+            self.handoff_packet_index_dir,
+            self.routes_dir,
             self.tickets_dir,
             self.runs_dir,
             self.sources_dir,
@@ -812,6 +822,30 @@ class AriadneStore:
             for path in sorted(self.sources_dir.glob("*.json"))
         ]
 
+    def save_source_fetch_record(self, record: SourceFetchRecord) -> SourceFetchRecord:
+        self.source_fetch_records_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.source_fetch_records_path.open("a", encoding="utf-8") as handle:
+            handle.write(record.model_dump_json(exclude_none=False) + "\n")
+        return record
+
+    def list_source_fetch_records(self, source_document_id: str | None = None) -> list[SourceFetchRecord]:
+        if not self.source_fetch_records_path.exists():
+            return []
+        records = [
+            SourceFetchRecord.model_validate_json(line)
+            for line in self.source_fetch_records_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if source_document_id is not None:
+            records = [record for record in records if record.source_document_id == source_document_id]
+        return records
+
+    def latest_source_fetch_record(self, source_document_id: str) -> SourceFetchRecord | None:
+        records = self.list_source_fetch_records(source_document_id)
+        if not records:
+            return None
+        return sorted(records, key=lambda record: record.created_at)[-1]
+
     def source_artifact_payload_path(self, artifact_id: str) -> Path:
         return self.source_artifacts_dir / f"{artifact_id}.payload.json"
 
@@ -917,6 +951,28 @@ class AriadneStore:
             self._read_model(path, BuildContextManifest)
             for path in sorted(self.build_contexts_dir.glob("*.json"))
         ]
+
+    def save_route_decision(self, route_decision: RouteDecision, artifact_id: str | None = None) -> RouteDecision:
+        payload = route_decision.model_dump(mode="json", exclude_none=False)
+        payload["route_artifact_id"] = artifact_id
+        path = self.routes_dir / f"{route_decision.id}.json"
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return route_decision
+
+    def load_route_decision(self, route_decision_id: str) -> RouteDecision:
+        data = json.loads((self.routes_dir / f"{route_decision_id}.json").read_text(encoding="utf-8"))
+        data.pop("route_artifact_id", None)
+        return RouteDecision.model_validate(data)
+
+    def save_handoff_packet(self, packet: HandoffPacket, markdown: str) -> HandoffPacket:
+        markdown_path = self.handoff_packets_dir / f"{packet.ticket_key}-{packet.id}.md"
+        markdown_path.write_text(markdown, encoding="utf-8")
+        persisted = packet.model_copy(update={"markdown_path": str(markdown_path)})
+        self._write_model(self.handoff_packet_index_dir / f"{persisted.id}.json", persisted)
+        return persisted
+
+    def load_handoff_packet(self, packet_id: str) -> HandoffPacket:
+        return self._read_model(self.handoff_packet_index_dir / f"{packet_id}.json", HandoffPacket)
 
     def save_execution_result(self, result: ExecutionResult) -> None:
         self._write_model(self.execution_results_dir / f"{result.id}.json", result)

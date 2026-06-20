@@ -547,6 +547,73 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
     assert "requirement failed: production acceptance is action_required, expected ready" in required.output
 
 
+def test_doctor_product_tolerates_legacy_unknown_artifact_types(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+    monkeypatch.delenv("FEISHU_ENABLE_WRITE", raising=False)
+
+    store = AriadneStore(tmp_path)
+    _seed_release_packet(tmp_path)
+    (store.artifact_index_dir / "artifact_legacy_landing_gate.json").write_text(
+        json.dumps(
+            {
+                "id": "artifact_legacy_landing_gate",
+                "ticket_id": "ticket_ari_003",
+                "agent_run_id": "legacy",
+                "artifact_type": "landing_gate",
+                "path": str(tmp_path / ".ariadne" / "legacy_landing_gate.json"),
+                "summary": "Legacy landing gate artifact.",
+                "created_at": "2026-06-17T00:00:00Z",
+                "metadata": {},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def fake_which(command: str) -> str | None:
+        return {
+            "codex": "/usr/local/bin/codex",
+            "claude": "/usr/local/bin/claude",
+            "lark-cli": "/usr/local/bin/lark-cli",
+            "gh": "/usr/local/bin/gh",
+        }.get(command)
+
+    def fake_github_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        if command[:3] == ["gh", "auth", "status"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["git", "config", "--get"] and command[-1] == "remote.origin.url":
+            return subprocess.CompletedProcess(command, 0, "https://github.com/owner/repo.git\n", "")
+        if command[:3] == ["git", "config", "--get"]:
+            return subprocess.CompletedProcess(command, 1, "", "")
+        if command[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(command, 0, "codex/product\n", "")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            return subprocess.CompletedProcess(command, 0, "abc123\trefs/heads/codex/product\n", "")
+        return subprocess.CompletedProcess(command, 1, "", f"unexpected command: {command}")
+
+    monkeypatch.setattr("ariadne_ltb.runtime.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.doctor.shutil.which", fake_which)
+    monkeypatch.setattr("ariadne_ltb.github_integration.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "ariadne_ltb.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    monkeypatch.setattr("ariadne_ltb.github_integration.subprocess.run", fake_github_run)
+
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "doctor", "product"])
+
+    assert result.exit_code == 0, result.output
+    assert "Product readiness:" in result.output
+    snapshot = json.loads(
+        (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").read_text(encoding="utf-8")
+    )
+    assert snapshot["local_success_evidence"]["landing_gate"] is None
+
+
 def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "do-not-leak-deepseek")
     monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")

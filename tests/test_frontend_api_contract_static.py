@@ -108,6 +108,7 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     api_types = API_TYPES.read_text(encoding="utf-8")
     app = APP.read_text(encoding="utf-8")
     data = DATA.read_text(encoding="utf-8")
+    control = AGENT_CONTROL.read_text(encoding="utf-8")
 
     assert "export type ApiDaemonStatus" in api_types
     assert "export type ApiTicketEvidenceBundle" in api_types
@@ -118,6 +119,9 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     assert "分配后由运行时自动 claim" in app
     assert "adaptTicketEvidence" in data
     assert "daemonStatus:" in data
+    assert "assignmentEventsNeedWorkbenchRefresh" in control
+    assert 'event.source === "artifact"' in control
+    assert "void onRefresh(ticket.key)" in control
 
 
 def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
@@ -133,6 +137,30 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert "confirm_execution" not in run_block
     assert "授权 Codex/Claude" in app
     assert "external_execution_authorized: true" in control
+
+
+def test_frontend_inbox_exposes_repair_rerun_acknowledge_resolve_actions() -> None:
+    api_client = (ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    api_types = API_TYPES.read_text(encoding="utf-8")
+    app = APP.read_text(encoding="utf-8")
+
+    for endpoint in [
+        "/api/inbox/${encodeURIComponent(itemId)}/repair",
+        "/api/inbox/${encodeURIComponent(itemId)}/rerun",
+        "/api/inbox/${encodeURIComponent(itemId)}/acknowledge",
+        "/api/inbox/${encodeURIComponent(itemId)}/resolve",
+    ]:
+        assert endpoint in api_client
+    assert "export type InboxActionRequest" in api_types
+    assert "export type InboxActionResponse" in api_types
+    for label in ["创建修复任务", "重跑", "确认已读", "标记已解决"]:
+        assert label in app
+    assert "createInboxRepairTicket(item.id)" in app
+    assert "rerunInboxAssignment(item.id)" in app
+    assert "acknowledgeInboxItem(item.id)" in app
+    assert "resolveInboxItem(item.id)" in app
 
 
 def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
@@ -188,3 +216,38 @@ def test_frontend_adapter_consumes_typed_source_outputs() -> None:
     assert "apiData.source_evidence.map" in text
     assert "analysisStatus: source.analysis_status" in text
     assert "artifactIds: source.artifact_ids" in text
+
+
+def test_sources_page_does_not_label_unfetched_github_as_analyzed() -> None:
+    app = APP.read_text(encoding="utf-8")
+    model = (ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "project-inputs" / "model.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert "已添加，尚未抓取仓库" in app
+    assert "处理过程" in app
+    assert "source.fetch." in app
+    assert "抓取中" in model
+    assert "已阻塞" in model
+
+
+def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:
+    app = APP.read_text(encoding="utf-8")
+    types = (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
+        encoding="utf-8"
+    )
+    sync_script = (ROOT / "frontend" / "ariadne-workbench" / "scripts" / "sync-local-data.mjs").read_text(
+        encoding="utf-8"
+    )
+
+    for field in [
+        "readinessNextActions",
+        "readinessBlockers",
+        "evidencePacketStale",
+        "evidencePacketStaleReasons",
+    ]:
+        assert field in types
+        assert field in sync_script
+    assert "下一步" in app
+    assert "证据包需要重新生成" in app
+    assert "证据过期" in app

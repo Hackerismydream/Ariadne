@@ -54,9 +54,12 @@ export function inferSourceInput(rawValue: string): InferredSourceInput {
 export function sourceAnalysisLabel(status: string) {
   return {
     pending: "已添加",
+    resolving: "解析中",
+    fetching: "抓取中",
     analyzing: "分析中",
     analyzed: "分析完成",
-    blocked: "分析失败",
+    partial: "部分完成",
+    blocked: "已阻塞",
     failed: "分析失败",
   }[status] ?? status;
 }

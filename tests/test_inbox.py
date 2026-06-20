@@ -9,6 +9,8 @@ from ariadne_ltb.cli import app
 from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.github_integration import sync_ticket_with_github
 from ariadne_ltb.inbox import refresh_inbox
+from ariadne_ltb.application.errors import ConflictError
+from ariadne_ltb.application.inbox_actions import InboxActionService
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import AssignmentStatus, ExecutionResult, FailureReason, FeishuWritePlan, InboxStatus, TicketStatus
 from ariadne_ltb.storage import AriadneStore
@@ -388,3 +390,87 @@ def test_inbox_create_ticket_preview_only_does_not_mutate_tickets(tmp_path: Path
     assert payload["ticket_id"] is None
     assert len(store.list_tickets()) == 1
     assert store.load_inbox_item(item.id).status is InboxStatus.OPEN
+
+
+def test_inbox_action_service_creates_repair_once_with_ticket_comment_and_event(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+    item = refresh_inbox(store)[0]
+    service = InboxActionService(store)
+
+    first = service.create_repair_ticket(item.id)
+    second = service.create_repair_ticket(item.id)
+
+    assert first.ticket is not None
+    assert second.ticket is not None
+    assert first.ticket.id == second.ticket.id
+    assert second.already_exists is True
+    assert len([ticket for ticket in store.list_tickets() if ticket.metadata.get("generated_from_inbox_item_id") == item.id]) == 1
+    comments = store.list_comments(ticket.id)
+    assert any("Repair ticket created" in comment.body for comment in comments)
+    assert any("Repair ticket already exists" in comment.body for comment in comments)
+    updated_ticket = store.load_ticket(ticket.id)
+    assert any(event.event_type == "inbox_repair_ticket_created" for event in updated_ticket.event_log)
+    assert any(event.event_type == "inbox_repair_ticket_reused" for event in updated_ticket.event_log)
+
+
+def test_inbox_action_service_acknowledge_and_resolve_write_source_ticket_history(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+    item = refresh_inbox(store)[0]
+    service = InboxActionService(store)
+
+    acknowledged = service.acknowledge(item.id, "seen by operator")
+    resolved = service.resolve(item.id, "fixed by config change")
+
+    assert acknowledged.inbox_item.status is InboxStatus.ACKNOWLEDGED
+    assert resolved.inbox_item.status is InboxStatus.RESOLVED
+    comments = store.list_comments(ticket.id)
+    assert any("Inbox item acknowledged" in comment.body for comment in comments)
+    assert any("Inbox item resolved" in comment.body for comment in comments)
+    event_types = {event.event_type for event in store.load_ticket(ticket.id).event_log}
+    assert {"inbox_acknowledged", "inbox_resolved"}.issubset(event_types)
+
+
+def test_inbox_action_service_reruns_linked_assignment_when_retry_is_safe(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_blocked("runtime offline", FailureReason.RUNTIME_OFFLINE))
+    item = refresh_inbox(store)[0]
+
+    result = InboxActionService(store).rerun_linked_assignment(item.id, "operator rerun")
+
+    assert result.assignment is not None
+    assert result.assignment.parent_assignment_id == assignment.id
+    assert result.assignment.retry_reason == "operator rerun"
+    assert store.load_inbox_item(item.id).status is InboxStatus.ACKNOWLEDGED
+    comments = store.list_comments(ticket.id)
+    assert any("Retry assignment created from inbox item" in comment.body for comment in comments)
+
+
+def test_inbox_action_service_blocks_unsafe_rerun_with_typed_failure_reason(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_blocked("scope violation", FailureReason.SCOPE_VIOLATION))
+    item = refresh_inbox(store)[0]
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "inbox", "show", item.id, "--output", "json"],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["failure_reason"] == "scope_violation"
+
+    try:
+        InboxActionService(store).rerun_linked_assignment(item.id)
+    except ConflictError as exc:
+        assert "not safe to rerun" in str(exc)
+    else:
+        raise AssertionError("unsafe rerun should fail")

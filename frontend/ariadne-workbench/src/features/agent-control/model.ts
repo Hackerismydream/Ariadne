@@ -41,6 +41,16 @@ function mergeEvents(current: AssignmentEvent[], incoming: AssignmentEvent[]) {
   return [...byCursor.values()].sort((a, b) => a.cursor.localeCompare(b.cursor));
 }
 
+export function assignmentEventsNeedWorkbenchRefresh(events: AssignmentEvent[]) {
+  return events.some((event) =>
+    event.source === "artifact"
+    || event.event_type === "result"
+    || event.event_type === "blocked"
+    || event.event_type === "failed"
+    || event.event_type === "done",
+  );
+}
+
 export function useTicketAgentControl({
   dataSource,
   latestAssignment,
@@ -182,6 +192,9 @@ export function useTicketAgentControl({
       const response = await getAssignmentEvents(assignmentId);
       setAssignmentEvents(response.events);
       setActionMessage(`已读取 ${response.events.length} 条 assignment events，并开始实时观察。`);
+      if (assignmentEventsNeedWorkbenchRefresh(response.events)) {
+        await onRefresh(ticket.key);
+      }
       const cursor = response.events.at(-1)?.cursor;
       socketRef.current = openAssignmentEventsSocket(
         assignmentId,
@@ -189,6 +202,9 @@ export function useTicketAgentControl({
           if (batch.events.length) {
             setAssignmentEvents((current) => mergeEvents(current, batch.events));
             setActionMessage(`实时事件：${batch.events.at(-1)?.stage ?? "progress"} / ${batch.events.at(-1)?.event_type ?? "updated"}`);
+            if (assignmentEventsNeedWorkbenchRefresh(batch.events)) {
+              void onRefresh(ticket.key);
+            }
           }
         },
         () => setActionMessage("WebSocket 连接失败；保留最近一次 HTTP 事件快照。"),

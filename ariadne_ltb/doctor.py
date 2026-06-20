@@ -8,6 +8,9 @@ import subprocess
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from pydantic import ValidationError
+
+from ariadne_ltb.git_utils import git_head
 from ariadne_ltb.github_integration import github_transport_snapshot, infer_github_repo
 from ariadne_ltb.llm import (
     DEFAULT_DEEPSEEK_BASE_URL,
@@ -203,6 +206,12 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             "Release evidence packet references integration doctor, Feishu, and GitHub evidence.",
             "Run `ari evidence packet` with the current release evidence implementation.",
         ),
+        _product_check(
+            "release_evidence_freshness",
+            release_packet["exists"] and not release_packet["stale"],
+            "Release evidence packet matches the current local store snapshot.",
+            "Run `ari evidence packet` to regenerate stale release evidence.",
+        ),
         _product_landing_gate_check(
             local_evidence["landing_gate"],
             "At least one completed ticket has a ready landing gate report.",
@@ -213,11 +222,8 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
             real_evidence["llm_agents"],
             "DeepSeek-backed Build Lead, Knowledge, Memory, planner, reviewer, and backlog agents have successful evidence.",
             (
-                "Run `ari llm run-agent build_lead --ticket <ticket> --confirm-external`, "
-                "`ari llm run-agent knowledge --ticket <ticket> --confirm-external`, "
-                "`ari llm run-agent memory --ticket <ticket> --confirm-external`, "
-                "`ari ticket plan --planner llm`, `ari review run --reviewer llm`, "
-                "and `ari ticket run --backlog-planner llm`, then regenerate release evidence."
+                "Run `ari llm proof --ticket <ticket> --confirm-external` after a ticket execution, "
+                "then regenerate release evidence."
             ),
         ),
         _product_evidence_check(
@@ -318,8 +324,14 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
         "local_failure_evidence": {
             "landing_gate": local_evidence["landing_gate"]["latest_failure"],
         },
-        "next_actions": [
-            check["next_action"]
+        "next_actions": _readiness_next_actions(checks),
+        "blocking_checks": [
+            {
+                "name": check["name"],
+                "status": check["status"],
+                "summary": check["summary"],
+                "next_action": check["next_action"],
+            }
             for check in checks
             if check["status"] in {"blocked", "action_required"}
         ],
@@ -468,6 +480,20 @@ def _run_gate_status(checks: list[dict[str, Any]]) -> str:
     return "ready"
 
 
+def _readiness_next_actions(checks: list[dict[str, Any]]) -> list[str]:
+    actions: list[str] = []
+    seen: set[str] = set()
+    for check in checks:
+        if check.get("status") not in {"blocked", "action_required"}:
+            continue
+        action = str(check.get("next_action") or "").strip()
+        if not action or action in seen:
+            continue
+        seen.add(action)
+        actions.append(action)
+    return actions
+
+
 def _product_evidence_check(
     name: str,
     evidence: dict[str, Any],
@@ -561,6 +587,8 @@ def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
             "path": str(path),
             "has_integration_refs": False,
             "evidence_refs": {},
+            "stale": True,
+            "stale_reasons": ["release evidence packet is missing"],
         }
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -571,6 +599,8 @@ def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
             "has_integration_refs": False,
             "evidence_refs": {},
             "error": "release evidence packet is not valid JSON",
+            "stale": True,
+            "stale_reasons": ["release evidence packet is not valid JSON"],
         }
     refs = data.get("evidence_refs") if isinstance(data.get("evidence_refs"), dict) else {}
     required_refs = {
@@ -580,13 +610,56 @@ def _release_packet_snapshot(store: AriadneStore) -> dict[str, Any]:
         "github_integrations",
         "landing_gate_reports",
     }
+    stale_reasons = _release_packet_stale_reasons(store, data, refs, required_refs)
     return {
         "exists": True,
         "path": str(path),
         "id": data.get("id"),
         "has_integration_refs": required_refs.issubset(set(refs)),
         "evidence_refs": {key: refs.get(key) for key in sorted(required_refs)},
+        "stale": bool(stale_reasons),
+        "stale_reasons": stale_reasons,
     }
+
+
+def _release_packet_stale_reasons(
+    store: AriadneStore,
+    data: dict[str, Any],
+    refs: dict[str, Any],
+    required_refs: set[str],
+) -> list[str]:
+    reasons: list[str] = []
+    current_head = git_head(store.root)
+    if current_head and data.get("git_head") and data.get("git_head") != current_head:
+        reasons.append("git head changed since the release evidence packet was generated")
+    expected_counts = {
+        "ticket_count": len(store.list_tickets()),
+        "assignment_count": len(store.list_assignments()),
+        "execution_result_count": len(store.list_execution_results()),
+        "review_report_count": len(store.list_review_reports()),
+        "memory_record_count": len(store.list_memory_records()),
+        "inbox_item_count": len(store.list_inbox_items()),
+    }
+    for field, expected in expected_counts.items():
+        value = data.get(field)
+        if isinstance(value, int) and value != expected:
+            reasons.append(f"{field} changed from {value} to {expected}")
+    missing_refs = sorted(required_refs - set(refs))
+    if missing_refs:
+        reasons.append(f"missing evidence refs: {', '.join(missing_refs)}")
+    missing_ref_paths = [
+        key
+        for key in sorted(required_refs & set(refs))
+        if isinstance(refs.get(key), str) and not _release_ref_path(store, refs[key]).exists()
+    ]
+    if missing_ref_paths:
+        reasons.append(f"evidence ref paths missing: {', '.join(missing_ref_paths)}")
+    return reasons
+
+
+def _release_ref_path(store: AriadneStore, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else store.root / path
 
 
 def _real_evidence_snapshot(store: AriadneStore) -> dict[str, Any]:
@@ -799,10 +872,13 @@ def _llm_backlog_evidence(store: AriadneStore) -> dict[str, Any]:
 
 
 def _list_artifacts(store: AriadneStore) -> list[Any]:
-    return [
-        store.load_artifact(path.stem)
-        for path in sorted(store.artifact_index_dir.glob("*.json"))
-    ]
+    artifacts: list[Any] = []
+    for path in sorted(store.artifact_index_dir.glob("*.json")):
+        try:
+            artifacts.append(store.load_artifact(path.stem))
+        except ValidationError:
+            continue
+    return artifacts
 
 
 def _llm_agent_summary(operation_successes: dict[str, Any]) -> dict[str, Any]:

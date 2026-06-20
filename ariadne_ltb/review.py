@@ -156,7 +156,7 @@ def review_execution_with_llm(
     llm_client = client or DeepSeekClient()
     try:
         data = llm_client.complete_json(_llm_review_prompt(ticket, packet, execution, baseline), "ariadne_review_report")
-        payload = LLMReviewPayload.model_validate(data)
+        payload = LLMReviewPayload.model_validate(_llm_review_payload_fields(data))
     except (LLMClientError, ValidationError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         return _blocked_llm_review(ticket, execution, baseline, redact_secrets(f"LLM reviewer failed: {exc}"))
 
@@ -215,6 +215,18 @@ def _blocked_llm_review(
         required_fixes=_dedupe([*baseline.required_fixes, reason]),
         failure_reasons=list(dict.fromkeys([*baseline.failure_reasons, FailureReason.COMMAND_UNAVAILABLE])),
     )
+
+
+def _llm_review_payload_fields(data: dict[str, Any]) -> dict[str, Any]:
+    allowed = {
+        "verdict",
+        "passed_checks",
+        "failed_checks",
+        "warnings",
+        "required_fixes",
+        "failure_reasons",
+    }
+    return {key: value for key, value in data.items() if key in allowed}
 
 
 def _conservative_verdict(

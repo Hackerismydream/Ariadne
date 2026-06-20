@@ -58,11 +58,68 @@ def test_issue_factory_compiles_mca_issue_set_from_typed_artifacts(tmp_path: Pat
     for operation in preview.operations:
         assert operation.metadata["target_project_id"] == project_id
         assert operation.metadata["build_context_id"]
+        assert operation.metadata["context_fingerprint"]
+        assert operation.metadata["source_document_ids"]
         assert operation.metadata["source_artifact_ids"]
         assert operation.metadata["evidence_refs"]
         assert operation.metadata["affected_modules"]
         assert operation.metadata["acceptance_criteria"]
         assert operation.metadata["goal_reason"]
+
+
+def test_issue_factory_rejects_unanalyzed_source(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "target"
+    target.mkdir()
+    project_id = "target_1"
+    store.save_project_resources(
+        [
+            store_project_resource(
+                project_id=project_id,
+                path=target,
+                label="Target",
+                issue_prefix="TGT",
+                test_command="python3.11 -m pytest",
+            )
+        ]
+    )
+    goal = ProjectGoalService(store).create(
+        CreateProjectGoalInput(
+            title="Build Target",
+            north_star="Use sources to create issues.",
+            target_project_id=project_id,
+        )
+    )
+    source_id = _create_source(
+        store,
+        SourceType.NOTE,
+        "unread source",
+        "memory://unread",
+        "This source has not been analyzed.",
+        {"source_role": "requirement_source"},
+    )
+
+    with pytest.raises(ValueError, match="source_not_ready_for_issue_factory"):
+        IssueFactoryService(store).preview(
+            IssueFactoryPreviewInput(goal_id=goal.id, source_ids=[source_id], target_project_id=project_id)
+        )
+
+
+def test_issue_factory_uses_artifact_payload_not_only_title(tmp_path: Path) -> None:
+    store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
+    source = store.load_source_document(source_ids[1])
+    artifacts = store.list_source_artifacts(source.id)
+    payload = store.load_source_artifact_payload(artifacts[0].id)
+    assert "tests" in payload
+
+    preview = IssueFactoryService(store).preview(
+        IssueFactoryPreviewInput(goal_id=goal_id, source_ids=source_ids, target_project_id=project_id)
+    )
+
+    loop_issue = next(operation for operation in preview.operations if "agent loop" in (operation.title or "").lower())
+    assert artifacts[0].id in loop_issue.metadata["source_artifact_ids"]
+    assert loop_issue.metadata["evidence_refs"]
+    assert "mini_code_agent/agent_loop.py" in loop_issue.metadata["affected_modules"]
 
 
 def test_issue_delta_validator_rejects_generic_code_task() -> None:
@@ -81,13 +138,17 @@ def test_issue_delta_validator_rejects_generic_code_task() -> None:
         metadata={
             "target_project_id": "project_1",
             "build_context_id": "ctx_1",
-            "evidence_refs": [],
-            "affected_modules": [],
-            "acceptance_criteria": [],
+            "context_fingerprint": "fingerprint_1",
+            "source_document_ids": ["source_1"],
+            "source_artifact_ids": ["artifact_1"],
+            "evidence_refs": ["evidence_1"],
+            "affected_modules": ["src/"],
+            "acceptance_criteria": ["It works."],
+            "goal_reason": "Too generic",
         },
     )
 
-    with pytest.raises(ValueError, match="missing_evidence_refs"):
+    with pytest.raises(ValueError, match="generic_issue_title"):
         validate_issue_delta_operation(operation)
 
 
@@ -194,6 +255,7 @@ def store_project_resource(*, project_id: str, path: Path, label: str, issue_pre
     resource = ProjectResource.local_directory(project_id, path, label=label)
     return resource.model_copy(
         update={
+            "id": project_id,
             "resource_ref": resource.resource_ref
             | {
                 "issue_prefix": issue_prefix,

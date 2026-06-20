@@ -10,6 +10,8 @@ from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.dtos import AssignTicketInput
+from ariadne_ltb.inbox import refresh_inbox
+from ariadne_ltb.models import FailureReason, InboxStatus
 from ariadne_ltb.target_project import ensure_demo_target_project
 
 
@@ -72,3 +74,44 @@ def test_workbench_static_dist_can_be_served(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "Ariadne Workbench" in response.text
+
+
+def test_control_plane_inbox_actions_create_repair_acknowledge_resolve(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_failed("provider config invalid", FailureReason.PROVIDER_CONFIG_INVALID))
+    item = refresh_inbox(store)[0]
+    client = TestClient(create_app(tmp_path))
+
+    repair = client.post(f"/api/inbox/{item.id}/repair", json={"priority": "high"})
+    duplicate = client.post(f"/api/inbox/{item.id}/repair", json={"priority": "high"})
+    acknowledge = client.post(f"/api/inbox/{item.id}/acknowledge", json={"note": "seen"})
+    resolve = client.post(f"/api/inbox/{item.id}/resolve", json={"note": "fixed"})
+
+    assert repair.status_code == 200
+    assert repair.json()["ticket"]["key"]
+    assert duplicate.status_code == 200
+    assert duplicate.json()["already_exists"] is True
+    assert acknowledge.status_code == 200
+    assert acknowledge.json()["inbox_item"]["status"] == "acknowledged"
+    assert resolve.status_code == 200
+    assert resolve.json()["inbox_item"]["status"] == "resolved"
+    assert store.load_inbox_item(item.id).status is InboxStatus.RESOLVED
+
+
+def test_control_plane_inbox_rerun_linked_assignment(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [SOURCE_FIXTURES[2]])[0]
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
+    store.save_assignment(assignment.mark_blocked("runtime offline", FailureReason.RUNTIME_OFFLINE))
+    item = refresh_inbox(store)[0]
+    client = TestClient(create_app(tmp_path))
+
+    response = client.post(f"/api/inbox/{item.id}/rerun", json={"reason": "retry from workbench"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["assignment"]["parent_assignment_id"] == assignment.id
+    assert payload["assignment"]["status"] == "queued"
+    assert payload["inbox_item"]["status"] == "acknowledged"

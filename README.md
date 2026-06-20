@@ -291,7 +291,14 @@ ari llm run-agent knowledge --ticket ARI-003 --confirm-external
 ari llm run-agent memory --ticket ARI-003 --confirm-external
 ari ticket plan ARI-003 --planner llm
 ari review run ARI-003 --reviewer llm
+ari llm proof --ticket ARI-003 --confirm-external
 ```
+
+`ari llm proof` is the auditable one-command proof flow for DeepSeek-backed
+upstream agents. It runs Build Lead, Knowledge, Memory, LLM planner, LLM
+reviewer, and LLM backlog planning for one ticket, then writes a proof artifact.
+The ticket must already have an execution result so reviewer/backlog evidence is
+grounded in a real run rather than fabricated input.
 
 The full ticket loop can also run upstream DeepSeek role agents directly:
 
@@ -631,9 +638,11 @@ managed workdirs. `ari doctor product` writes
 and next actions. The product doctor checks both local integration readiness and
 recorded real-success evidence for LLM agents, Codex, Claude Code, Feishu, and
 GitHub. LLM agent acceptance requires planner, reviewer, and backlog-update
-evidence. GitHub acceptance is checked at the operation level and requires issue
-creation, PR creation, issue comment sync, and status snapshot evidence. Unset
-write/execution gates are reported as `action_required` instead of being hidden.
+evidence; `ari llm proof --ticket <ticket> --confirm-external` generates that
+DeepSeek proof sequence for an already-executed ticket. GitHub acceptance is
+checked at the operation level and requires issue creation, PR creation, issue
+comment sync, and status snapshot evidence. Unset write/execution gates are
+reported as `action_required` instead of being hidden.
 `ari evidence packet --require-acceptance-ready` also embeds the product readiness status, readiness check
 statuses, production acceptance status, run-gate status, real-success evidence
 summary, and latest redacted failure summary. It exits non-zero when production

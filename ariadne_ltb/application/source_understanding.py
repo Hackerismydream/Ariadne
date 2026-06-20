@@ -29,9 +29,12 @@ ROLE_LABELS = {
 
 ANALYSIS_LABELS = {
     "pending": "已添加",
+    "resolving": "解析中",
+    "fetching": "抓取中",
     "analyzing": "分析中",
     "analyzed": "分析完成",
-    "blocked": "分析失败",
+    "partial": "部分完成",
+    "blocked": "已阻塞",
     "failed": "分析失败",
 }
 
@@ -45,7 +48,10 @@ LICENSE_LABELS = {
 ARTIFACT_LABELS = {
     "knowledge_card": "知识摘要",
     "reference_project_profile": "参考项目画像",
+    "repository_understanding": "仓库理解",
+    "text_understanding": "文本理解",
     "codebase_snapshot": "代码库快照",
+    "target_codebase_snapshot": "目标代码库快照",
 }
 
 
@@ -91,6 +97,22 @@ def build_source_events(store: AriadneStore) -> list[SourceInputEventDTO]:
                 created_at=str(source.created_at),
             )
         )
+        for record in store.list_source_fetch_records(source.id):
+            if record.status == "cached":
+                detail = f"已缓存 {record.commit_sha[:8] if record.commit_sha else 'unknown'} · {record.file_count} 个文件"
+            elif record.status == "blocked":
+                detail = f"仓库抓取阻塞：{record.error or 'unknown'}"
+            else:
+                detail = "已关联本地仓库"
+            events.append(
+                SourceInputEventDTO(
+                    id=f"source-fetch-{record.id}",
+                    source_id=source.id,
+                    event_type=f"source.fetch.{record.status}",
+                    label=f"{source.title}: {detail}",
+                    created_at=str(record.created_at),
+                )
+            )
     return sorted(events, key=lambda item: item.created_at, reverse=True)[:20]
 
 
@@ -118,8 +140,21 @@ def _understood_points(store: AriadneStore, source: SourceDocument, artifacts: l
     points: list[str] = []
     for artifact in artifacts:
         payload = store.load_source_artifact_payload(artifact.id)
-        if artifact.artifact_type == "reference_project_profile":
+        if artifact.artifact_type in {"reference_project_profile", "repository_understanding"}:
             points.append(f"这是一个参考项目：{payload.get('repo_summary') or source.summary or source.title}")
+            identity = payload.get("identity") or {}
+            if isinstance(identity, dict) and identity.get("commit_sha"):
+                points.append(f"已缓存 commit {str(identity['commit_sha'])[:8]}。")
+            manifests = [str(item) for item in payload.get("manifests", [])]
+            tests = payload.get("tests") or {}
+            test_paths = [str(item) for item in tests.get("paths", [])] if isinstance(tests, dict) else []
+            if manifests or test_paths:
+                parts = []
+                if manifests:
+                    parts.append(f"manifest: {', '.join(manifests[:3])}")
+                if test_paths:
+                    parts.append(f"tests: {len(test_paths)}")
+                points.append("已读取 README / " + " / ".join(parts))
             patterns = [str(item) for item in payload.get("behavior_patterns", [])[:3]]
             if patterns:
                 points.append(f"可参考模式：{'; '.join(patterns)}")
@@ -171,8 +206,10 @@ def _impacted_ticket_keys(
 
 
 def _next_actions(analysis_status: str, artifacts: list[SourceArtifact], evidence: list[SourceEvidence]) -> list[str]:
-    if analysis_status in {"pending", "blocked", "failed"}:
-        return ["分析这个输入", "忽略这个输入"]
+    if analysis_status == "pending":
+        return ["添加并分析", "等待生成结构化理解"]
+    if analysis_status in {"blocked", "failed"}:
+        return ["查看阻塞原因", "重新分析"]
     if artifacts and evidence:
-        return ["用已分析输入生成任务", "重新分析", "标记为重要"]
+        return ["查看任务建议", "应用任务变更"]
     return ["重新分析", "补充摘要"]

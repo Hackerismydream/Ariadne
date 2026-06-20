@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ariadne_ltb.application.assignment_readiness import (
-    ensure_assignment_target_resource,
-    prepare_assignment_for_claim,
-)
 from ariadne_ltb.backlog import supersede_ticket
 from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.failure import record_assignment_failure
@@ -14,6 +10,7 @@ from ariadne_ltb.models import AssignmentStatus, CommentKind, FailureReason, Tic
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
+from tests.helpers import ready_assignment_with_handoff
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
@@ -21,23 +18,7 @@ SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
 
 def _ready_assignment(store: AriadneStore, ticket, assignment):  # noqa: ANN001
     target_repo = ensure_demo_target_project(store.root)
-    ensure_assignment_target_resource(
-        store,
-        str(target_repo),
-        target_project_id="ariadne-local",
-        label=f"{ticket.key} target repository",
-    )
-    assignment = assignment.model_copy(
-        deep=True,
-        update={
-            "metadata": assignment.metadata
-            | {
-                "target_project_id": "ariadne-local",
-                "target_repo_path": str(target_repo),
-            }
-        },
-    )
-    return prepare_assignment_for_claim(store, assignment, ticket)
+    return ready_assignment_with_handoff(store, ticket, assignment, target_repo)
 
 
 def test_record_assignment_failure_blocks_with_comment_journal_and_retry_hint(tmp_path: Path) -> None:

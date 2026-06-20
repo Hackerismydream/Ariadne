@@ -6444,3 +6444,346 @@ Current boundaries:
 - GitHub repository analysis is still a shallow local-safe profile for URL inputs when the repo has not been cloned locally; deep GitHub repository crawling remains a follow-up.
 - `标记重要` and `忽略` are still lightweight frontend status actions, not persisted source metadata.
 - The next product slice should carry the generated MCA task set into assignment, route decision, handoff, daemon claim, real Codex/Claude execution feedback, tests, review, memory, and Workbench evidence.
+
+## 2026-06-20 Maturity Campaign: Product Doctor Legacy Artifact Tolerance
+
+Implemented the first slice from `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`.
+
+Files changed:
+
+- `ariadne_ltb/doctor.py`
+- `tests/test_v1_doctor_release.py`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+
+What changed:
+
+- Created the maturity issue pack and reflected the reviewed work items in
+  GitHub issues #16 through #21.
+- Fixed `ari doctor product` so legacy artifact index entries with unknown
+  historical artifact types do not crash product readiness inspection.
+- Added a regression test for a legacy `artifact_type=landing_gate` record.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_v1_doctor_release.py tests/test_release_evidence.py tests/test_v1_board_ux.py::test_board_export_tolerates_legacy_unknown_artifact_types`
+- `python3.11 -m ariadne_ltb.cli doctor product`
+
+Assumption:
+
+- Unknown legacy artifact records should not count as successful evidence.
+  They are skipped by the product doctor and remain diagnosable through store
+  invariant checks.
+
+Next recommended Build Ticket:
+
+- MAT-002: make Workbench show daemon execution feedback end to end.
+
+## 2026-06-20 Maturity Campaign: Workbench Assignment Artifact Events
+
+Implemented a bounded MAT-002 slice.
+
+Files changed:
+
+- `ariadne_ltb/orchestrator.py`
+- `ariadne_ltb/application/run_events.py`
+- `frontend/ariadne-workbench/src/features/agent-control/model.ts`
+- `tests/test_workbench_daemon_feedback.py`
+- `tests/test_frontend_api_contract_static.py`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+
+What changed:
+
+- `AgentRun` records `assignment_id` and `runtime_id` metadata for runs started
+  through an assignment-backed orchestrator invocation.
+- Assignment event streams now include artifact events for execution logs, git
+  diff, changed files, test output, review report, memory record, Feishu plan,
+  and next-ticket artifacts.
+- Event cache invalidation now includes artifact index/content changes.
+- The Workbench control hook refreshes the ticket snapshot when assignment
+  events include artifact/result/blocker/done signals, so the execution
+  evidence panel can update after daemon work without a manual page refresh.
+
+Verification:
+
+- `python3.11 -m pytest tests/test_workbench_daemon_feedback.py tests/test_frontend_api_contract_static.py tests/test_agent_teammate_mode.py::test_daemon_run_once_claims_assignment_and_writes_teammate_trace`
+- `ruff check ariadne_ltb/application/run_events.py ariadne_ltb/orchestrator.py tests/test_workbench_daemon_feedback.py tests/test_frontend_api_contract_static.py`
+- `npm --prefix frontend/ariadne-workbench run build`
+
+Known limitation:
+
+- MAT-002 remains open until browser QA proves a user-visible Workbench path from
+  assignment through daemon run to rendered execution evidence.
+
+## 2026-06-19 17:54 Real Source-to-Agent Compiler
+
+Branch: `codex/real-source-to-agent-compiler-plan`
+
+Implemented in this branch:
+
+- Added the source-to-issue compiler contract:
+  - `docs/architecture/source_to_issue_compiler_contract.md`
+- Added real source fetch and repository scan foundations:
+  - `SourceFetchRecord`
+  - `SourceAnalysisStatus`
+  - `ariadne_ltb/application/source_repository.py`
+  - `ariadne_ltb/application/repository_scanner.py`
+- Changed GitHub URL analysis so it uses a fetch/cache layer and writes `repository_understanding` artifacts.
+- Added repository scanner output for README summary, manifests, entrypoints, selected files, tests, license risk, reuse notes, and avoid notes.
+- Added `ariadne_ltb/application/issue_compiler.py` and wired Issue Factory to compile from typed artifacts instead of source-title templates.
+- Added readiness checks so Issue Factory refuses selected sources that are not analyzed or partial, or that have no source artifacts.
+- Strengthened issue delta validation:
+  - required target project id;
+  - required build context id and context fingerprint;
+  - required source document ids;
+  - required source artifact ids;
+  - required evidence refs;
+  - required affected modules and acceptance criteria;
+  - rejected product issues that leak `demo_todo` or `export-json` paths.
+- Quarantined demo-oriented ingest/planner behavior:
+  - `demo_todo export-json` remains available only for offline regression fixtures under `examples/sources`;
+  - ordinary GitHub/readme source ingestion produces generic project tasks instead of demo target tasks.
+- Added `HandoffPacket` and route decision persistence:
+  - `.ariadne/routes/<route_decision_id>.json`
+  - `.ariadne/handoffs/packets/<ticket_key>-<packet_id>.md`
+- Changed assignment readiness so assignments cannot become `ready_to_claim` without a persisted route decision and handoff packet.
+- Changed build-team assignment to persist route and handoff before marking an assignment claimable.
+- Changed runtime/orchestrator/backend behavior so assignment runs consume the frozen handoff packet when present.
+- Changed CodexBackend and ClaudeCodeBackend scaffold behavior so existing persisted handoff files are reused and missing persisted handoff files block as invalid resources.
+- Updated Workbench project-input UX:
+  - GitHub sources that have not been fetched show `已添加，尚未抓取仓库`;
+  - source events show fetch/cache/blocked records;
+  - Sources page shows `处理过程`;
+  - source CTA sequence is explicit: `添加并分析 -> 查看任务建议 -> 应用任务变更 -> 打开新任务 -> 分配给智能体`;
+  - fake source actions are disabled with a tooltip instead of mutating local-only UI state.
+
+Verification added or strengthened:
+
+- `tests/test_source_repository_fetch.py`
+- `tests/test_repository_scanner.py`
+- `tests/test_handoff_packet_readiness.py`
+- `tests/helpers.py`
+- strengthened `tests/test_source_analysis.py`
+- strengthened `tests/test_issue_factory_compiler.py`
+- strengthened `tests/test_web_dogfood_product_path.py`
+- strengthened `tests/test_real_backend_gates.py`
+- strengthened `tests/test_frontend_api_contract_static.py`
+- strengthened assignment/daemon tests to route through build-team handoff readiness.
+
+Verification run so far in this slice:
+
+- `python3.11 -m pytest tests/test_repository_scanner.py tests/test_source_repository_fetch.py tests/test_source_analysis.py -q`: passed.
+- `python3.11 -m pytest tests/test_issue_factory_compiler.py tests/test_web_dogfood_product_path.py -q`: passed.
+- `python3.11 -m pytest tests/test_handoff_packet_readiness.py tests/test_assignment_claim_state_machine.py tests/test_assign_ticket_service.py -q`: passed.
+- `python3.11 -m pytest tests/test_real_backend_gates.py -q`: passed.
+- `python3.11 -m pytest tests/test_cli_product_defaults.py tests/test_v1_planner_quality.py tests/test_issue_factory_compiler.py -q`: passed.
+- `python3.11 -m pytest tests/test_frontend_api_contract_static.py tests/test_web_source_auto_analysis.py tests/test_web_dogfood_product_path.py -q`: passed.
+- `python3.11 -m pytest tests/test_backlog_update_loop.py tests/test_assignment_claim_lease.py tests/test_failure_pipeline.py tests/test_agent_teammate_mode.py tests/test_worktree_isolation.py tests/test_backend_smoke_cli.py -q`: passed.
+- `ruff check` on the touched focused modules: passed.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+
+Current boundaries:
+
+- This slice does not claim successful real Codex or Claude execution.
+- Automated tests still avoid network, Codex, Claude, DeepSeek, Feishu, GitHub tokens, and browser login state.
+- Repository understanding is scan-based and deterministic; a deeper Repo Understanding Agent remains a follow-up.
+- `标记重要` and `忽略` are intentionally disabled until persisted source metadata actions exist.
+- Next recommended ticket: implement a real Repo Understanding Agent pass that can inspect cloned repository files within budget, summarize architecture and behavior patterns, and feed those typed findings into Issue Factory and HandoffPacket evidence.
+
+Final verification:
+
+- `python3.11 -m pytest`: passed, `373 passed in 114.02s`.
+- `ruff check .`: passed.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- `python3.11 -m ariadne_ltb.cli demo full`: passed as offline regression fixture.
+- `python3.11 -m ariadne_ltb.cli export board`: passed.
+- `python3.11 -m ariadne_ltb.cli backend doctor`: passed without printing secret values; local `.env` was correctly redacted and reported as a secret-scan finding.
+- `uv run ari export board`: passed.
+- `uv run ari backend doctor`: passed with the same redacted `.env` finding.
+- Browser QA against `http://127.0.0.1:8771/?v=real-source-to-agent-compiler#sources`: passed.
+  - pasted `https://github.com/e10nMa2k/cc-mini`;
+  - title auto-filled as `e10nMa2k/cc-mini`;
+  - source type displayed as `GitHub 仓库`;
+  - source analysis completed;
+  - source timeline showed cached commit and file count;
+  - understanding panel showed README summary, manifest, tests, evidence, risk, and `仓库理解`.
+
+## 2026-06-20 Maturity Campaign: MAT-006 Source Compiler Branch Reconciliation
+
+Branch: `codex/ariadne-maturity-campaign`
+
+GitHub issue: https://github.com/Hackerismydream/Ariadne/issues/21
+
+Decision:
+
+- PR #15 (`codex/real-source-to-agent-compiler-plan` -> `main`) is superseded by
+  the maturity campaign branch for landing purposes.
+- The maturity branch already contains PR #15 commit
+  `911516f feat: implement real source-to-agent compiler`.
+- Future maturity work should continue on `codex/ariadne-maturity-campaign` so
+  source compiler, product doctor, and Workbench evidence changes do not drift
+  across competing branches.
+
+Evidence:
+
+- `git merge-base --is-ancestor 911516f HEAD`: passed with exit code `0`.
+- `git branch --contains 911516f`: listed both
+  `codex/ariadne-maturity-campaign` and
+  `codex/real-source-to-agent-compiler-plan`.
+- PR #15 remains mergeable, but it is narrower than the maturity campaign branch
+  and should not be the landing baseline by itself.
+- Existing browser QA for the source compiler slice remains the product proof:
+  adding `https://github.com/e10nMa2k/cc-mini` auto-filled the repository title,
+  completed source analysis, and rendered repository understanding evidence in
+  the Workbench.
+
+Files updated:
+
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+- `docs/development_report.md`
+
+Verification:
+
+- `git merge-base --is-ancestor 911516f HEAD`: passed.
+- `python3.11 -m pytest tests/test_source_repository_fetch.py tests/test_repository_scanner.py tests/test_issue_factory_compiler.py tests/test_handoff_packet_readiness.py tests/test_frontend_api_contract_static.py`: passed.
+- `ruff check .`: passed.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed as a diagnostic command
+  and still reports expected production readiness blockers.
+
+Known limitation:
+
+- Main does not yet contain the maturity campaign branch. This entry only
+  resolves branch/PR direction for the campaign; it does not merge to main.
+
+## 2026-06-20 Maturity Campaign: MAT-003 Guided Release Evidence Regeneration
+
+Branch: `codex/ariadne-maturity-campaign`
+
+GitHub issue: https://github.com/Hackerismydream/Ariadne/issues/18
+
+Implemented:
+
+- Release evidence packets now persist:
+  - `readiness_next_actions`
+  - `readiness_blockers`
+  - `evidence_packet_stale`
+  - `evidence_packet_stale_reasons`
+- Product doctor now distinguishes:
+  - missing release packet;
+  - missing integration evidence refs;
+  - stale release packet;
+  - missing real integration evidence;
+  - unset run gates.
+- `ari evidence packet` table output now shows stale state and concrete next
+  actions.
+- The Workbench release evidence panel now shows the same readiness summary in
+  Chinese, including next actions and stale reasons.
+
+Files changed:
+
+- `ariadne_ltb/models.py`
+- `ariadne_ltb/doctor.py`
+- `ariadne_ltb/evidence.py`
+- `ariadne_ltb/cli.py`
+- `frontend/ariadne-workbench/scripts/sync-local-data.mjs`
+- `frontend/ariadne-workbench/src/App.tsx`
+- `frontend/ariadne-workbench/src/styles.css`
+- `frontend/ariadne-workbench/src/types.ts`
+- `tests/test_release_evidence.py`
+- `tests/test_workbench_data_sync.py`
+- `tests/test_frontend_api_contract_static.py`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+
+Verification:
+
+- `python3.11 -m pytest tests/test_release_evidence.py tests/test_v1_doctor_release.py::test_doctor_product_reports_acceptance_readiness_without_external_writes tests/test_workbench_data_sync.py tests/test_frontend_api_contract_static.py`: passed, `24 passed`.
+- `ruff check ariadne_ltb/doctor.py ariadne_ltb/evidence.py ariadne_ltb/cli.py ariadne_ltb/models.py tests/test_release_evidence.py tests/test_workbench_data_sync.py tests/test_frontend_api_contract_static.py`: passed.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- `python3.11 -m ariadne_ltb.cli evidence packet`: passed and printed concrete
+  next actions.
+- `python3.11 -m ariadne_ltb.cli doctor product`: passed; after sequential
+  regeneration, `release_evidence_packet`, `integration_evidence_refs`, and
+  `release_evidence_freshness` reported `ready`.
+
+Known limitations:
+
+- Product readiness still reports real integration blockers for LLM agent
+  evidence, Claude Code, Feishu write, GitHub write/status evidence, and landing
+  gate evidence. This change makes those blockers actionable; it does not fake
+  real external success.
+- Running `ari evidence packet` and `ari doctor product` concurrently can briefly
+  show the previous packet state. The intended path is sequential:
+  `ari evidence packet` then `ari doctor product`.
+
+## 2026-06-20 Maturity Campaign: MAT-004 DeepSeek LLM Agent Proof Flow
+
+Branch: `codex/ariadne-maturity-campaign`
+
+GitHub issue: https://github.com/Hackerismydream/Ariadne/issues/19
+
+Implemented:
+
+- Added `ariadne_ltb/llm_proof.py` with a reusable proof service for future
+  Workbench actions.
+- Added `ari llm proof --ticket <ticket> --confirm-external`.
+- The proof command runs the required DeepSeek-backed operations for one ticket:
+  - Build Lead role agent;
+  - Knowledge role agent;
+  - Memory role agent;
+  - LLM planner;
+  - LLM reviewer;
+  - LLM backlog planner.
+- The command requires an existing execution result for the ticket before
+  reviewer/backlog proof. This prevents Ariadne from fabricating execution
+  evidence just to satisfy product doctor.
+- The proof runner writes a redacted `llm_proof.json` artifact, while each
+  sub-operation continues writing its existing provider/model/ticket evidence
+  artifact or report.
+
+Files changed:
+
+- `ariadne_ltb/llm_proof.py`
+- `ariadne_ltb/cli.py`
+- `ariadne_ltb/review.py`
+- `tests/test_llm_agents.py`
+- `tests/test_review_risk_scoring.py`
+- `README.md`
+- `docs/ops/ARIADNE_MATURITY_ISSUE_PACK.md`
+- `docs/development_report.md`
+
+Verification:
+
+- `python3.11 -m pytest tests/test_llm_agents.py tests/test_v1_doctor_release.py::test_doctor_product_reports_acceptance_readiness_without_external_writes tests/test_release_evidence.py`: passed, `15 passed`.
+- `python3.11 -m pytest tests/test_review_risk_scoring.py tests/test_llm_agents.py tests/test_v1_doctor_release.py tests/test_release_evidence.py`: passed, `30 passed`.
+- `ruff check ariadne_ltb/llm_proof.py ariadne_ltb/review.py ariadne_ltb/doctor.py ariadne_ltb/cli.py tests/test_llm_agents.py tests/test_review_risk_scoring.py`: passed.
+- `python3.11 -m ariadne_ltb.cli llm proof --ticket ARI-003`: passed as a gate
+  check by refusing without `--confirm-external`.
+- `python3.11 -m ariadne_ltb.cli llm proof --ticket ARI-003 --confirm-external`:
+  real DeepSeek proof attempted. The first run reached DeepSeek and completed
+  five of six operations, then exposed that the LLM reviewer parser rejected
+  extra fields when DeepSeek returned a full review-report-like object.
+- `ariadne_ltb/review.py` was fixed to select allowed LLM reviewer fields before
+  schema validation.
+- `python3.11 -m ariadne_ltb.cli llm proof --ticket ARI-003 --confirm-external`:
+  passed after the parser fix.
+  - proof run: `run_36ca6ff675f9`
+  - proof artifact: `.ariadne/artifacts/ticket_91c283a19122/llm_proof.json`
+  - operations: `build_lead`, `knowledge`, `memory`, `planner`, `reviewer`,
+    `backlog` all succeeded.
+- The final real proof run was verified in the ticket timeline:
+  `run_36ca6ff675f9`, attempt `1`, status `succeeded`.
+- `python3.11 -m ariadne_ltb.cli evidence packet && python3.11 -m ariadne_ltb.cli doctor product`: passed.
+  `real_llm_agent_evidence` reported `ready`; product readiness moved from
+  `blocked` to `action_required` because remaining blockers are gated real
+  Claude Code, Feishu, GitHub, landing gate, and run-gate evidence.
+- Final full verification:
+  - `python3.11 -m pytest`: passed, `380 passed`.
+  - `ruff check .`: passed.
+
+Known limitations:
+
+- `ari llm proof` is a real external DeepSeek path and requires
+  `--confirm-external`.
+- The command proves LLM agent evidence only for tickets that already have
+  execution evidence. It does not run Codex or Claude by itself.
+- Automated tests use fake transports and do not require network or a DeepSeek
+  key.

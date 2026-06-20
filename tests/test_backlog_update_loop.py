@@ -8,16 +8,13 @@ from typer.testing import CliRunner
 from ariadne_ltb.backlog import downgrade_ticket, record_noop_backlog_update
 from ariadne_ltb.board import export_board
 from ariadne_ltb.cli import app
-from ariadne_ltb.application.assignment_readiness import (
-    ensure_assignment_target_resource,
-    prepare_assignment_for_claim,
-)
 from ariadne_ltb.daemon import LocalDaemonWorker
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.models import AssignmentStatus, BacklogUpdateTrigger, TicketChangeType, TicketStatus
 from ariadne_ltb.orchestrator import TicketRunOrchestrator
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
+from tests.helpers import ready_assignment_with_handoff
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,23 +23,7 @@ SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
 
 def _ready_assignment(store: AriadneStore, ticket, assignment):  # noqa: ANN001
     target_repo = ensure_demo_target_project(store.root)
-    ensure_assignment_target_resource(
-        store,
-        str(target_repo),
-        target_project_id="ariadne-local",
-        label=f"{ticket.key} target repository",
-    )
-    assignment = assignment.model_copy(
-        deep=True,
-        update={
-            "metadata": assignment.metadata
-            | {
-                "target_project_id": "ariadne-local",
-                "target_repo_path": str(target_repo),
-            }
-        },
-    )
-    return prepare_assignment_for_claim(store, assignment, ticket)
+    return ready_assignment_with_handoff(store, ticket, assignment, target_repo)
 
 
 def test_ingest_records_source_backlog_update_and_board_trace(tmp_path: Path) -> None:

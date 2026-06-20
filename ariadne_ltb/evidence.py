@@ -70,6 +70,12 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
             "product_readiness_checks": {
                 check["name"]: check["status"] for check in product_readiness["checks"]
             },
+            "readiness_next_actions": product_readiness["next_actions"],
+            "readiness_blockers": product_readiness["blocking_checks"],
+            "evidence_packet_stale": product_readiness["release_evidence_packet"]["stale"],
+            "evidence_packet_stale_reasons": product_readiness["release_evidence_packet"][
+                "stale_reasons"
+            ],
             "real_success_evidence": product_readiness["real_success_evidence"],
             "real_failure_evidence": product_readiness["real_failure_evidence"],
             "local_success_evidence": product_readiness["local_success_evidence"],

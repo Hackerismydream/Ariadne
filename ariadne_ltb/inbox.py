@@ -268,6 +268,10 @@ def create_repair_ticket_from_inbox(
     )
 
 
+def find_repair_ticket_for_inbox_item(store: AriadneStore, item_id: str) -> BuildTicket | None:
+    return _find_repair_ticket_for_inbox_item(store, item_id)
+
+
 def _repair_ticket_preview(store: AriadneStore, item: InboxItem, priority: str) -> BacklogPreview:
     from ariadne_ltb.backlog import ticket_backlog_fingerprint
     from ariadne_ltb.ingest import next_ticket_key

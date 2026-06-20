@@ -10,6 +10,8 @@ from ariadne_ltb.interfaces.http.app import create_app
 def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) -> None:
     target = tmp_path / "mini-code-agent"
     target.mkdir()
+    mini_swe_repo = _reference_repo(tmp_path / "mini-swe-agent", "mini-SWE-agent")
+    minicode_repo = _reference_repo(tmp_path / "minicode", "MiniCode")
     client = TestClient(create_app(tmp_path))
 
     project_response = client.post(
@@ -47,14 +49,14 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
             "title": "mini-SWE-agent repository",
             "source_type": "github_repo",
             "source_role": "reference_project",
-            "path_or_url": "https://github.com/SWE-agent/mini-SWE-agent",
+            "path_or_url": str(mini_swe_repo),
             "content": "mini-SWE-agent is a compact reference for code-agent loops.",
         },
         {
             "title": "MiniCode repository",
             "source_type": "github_repo",
             "source_role": "reference_project",
-            "path_or_url": "https://github.com/LiuMengxuan04/MiniCode",
+            "path_or_url": str(minicode_repo),
             "content": "MiniCode is a local mini code-agent implementation reference.",
         },
     ]
@@ -127,6 +129,23 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
     assert generated["target_project_id"] == project_id
     assert generated["acceptance_criteria"]
     assert generated["affected_modules"]
+
+
+def _reference_repo(path: Path, title: str) -> Path:
+    path.mkdir()
+    (path / "README.md").write_text(
+        f"# {title}\n\nCLI coding assistant with action/observation loop, diff review, and test result capture.",
+        encoding="utf-8",
+    )
+    (path / "pyproject.toml").write_text(
+        "[project]\nname='reference'\n[project.scripts]\nreference='reference.cli:main'\n",
+        encoding="utf-8",
+    )
+    (path / "reference").mkdir()
+    (path / "reference" / "cli.py").write_text("def main():\n    return 0\n", encoding="utf-8")
+    (path / "tests").mkdir()
+    (path / "tests" / "test_cli.py").write_text("def test_cli():\n    assert True\n", encoding="utf-8")
+    return path
 
 
 def test_frontend_api_adapter_does_not_spread_fixture_data() -> None:

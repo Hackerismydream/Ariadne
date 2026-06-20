@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 
 from typer.testing import CliRunner
 
+from ariadne_ltb.application.dtos import CreateProjectGoalInput, IssueFactoryPreviewInput
+from ariadne_ltb.application.issue_factory import IssueFactoryService
+from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.source_analysis import SourceAnalysisService
 from ariadne_ltb.cli import _runtime_profile_values, app
+from ariadne_ltb.models import ProjectResource, SourceDocument, SourceType, stable_id
+from ariadne_ltb.storage import AriadneStore
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,3 +80,56 @@ def test_runtime_profile_auto_resolves_to_deterministic_for_offline_profile() ->
         "deterministic",
         "deterministic",
     )
+
+
+def test_product_issue_factory_does_not_emit_demo_todo_paths(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "real-product"
+    target.mkdir()
+    (target / "README.md").write_text("# real product\n", encoding="utf-8")
+    resource = ProjectResource.local_directory("target_real_product", target, label="Real Product").model_copy(
+        update={
+            "id": "target_real_product",
+            "resource_ref": {
+                "local_path": str(target),
+                "label": "Real Product",
+                "issue_prefix": "RLP",
+                "test_command": "python3.11 -m pytest",
+            },
+        }
+    )
+    store.save_project_resources([resource])
+    goal = ProjectGoalService(store).create(
+        CreateProjectGoalInput(
+            title="Build Real Product",
+            north_star="Use external inputs to create a real project issue set.",
+            target_project_id="target_real_product",
+        )
+    )
+    source = SourceDocument(
+        id=stable_id("source", "real", "note"),
+        source_type=SourceType.NOTE,
+        title="real product note",
+        path_or_url="memory://real-product-note",
+        content_hash=sha256(b"real product").hexdigest(),
+        summary="Build a CLI with tests and inspectable run evidence.",
+        metadata={
+            "source_role": "requirement_source",
+            "content": "Build a CLI with tests and inspectable run evidence.",
+        },
+    )
+    store.save_source_document(source)
+    SourceAnalysisService(store).analyze_source(source.id)
+
+    preview = IssueFactoryService(store).preview(
+        IssueFactoryPreviewInput(
+            goal_id=goal.id,
+            source_ids=[source.id],
+            target_project_id="target_real_product",
+        )
+    )
+
+    affected = [module for operation in preview.operations for module in operation.metadata["affected_modules"]]
+    assert affected
+    assert all("demo_todo" not in module for module in affected)
+    assert all("export-json" not in module for module in affected)

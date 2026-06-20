@@ -26,10 +26,14 @@ import { selectableProductionRuntimes } from "./entities/runtime/lib";
 import {
   analyzeSource,
   applyIssueFactoryPreview,
+  acknowledgeInboxItem,
   createIssueFactoryPreview,
+  createInboxRepairTicket,
   createProjectGoal,
   createSource,
   registerTargetProject,
+  rerunInboxAssignment,
+  resolveInboxItem,
 } from "./shared/api/client";
 import type {
   AriadneTicket,
@@ -439,7 +443,13 @@ function PageFrame({
       />
       <AgentsPage data={data} />
       <SkillsPage data={data} />
-      <InboxPage data={data} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />
+      <InboxPage
+        data={data}
+        readOnly={readOnly}
+        onNavigate={onNavigate}
+        onRefresh={onRefresh}
+        onTicketSelect={onTicketSelect}
+      />
     </>
   );
 }
@@ -683,9 +693,17 @@ function KnowledgePage({
     ?? data.projectResources?.find((resource) => resource.available)
     ?? data.projectResources?.[0];
   const activePreviewId = data.backlogMutationPreview.previewId;
-  const analyzedSourceIds = data.sourceUnderstandings
-    .filter((item) => item.analysisLabel === "分析完成")
-    .map((item) => item.sourceId);
+  const analyzedSourceIds = data.sources
+    .filter((source) => ["analyzed", "partial"].includes(source.analysisStatus ?? source.status))
+    .filter((source) => (source.artifactIds?.length ?? 0) > 0)
+    .map((source) => source.id);
+  const selectedSourceEvents = selectedSource
+    ? data.sourceEvents.filter((event) => event.sourceId === selectedSource.id)
+    : [];
+  const selectedOutputs = selectedSource
+    ? (data.sourceArtifacts ?? []).filter((artifact) => artifact.sourceDocumentId === selectedSource.id)
+    : [];
+  const selectedSourceHasFetch = selectedSourceEvents.some((event) => event.eventType.startsWith("source.fetch."));
 
   async function addSource() {
     if (!sourceUrl.trim()) return;
@@ -782,6 +800,13 @@ function KnowledgePage({
       <section className="panel source-input-panel">
         <h2>添加项目输入</h2>
         <p className="panel-subtitle">粘贴链接、GitHub 仓库、本地路径、论文或笔记。Ariadne 会自动分析并提取可用于生成任务的证据。</p>
+        <ol className="source-cta-sequence">
+          <li className={data.sources.length ? "done" : "active"}>添加并分析</li>
+          <li className={analyzedSourceIds.length ? "active" : ""}>查看任务建议</li>
+          <li className={activePreviewId ? "active" : ""}>应用任务变更</li>
+          <li className={previewStatus === "applied" ? "active" : ""}>打开新任务</li>
+          <li>分配给智能体</li>
+        </ol>
         <div className="form-grid">
           <label>
             <span>类型</span>
@@ -817,7 +842,12 @@ function KnowledgePage({
             {data.sources.map((source) => (
               (() => {
                 const understanding = data.sourceUnderstandings.find((item) => item.sourceId === source.id);
-                const analysis = understanding?.analysisLabel ?? sourceAnalysisLabel(source.analysisStatus ?? source.status);
+                const sourceEvents = data.sourceEvents.filter((event) => event.sourceId === source.id);
+                const hasFetch = sourceEvents.some((event) => event.eventType.startsWith("source.fetch."));
+                const hasArtifacts = (source.artifactIds?.length ?? 0) > 0;
+                const analysis = source.sourceType === "github_repo" && !hasFetch && !hasArtifacts
+                  ? "已添加，尚未抓取仓库"
+                  : understanding?.analysisLabel ?? sourceAnalysisLabel(source.analysisStatus ?? source.status);
                 return (
               <button
                 className={`source-row ${source.id === selectedSource?.id ? "selected" : ""}`}
@@ -828,7 +858,7 @@ function KnowledgePage({
               >
                 <span className={`source-type ${source.sourceType}`}>{sourceTypeLabel(source.sourceType)}</span>
                 <strong>{source.title}</strong>
-                <em className={`source-status ${source.status}`}>{analysis}</em>
+                <em className={`source-status ${source.analysisStatus ?? source.status}`}>{analysis}</em>
                 <small>{source.ingestedAt}</small>
               </button>
                 );
@@ -847,6 +877,25 @@ function KnowledgePage({
                   <span>{selectedUnderstanding.kindLabel} · {selectedUnderstanding.roleLabel} · 许可证 {selectedUnderstanding.licenseRiskLabel}</span>
                 </div>
               </header>
+              <section>
+                <h3>处理过程</h3>
+                {selectedSourceEvents.length ? (
+                  <div className="source-timeline">
+                    {selectedSourceEvents.map((event) => (
+                      <div className="timeline-row" key={event.id}>
+                        <span>{event.label}</span>
+                        <time>{event.createdAt}</time>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-column">
+                    {selectedSource?.sourceType === "github_repo" && !selectedSourceHasFetch
+                      ? "已添加，尚未抓取仓库。点击重新分析会触发仓库抓取和结构化理解。"
+                      : "还没有处理事件。"}
+                  </p>
+                )}
+              </section>
               <section>
                 <h3>Ariadne 理解到</h3>
                 <ul>
@@ -883,12 +932,13 @@ function KnowledgePage({
                 <h3>已生成产物</h3>
                 <div className="module-row">
                   {selectedUnderstanding.generatedOutputs.map((item) => <span key={item}>{item}</span>)}
+                  {selectedOutputs.length === 0 ? <span>尚未生成结构化产物</span> : null}
                 </div>
               </section>
               <div className="apply-row compact-actions">
                 <button disabled={!selectedSource} type="button" onClick={() => void analyzeSelectedSource()}>重新分析</button>
-                <button disabled={!selectedSource} type="button" onClick={() => setActionStatus("已标记为重要。后续任务生成会优先使用这个输入。")}>标记重要</button>
-                <button disabled={!selectedSource} type="button" onClick={() => setActionStatus("已忽略。后续应从任务生成输入中排除。")}>忽略</button>
+                <button disabled type="button" title="此动作还未接入后端">标记重要</button>
+                <button disabled type="button" title="此动作还未接入后端">忽略</button>
               </div>
             </article>
           ) : <p className="empty-column">选择一个输入查看 Ariadne 的理解结果。</p>}
@@ -1581,6 +1631,8 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
   const readyChecks = checks.filter(([, status]) => status === "ready").length;
   const successEvidenceCount = Object.values(evidence.realSuccessEvidence ?? {}).filter(Boolean).length;
   const failureEvidenceCount = Object.values(evidence.realFailureEvidence ?? {}).filter(Boolean).length;
+  const nextActions = evidence.readinessNextActions ?? [];
+  const staleReasons = evidence.evidencePacketStaleReasons ?? [];
   return (
     <section className="panel nested release-panel">
       <h3>发布证据包</h3>
@@ -1589,6 +1641,7 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
           ["生产验收", fallbackText(evidence.productionAcceptanceStatus, "未知")],
           ["产品就绪", fallbackText(evidence.productReadinessStatus, "未知")],
           ["运行门禁", fallbackText(evidence.runGateStatus, "未知")],
+          ["证据过期", evidence.evidencePacketStale ? "是" : "否"],
           ["检查项", checks.length ? `${readyChecks}/${checks.length} 就绪` : "未记录"],
           ["真实证据", `${successEvidenceCount} 条成功 / ${failureEvidenceCount} 条失败`],
           ["执行次数", `${evidence.executionResultCount ?? 0}`],
@@ -1596,6 +1649,26 @@ function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary 
           ["证据包", fallbackText(evidence.packetPath)],
         ]}
       />
+      {nextActions.length ? (
+        <div className="next-actions" aria-label="发布证据下一步">
+          <strong>下一步</strong>
+          <ul>
+            {nextActions.slice(0, 5).map((action) => (
+              <li key={action}>{action}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {staleReasons.length ? (
+        <div className="next-actions warning" aria-label="发布证据过期原因">
+          <strong>证据包需要重新生成</strong>
+          <ul>
+            {staleReasons.slice(0, 4).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {checks.length ? (
         <div className="check-summary release-checks" aria-label="产品就绪检查">
           {checks.slice(0, 8).map(([name, status]) => (
@@ -1925,32 +1998,62 @@ function SkillsPage({ data }: { data: WorkbenchData }) {
 
 function InboxPage({
   data,
+  readOnly,
   onNavigate,
+  onRefresh,
   onTicketSelect,
 }: {
   data: WorkbenchData;
+  readOnly: boolean;
   onNavigate: (page: PageKey) => void;
+  onRefresh: (preferredTicketRef?: string) => Promise<void>;
   onTicketSelect: (ticketId: string) => void;
 }) {
+  const [actionStatus, setActionStatus] = useState("");
+
+  function openTicketForItem(item: WorkbenchData["inbox"][number], index: number) {
+    const fallbackTicket = data.tickets[index % data.tickets.length];
+    const targetTicketId = item.repairTicketId ?? item.ticketId;
+    const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
+    if (ticket) onTicketSelect(ticket.id);
+    onNavigate("ready");
+  }
+
+  async function runInboxAction(
+    item: WorkbenchData["inbox"][number],
+    label: string,
+    action: () => Promise<{ ticket?: { key: string } | null; assignment?: { ticket_key?: string } | null; message?: string }>,
+  ) {
+    if (readOnly) {
+      setActionStatus("未连接本地控制面，无法处理收件箱。");
+      return;
+    }
+    setActionStatus(`${label}...`);
+    try {
+      const result = await action();
+      const ticketRef = result.ticket?.key ?? result.assignment?.ticket_key ?? item.ticketKey;
+      setActionStatus(result.message || `${label}完成`);
+      await onRefresh(ticketRef);
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : `${label}失败`);
+    }
+  }
+
   return (
     <section className="page">
       <PageHeader icon={<Inbox size={17} />} title="收件箱" count={data.inbox.length} />
+      {actionStatus ? <p className="action-status">{actionStatus}</p> : null}
       <div className="inbox-list">
         {data.inbox.map((item, index) => (
-          <button
+          <article
+            className="inbox-card"
             key={item.id}
-            type="button"
-            onClick={() => {
-              const fallbackTicket = data.tickets[index % data.tickets.length];
-              const targetTicketId = item.repairTicketId ?? item.ticketId;
-              const ticket = data.tickets.find((candidate) => candidate.id === targetTicketId) ?? fallbackTicket;
-              if (ticket) onTicketSelect(ticket.id);
-              onNavigate("ready");
-            }}
           >
-            <span className={`inbox-kind ${item.kind}`}>{statusLabel(item.kind)}</span>
-            <strong>{item.title}</strong>
-            <p>{item.body}</p>
+            <button type="button" className="inbox-main" onClick={() => openTicketForItem(item, index)}>
+              <span className={`inbox-kind ${item.kind}`}>{statusLabel(item.kind)}</span>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </button>
             <div className="inbox-meta">
               <span>{statusLabel(item.status ?? "open")}</span>
               <span>{statusLabel(item.severity ?? "medium")}</span>
@@ -1961,8 +2064,38 @@ function InboxPage({
             {item.recommendedAction ? <p className="inbox-action">{item.recommendedAction}</p> : null}
             {item.evidenceRef ? <code>{item.evidenceRef}</code> : null}
             {item.resolutionNote ? <small>{item.resolutionNote}</small> : null}
+            <div className="inbox-actions">
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "创建修复任务", () => createInboxRepairTicket(item.id))}
+              >
+                创建修复任务
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "重跑关联任务", () => rerunInboxAssignment(item.id))}
+              >
+                重跑
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "确认已读", () => acknowledgeInboxItem(item.id))}
+              >
+                确认已读
+              </button>
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => runInboxAction(item, "标记已解决", () => resolveInboxItem(item.id))}
+              >
+                标记已解决
+              </button>
+            </div>
             <em>{item.time}</em>
-          </button>
+          </article>
         ))}
       </div>
     </section>

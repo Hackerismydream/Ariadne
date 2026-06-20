@@ -46,17 +46,21 @@ def readiness_metadata(
     target_repo_path = assignment.metadata.get("target_repo_path") or ""
     if target_project_id and not target_repo_path:
         target_repo_path = _target_project_path(store, str(target_project_id))
+    resolved_route_decision_id = route_decision_id or assignment.metadata.get("route_decision_id")
+    if not resolved_route_decision_id:
+        msg = "missing_route_decision"
+        raise ValueError(msg)
+    resolved_handoff_packet_id = handoff_packet_id or assignment.metadata.get("handoff_packet_id")
+    if not resolved_handoff_packet_id:
+        msg = "missing_handoff_packet"
+        raise ValueError(msg)
     expected_git_head = _git_head(str(target_repo_path)) if target_repo_path else "unknown"
     auth_key = "runtime_authorization_id" if authorization_id else "confirmation_id"
     auth_value = authorization_id or assignment.metadata.get("confirmation_id") or stable_id("confirmation", assignment.id)
     return {
         "target_project_id": str(target_project_id or ""),
-        "route_decision_id": str(
-            route_decision_id or assignment.metadata.get("route_decision_id") or stable_id("route", assignment.id)
-        ),
-        "handoff_packet_id": str(
-            handoff_packet_id or assignment.metadata.get("handoff_packet_id") or stable_id("handoff", assignment.id)
-        ),
+        "route_decision_id": str(resolved_route_decision_id),
+        "handoff_packet_id": str(resolved_handoff_packet_id),
         "permission_profile_id": str(
             permission_profile_id
             or assignment.metadata.get("permission_profile_id")

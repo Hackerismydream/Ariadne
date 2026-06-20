@@ -454,6 +454,32 @@ class SourceDocument(AriadneModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class SourceAnalysisStatus(str, Enum):
+    PENDING = "pending"
+    RESOLVING = "resolving"
+    FETCHING = "fetching"
+    ANALYZING = "analyzing"
+    ANALYZED = "analyzed"
+    PARTIAL = "partial"
+    BLOCKED = "blocked"
+
+
+class SourceFetchRecord(AriadneModel):
+    id: str
+    source_document_id: str
+    source_url: str
+    status: Literal["cached", "linked", "blocked"]
+    cache_path: str | None = None
+    commit_sha: str | None = None
+    default_branch: str | None = None
+    fetched_ref: str | None = None
+    file_count: int = 0
+    byte_count: int = 0
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None
+    created_at: str = Field(default_factory=utc_now)
+
+
 class SourceEvidence(AriadneModel):
     id: str
     source_document_id: str
@@ -471,8 +497,13 @@ class SourceArtifact(AriadneModel):
     source_document_id: str
     artifact_type: Literal[
         "knowledge_card",
+        "text_understanding",
         "reference_project_profile",
+        "repository_understanding",
         "codebase_snapshot",
+        "target_codebase_snapshot",
+        "execution_feedback",
+        "review_feedback",
     ]
     payload_hash: str
     payload_path: str
@@ -1113,6 +1144,24 @@ class RouteDecision(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
 
 
+class HandoffPacket(AriadneModel):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    route_decision_id: str
+    build_context_id: str | None = None
+    target_project_id: str
+    target_repo_path: str
+    allowed_paths: list[str] = Field(default_factory=list)
+    forbidden_actions: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    test_command: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    markdown_path: str
+    packet_hash: str
+    created_at: str = Field(default_factory=utc_now)
+
+
 class MemoryRecord(AriadneModel):
     id: str
     ticket_id: str
@@ -1398,6 +1447,10 @@ class ReleaseEvidencePacket(AriadneModel):
     production_acceptance_status: str | None = None
     run_gate_status: str | None = None
     product_readiness_checks: dict[str, str] = Field(default_factory=dict)
+    readiness_next_actions: list[str] = Field(default_factory=list)
+    readiness_blockers: list[dict[str, str]] = Field(default_factory=list)
+    evidence_packet_stale: bool = False
+    evidence_packet_stale_reasons: list[str] = Field(default_factory=list)
     real_success_evidence: dict[str, Any] = Field(default_factory=dict)
     real_failure_evidence: dict[str, Any] = Field(default_factory=dict)
     local_success_evidence: dict[str, Any] = Field(default_factory=dict)

@@ -36,6 +36,7 @@ from ariadne_ltb.models import (
     ExecutionResult,
     FailureReason,
     FeishuWritePlan,
+    HandoffPacket,
     HandoffStatus,
     LandingArtifactRef,
     LandingEvidence,
@@ -177,6 +178,9 @@ class TicketRunOrchestrator:
         packet = self.store.load_build_packet(planner_result.build_packet_id or ticket.build_packet_id)
         handoff_artifact = self.store.load_artifact(planner_result.handoff_artifact_id)
         handoff_prompt = self.store.read_artifact_text(handoff_artifact)
+        assignment_handoff_packet = self._load_assignment_handoff_packet()
+        if assignment_handoff_packet is not None:
+            handoff_prompt = Path(assignment_handoff_packet.markdown_path).read_text(encoding="utf-8")
         if agent_runtime == "llm":
             knowledge_result = run_ticket_llm_agent(
                 self.store,
@@ -210,7 +214,11 @@ class TicketRunOrchestrator:
             payload_ref=handoff_artifact.id,
         )
 
-        target_repo = Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        target_repo = (
+            Path(assignment_handoff_packet.target_repo_path).resolve()
+            if assignment_handoff_packet is not None
+            else Path(target_repo_path).resolve() if target_repo_path else ensure_demo_target_project(self.store.root)
+        )
         target_validation = validate_target_repo_path(target_repo)
         worktree_block: WorktreeBlock | None = None
         worktree_path: str | None = None
@@ -279,13 +287,22 @@ class TicketRunOrchestrator:
         )
         skill_refs = [item.skill_name for item in skill_materializations if item.included]
         execution_command = command or (packet.tasks[0] if packet.tasks else ticket.title)
-        execution_test_command = target_test_command()
+        execution_test_command = (
+            assignment_handoff_packet.test_command
+            if assignment_handoff_packet is not None
+            else target_test_command()
+        )
+        allowed_paths = (
+            assignment_handoff_packet.allowed_paths
+            if assignment_handoff_packet is not None
+            else packet.affected_modules
+        )
         permission_profile = build_execution_permission_profile(
             ticket_id=ticket.id,
             ticket_key=ticket.key,
             backend_name=backend_name,
             target_repo_path=str(target_repo),
-            allowed_paths=packet.affected_modules,
+            allowed_paths=allowed_paths,
             external_execution_enabled=os.environ.get("ARIADNE_ENABLE_EXTERNAL_EXECUTION") == "1",
             confirm_execution=confirm_execution,
             command=execution_command,
@@ -300,18 +317,19 @@ class TicketRunOrchestrator:
             "Execution permission profile",
             metadata={"permission_profile_id": permission_profile.id},
         )
-        handoff_prompt = _augment_handoff_with_project_resources(
-            handoff_prompt,
-            project_resources,
-            target_repo,
-            worktree_path,
-        )
-        handoff_prompt = (
-            handoff_prompt.rstrip()
-            + materialized_skill_handoff_section(skill_bundle_artifact, skill_materializations)
-            + permission_profile_handoff_section(permission_profile, permission_artifact.path)
-        )
-        Path(handoff_artifact.path).write_text(handoff_prompt, encoding="utf-8")
+        if assignment_handoff_packet is None:
+            handoff_prompt = _augment_handoff_with_project_resources(
+                handoff_prompt,
+                project_resources,
+                target_repo,
+                worktree_path,
+            )
+            handoff_prompt = (
+                handoff_prompt.rstrip()
+                + materialized_skill_handoff_section(skill_bundle_artifact, skill_materializations)
+                + permission_profile_handoff_section(permission_profile, permission_artifact.path)
+            )
+            Path(handoff_artifact.path).write_text(handoff_prompt, encoding="utf-8")
         route_decision = RouteDecision(
             id=stable_id("route", ticket.id, backend_name, str(target_repo)),
             ticket_id=ticket.id,
@@ -385,7 +403,15 @@ class TicketRunOrchestrator:
         )
         self.store.save_ticket(ticket)
         self._progress(ticket, "route", "succeeded", f"Build Lead selected `{backend_name}`.")
-        execution_run = _start_run(self.store, ticket, "Execution", "execution", backend_name)
+        execution_run = _start_run(
+            self.store,
+            ticket,
+            "Execution",
+            "execution",
+            backend_name,
+            assignment_id=self.assignment_id,
+            runtime_id=self.runtime_id,
+        )
         context = ExecutionContext(
             ticket_id=ticket.id,
             ticket_key=ticket.key,
@@ -393,9 +419,13 @@ class TicketRunOrchestrator:
             target_repo_path=str(target_repo),
             target_worktree_path=worktree_path,
             handoff_prompt=handoff_prompt,
-            handoff_file=str(self.store.base / "handoffs" / f"{ticket.key}.md"),
+            handoff_file=(
+                assignment_handoff_packet.markdown_path
+                if assignment_handoff_packet is not None
+                else str(self.store.base / "handoffs" / f"{ticket.key}.md")
+            ),
             backend_name=backend_name,
-            allowed_paths=packet.affected_modules,
+            allowed_paths=allowed_paths,
             command=execution_command,
             test_command=execution_test_command,
             confirm_execution=confirm_execution,
@@ -520,7 +550,14 @@ class TicketRunOrchestrator:
         )
 
         ticket_for_review = self.store.load_ticket(ticket.id)
-        review_run = _start_run(self.store, ticket_for_review, "Reviewer", "reviewer")
+        review_run = _start_run(
+            self.store,
+            ticket_for_review,
+            "Reviewer",
+            "reviewer",
+            assignment_id=self.assignment_id,
+            runtime_id=self.runtime_id,
+        )
         ticket = self.store.load_ticket(ticket.id).append_event(
             "review_started",
             "Reviewer",
@@ -600,7 +637,14 @@ class TicketRunOrchestrator:
         ticket = ticket.with_status(_status_for_review(review.verdict), "Reviewer")
         self.store.save_ticket(ticket)
 
-        memory_run = _start_run(self.store, ticket, "Memory / Feishu", "memory_feishu")
+        memory_run = _start_run(
+            self.store,
+            ticket,
+            "Memory / Feishu",
+            "memory_feishu",
+            assignment_id=self.assignment_id,
+            runtime_id=self.runtime_id,
+        )
         memory, memory_path = write_memory_record(self.store, ticket, packet, execution, review)
         feishu_plan, feishu_path = generate_feishu_plan(self.store, ticket, packet, execution, review)
         memory_artifact = _write_memory_artifact(self.store, ticket.id, memory_run.id, memory, memory_path)
@@ -1052,6 +1096,18 @@ class TicketRunOrchestrator:
         )
         self._heartbeat(current, stage, event.id, event_type)
 
+    def _load_assignment_handoff_packet(self) -> HandoffPacket | None:
+        if not self.assignment_id:
+            return None
+        try:
+            assignment = self.store.load_assignment(self.assignment_id)
+        except FileNotFoundError:
+            return None
+        packet_id = assignment.metadata.get("handoff_packet_id")
+        if not packet_id:
+            return None
+        return self.store.load_handoff_packet(str(packet_id))
+
     def _heartbeat(self, ticket, stage: str, event_id: str, event_type: str) -> None:  # type: ignore[no-untyped-def]
         try:
             existing = self.store.load_worker_heartbeat(self.runtime_id)
@@ -1095,6 +1151,8 @@ def _start_run(
     agent_name: str,
     agent_role: str,
     backend_name: str | None = None,
+    assignment_id: str | None = None,
+    runtime_id: str | None = None,
 ) -> AgentRun:
     for run_id in ticket.agent_run_ids:
         existing = store.load_run(run_id)
@@ -1117,6 +1175,15 @@ def _start_run(
         input_summary=f"{agent_name} for {ticket.key}.",
         attempt=attempt,
         backend_name=backend_name,
+        runtime_id=runtime_id,
+        metadata={
+            key: value
+            for key, value in {
+                "assignment_id": assignment_id,
+                "runtime_id": runtime_id,
+            }.items()
+            if value
+        },
     ).mark_running()
     store.save_run(run)
     store.reset_run_messages(run.id)

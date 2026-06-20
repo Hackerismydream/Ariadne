@@ -67,6 +67,33 @@ def test_codex_backend_default_template_uses_stdin_without_forcing_service_tier(
     assert "service_tier" not in command
 
 
+def test_codex_backend_reuses_existing_handoff_file_without_overwrite(tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+    handoff_file = tmp_path / ".ariadne" / "handoffs" / "packets" / "ARI-REAL-packet.md"
+    handoff_file.parent.mkdir(parents=True)
+    handoff_file.write_text("frozen packet markdown\n", encoding="utf-8")
+    context = _context(target).model_copy(
+        update={"handoff_file": str(handoff_file), "handoff_prompt": "replacement prompt"}
+    )
+
+    written = CodexBackend().write_handoff_file(context)
+
+    assert written == handoff_file
+    assert handoff_file.read_text(encoding="utf-8") == "frozen packet markdown\n"
+
+
+def test_codex_backend_blocks_when_persisted_handoff_file_is_missing(tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+    missing_handoff = tmp_path / ".ariadne" / "handoffs" / "packets" / "missing.md"
+    context = _context(target).model_copy(update={"handoff_file": str(missing_handoff)})
+
+    result = CodexBackend().execute(context)
+
+    assert result.blocked
+    assert result.failure_reason is FailureReason.INVALID_RESOURCE
+    assert "Persisted handoff file is missing" in (result.block_reason or "")
+
+
 def test_claude_backend_template_supports_model_effort_and_json(monkeypatch, tmp_path: Path) -> None:
     target = ensure_demo_target_project(tmp_path)
     monkeypatch.setenv(

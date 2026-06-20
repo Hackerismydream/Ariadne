@@ -154,6 +154,10 @@ export type ReleaseEvidenceSummary = {
   productReadinessStatus?: string;
   runGateStatus?: string;
   productReadinessChecks?: Record<string, string>;
+  readinessNextActions?: string[];
+  readinessBlockers?: Array<Record<string, string>>;
+  evidencePacketStale?: boolean;
+  evidencePacketStaleReasons?: string[];
   realSuccessEvidence?: Record<string, unknown>;
   realFailureEvidence?: Record<string, unknown>;
   evidenceRefs?: Record<string, string>;
@@ -282,7 +286,7 @@ export type SourceDocument = {
 export type SourceArtifact = {
   id: string;
   sourceDocumentId: string;
-  artifactType: "knowledge_card" | "reference_project_profile" | "codebase_snapshot";
+  artifactType: "knowledge_card" | "text_understanding" | "reference_project_profile" | "repository_understanding" | "codebase_snapshot" | "target_codebase_snapshot" | "execution_feedback" | "review_feedback";
   payloadHash: string;
   payloadPath: string;
   evidenceIds: string[];
