@@ -189,6 +189,9 @@ export function useTicketAgentControl({
         timeout_seconds: 600,
         external_execution_authorized: true,
         allowed_assignment_id: lastCreatedAssignmentId ?? latestAssignment?.id ?? null,
+        target_project_id: targetProject?.id ?? ticket.targetProjectId ?? null,
+        allowed_backends: productRuntime?.backend ? [productRuntime.backend] : [],
+        scope_mode: "current_assignment",
       });
       setActionMessage("本地运行时已启动，并已授权 Codex/Claude 执行分配给它的任务。");
       await onRefresh(ticket.key);

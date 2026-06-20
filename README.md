@@ -104,8 +104,33 @@ UI shows a disconnected read-only state instead of silently treating snapshot
 or fixture data as product evidence. Browser actions can create assignments,
 dispatch a run request for the local daemon/runtime to claim, watch WebSocket
 assignment events, and add comments. They do not send raw shell commands or
-local filesystem paths; target paths stay server-side in
-`.ariadne/project/resources.json`.
+raw shell commands. The Workbench does show the registered target project path
+so the single local user can verify which repository Codex or Claude will
+modify.
+
+The default Workbench screen is **Current Version Delivery**. It is the product
+closure surface for the AI Builder loop:
+
+```text
+Project goal + external inputs
+  -> source understanding
+  -> issue delta
+  -> scoped assignment
+  -> Codex / Claude execution
+  -> diff / tests / review / memory / next issues
+  -> current version progress
+```
+
+Module tests, CLI demos, blocked rehearsals, and static fixtures do not prove
+browser product closure. The closure command is:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
+```
+
+It must write `.ariadne/dogfood/.../closure-result.json` with
+`status: REAL_CLOSED`. `scripts/verify_dogfood_browser.sh --blocked-ok` may be
+used only to capture the first browser-path blocker during debugging.
 
 Each completed ticket run also writes a landing evidence packet under the
 ticket artifact directory. The packet has JSON and Markdown forms and links the

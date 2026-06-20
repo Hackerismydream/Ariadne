@@ -296,6 +296,170 @@ button:disabled {
   padding: 20px;
 }
 
+.delivery-page {
+  padding-bottom: 28px;
+}
+
+.delivery-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 18px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  padding: 22px 20px;
+  background: oklch(0.99 0 0);
+}
+
+.delivery-hero h2 {
+  max-width: 980px;
+  margin: 6px 0;
+  font-size: 24px;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.delivery-hero p {
+  max-width: 980px;
+  margin: 0;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+.delivery-status-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 14px;
+}
+
+.delivery-status-card span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.delivery-status-card strong {
+  font-size: 18px;
+}
+
+.delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 14px;
+  padding: 16px 20px 0;
+}
+
+.delivery-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.delivery-panel.wide {
+  grid-column: 1 / -1;
+}
+
+.delivery-gates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.delivery-gate,
+.workflow-step,
+.delivery-input-list button,
+.delivery-issue-list button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 10px;
+  text-align: left;
+}
+
+.delivery-gate {
+  border-left: 3px solid var(--muted-foreground);
+}
+
+.delivery-gate.pass,
+.delivery-gate.done,
+.delivery-gate.ready {
+  border-left-color: var(--success);
+}
+
+.delivery-gate.blocked,
+.delivery-gate.failed,
+.delivery-gate.missing {
+  border-left-color: var(--danger);
+}
+
+.delivery-gate strong,
+.workflow-step strong,
+.delivery-input-list strong,
+.delivery-issue-list strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.delivery-gate span,
+.workflow-step span,
+.workflow-step em,
+.delivery-input-list span,
+.delivery-input-list small,
+.delivery-issue-list span,
+.delivery-issue-list small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.delivery-gate p,
+.workflow-step p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.delivery-blockers {
+  display: grid;
+  gap: 6px;
+}
+
+.delivery-blockers span {
+  border: 1px solid oklch(0.9 0.08 28);
+  border-radius: 8px;
+  background: oklch(0.97 0.03 28);
+  padding: 8px 10px;
+  color: oklch(0.42 0.16 28);
+  font-size: 12px;
+}
+
+.delivery-mainline {
+  display: grid;
+  grid-template-columns: 320px 360px minmax(420px, 1fr);
+  gap: 14px;
+  padding: 16px 20px 0;
+}
+
+.delivery-lane {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.delivery-input-list,
+.delivery-issue-list,
+.workflow-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  max-height: 480px;
+  overflow: auto;
+}
+
 .goal-hero,
 .panel,
 .table-card,
@@ -403,6 +567,13 @@ button:disabled {
   font-size: 12px;
 }
 
+.form-grid .checkbox-line {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  gap: 8px;
+}
+
 .form-grid input,
 .form-grid select,
 .form-grid textarea {
@@ -413,6 +584,12 @@ button:disabled {
   background: var(--card);
   color: var(--foreground);
   padding: 8px 10px;
+}
+
+.checkbox-line input {
+  width: 16px;
+  min-height: auto;
+  padding: 0;
 }
 
 .form-grid textarea {

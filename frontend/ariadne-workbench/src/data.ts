@@ -611,6 +611,19 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       runningAssignmentCount: apiData.daemon_status.running_assignment_count,
       blockedAssignmentCount: apiData.daemon_status.blocked_assignment_count,
       lastMessage: apiData.daemon_status.last_message,
+      scope: apiData.daemon_status.scope ? {
+        mode: apiData.daemon_status.scope.mode,
+        targetProjectId: apiData.daemon_status.scope.target_project_id,
+        ticketId: apiData.daemon_status.scope.ticket_id,
+        assignmentId: apiData.daemon_status.scope.assignment_id,
+        allowedBackends: apiData.daemon_status.scope.allowed_backends,
+      } : null,
+      queuePreview: apiData.daemon_status.queue_preview ? {
+        current: apiData.daemon_status.queue_preview.current ? adaptAssignment(apiData.daemon_status.queue_preview.current) : null,
+        sameTicketReady: apiData.daemon_status.queue_preview.same_ticket_ready.map(adaptAssignment),
+        sameProjectReady: apiData.daemon_status.queue_preview.same_project_ready.map(adaptAssignment),
+        outOfScopeReadyCount: apiData.daemon_status.queue_preview.out_of_scope_ready_count,
+      } : null,
     },
     runtimes: apiData.runtime_capabilities.map(adaptRuntime),
     projectResources: apiData.target_projects.map((project) => ({
@@ -619,9 +632,13 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       resourceType: "local_directory",
       available: project.available,
       disabledReason: project.disabled_reason,
-      localPath: typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined,
-      testCommand: typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined,
-      issuePrefix: typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined,
+      localPath: project.local_path ?? (typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined),
+      pathExists: project.path_exists,
+      isGitRepo: project.is_git_repo,
+      gitBranch: project.git_branch,
+      gitDirty: project.git_dirty,
+      testCommand: project.test_command ?? (typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined),
+      issuePrefix: project.issue_prefix ?? (typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined),
     })),
     sourceArtifacts: apiData.source_artifacts.map((artifact) => ({
       id: artifact.id,
@@ -669,6 +686,63 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       label: event.label,
       createdAt: event.created_at,
     })),
+    projectInputs: (apiData.project_inputs ?? []).map((item) => ({
+      source: adaptSource(item.source),
+      lifecycle: {
+        sourceId: item.lifecycle.source_id,
+        status: item.lifecycle.status,
+        label: item.lifecycle.label,
+        detail: item.lifecycle.detail,
+        terminal: item.lifecycle.terminal,
+        readyForIssueFactory: item.lifecycle.ready_for_issue_factory,
+        blocker: item.lifecycle.blocker,
+        updatedAt: item.lifecycle.updated_at,
+        nextActions: item.lifecycle.next_actions.map((action) => ({
+          id: action.id,
+          label: action.label,
+          enabled: action.enabled,
+          reason: action.reason,
+          targetRoute: action.target_route,
+          apiAction: action.api_action,
+        })),
+      },
+      understanding: item.understanding ? {
+        sourceId: item.understanding.source_id,
+        displayTitle: item.understanding.display_title,
+        kindLabel: item.understanding.kind_label,
+        roleLabel: item.understanding.role_label,
+        analysisLabel: item.understanding.analysis_label,
+        licenseRiskLabel: item.understanding.license_risk_label,
+        whatAriadneUnderstood: item.understanding.what_ariadne_understood,
+        evidenceItems: item.understanding.evidence_items.map((evidence) => ({
+          locator: evidence.locator,
+          summary: evidence.summary,
+          claim: evidence.claim,
+          confidenceLabel: evidence.confidence_label,
+        })),
+        generatedOutputs: item.understanding.generated_outputs,
+        risks: item.understanding.risks,
+        impactedTicketKeys: item.understanding.impacted_ticket_keys,
+        nextActions: item.understanding.next_actions,
+      } : null,
+      artifacts: item.artifacts.map((artifact) => ({
+        id: artifact.id,
+        kind: artifact.kind,
+        label: artifact.label,
+        summary: artifact.summary,
+        payloadPath: artifact.payload_path,
+        payloadHash: artifact.payload_hash,
+        evidenceCount: artifact.evidence_count,
+        keyFields: artifact.key_fields,
+      })),
+      evidence: item.evidence.map((evidence) => ({
+        locator: evidence.locator,
+        summary: evidence.summary,
+        claim: evidence.claim,
+        confidenceLabel: evidence.confidence_label,
+      })),
+      impactedTicketKeys: item.impacted_ticket_keys,
+    })),
     backendSmokeEvidence: [],
     releaseEvidence: undefined,
     skills: apiData.skills.map((skill) => ({
@@ -695,7 +769,194 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       resolutionNote: item.resolution_note,
       repairTicketId: item.repair_ticket_id ?? undefined,
       repairTicketKey: item.repair_ticket_key ?? undefined,
+      active: item.active,
+      currentState: item.current_state,
+      archiveReason: item.archive_reason,
+      supersededByRef: item.superseded_by_ref,
+      recoveryClass: item.recovery_class,
+      primaryAction: item.primary_action,
+      allowedActions: item.allowed_actions,
+      linkedAssignmentId: item.linked_assignment_id,
+      retryAssignmentId: item.retry_assignment_id,
     })),
+    environment: apiData.environment ? {
+      connectionMode: apiData.environment.connection_mode,
+      executionMode: apiData.environment.execution_mode,
+      readOnly: apiData.environment.read_only,
+      ariadneRoot: apiData.environment.ariadne_root,
+      ariadneStorePath: apiData.environment.ariadne_store_path,
+      activeTargetProjectId: apiData.environment.active_target_project_id,
+      activeTargetProject: apiData.environment.active_target_project ? {
+        id: apiData.environment.active_target_project.id,
+        label: apiData.environment.active_target_project.label,
+        resourceType: "local_directory",
+        available: apiData.environment.active_target_project.available,
+        disabledReason: apiData.environment.active_target_project.disabled_reason,
+        localPath: apiData.environment.active_target_project.local_path ?? undefined,
+        pathExists: apiData.environment.active_target_project.path_exists,
+        isGitRepo: apiData.environment.active_target_project.is_git_repo,
+        gitBranch: apiData.environment.active_target_project.git_branch,
+        gitDirty: apiData.environment.active_target_project.git_dirty,
+        testCommand: apiData.environment.active_target_project.test_command ?? undefined,
+        issuePrefix: apiData.environment.active_target_project.issue_prefix ?? undefined,
+      } : null,
+      productionBackendsAvailable: apiData.environment.production_backends_available,
+      selectedBackendRecommendation: apiData.environment.selected_backend_recommendation,
+      blockers: apiData.environment.blockers.map((blocker) => ({
+        code: blocker.code,
+        message: blocker.message,
+        severity: blocker.severity,
+      })),
+    } : null,
+    currentVersionDelivery: apiData.current_version_delivery ? adaptDelivery(apiData.current_version_delivery) : null,
+    issueProjection: apiData.issue_projection ? {
+      summary: apiData.issue_projection.summary,
+      mainlineTickets: apiData.issue_projection.mainline_tickets.map((item) => ({
+        ticketId: item.ticket_id,
+        ticketKey: item.ticket_key,
+        title: item.title,
+        status: item.status,
+        priority: item.priority,
+        rootTicketKey: item.root_ticket_key,
+        repairCount: item.repair_count,
+        openRepairCount: item.open_repair_count,
+        historyCount: item.history_count,
+        childTicketKeys: item.child_ticket_keys,
+        latestRepairSummary: item.latest_repair_summary,
+      })),
+      repairItems: apiData.issue_projection.repair_items,
+      historyItems: apiData.issue_projection.history_items,
+    } : null,
+    agentWorkflows: (apiData.agent_workflows ?? []).map((step) => ({
+      id: step.id,
+      ticketId: step.ticket_id,
+      ticketKey: step.ticket_key,
+      sequence: step.sequence,
+      agentName: step.agent_name,
+      agentRole: step.agent_role,
+      stepKind: step.step_kind,
+      status: step.status,
+      inputRefs: step.input_refs.map(adaptArtifactRef),
+      outputRefs: step.output_refs.map(adaptArtifactRef),
+      assignmentId: step.assignment_id,
+      runId: step.run_id,
+      handoffId: step.handoff_id,
+      nextAgent: step.next_agent,
+      nextAction: step.next_action,
+      latestActivity: step.latest_activity ? adaptAgentActivity(step.latest_activity) : null,
+      blockedReason: step.blocked_reason,
+    })),
+    agentActivities: (apiData.agent_activities ?? []).map(adaptAgentActivity),
+  };
+}
+
+function adaptAssignment(assignment: ApiWorkbench["assignments"][number]) {
+  return {
+    id: assignment.id,
+    ticketId: assignment.ticket_id,
+    ticketKey: assignment.ticket_key,
+    agentId: assignment.agent_id,
+    agentName: assignment.agent_name,
+    backendName: assignment.backend_name,
+    status: assignment.status,
+    readinessStatus: assignment.readiness_status,
+    claimable: assignment.claimable,
+    routeDecisionId: assignment.route_decision_id,
+    handoffPacketId: assignment.handoff_packet_id,
+    handoffHash: assignment.handoff_hash,
+    buildContextId: assignment.build_context_id,
+    blockedReason: assignment.blocked_reason,
+    runtimeScope: assignment.runtime_scope,
+    targetProjectId: assignment.target_project_id,
+    createdAt: assignment.created_at,
+    blocker: assignment.blocker,
+    failureReason: assignment.failure_reason,
+  };
+}
+
+function adaptDelivery(delivery: NonNullable<ApiWorkbench["current_version_delivery"]>) {
+  return {
+    id: delivery.id,
+    versionLabel: delivery.version_label,
+    status: delivery.status,
+    goalId: delivery.goal_id,
+    targetProjectId: delivery.target_project_id,
+    targetProjectLabel: delivery.target_project_label,
+    currentState: delivery.current_state,
+    targetState: delivery.target_state,
+    summary: delivery.summary,
+    generatedAt: delivery.generated_at,
+    progressCounts: delivery.progress_counts,
+    gates: delivery.gates.map((gate) => ({
+      id: gate.id,
+      label: gate.label,
+      status: gate.status,
+      detail: gate.detail,
+      refId: gate.ref_id,
+    })),
+    deliveryItems: delivery.delivery_items.map((item) => ({
+      ticketId: item.ticket_id,
+      ticketKey: item.ticket_key,
+      title: item.title,
+      status: item.status,
+      priority: item.priority,
+      targetProjectId: item.target_project_id,
+      assignmentId: item.assignment_id,
+      assignmentStatus: item.assignment_status,
+      backendName: item.backend_name,
+      executionResultId: item.execution_result_id,
+      testExitCode: item.test_exit_code,
+      reviewVerdict: item.review_verdict,
+      evidenceStatus: item.evidence_status,
+      changedFiles: item.changed_files,
+    })),
+    latestRealRun: delivery.latest_real_run ? {
+      ticketKey: delivery.latest_real_run.ticket_key,
+      assignmentId: delivery.latest_real_run.assignment_id,
+      backendName: delivery.latest_real_run.backend_name,
+      executionResultId: delivery.latest_real_run.execution_result_id,
+      exitCode: delivery.latest_real_run.exit_code,
+      testExitCode: delivery.latest_real_run.test_exit_code,
+      reviewVerdict: delivery.latest_real_run.review_verdict,
+      dryRun: delivery.latest_real_run.dry_run,
+      blocked: delivery.latest_real_run.blocked,
+      changedFiles: delivery.latest_real_run.changed_files,
+      handoffFile: delivery.latest_real_run.handoff_file,
+      diffArtifactPath: delivery.latest_real_run.diff_artifact_path,
+      executionLogArtifactPath: delivery.latest_real_run.execution_log_artifact_path,
+      memoryPath: delivery.latest_real_run.memory_path,
+      nextTicketsPath: delivery.latest_real_run.next_tickets_path,
+    } : null,
+    blockers: delivery.blockers,
+    nextActions: delivery.next_actions,
+    evidenceRefs: delivery.evidence_refs,
+  };
+}
+
+function adaptArtifactRef(ref: NonNullable<ApiWorkbench["agent_workflows"]>[number]["output_refs"][number]) {
+  return {
+    id: ref.id,
+    artifactType: ref.artifact_type,
+    path: ref.path,
+    summary: ref.summary,
+    createdAt: ref.created_at,
+    metadata: ref.metadata,
+  };
+}
+
+function adaptAgentActivity(activity: NonNullable<ApiWorkbench["agent_activities"]>[number]) {
+  return {
+    id: activity.id,
+    ticketId: activity.ticket_id,
+    ticketKey: activity.ticket_key,
+    assignmentId: activity.assignment_id,
+    runId: activity.run_id,
+    agentName: activity.agent_name,
+    stage: activity.stage,
+    eventType: activity.event_type,
+    summary: activity.summary,
+    timestamp: activity.timestamp,
+    refId: activity.ref_id,
   };
 }
 
@@ -771,6 +1032,14 @@ function adaptTicketEvidence(evidence: NonNullable<ApiWorkbench["tickets"][numbe
     feishuPlanPath: evidence.feishu_plan_path,
     nextTicketsPath: evidence.next_tickets_path,
     warnings: evidence.warnings,
+    currentState: evidence.current_state,
+    currentAssignmentId: evidence.current_assignment_id,
+    currentRunId: evidence.current_run_id,
+    currentExecutionResultId: evidence.current_execution_result_id,
+    currentReviewReportId: evidence.current_review_report_id,
+    historicalBlockerCount: evidence.historical_blocker_count,
+    activeBlockerCount: evidence.active_blocker_count,
+    supersededInboxItemIds: evidence.superseded_inbox_item_ids,
   };
 }
 
@@ -876,10 +1145,20 @@ function adaptBacklogPreviewChanges(preview: ApiBacklogPreview): WorkbenchData["
 }
 
 function adaptBacklogOperation(preview: ApiBacklogPreview, operation: ApiBacklogOperation): WorkbenchData["backlogChanges"][number] {
+  const kindByIntent: Record<string, WorkbenchData["backlogChanges"][number]["kind"]> = {
+    add: "added",
+    update: "updated",
+    defer: "deferred",
+    discard: "rejected",
+    supersede: "superseded",
+    no_op: "no_op",
+  };
   return {
     id: operation.id,
     knowledgeCardId: `kc-${preview.evidence_refs[1] ?? preview.evidence_refs[0] ?? preview.trigger_ref}`,
-    kind: operation.operation_type === "update_ticket"
+    kind: operation.change_intent
+      ? kindByIntent[operation.change_intent] ?? "no_op"
+      : operation.operation_type === "update_ticket"
       ? "updated"
       : operation.operation_type === "defer_ticket"
         ? "deferred"
@@ -907,6 +1186,14 @@ function adaptBacklogOperation(preview: ApiBacklogPreview, operation: ApiBacklog
     buildContextId: operation.build_context_id,
     targetProjectId: operation.target_project_id,
     goalReason: operation.goal_reason,
+    changeIntent: operation.change_intent,
+    targetVersionLabel: operation.target_version_label,
+    existingTicketKey: operation.existing_ticket_key,
+    beforeSnapshot: operation.before_snapshot,
+    afterSummary: operation.after_summary,
+    confidence: operation.confidence,
+    decisionReason: operation.decision_reason,
+    included: operation.included,
   };
 }
 

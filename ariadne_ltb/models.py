@@ -997,6 +997,11 @@ class ExecutionResult(AriadneModel):
     provider_session_id: str | None = None
     provider_failure_kind: str | None = None
     provider_failure_evidence: str | None = None
+    assignment_id: str | None = None
+    run_id: str | None = None
+    attempt: int = 1
+    supersedes_execution_ids: list[str] = Field(default_factory=list)
+    closure_kind: str | None = None
 
 
 class ExecutionPermissionProfile(AriadneModel):
@@ -1367,6 +1372,10 @@ class InboxItem(AriadneModel):
     evidence_ref: str | None = None
     recommended_action: str = "human_review_required"
     resolution_note: str | None = None
+    active: bool = True
+    archive_reason: str | None = None
+    superseded_by_ref: str | None = None
+    current_state: str | None = None
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
 

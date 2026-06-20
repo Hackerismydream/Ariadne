@@ -62,6 +62,14 @@ export type TicketExecutionEvidence = {
   feishuPlanPath?: string | null;
   nextTicketsPath?: string | null;
   warnings: string[];
+  currentState?: string | null;
+  currentAssignmentId?: string | null;
+  currentRunId?: string | null;
+  currentExecutionResultId?: string | null;
+  currentReviewReportId?: string | null;
+  historicalBlockerCount?: number;
+  activeBlockerCount?: number;
+  supersededInboxItemIds?: string[];
 };
 
 export type BackendSmokeEvidence = {
@@ -234,6 +242,23 @@ export type DaemonStatus = {
   runningAssignmentCount: number;
   blockedAssignmentCount: number;
   lastMessage: string;
+  scope?: RuntimeScope | null;
+  queuePreview?: QueuePreview | null;
+};
+
+export type RuntimeScope = {
+  mode: string;
+  targetProjectId?: string | null;
+  ticketId?: string | null;
+  assignmentId?: string | null;
+  allowedBackends: string[];
+};
+
+export type QueuePreview = {
+  current?: AssignmentSummary | null;
+  sameTicketReady: AssignmentSummary[];
+  sameProjectReady: AssignmentSummary[];
+  outOfScopeReadyCount: number;
 };
 
 export type ProjectResource = {
@@ -243,6 +268,10 @@ export type ProjectResource = {
   available?: boolean;
   disabledReason?: string;
   localPath?: string;
+  pathExists?: boolean;
+  isGitRepo?: boolean;
+  gitBranch?: string | null;
+  gitDirty?: boolean | null;
   testCommand?: string;
   issuePrefix?: string;
 };
@@ -335,6 +364,47 @@ export type ProjectInputEvent = {
   createdAt: string;
 };
 
+export type ProjectInputAction = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  reason: string;
+  targetRoute?: string | null;
+  apiAction?: string | null;
+};
+
+export type ProjectInputLifecycle = {
+  sourceId: string;
+  status: string;
+  label: string;
+  detail: string;
+  terminal: boolean;
+  readyForIssueFactory: boolean;
+  blocker?: string | null;
+  updatedAt: string;
+  nextActions: ProjectInputAction[];
+};
+
+export type ProjectInputArtifact = {
+  id: string;
+  kind: string;
+  label: string;
+  summary: string;
+  payloadPath?: string | null;
+  payloadHash?: string | null;
+  evidenceCount: number;
+  keyFields: Record<string, unknown>;
+};
+
+export type ProjectInputDetail = {
+  source: SourceDocument;
+  lifecycle: ProjectInputLifecycle;
+  understanding?: ProjectInputUnderstanding | null;
+  artifacts: ProjectInputArtifact[];
+  evidence: ProjectInputEvidence[];
+  impactedTicketKeys: string[];
+};
+
 export type KnowledgeCard = {
   id: string;
   sourceId: string;
@@ -374,6 +444,14 @@ export type BacklogChange = {
   buildContextId?: string | null;
   targetProjectId?: string | null;
   goalReason?: string | null;
+  changeIntent?: string;
+  targetVersionLabel?: string | null;
+  existingTicketKey?: string | null;
+  beforeSnapshot?: Record<string, unknown>;
+  afterSummary?: string;
+  confidence?: number;
+  decisionReason?: string;
+  included?: boolean;
 };
 
 export type TraceStep = {
@@ -425,6 +503,155 @@ export type InboxItem = {
   resolutionNote?: string | null;
   repairTicketId?: string;
   repairTicketKey?: string;
+  active?: boolean;
+  currentState?: string | null;
+  archiveReason?: string | null;
+  supersededByRef?: string | null;
+  recoveryClass?: string;
+  primaryAction?: string;
+  allowedActions?: string[];
+  linkedAssignmentId?: string | null;
+  retryAssignmentId?: string | null;
+};
+
+export type WorkbenchEnvironment = {
+  connectionMode: string;
+  executionMode: string;
+  readOnly: boolean;
+  ariadneRoot: string;
+  ariadneStorePath: string;
+  activeTargetProjectId?: string | null;
+  activeTargetProject?: ProjectResource | null;
+  productionBackendsAvailable: string[];
+  selectedBackendRecommendation?: string | null;
+  blockers: Array<{ code: string; message: string; severity: string }>;
+};
+
+export type DeliveryGate = {
+  id: string;
+  label: string;
+  status: string;
+  detail: string;
+  refId?: string | null;
+};
+
+export type LatestRealRun = {
+  ticketKey: string;
+  assignmentId?: string | null;
+  backendName: string;
+  executionResultId: string;
+  exitCode?: number | null;
+  testExitCode?: number | null;
+  reviewVerdict?: string | null;
+  dryRun: boolean;
+  blocked: boolean;
+  changedFiles: string[];
+  handoffFile?: string | null;
+  diffArtifactPath?: string | null;
+  executionLogArtifactPath?: string | null;
+  memoryPath?: string | null;
+  nextTicketsPath?: string | null;
+};
+
+export type DeliveryItem = {
+  ticketId: string;
+  ticketKey: string;
+  title: string;
+  status: string;
+  priority: string;
+  targetProjectId?: string | null;
+  assignmentId?: string | null;
+  assignmentStatus?: string | null;
+  backendName?: string | null;
+  executionResultId?: string | null;
+  testExitCode?: number | null;
+  reviewVerdict?: string | null;
+  evidenceStatus: string;
+  changedFiles: string[];
+};
+
+export type ProjectVersionDelivery = {
+  id: string;
+  versionLabel: string;
+  status: string;
+  goalId?: string | null;
+  targetProjectId?: string | null;
+  targetProjectLabel?: string | null;
+  currentState: string;
+  targetState: string;
+  summary: string;
+  generatedAt: string;
+  progressCounts: Record<string, number>;
+  gates: DeliveryGate[];
+  deliveryItems: DeliveryItem[];
+  latestRealRun?: LatestRealRun | null;
+  blockers: string[];
+  nextActions: string[];
+  evidenceRefs: string[];
+};
+
+export type IssueFamily = {
+  ticketId: string;
+  ticketKey: string;
+  title: string;
+  status: string;
+  priority: string;
+  rootTicketKey: string;
+  repairCount: number;
+  openRepairCount: number;
+  historyCount: number;
+  childTicketKeys: string[];
+  latestRepairSummary?: string | null;
+};
+
+export type IssueProjection = {
+  summary: Record<string, number>;
+  mainlineTickets: IssueFamily[];
+  repairItems: Array<Record<string, unknown>>;
+  historyItems: Array<Record<string, unknown>>;
+};
+
+export type ArtifactRef = {
+  id: string;
+  artifactType: string;
+  path?: string | null;
+  summary: string;
+  createdAt?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type AgentActivity = {
+  id: string;
+  ticketId?: string | null;
+  ticketKey?: string | null;
+  assignmentId?: string | null;
+  runId?: string | null;
+  agentName: string;
+  stage: string;
+  eventType: string;
+  summary: string;
+  timestamp: string;
+  refId?: string | null;
+};
+
+export type AgentWorkflowStep = {
+  id: string;
+  ticketId: string;
+  ticketKey: string;
+  sequence: number;
+  agentName: string;
+  agentRole: string;
+  stepKind: string;
+  status: string;
+  inputRefs: ArtifactRef[];
+  outputRefs: ArtifactRef[];
+  assignmentId?: string | null;
+  runId?: string | null;
+  handoffId?: string | null;
+  nextAgent?: string | null;
+  nextAction: string;
+  latestActivity?: AgentActivity | null;
+  blockedReason?: string | null;
 };
 
 export type WorkbenchData = {
@@ -435,6 +662,7 @@ export type WorkbenchData = {
   sourceEvidence?: SourceEvidence[];
   sourceUnderstandings: ProjectInputUnderstanding[];
   sourceEvents: ProjectInputEvent[];
+  projectInputs?: ProjectInputDetail[];
   knowledgeCards: KnowledgeCard[];
   backlogChanges: BacklogChange[];
   traceSteps: TraceStep[];
@@ -448,4 +676,9 @@ export type WorkbenchData = {
   releaseEvidence?: ReleaseEvidenceSummary;
   skills: SkillInfo[];
   inbox: InboxItem[];
+  environment?: WorkbenchEnvironment | null;
+  currentVersionDelivery?: ProjectVersionDelivery | null;
+  issueProjection?: IssueProjection | null;
+  agentWorkflows?: AgentWorkflowStep[];
+  agentActivities?: AgentActivity[];
 };

@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FIXTURES = sorted((ROOT / "examples" / "sources").glob("*.md"))
 
 
-def test_target_project_registry_registers_without_exposing_paths(tmp_path: Path) -> None:
+def test_target_project_registry_registers_and_returns_path_for_workbench(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     target = ensure_demo_target_project(tmp_path)
 
@@ -32,7 +32,8 @@ def test_target_project_registry_registers_without_exposing_paths(tmp_path: Path
     assert registered.label == "Demo Target"
     assert registered.available is True
     assert listed == [registered]
-    assert str(target) not in registered.model_dump_json()
+    assert registered.local_path == str(target)
+    assert registered.path_exists is True
     resources = store.load_project_resources()
     assert resources[0].resource_ref["local_path"] == str(target)
 
@@ -67,7 +68,8 @@ def test_http_workbench_and_runtime_status_are_browser_safe(tmp_path: Path) -> N
     payload = workbench.json()
     assert {ticket["key"] for ticket in payload["tickets"]} >= {"ARI-003"}
     assert payload["target_projects"][0]["label"] == "Demo Target"
-    assert str(target) not in workbench.text
+    assert payload["target_projects"][0]["local_path"] == str(target)
+    assert payload["environment"]["active_target_project"]["local_path"] == str(target)
     assert runtime.status_code == 200, runtime.text
     backends = {item["backend_name"] for item in runtime.json()["capabilities"]}
     assert {"codex", "claude-code", "fake-codex", "dry-run"} <= backends

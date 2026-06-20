@@ -476,6 +476,8 @@ class TicketRunOrchestrator:
             update={
                 "target_repo_path": execution.target_repo_path or context.target_repo_path,
                 "target_worktree_path": execution.target_worktree_path or context.target_worktree_path,
+                "assignment_id": self.assignment_id,
+                "run_id": execution_run.id,
             }
         )
         self.store.save_execution_result(execution)
@@ -1271,6 +1273,8 @@ def _blocked_execution(
         test_command=context.test_command,
         test_exit_code=None,
         warnings=[reason],
+        assignment_id=context.assignment_id,
+        run_id=context.run_id,
     )
 
 
@@ -1300,8 +1304,7 @@ def _llm_role_failure_can_fallback(error: str) -> bool:
 
 
 def _export_board_if_not_daemon_assignment(store: AriadneStore, assignment_id: str | None) -> str:
-    if assignment_id:
-        return str(store.board_dir / "index.md")
+    _ = assignment_id
     return str(export_board(store))
 
 

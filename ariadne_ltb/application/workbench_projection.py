@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from ariadne_ltb.application.dtos import WorkbenchDTO
 from ariadne_ltb.application.daemon_control import DaemonControlService
+from ariadne_ltb.application.agent_workflow_projection import build_agent_workflows
+from ariadne_ltb.application.issue_projection import build_issue_projection
 from ariadne_ltb.application.mappers import (
     agent_profile_dto,
     assignment_dto,
@@ -13,10 +15,13 @@ from ariadne_ltb.application.mappers import (
     source_evidence_dto,
     ticket_summary,
 )
+from ariadne_ltb.application.project_inputs import build_project_inputs
+from ariadne_ltb.application.project_version_delivery import build_current_version_delivery
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
 from ariadne_ltb.application.source_understanding import build_source_events, build_source_understandings
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
+from ariadne_ltb.application.workbench_environment import build_workbench_environment
 from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.skills import discover_build_skills
 from ariadne_ltb.storage import AriadneStore
@@ -28,6 +33,7 @@ class WorkbenchProjectionService:
 
     def get(self, include_internal_backends: bool = False) -> WorkbenchDTO:
         inbox_items = refresh_inbox(self.store)
+        agent_workflows, agent_activities = build_agent_workflows(self.store)
         return WorkbenchDTO(
             goals=ProjectGoalService(self.store).list(),
             sources=[source_document_dto(self.store, source) for source in self.store.list_source_documents()],
@@ -56,6 +62,12 @@ class WorkbenchProjectionService:
                 for preview in self.store.list_backlog_previews()[-10:]
             ],
             daemon_status=DaemonControlService(self.store).status(),
+            environment=build_workbench_environment(self.store),
+            current_version_delivery=build_current_version_delivery(self.store),
+            project_inputs=build_project_inputs(self.store),
+            issue_projection=build_issue_projection(self.store),
+            agent_workflows=agent_workflows,
+            agent_activities=agent_activities,
         )
 
     def snapshot(self, include_internal_backends: bool = False) -> WorkbenchDTO:

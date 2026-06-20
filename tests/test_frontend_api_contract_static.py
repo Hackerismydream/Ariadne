@@ -116,7 +116,7 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     assert "TicketExecutionEvidence" in app
     assert "ExecutionEvidencePanel" in app
     assert "data.daemonStatus" in app
-    assert "分配后由运行时自动 claim" in app
+    assert "本地运行时会自动 claim" in control
     assert "adaptTicketEvidence" in data
     assert "daemonStatus:" in data
     assert "assignmentEventsNeedWorkbenchRefresh" in control
@@ -137,6 +137,9 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert "confirm_execution" not in run_block
     assert "授权 Codex/Claude" in app
     assert "external_execution_authorized: true" in control
+    assert "target_project_id:" in control
+    assert "allowed_backends:" in control
+    assert 'scope_mode: "current_assignment"' in control
 
 
 def test_frontend_inbox_exposes_repair_rerun_acknowledge_resolve_actions() -> None:
@@ -176,11 +179,15 @@ def test_frontend_product_path_is_four_step_compiler_flow() -> None:
     text = APP.read_text(encoding="utf-8")
     page_key_block = text.split("type PageKey", 1)[1].split(";", 1)[0]
 
-    for page in ['"project"', '"sources"', '"tasks"', '"ready"']:
+    for page in ['"delivery"', '"project"', '"sources"', '"tasks"', '"ready"']:
         assert page in page_key_block
     assert '"knowledge"' not in page_key_block
     assert '"agents"' not in page_key_block
-    assert 'initialRoute.page ?? "project"' in text
+    assert 'initialRoute.page ?? "delivery"' in text
+    assert "ProjectVersionDelivery" in (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "currentVersionDelivery" in text
 
 
 def test_frontend_api_contract_exposes_source_analysis_artifacts_and_evidence() -> None:

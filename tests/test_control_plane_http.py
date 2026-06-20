@@ -23,10 +23,20 @@ def test_control_plane_health_and_workbench(tmp_path: Path) -> None:
     ingest_sources(AriadneStore(tmp_path), SOURCE_FIXTURES)
     client = TestClient(create_app(tmp_path))
 
-    assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/health").json() == {
+        "status": "ok",
+        "mode": "api",
+        "schema_version": "ariadne.health.v1",
+    }
     workbench = client.get("/api/workbench")
     assert workbench.status_code == 200
-    assert workbench.json()["schema_version"] == "ariadne.workbench.v1"
+    payload = workbench.json()
+    assert payload["schema_version"] == "ariadne.workbench.v1"
+    assert "environment" in payload
+    assert "current_version_delivery" in payload
+    assert "project_inputs" in payload
+    assert "issue_projection" in payload
+    assert "agent_workflows" in payload
 
 
 def test_control_plane_mutation_requires_json(tmp_path: Path) -> None:

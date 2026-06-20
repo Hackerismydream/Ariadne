@@ -15,6 +15,33 @@ class TargetProjectDTO(AriadneDTO):
     available: bool
     disabled_reason: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
+    local_path: str | None = None
+    path_exists: bool = False
+    is_git_repo: bool = False
+    git_branch: str | None = None
+    git_dirty: bool | None = None
+    test_command: str | None = None
+    issue_prefix: str | None = None
+    boundary_role: str = "target_repo"
+
+
+class EnvironmentBlockerDTO(AriadneDTO):
+    code: str
+    message: str
+    severity: str = "warning"
+
+
+class WorkbenchEnvironmentDTO(AriadneDTO):
+    connection_mode: str = "api"
+    execution_mode: str
+    read_only: bool = False
+    ariadne_root: str
+    ariadne_store_path: str
+    active_target_project_id: str | None = None
+    active_target_project: TargetProjectDTO | None = None
+    production_backends_available: list[str] = Field(default_factory=list)
+    selected_backend_recommendation: str | None = None
+    blockers: list[EnvironmentBlockerDTO] = Field(default_factory=list)
 
 
 class RuntimeCapabilityDTO(AriadneDTO):
@@ -62,6 +89,88 @@ class TicketEvidenceBundleDTO(AriadneDTO):
     feishu_plan_path: str | None = None
     next_tickets_path: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    current_state: str | None = None
+    current_assignment_id: str | None = None
+    current_run_id: str | None = None
+    current_execution_result_id: str | None = None
+    current_review_report_id: str | None = None
+    historical_blocker_count: int = 0
+    active_blocker_count: int = 0
+    superseded_inbox_item_ids: list[str] = Field(default_factory=list)
+
+
+class DeliveryGateDTO(AriadneDTO):
+    id: str
+    label: str
+    status: str
+    detail: str = ""
+    ref_id: str | None = None
+
+
+class LatestRealRunDTO(AriadneDTO):
+    ticket_key: str
+    assignment_id: str | None = None
+    backend_name: str
+    execution_result_id: str
+    exit_code: int | None = None
+    test_exit_code: int | None = None
+    review_verdict: str | None = None
+    dry_run: bool
+    blocked: bool
+    changed_files: list[str] = Field(default_factory=list)
+    handoff_file: str | None = None
+    diff_artifact_path: str | None = None
+    execution_log_artifact_path: str | None = None
+    memory_path: str | None = None
+    next_tickets_path: str | None = None
+
+
+class DeliveryItemDTO(AriadneDTO):
+    ticket_id: str
+    ticket_key: str
+    title: str
+    status: str
+    priority: str
+    target_project_id: str | None = None
+    assignment_id: str | None = None
+    assignment_status: str | None = None
+    backend_name: str | None = None
+    route_decision_id: str | None = None
+    handoff_packet_id: str | None = None
+    build_context_id: str | None = None
+    execution_result_id: str | None = None
+    dry_run: bool | None = None
+    blocked: bool | None = None
+    exit_code: int | None = None
+    test_command: str | None = None
+    test_exit_code: int | None = None
+    review_verdict: str | None = None
+    memory_path: str | None = None
+    feishu_plan_path: str | None = None
+    next_tickets_path: str | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    evidence_status: str = "missing"
+
+
+class ProjectVersionDeliveryDTO(AriadneDTO):
+    id: str
+    version_label: str
+    status: str
+    goal_id: str | None = None
+    target_project_id: str | None = None
+    target_project_label: str | None = None
+    current_state: str
+    target_state: str
+    summary: str
+    generated_at: str
+    progress_counts: dict[str, int] = Field(default_factory=dict)
+    gates: list[DeliveryGateDTO] = Field(default_factory=list)
+    delivery_items: list[DeliveryItemDTO] = Field(default_factory=list)
+    latest_real_run: LatestRealRunDTO | None = None
+    blockers: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
 
 
 class TicketSummaryDTO(AriadneDTO):
@@ -128,6 +237,8 @@ class DaemonStatusDTO(AriadneDTO):
     running_assignment_count: int = 0
     blocked_assignment_count: int = 0
     last_message: str = ""
+    scope: RuntimeScopeDTO | None = None
+    queue_preview: QueuePreviewDTO | None = None
 
 
 class ProjectGoalDTO(AriadneDTO):
@@ -212,6 +323,47 @@ class SourceInputEventDTO(AriadneDTO):
     created_at: str
 
 
+class SourceNextActionDTO(AriadneDTO):
+    id: str
+    label: str
+    enabled: bool = True
+    reason: str = ""
+    target_route: str | None = None
+    api_action: str | None = None
+
+
+class SourceLifecycleDTO(AriadneDTO):
+    source_id: str
+    status: str
+    label: str
+    detail: str
+    terminal: bool
+    ready_for_issue_factory: bool
+    blocker: str | None = None
+    updated_at: str
+    next_actions: list[SourceNextActionDTO] = Field(default_factory=list)
+
+
+class SourceTypedArtifactDTO(AriadneDTO):
+    id: str
+    kind: str
+    label: str
+    summary: str
+    payload_path: str | None = None
+    payload_hash: str | None = None
+    evidence_count: int = 0
+    key_fields: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectInputDetailDTO(AriadneDTO):
+    source: SourceDocumentDTO
+    lifecycle: SourceLifecycleDTO
+    understanding: SourceUnderstandingDTO | None = None
+    artifacts: list[SourceTypedArtifactDTO] = Field(default_factory=list)
+    evidence: list[SourceEvidenceItemDTO] = Field(default_factory=list)
+    impacted_ticket_keys: list[str] = Field(default_factory=list)
+
+
 class AgentProfileDTO(AriadneDTO):
     id: str
     name: str
@@ -250,6 +402,15 @@ class InboxItemDTO(AriadneDTO):
     resolution_note: str | None = None
     repair_ticket_id: str | None = None
     repair_ticket_key: str | None = None
+    active: bool = True
+    current_state: str | None = None
+    archive_reason: str | None = None
+    superseded_by_ref: str | None = None
+    recovery_class: str = "human_required"
+    primary_action: str = "manual_review"
+    allowed_actions: list[str] = Field(default_factory=list)
+    linked_assignment_id: str | None = None
+    retry_assignment_id: str | None = None
     created_at: str
     updated_at: str
 
@@ -275,6 +436,14 @@ class BacklogOperationDTO(AriadneDTO):
     build_context_id: str | None = None
     target_project_id: str | None = None
     goal_reason: str | None = None
+    change_intent: str = "add"
+    target_version_label: str | None = None
+    existing_ticket_key: str | None = None
+    before_snapshot: dict[str, Any] = Field(default_factory=dict)
+    after_summary: str = ""
+    confidence: float = 0.75
+    decision_reason: str = ""
+    included: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -289,6 +458,105 @@ class BacklogPreviewDTO(AriadneDTO):
     created_at: str
     applied_at: str | None = None
     applied_update_id: str | None = None
+    base_ticket_fingerprint: str | None = None
+    context_fingerprint: str | None = None
+    source_document_ids: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    target_project_id: str | None = None
+    target_version_label: str | None = None
+    stale: bool = False
+    stale_reason: str = ""
+
+
+class IssueChildDTO(AriadneDTO):
+    ticket_id: str
+    ticket_key: str
+    title: str
+    issue_class: str
+    origin: str
+    status: str
+    parent_ticket_key: str | None = None
+    root_ticket_key: str
+    reason: str = ""
+
+
+class IssueFamilyDTO(AriadneDTO):
+    ticket_id: str
+    ticket_key: str
+    title: str
+    status: str
+    priority: str
+    root_ticket_key: str
+    repair_count: int = 0
+    open_repair_count: int = 0
+    history_count: int = 0
+    child_ticket_keys: list[str] = Field(default_factory=list)
+    latest_repair_summary: str | None = None
+
+
+class IssueProjectionDTO(AriadneDTO):
+    summary: dict[str, int] = Field(default_factory=dict)
+    mainline_tickets: list[IssueFamilyDTO] = Field(default_factory=list)
+    repair_items: list[IssueChildDTO] = Field(default_factory=list)
+    history_items: list[IssueChildDTO] = Field(default_factory=list)
+
+
+class ArtifactRefDTO(AriadneDTO):
+    id: str
+    artifact_type: str
+    path: str | None = None
+    summary: str = ""
+    created_at: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentActivityDTO(AriadneDTO):
+    id: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    assignment_id: str | None = None
+    run_id: str | None = None
+    agent_name: str
+    stage: str
+    event_type: str
+    summary: str
+    timestamp: str
+    ref_id: str | None = None
+
+
+class AgentWorkflowStepDTO(AriadneDTO):
+    id: str
+    ticket_id: str
+    ticket_key: str
+    sequence: int
+    agent_name: str
+    agent_role: str
+    step_kind: str
+    status: str
+    input_refs: list[ArtifactRefDTO] = Field(default_factory=list)
+    output_refs: list[ArtifactRefDTO] = Field(default_factory=list)
+    assignment_id: str | None = None
+    run_id: str | None = None
+    handoff_id: str | None = None
+    next_agent: str | None = None
+    next_action: str = ""
+    latest_activity: AgentActivityDTO | None = None
+    blocked_reason: str | None = None
+
+
+class RuntimeScopeDTO(AriadneDTO):
+    mode: str = "paused"
+    target_project_id: str | None = None
+    ticket_id: str | None = None
+    assignment_id: str | None = None
+    allowed_backends: list[str] = Field(default_factory=list)
+
+
+class QueuePreviewDTO(AriadneDTO):
+    current: AssignmentDTO | None = None
+    same_ticket_ready: list[AssignmentDTO] = Field(default_factory=list)
+    same_project_ready: list[AssignmentDTO] = Field(default_factory=list)
+    out_of_scope_ready_count: int = 0
 
 
 class WorkbenchDTO(AriadneDTO):
@@ -308,6 +576,12 @@ class WorkbenchDTO(AriadneDTO):
     inbox: list[InboxItemDTO] = Field(default_factory=list)
     backlog_previews: list[BacklogPreviewDTO] = Field(default_factory=list)
     daemon_status: DaemonStatusDTO = Field(default_factory=DaemonStatusDTO)
+    environment: WorkbenchEnvironmentDTO | None = None
+    current_version_delivery: ProjectVersionDeliveryDTO | None = None
+    project_inputs: list[ProjectInputDetailDTO] = Field(default_factory=list)
+    issue_projection: IssueProjectionDTO | None = None
+    agent_workflows: list[AgentWorkflowStepDTO] = Field(default_factory=list)
+    agent_activities: list[AgentActivityDTO] = Field(default_factory=list)
 
 
 class RegisterTargetProjectInput(AriadneDTO):
@@ -411,6 +685,9 @@ class DaemonStartInput(AriadneDTO):
     timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
     external_execution_authorized: bool = False
     allowed_assignment_id: str | None = None
+    target_project_id: str | None = None
+    allowed_backends: list[str] = Field(default_factory=list)
+    scope_mode: Literal["assignment", "ticket", "project", "paused"] = "assignment"
 
 
 class DaemonControlOutput(AriadneDTO):

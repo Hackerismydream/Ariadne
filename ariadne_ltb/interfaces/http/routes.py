@@ -30,6 +30,7 @@ from ariadne_ltb.application.mappers import (
     source_evidence_dto,
     ticket_summary,
 )
+from ariadne_ltb.application.project_inputs import build_project_inputs
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.run_events import AssignmentEventCache, RunEventService
@@ -46,7 +47,7 @@ router = APIRouter()
 
 @router.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "mode": "api", "schema_version": "ariadne.health.v1"}
 
 
 @router.get("/api/workbench")
@@ -123,6 +124,17 @@ def list_sources(store: AriadneStore = Depends(get_store)) -> dict:
     return {"sources": [source_document_dto(store, source).model_dump(mode="json") for source in store.list_source_documents()]}
 
 
+@router.get("/api/sources/{source_id}")
+def get_source_detail(
+    source_id: str,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    for detail in build_project_inputs(store):
+        if detail.source.id == source_id:
+            return {"project_input": detail.model_dump(mode="json")}
+    raise ApplicationError("source_not_found", f"Source not found: {source_id}", 404, {"source_id": source_id})
+
+
 @router.post("/api/sources")
 def create_source(
     payload: CreateSourceInput,
@@ -139,6 +151,14 @@ def create_source(
     return {
         "source": source_document_dto(store, source).model_dump(mode="json"),
         "duplicate": duplicate,
+        "project_input": next(
+            (
+                detail.model_dump(mode="json")
+                for detail in build_project_inputs(store)
+                if detail.source.id == source.id
+            ),
+            None,
+        ),
     }
 
 
@@ -166,6 +186,14 @@ def analyze_source(
             source_evidence_dto(evidence).model_dump(mode="json")
             for evidence in store.list_source_evidence(source_id)
         ],
+        "project_input": next(
+            (
+                detail.model_dump(mode="json")
+                for detail in build_project_inputs(store)
+                if detail.source.id == source_id
+            ),
+            None,
+        ),
     }
 
 
@@ -175,6 +203,17 @@ def create_issue_factory_preview(
     store: AriadneStore = Depends(get_store),
 ) -> dict:
     return {"preview": IssueFactoryService(store).preview(payload).model_dump(mode="json")}
+
+
+@router.post("/api/issue-factory/{preview_id}/refresh")
+def refresh_issue_factory_preview(
+    preview_id: str,
+    payload: IssueFactoryPreviewInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    # Refresh is intentionally preview-only. It never applies a stale preview.
+    preview = IssueFactoryService(store).preview(payload)
+    return {"previous_preview_id": preview_id, "preview": preview.model_dump(mode="json")}
 
 
 @router.post("/api/issue-factory/{preview_id}/apply")

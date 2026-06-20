@@ -14,6 +14,12 @@ export type ApiWorkbench = {
   inbox: ApiInboxItem[];
   backlog_previews: ApiBacklogPreview[];
   daemon_status: ApiDaemonStatus;
+  environment?: ApiWorkbenchEnvironment | null;
+  current_version_delivery?: ApiProjectVersionDelivery | null;
+  project_inputs?: ApiProjectInputDetail[];
+  issue_projection?: ApiIssueProjection | null;
+  agent_workflows?: ApiAgentWorkflowStep[];
+  agent_activities?: ApiAgentActivity[];
 };
 
 export type ApiTicketEvidenceBundle = {
@@ -47,6 +53,14 @@ export type ApiTicketEvidenceBundle = {
   feishu_plan_path?: string | null;
   next_tickets_path?: string | null;
   warnings: string[];
+  current_state?: string | null;
+  current_assignment_id?: string | null;
+  current_run_id?: string | null;
+  current_execution_result_id?: string | null;
+  current_review_report_id?: string | null;
+  historical_blocker_count?: number;
+  active_blocker_count?: number;
+  superseded_inbox_item_ids?: string[];
 };
 
 export type ApiTicketSummary = {
@@ -125,6 +139,23 @@ export type ApiDaemonStatus = {
   running_assignment_count: number;
   blocked_assignment_count: number;
   last_message: string;
+  scope?: ApiRuntimeScope | null;
+  queue_preview?: ApiQueuePreview | null;
+};
+
+export type ApiRuntimeScope = {
+  mode: string;
+  target_project_id?: string | null;
+  ticket_id?: string | null;
+  assignment_id?: string | null;
+  allowed_backends: string[];
+};
+
+export type ApiQueuePreview = {
+  current?: ApiAssignmentSummary | null;
+  same_ticket_ready: ApiAssignmentSummary[];
+  same_project_ready: ApiAssignmentSummary[];
+  out_of_scope_ready_count: number;
 };
 
 export type ApiTargetProject = {
@@ -133,6 +164,33 @@ export type ApiTargetProject = {
   available: boolean;
   disabled_reason: string;
   metadata?: Record<string, unknown>;
+  local_path?: string | null;
+  path_exists?: boolean;
+  is_git_repo?: boolean;
+  git_branch?: string | null;
+  git_dirty?: boolean | null;
+  test_command?: string | null;
+  issue_prefix?: string | null;
+  boundary_role?: string;
+};
+
+export type ApiEnvironmentBlocker = {
+  code: string;
+  message: string;
+  severity: string;
+};
+
+export type ApiWorkbenchEnvironment = {
+  connection_mode: string;
+  execution_mode: string;
+  read_only: boolean;
+  ariadne_root: string;
+  ariadne_store_path: string;
+  active_target_project_id?: string | null;
+  active_target_project?: ApiTargetProject | null;
+  production_backends_available: string[];
+  selected_backend_recommendation?: string | null;
+  blockers: ApiEnvironmentBlocker[];
 };
 
 export type ApiProjectGoal = {
@@ -227,6 +285,47 @@ export type ApiSourceInputEvent = {
   created_at: string;
 };
 
+export type ApiSourceNextAction = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  reason: string;
+  target_route?: string | null;
+  api_action?: string | null;
+};
+
+export type ApiSourceLifecycle = {
+  source_id: string;
+  status: string;
+  label: string;
+  detail: string;
+  terminal: boolean;
+  ready_for_issue_factory: boolean;
+  blocker?: string | null;
+  updated_at: string;
+  next_actions: ApiSourceNextAction[];
+};
+
+export type ApiSourceTypedArtifact = {
+  id: string;
+  kind: string;
+  label: string;
+  summary: string;
+  payload_path?: string | null;
+  payload_hash?: string | null;
+  evidence_count: number;
+  key_fields: Record<string, unknown>;
+};
+
+export type ApiProjectInputDetail = {
+  source: ApiSourceDocument;
+  lifecycle: ApiSourceLifecycle;
+  understanding?: ApiSourceUnderstanding | null;
+  artifacts: ApiSourceTypedArtifact[];
+  evidence: ApiSourceEvidenceItem[];
+  impacted_ticket_keys: string[];
+};
+
 export type CreateSourceRequest = {
   title: string;
   source_type: "blog" | "paper" | "github_repo" | "github_readme" | "note" | "manual_note" | "repo_note" | "local_markdown" | "local_folder" | "target_codebase";
@@ -260,6 +359,145 @@ export type ApiBuildSkill = {
   updated_at: string;
 };
 
+export type ApiDeliveryGate = {
+  id: string;
+  label: string;
+  status: string;
+  detail: string;
+  ref_id?: string | null;
+};
+
+export type ApiLatestRealRun = {
+  ticket_key: string;
+  assignment_id?: string | null;
+  backend_name: string;
+  execution_result_id: string;
+  exit_code?: number | null;
+  test_exit_code?: number | null;
+  review_verdict?: string | null;
+  dry_run: boolean;
+  blocked: boolean;
+  changed_files: string[];
+  handoff_file?: string | null;
+  diff_artifact_path?: string | null;
+  execution_log_artifact_path?: string | null;
+  memory_path?: string | null;
+  next_tickets_path?: string | null;
+};
+
+export type ApiDeliveryItem = {
+  ticket_id: string;
+  ticket_key: string;
+  title: string;
+  status: string;
+  priority: string;
+  target_project_id?: string | null;
+  assignment_id?: string | null;
+  assignment_status?: string | null;
+  backend_name?: string | null;
+  execution_result_id?: string | null;
+  test_exit_code?: number | null;
+  review_verdict?: string | null;
+  evidence_status: string;
+  changed_files: string[];
+};
+
+export type ApiProjectVersionDelivery = {
+  id: string;
+  version_label: string;
+  status: string;
+  goal_id?: string | null;
+  target_project_id?: string | null;
+  target_project_label?: string | null;
+  current_state: string;
+  target_state: string;
+  summary: string;
+  generated_at: string;
+  progress_counts: Record<string, number>;
+  gates: ApiDeliveryGate[];
+  delivery_items: ApiDeliveryItem[];
+  latest_real_run?: ApiLatestRealRun | null;
+  blockers: string[];
+  next_actions: string[];
+  evidence_refs: string[];
+};
+
+export type ApiIssueChild = {
+  ticket_id: string;
+  ticket_key: string;
+  title: string;
+  issue_class: string;
+  origin: string;
+  status: string;
+  parent_ticket_key?: string | null;
+  root_ticket_key: string;
+  reason: string;
+};
+
+export type ApiIssueFamily = {
+  ticket_id: string;
+  ticket_key: string;
+  title: string;
+  status: string;
+  priority: string;
+  root_ticket_key: string;
+  repair_count: number;
+  open_repair_count: number;
+  history_count: number;
+  child_ticket_keys: string[];
+  latest_repair_summary?: string | null;
+};
+
+export type ApiIssueProjection = {
+  summary: Record<string, number>;
+  mainline_tickets: ApiIssueFamily[];
+  repair_items: ApiIssueChild[];
+  history_items: ApiIssueChild[];
+};
+
+export type ApiArtifactRef = {
+  id: string;
+  artifact_type: string;
+  path?: string | null;
+  summary: string;
+  created_at?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ApiAgentActivity = {
+  id: string;
+  ticket_id?: string | null;
+  ticket_key?: string | null;
+  assignment_id?: string | null;
+  run_id?: string | null;
+  agent_name: string;
+  stage: string;
+  event_type: string;
+  summary: string;
+  timestamp: string;
+  ref_id?: string | null;
+};
+
+export type ApiAgentWorkflowStep = {
+  id: string;
+  ticket_id: string;
+  ticket_key: string;
+  sequence: number;
+  agent_name: string;
+  agent_role: string;
+  step_kind: string;
+  status: string;
+  input_refs: ApiArtifactRef[];
+  output_refs: ApiArtifactRef[];
+  assignment_id?: string | null;
+  run_id?: string | null;
+  handoff_id?: string | null;
+  next_agent?: string | null;
+  next_action: string;
+  latest_activity?: ApiAgentActivity | null;
+  blocked_reason?: string | null;
+};
+
 export type ApiInboxItem = {
   id: string;
   source_type: string;
@@ -276,6 +514,15 @@ export type ApiInboxItem = {
   resolution_note?: string | null;
   repair_ticket_id?: string | null;
   repair_ticket_key?: string | null;
+  active?: boolean;
+  current_state?: string | null;
+  archive_reason?: string | null;
+  superseded_by_ref?: string | null;
+  recovery_class?: string;
+  primary_action?: string;
+  allowed_actions?: string[];
+  linked_assignment_id?: string | null;
+  retry_assignment_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -317,6 +564,14 @@ export type ApiBacklogOperation = {
   build_context_id?: string | null;
   target_project_id?: string | null;
   goal_reason?: string | null;
+  change_intent?: string;
+  target_version_label?: string | null;
+  existing_ticket_key?: string | null;
+  before_snapshot?: Record<string, unknown>;
+  after_summary?: string;
+  confidence?: number;
+  decision_reason?: string;
+  included?: boolean;
   metadata?: Record<string, unknown>;
 };
 
@@ -331,6 +586,11 @@ export type ApiBacklogPreview = {
   created_at: string;
   applied_at?: string | null;
   applied_update_id?: string | null;
+  base_ticket_fingerprint?: string | null;
+  target_project_id?: string | null;
+  target_version_label?: string | null;
+  stale?: boolean;
+  stale_reason?: string;
   build_context_manifest_id?: string | null;
   context_fingerprint?: string | null;
   source_document_ids?: string[];
@@ -375,6 +635,9 @@ export type DaemonStartRequest = {
   timeout_seconds?: number | null;
   external_execution_authorized?: boolean;
   allowed_assignment_id?: string | null;
+  target_project_id?: string | null;
+  allowed_backends?: string[];
+  scope_mode?: string;
 };
 
 export type AddTicketCommentRequest = {

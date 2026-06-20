@@ -16,6 +16,8 @@ from ariadne_ltb.application.dtos import (
     TicketEvidenceBundleDTO,
     TicketSummaryDTO,
 )
+from ariadne_ltb.application.inbox_recovery import classify_inbox_item
+from ariadne_ltb.application.ticket_current_state import build_ticket_current_state
 from ariadne_ltb.domain.runtime_policy import browser_safe_runtime_capability
 from ariadne_ltb.inbox import find_repair_ticket_for_inbox_item
 from ariadne_ltb.models import (
@@ -75,6 +77,7 @@ def ticket_evidence_bundle(store: AriadneStore, ticket_id: str) -> TicketEvidenc
     ticket = store.load_ticket(ticket_id)
     assignment = store.find_latest_assignment_for_ticket(ticket.id)
     execution = _latest_execution_result(store, ticket)
+    current_state = build_ticket_current_state(store, ticket)
     review_id = ticket.metadata.get("review_report_id")
     review_verdict = None
     if review_id:
@@ -119,6 +122,14 @@ def ticket_evidence_bundle(store: AriadneStore, ticket_id: str) -> TicketEvidenc
         feishu_plan_path=ticket.metadata.get("feishu_plan_path"),
         next_tickets_path=ticket.metadata.get("next_tickets_path"),
         warnings=execution.warnings if execution else [],
+        current_state=current_state.current_state,
+        current_assignment_id=current_state.current_assignment_id,
+        current_run_id=current_state.current_run_id,
+        current_execution_result_id=current_state.current_execution_result_id,
+        current_review_report_id=current_state.current_review_report_id,
+        historical_blocker_count=current_state.historical_blocker_count,
+        active_blocker_count=current_state.active_blocker_count,
+        superseded_inbox_item_ids=current_state.superseded_inbox_item_ids or [],
     )
 
 
@@ -204,12 +215,63 @@ def target_project_dto(resource: ProjectResource, available: bool = True, reason
         for key, value in resource.resource_ref.items()
         if key in {"daemon_id", "label", "test_command", "issue_prefix"}
     }
+    local_path = resource.resource_ref.get("local_path")
+    from pathlib import Path
+    import subprocess
+
+    path = Path(str(local_path)).expanduser() if local_path else None
+    path_exists = bool(path and path.exists())
+    is_git_repo = False
+    git_branch = None
+    git_dirty = None
+    if path_exists and path:
+        try:
+            inside = subprocess.run(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=path,
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=3,
+            )
+            is_git_repo = inside.stdout.strip() == "true"
+            if is_git_repo:
+                branch = subprocess.run(
+                    ["git", "branch", "--show-current"],
+                    cwd=path,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    timeout=3,
+                )
+                status = subprocess.run(
+                    ["git", "status", "--short"],
+                    cwd=path,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    timeout=3,
+                )
+                git_branch = branch.stdout.strip() or None
+                git_dirty = bool(status.stdout.strip())
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     return TargetProjectDTO(
         id=resource.id,
         label=resource.label or resource.resource_ref.get("label") or resource.id,
         available=available,
         disabled_reason=reason,
         metadata=metadata,
+        local_path=str(path) if path else None,
+        path_exists=path_exists,
+        is_git_repo=is_git_repo,
+        git_branch=git_branch,
+        git_dirty=git_dirty,
+        test_command=str(resource.resource_ref.get("test_command") or ""),
+        issue_prefix=str(resource.resource_ref.get("issue_prefix") or ""),
     )
 
 
@@ -299,6 +361,7 @@ def build_skill_dto(skill: BuildSkill) -> BuildSkillDTO:
 
 def inbox_item_dto(store: AriadneStore, item: InboxItem) -> InboxItemDTO:
     repair_ticket = find_repair_ticket_for_inbox_item(store, item.id)
+    recovery = classify_inbox_item(item)
     return InboxItemDTO(
         id=item.id,
         source_type=item.source_type,
@@ -315,6 +378,15 @@ def inbox_item_dto(store: AriadneStore, item: InboxItem) -> InboxItemDTO:
         resolution_note=item.resolution_note,
         repair_ticket_id=repair_ticket.id if repair_ticket else None,
         repair_ticket_key=repair_ticket.key if repair_ticket else None,
+        active=getattr(item, "active", True),
+        current_state=getattr(item, "current_state", None),
+        archive_reason=getattr(item, "archive_reason", None),
+        superseded_by_ref=getattr(item, "superseded_by_ref", None),
+        recovery_class=recovery.recovery_class,
+        primary_action=recovery.primary_action,
+        allowed_actions=recovery.allowed_actions,
+        linked_assignment_id=item.source_id if item.source_type == "assignment" else None,
+        retry_assignment_id=None,
         created_at=item.created_at,
         updated_at=item.updated_at,
     )
@@ -342,6 +414,14 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
         build_context_id=operation.metadata.get("build_context_id"),
         target_project_id=operation.metadata.get("target_project_id"),
         goal_reason=operation.metadata.get("goal_reason"),
+        change_intent=str(operation.metadata.get("change_intent") or "add"),
+        target_version_label=operation.metadata.get("target_version_label"),
+        existing_ticket_key=operation.metadata.get("existing_ticket_key"),
+        before_snapshot=operation.metadata.get("before_snapshot", {}),
+        after_summary=str(operation.metadata.get("after_summary") or operation.description or ""),
+        confidence=float(operation.metadata.get("confidence", 0.75)),
+        decision_reason=str(operation.metadata.get("decision_reason") or operation.reason),
+        included=bool(operation.metadata.get("included", True)),
         metadata={
             key: value
             for key, value in operation.metadata.items()
@@ -359,12 +439,21 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
                 "risks",
                 "assumptions",
                 "test_command",
+                "change_intent",
+                "target_version_label",
+                "existing_ticket_key",
+                "before_snapshot",
+                "after_summary",
+                "confidence",
+                "decision_reason",
+                "included",
             }
         },
     )
 
 
 def backlog_preview_dto(preview: BacklogPreview) -> BacklogPreviewDTO:
+    first_metadata = preview.operations[0].metadata if preview.operations else {}
     return BacklogPreviewDTO(
         id=preview.id,
         trigger_type=preview.trigger_type.value,
@@ -376,4 +465,10 @@ def backlog_preview_dto(preview: BacklogPreview) -> BacklogPreviewDTO:
         created_at=preview.created_at,
         applied_at=preview.applied_at,
         applied_update_id=preview.applied_update_id,
+        base_ticket_fingerprint=preview.base_ticket_fingerprint,
+        context_fingerprint=first_metadata.get("context_fingerprint"),
+        source_document_ids=[str(item) for item in first_metadata.get("source_document_ids", [])],
+        source_artifact_ids=[str(item) for item in first_metadata.get("source_artifact_ids", [])],
+        target_project_id=first_metadata.get("target_project_id"),
+        target_version_label=first_metadata.get("target_version_label"),
     )

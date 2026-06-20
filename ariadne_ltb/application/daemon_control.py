@@ -8,7 +8,9 @@ from ariadne_ltb.application.dtos import (
     DaemonControlOutput,
     DaemonStartInput,
     DaemonStatusDTO,
+    QueuePreviewDTO,
     RunAssignmentInput,
+    RuntimeScopeDTO,
 )
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.run_assignment import RunAssignmentService
@@ -27,6 +29,9 @@ class _DaemonLoopHandle:
         timeout_seconds: int | None,
         external_execution_authorized: bool,
         allowed_assignment_id: str | None,
+        target_project_id: str | None,
+        allowed_backends: list[str],
+        scope_mode: str,
     ) -> None:
         self.root = root
         self.runtime_id = runtime_id
@@ -35,6 +40,9 @@ class _DaemonLoopHandle:
         self.timeout_seconds = timeout_seconds
         self.external_execution_authorized = external_execution_authorized
         self.allowed_assignment_id = allowed_assignment_id
+        self.target_project_id = target_project_id
+        self.allowed_backends = allowed_backends
+        self.scope_mode = scope_mode
         self.stop_event = threading.Event()
         self.last_message = "starting"
         self.thread = threading.Thread(target=self._run, name=f"ariadne-daemon-{runtime_id}", daemon=True)
@@ -57,6 +65,8 @@ class _DaemonLoopHandle:
             result = worker.run_once(
                 confirm_execution=self.external_execution_authorized,
                 assignment_id=self.allowed_assignment_id,
+                target_project_id=self.target_project_id,
+                allowed_backends=self.allowed_backends,
                 timeout_seconds=self.timeout_seconds,
                 isolate_worktree=False,
             )
@@ -82,6 +92,12 @@ class DaemonControlService:
         stale = is_stale_heartbeat(heartbeat) if heartbeat else None
         background_running = bool(handle and handle.alive and stale is not True)
         external_execution_authorized = bool(background_running and handle and handle.external_execution_authorized)
+        scope = RuntimeScopeDTO(
+            mode=handle.scope_mode if handle else "paused",
+            target_project_id=handle.target_project_id if handle else None,
+            assignment_id=handle.allowed_assignment_id if handle else None,
+            allowed_backends=handle.allowed_backends if handle else [],
+        )
         return DaemonStatusDTO(
             runtime_id=runtime_id,
             status=heartbeat.status.value if heartbeat else "unknown",
@@ -105,6 +121,8 @@ class DaemonControlService:
                 1 for assignment in self.store.list_assignments() if assignment.status is AssignmentStatus.BLOCKED
             ),
             last_message=handle.last_message if handle else "",
+            scope=scope,
+            queue_preview=self._queue_preview(scope),
         )
 
     def start(self, payload: DaemonStartInput) -> DaemonControlOutput:
@@ -116,6 +134,9 @@ class DaemonControlService:
             and (
                 existing.runtime_id != payload.runtime_id
                 or existing.allowed_assignment_id != payload.allowed_assignment_id
+                or existing.target_project_id != payload.target_project_id
+                or existing.allowed_backends != payload.allowed_backends
+                or existing.scope_mode != payload.scope_mode
             )
         )
         if existing and existing.alive and not heartbeat_stale and not daemon_scope_changed:
@@ -137,6 +158,9 @@ class DaemonControlService:
             timeout_seconds=payload.timeout_seconds,
             external_execution_authorized=payload.external_execution_authorized,
             allowed_assignment_id=payload.allowed_assignment_id,
+            target_project_id=payload.target_project_id,
+            allowed_backends=payload.allowed_backends,
+            scope_mode=payload.scope_mode,
         )
         _DAEMON_HANDLES[self.store.root] = handle
         handle.start()
@@ -164,10 +188,13 @@ class DaemonControlService:
         dispatch = RunAssignmentService(self.store).run(assignment_id, payload)
         handle = _DAEMON_HANDLES.get(self.store.root)
         external_execution_authorized = bool(handle and handle.alive and handle.external_execution_authorized)
+        requested_assignment = self.store.load_assignment(assignment_id)
         result = LocalDaemonWorker(self.store, runtime_id="workbench-local").run_once(
             confirm_execution=external_execution_authorized,
             timeout_seconds=payload.timeout_seconds,
             assignment_id=assignment_id,
+            target_project_id=requested_assignment.metadata.get("target_project_id"),
+            allowed_backends=[requested_assignment.backend_name] if requested_assignment.backend_name else None,
             isolate_worktree=False,
         )
         assignment = self.store.load_assignment(assignment_id)
@@ -188,3 +215,37 @@ class DaemonControlService:
             if not heartbeats:
                 return None
             return sorted(heartbeats, key=lambda heartbeat: heartbeat.heartbeat_at)[-1]
+
+    def _queue_preview(self, scope: RuntimeScopeDTO) -> QueuePreviewDTO:
+        assignments = self.store.list_open_assignments()
+        current = None
+        if scope.assignment_id:
+            try:
+                current = assignment_dto(self.store.load_assignment(scope.assignment_id))
+            except FileNotFoundError:
+                current = None
+        same_ticket = []
+        same_project = []
+        if current:
+            same_ticket = [
+                assignment_dto(item)
+                for item in assignments
+                if item.ticket_id == current.ticket_id and item.status is AssignmentStatus.READY_TO_CLAIM
+            ][:10]
+        if scope.target_project_id:
+            same_project = [
+                assignment_dto(item)
+                for item in assignments
+                if item.metadata.get("target_project_id") == scope.target_project_id
+                and item.status is AssignmentStatus.READY_TO_CLAIM
+            ][:20]
+        scoped_ids = {item.id for item in same_ticket + same_project}
+        if current:
+            scoped_ids.add(current.id)
+        out_of_scope = sum(1 for item in assignments if item.id not in scoped_ids)
+        return QueuePreviewDTO(
+            current=current,
+            same_ticket_ready=same_ticket,
+            same_project_ready=same_project,
+            out_of_scope_ready_count=out_of_scope,
+        )

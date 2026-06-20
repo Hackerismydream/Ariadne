@@ -100,7 +100,7 @@ def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
         if not result.ok or result.blocked:
             items.append(_from_github(store, result))
 
-    deduped = _preserve_existing_status(store, _dedupe(items))
+    deduped = _archive_superseded_items(store, _preserve_existing_status(store, _dedupe(items)))
     store.save_inbox_items(deduped)
     return deduped
 
@@ -553,3 +553,50 @@ def _preserve_existing_status(store: AriadneStore, items: list[InboxItem]) -> li
         else:
             merged.append(item)
     return merged
+
+
+def _archive_superseded_items(store: AriadneStore, items: list[InboxItem]) -> list[InboxItem]:
+    success_by_ticket: dict[str, str] = {}
+    for ticket in store.list_tickets():
+        success_ref = _current_success_ref(store, ticket)
+        if success_ref:
+            success_by_ticket[ticket.id] = success_ref
+    result: list[InboxItem] = []
+    for item in items:
+        success_ref = success_by_ticket.get(item.ticket_id or "")
+        if success_ref and item.status is InboxStatus.OPEN:
+            result.append(
+                item.model_copy(
+                    update={
+                        "status": InboxStatus.RESOLVED,
+                        "active": False,
+                        "current_state": "historical_blocker",
+                        "archive_reason": "superseded_by_current_success",
+                        "superseded_by_ref": success_ref,
+                        "resolution_note": f"superseded by {success_ref}",
+                    }
+                )
+            )
+        else:
+            result.append(item)
+    return result
+
+
+def _current_success_ref(store: AriadneStore, ticket: BuildTicket) -> str | None:
+    execution_id = ticket.metadata.get("execution_result_id")
+    review_id = ticket.metadata.get("review_report_id")
+    if not execution_id or not review_id or ticket.status is not TicketStatus.DONE:
+        return None
+    try:
+        execution = store.load_execution_result(execution_id)
+        review = store.load_review_report(review_id)
+    except FileNotFoundError:
+        return None
+    if (
+        not execution.blocked
+        and execution.exit_code == 0
+        and execution.test_exit_code in {None, 0}
+        and review.verdict.value == "pass"
+    ):
+        return execution.id
+    return None

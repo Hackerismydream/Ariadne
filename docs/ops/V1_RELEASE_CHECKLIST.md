@@ -12,6 +12,10 @@
 
 ## Product Path
 
+- [ ] Open Workbench at `#delivery` and confirm Current Version Delivery is the
+      first product surface.
+- [ ] Browser path shows target project, source lifecycle, mainline issues,
+      scoped daemon state, agent workflow, and execution proof.
 - [ ] `ari doctor integrations`
 - [ ] `ari doctor product --require-acceptance-ready`
 - [ ] `ari ingest examples/sources/*.md --planner llm`
@@ -28,6 +32,16 @@
 - [ ] `ari landing gate ARI-003 --require-ready`
 - [ ] `ari evidence packet --require-acceptance-ready`
 - [ ] `ari board serve`
+
+## Browser Dogfood Closure
+
+- [ ] `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real`
+- [ ] Confirm `.ariadne/dogfood/<run-id>/closure-result.json` exists.
+- [ ] Confirm the result packet has `status: REAL_CLOSED`.
+- [ ] Confirm the evidence is Codex or Claude, not `fake-codex`, `dry-run`, or
+      blocked rehearsal output.
+- [ ] If the run is blocked, record `current-blocker.json` and do not mark
+      closure complete.
 
 ## Offline Regression Fixture
 

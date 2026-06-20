@@ -215,6 +215,23 @@ test.describe("Mini Code Agent browser dogfood", () => {
       if (missingRealProof || unsafeProof) {
         throw new Error("REAL_EXECUTION_NOT_PROVEN: Workbench did not show unblocked Codex/Claude CLI execution with exit code, tests, diff, review, memory, and next tickets.");
       }
+      await mkdir(resultDir, { recursive: true });
+      await writeFile(
+        path.join(resultDir, "closure-result.json"),
+        `${JSON.stringify(
+          {
+            schema_version: "ariadne.browser_dogfood_closure.v1",
+            status: "REAL_CLOSED",
+            mode,
+            target_path: targetPath,
+            workbench_url: page.url(),
+            execution_evidence_text: body,
+            recorded_at: new Date().toISOString(),
+          },
+          null,
+          2,
+        )}\n`,
+      );
     });
   });
 });

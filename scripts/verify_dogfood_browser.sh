@@ -11,20 +11,21 @@ RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 RESULT_DIR="${ARIADNE_DOGFOOD_RESULT_DIR:-$ROOT/.ariadne/dogfood/browser-$RUN_ID}"
 LOG_DIR="$RESULT_DIR/logs"
 SERVER_LOG="$LOG_DIR/workbench.log"
-MODE="blocked-ok"
+MODE="real"
 STARTED_SERVER=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/verify_dogfood_browser.sh --blocked-ok
+  scripts/verify_dogfood_browser.sh
   ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
 
 This is the Ariadne product-path dogfood harness. It may start the local
 Workbench server, then mutates Ariadne only through browser UI events.
 
---blocked-ok records the first browser-path blocker and exits 0 when a blocker
-             was captured. This is a rehearsal, not closure evidence.
+No argument defaults to --real. --blocked-ok records the first browser-path
+blocker and exits 0 when a blocker was captured. This is a rehearsal, not
+closure evidence.
 --real       requires the browser path to reach real Codex/Claude execution.
 EOF
 }
@@ -115,6 +116,7 @@ fi
   fi
 
   if [[ "$status" == "0" && "$MODE" == "real" ]]; then
+    python3.11 "$ROOT/scripts/verify_dogfood_result_packet.py" "$RESULT_DIR/closure-result.json"
     echo "DOGFOOD_BROWSER_REAL_PATH_COMPLETED"
     echo "Result directory: $RESULT_DIR"
     echo "Server log: $SERVER_LOG"

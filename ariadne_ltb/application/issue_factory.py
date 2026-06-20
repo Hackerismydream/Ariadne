@@ -111,6 +111,7 @@ class IssueFactoryService:
                 ticket_key = existing_ticket.key
                 ticket_id = existing_ticket.id
                 operation_type = BacklogOperationType.UPDATE_TICKET
+                change_intent = "update"
             else:
                 while f"{prefix}-{next_index:03d}" in existing_keys:
                     next_index += 1
@@ -118,6 +119,7 @@ class IssueFactoryService:
                 ticket_id = stable_id("ticket", source_doc.id, ticket_key)
                 operation_type = BacklogOperationType.ADD_TICKET
                 existing_keys.add(ticket_key)
+                change_intent = "add"
             operations.append(
                 BacklogOperation(
                     id=stable_id("backlog_op", ticket_id, task.title),
@@ -133,6 +135,18 @@ class IssueFactoryService:
                     reason=task.reason,
                     metadata={
                         "source_document": source_doc.model_dump(mode="json"),
+                        "issue_class": "mainline",
+                        "origin": "issue_factory",
+                        "root_ticket_key": ticket_key,
+                        "change_intent": change_intent,
+                        "target_version_label": context.manifest.metadata.get("target_version_label", "v0.1")
+                        if hasattr(context.manifest, "metadata")
+                        else "v0.1",
+                        "existing_ticket_key": existing_ticket.key if existing_ticket else None,
+                        "after_summary": task.reason,
+                        "confidence": 0.75,
+                        "decision_reason": task.reason,
+                        "included": True,
                         "owner_agent": task.owner_agent,
                         "build_decision": task.build_decision,
                         "acceptance_criteria": task.acceptance_criteria,

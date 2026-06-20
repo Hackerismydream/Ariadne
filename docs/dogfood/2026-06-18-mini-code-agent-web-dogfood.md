@@ -178,6 +178,33 @@ The dogfood is successful when a user can complete this flow from the web UI:
     - review report;
     - memory entry;
     - next issue suggestions.
+
+## Closure Command
+
+The dogfood is not accepted by API tests, CLI fallback, static fixtures, or a
+blocked rehearsal. The browser path must run in real mode:
+
+```bash
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
+```
+
+Success requires a result packet:
+
+```text
+.ariadne/dogfood/<run-id>/closure-result.json
+```
+
+with:
+
+```json
+{
+  "status": "REAL_CLOSED",
+  "mode": "real"
+}
+```
+
+`scripts/verify_dogfood_browser.sh --blocked-ok` is only for capturing the
+first current blocker while developing the Workbench. It is not closure.
 11. Repeat for enough issues that the target project has a runnable v0.1.
 
 The target project v0.1 must support:

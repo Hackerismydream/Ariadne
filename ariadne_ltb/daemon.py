@@ -48,10 +48,16 @@ class LocalDaemonWorker:
         llm_agent_client: DeepSeekClient | None = None,
         timeout_seconds: int | None = None,
         assignment_id: str | None = None,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
         isolate_worktree: bool = True,
     ) -> DaemonRunResult:
         self._heartbeat(DaemonStatus.IDLE, "idle")
-        assignment = self._next_assignment(assignment_id=assignment_id)
+        assignment = self._next_assignment(
+            assignment_id=assignment_id,
+            target_project_id=target_project_id,
+            allowed_backends=allowed_backends,
+        )
         if assignment is None:
             self._heartbeat(DaemonStatus.STOPPED, "stopped")
             message = f"assignment {assignment_id} is not claimable" if assignment_id else "no work"
@@ -275,10 +281,24 @@ class LocalDaemonWorker:
                 break
             time.sleep(interval_seconds)
 
-    def _next_assignment(self, assignment_id: str | None = None) -> TicketAssignment | None:
+    def _next_assignment(
+        self,
+        assignment_id: str | None = None,
+        target_project_id: str | None = None,
+        allowed_backends: list[str] | None = None,
+    ) -> TicketAssignment | None:
         if assignment_id:
-            return self.store.claim_assignment(assignment_id, self.runtime_id)
-        return self.store.claim_next_assignment(self.runtime_id)
+            return self.store.claim_assignment(
+                assignment_id,
+                self.runtime_id,
+                target_project_id=target_project_id,
+                allowed_backends=allowed_backends,
+            )
+        return self.store.claim_next_assignment(
+            self.runtime_id,
+            target_project_id=target_project_id,
+            allowed_backends=allowed_backends,
+        )
 
     def _heartbeat(
         self,
