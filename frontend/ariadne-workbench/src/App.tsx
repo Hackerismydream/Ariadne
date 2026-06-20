@@ -509,13 +509,15 @@ function GoalPage({
   const [northStar, setNorthStar] = useState(goal.id === "GOAL-NOT-CREATED" ? "" : goal.northStar);
   const [targetState, setTargetState] = useState(goal.targetState);
   const [status, setStatus] = useState("");
+  const [isSavingProject, setIsSavingProject] = useState(false);
   const [preferredProjectId, setPreferredProjectId] = useState(goal.targetProjectId ?? data.projectResources?.[0]?.id ?? "");
   const activeProject = data.projectResources?.find((resource) => resource.id === preferredProjectId && resource.available)
     ?? data.projectResources?.find((resource) => resource.available)
     ?? data.projectResources?.[0];
 
   async function saveProject() {
-    if (!projectPath.trim()) return;
+    if (!projectPath.trim() || isSavingProject) return;
+    setIsSavingProject(true);
     setStatus("正在注册目标项目...");
     try {
       const result = await registerTargetProject({ path: projectPath.trim(), label: projectLabel.trim() || undefined }) as {
@@ -526,6 +528,8 @@ function GoalPage({
       setStatus("目标项目已注册。");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "目标项目注册失败。");
+    } finally {
+      setIsSavingProject(false);
     }
   }
 
@@ -580,8 +584,8 @@ function GoalPage({
                 onChange={(event) => setProjectLabel(event.target.value)}
               />
             </label>
-            <button disabled={dataSource !== "api" || !projectPath.trim()} type="button" onClick={() => void saveProject()}>
-              注册项目
+            <button disabled={dataSource !== "api" || isSavingProject || !projectPath.trim()} type="button" onClick={() => void saveProject()}>
+              {isSavingProject ? "注册中..." : "注册项目"}
             </button>
           </div>
           <div className="form-grid goal-form">
@@ -669,6 +673,7 @@ function KnowledgePage({
   const [sourceType, setSourceType] = useState<SourceFormType>("blog");
   const [sourceContent, setSourceContent] = useState("");
   const [actionStatus, setActionStatus] = useState("");
+  const [isAddingSource, setIsAddingSource] = useState(false);
   const selectedSource = data.sources.find((source) => source.id === selectedSourceId) ?? data.sources[0];
   const selectedUnderstanding = data.sourceUnderstandings.find((item) => item.sourceId === selectedSourceId);
   const [selectedChangeId, setSelectedChangeId] = useState(data.backlogChanges[0]?.id ?? "");
@@ -721,11 +726,12 @@ function KnowledgePage({
   const selectedSourceHasFetch = selectedSourceEvents.some((event) => event.eventType.startsWith("source.fetch."));
 
   async function addSource() {
-    if (!sourceUrl.trim()) return;
+    if (!sourceUrl.trim() || isAddingSource) return;
     const inferred = inferSourceInput(sourceUrl);
     const title = sourceTitle.trim() || inferred.title || sourceUrl.trim();
     const summary = sourceContent.trim() || inferred.summary;
-    setActionStatus("正在添加并分析输入...");
+    setIsAddingSource(true);
+    setActionStatus(`正在添加并分析：${title}`);
     try {
       const result = await createSource({
         title,
@@ -741,9 +747,15 @@ function KnowledgePage({
       setSourceContent("");
       await onRefresh();
       setSelectedSourceId(result.source.id);
-      setActionStatus(result.duplicate ? "这个输入已经存在，已打开现有记录。" : "分析完成。Ariadne 已生成理解结果和证据。");
+      setActionStatus(
+        result.duplicate
+          ? `这个输入已经存在，已打开现有记录：${result.source.title}`
+          : `分析完成：${result.source.title}`,
+      );
     } catch (error) {
       setActionStatus(error instanceof Error ? error.message : "添加或分析失败。");
+    } finally {
+      setIsAddingSource(false);
     }
   }
 
@@ -799,20 +811,22 @@ function KnowledgePage({
     } catch (error) {
       if (apiErrorCode(error) === "stale_preview" && activeGoal) {
         setPreviewStatus("preview_only");
-        setActionStatus("任务列表已变化，正在重新生成最新任务建议...");
+        setActionStatus("任务列表已变化，正在刷新并应用最新任务建议...");
         try {
           const result = await createIssueFactoryPreview({
             goal_id: activeGoal.id,
             source_ids: analyzedSourceIds,
             target_project_id: activeProject?.id ?? null,
           });
+          await applyIssueFactoryPreview(result.preview.id);
           await onRefresh();
           setCurrentPreviewId(result.preview.id);
           setSelectedChangeId(result.preview.operations[0]?.id ?? "");
-          setActionStatus("任务列表已变化，已刷新最新任务建议。请再次点击“应用任务变更”。");
+          setPreviewStatus("applied");
+          setActionStatus("任务列表已变化，已自动应用最新任务建议。");
           return;
         } catch (refreshError) {
-          setActionStatus(refreshError instanceof Error ? refreshError.message : "任务建议刷新失败。");
+          setActionStatus(refreshError instanceof Error ? refreshError.message : "任务建议刷新或应用失败。");
           return;
         }
       }
@@ -865,8 +879,8 @@ function KnowledgePage({
             <span>摘要或摘录</span>
             <textarea disabled={dataSource !== "api"} value={sourceContent} onChange={(event) => setSourceContent(event.target.value)} placeholder="可选。留空时 Ariadne 会先根据链接生成基础摘要，分析阶段再提取证据。" />
           </label>
-          <button disabled={dataSource !== "api" || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
-            添加并分析
+          <button disabled={dataSource !== "api" || isAddingSource || !sourceUrl.trim()} type="button" onClick={() => void addSource()}>
+            {isAddingSource ? "分析中..." : "添加并分析"}
           </button>
         </div>
         {actionStatus ? <p className="action-message">{actionStatus}</p> : null}
@@ -1092,20 +1106,22 @@ function TasksPage({
     } catch (error) {
       if (apiErrorCode(error) === "stale_preview" && activeGoal) {
         setPreviewStatus("preview_only");
-        setActionStatus("任务列表已变化，正在重新生成最新任务建议...");
+        setActionStatus("任务列表已变化，正在刷新并应用最新任务建议...");
         try {
           const result = await createIssueFactoryPreview({
             goal_id: activeGoal.id,
             source_ids: analyzedSourceIds,
             target_project_id: activeProject?.id ?? null,
           });
+          await applyIssueFactoryPreview(result.preview.id);
           await onRefresh();
           setCurrentPreviewId(result.preview.id);
           setSelectedChangeId(result.preview.operations[0]?.id ?? "");
-          setActionStatus("任务列表已变化，已刷新最新任务建议。请再次点击“应用任务变更”。");
+          setPreviewStatus("applied");
+          setActionStatus("任务列表已变化，已自动应用最新任务建议。");
           return;
         } catch (refreshError) {
-          setActionStatus(refreshError instanceof Error ? refreshError.message : "任务建议刷新失败。");
+          setActionStatus(refreshError instanceof Error ? refreshError.message : "任务建议刷新或应用失败。");
           return;
         }
       }
@@ -1458,6 +1474,7 @@ function TicketInspector({
     dataSource,
     latestAssignment,
     onRefresh,
+    daemonStatus: data.daemonStatus,
     productRuntime,
     readOnly,
     targetProject,
@@ -1501,7 +1518,7 @@ function TicketInspector({
             {assignTicketButtonLabel(actionState)}
           </button>
           <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
-            {actionState === "running" ? runAssignmentButtonLabel(actionState) : "分配后由运行时自动 claim"}
+            {actionState === "running" ? runAssignmentButtonLabel(actionState) : "运行当前任务"}
           </button>
           <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void startLocalDaemon()}>
             {daemonActionState === "starting" ? "启动中..." : "授权 Codex/Claude 并启动运行时"}

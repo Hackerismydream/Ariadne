@@ -69,7 +69,27 @@ def changed_files(repo: Path) -> list[str]:
         path = line[3:].strip()
         if " -> " in path:
             path = path.split(" -> ", maxsplit=1)[1]
-        if "__pycache__" in path or path.endswith(".pyc") or ".pytest_cache" in path:
-            continue
-        files.append(path)
+        for changed_path in _expand_status_path(repo, path):
+            if _is_ignored_generated_path(changed_path):
+                continue
+            files.append(changed_path)
     return sorted(files)
+
+
+def _expand_status_path(repo: Path, path: str) -> list[str]:
+    normalized = path.strip()
+    if not normalized.endswith("/"):
+        return [normalized]
+    directory = repo / normalized
+    if not directory.is_dir():
+        return [normalized]
+    expanded: list[str] = []
+    for child in sorted(item for item in directory.rglob("*") if item.is_file()):
+        relative = child.relative_to(repo).as_posix()
+        if not _is_ignored_generated_path(relative):
+            expanded.append(relative)
+    return expanded or [normalized]
+
+
+def _is_ignored_generated_path(path: str) -> bool:
+    return "__pycache__" in path or path.endswith(".pyc") or ".pytest_cache" in path

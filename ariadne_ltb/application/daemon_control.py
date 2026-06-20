@@ -26,6 +26,7 @@ class _DaemonLoopHandle:
         max_iterations: int | None,
         timeout_seconds: int | None,
         external_execution_authorized: bool,
+        allowed_assignment_id: str | None,
     ) -> None:
         self.root = root
         self.runtime_id = runtime_id
@@ -33,6 +34,7 @@ class _DaemonLoopHandle:
         self.max_iterations = max_iterations
         self.timeout_seconds = timeout_seconds
         self.external_execution_authorized = external_execution_authorized
+        self.allowed_assignment_id = allowed_assignment_id
         self.stop_event = threading.Event()
         self.last_message = "starting"
         self.thread = threading.Thread(target=self._run, name=f"ariadne-daemon-{runtime_id}", daemon=True)
@@ -54,8 +56,9 @@ class _DaemonLoopHandle:
         while not self.stop_event.is_set():
             result = worker.run_once(
                 confirm_execution=self.external_execution_authorized,
-                assignment_id=None,
+                assignment_id=self.allowed_assignment_id,
                 timeout_seconds=self.timeout_seconds,
+                isolate_worktree=False,
             )
             self.last_message = result.message
             iterations += 1
@@ -76,13 +79,15 @@ class DaemonControlService:
         handle = _DAEMON_HANDLES.get(self.store.root)
         heartbeat = self._latest_heartbeat(runtime_id)
         open_assignments = self.store.list_open_assignments()
-        external_execution_authorized = bool(handle and handle.alive and handle.external_execution_authorized)
+        stale = is_stale_heartbeat(heartbeat) if heartbeat else None
+        background_running = bool(handle and handle.alive and stale is not True)
+        external_execution_authorized = bool(background_running and handle and handle.external_execution_authorized)
         return DaemonStatusDTO(
             runtime_id=runtime_id,
             status=heartbeat.status.value if heartbeat else "unknown",
-            background_running=bool(handle and handle.alive),
+            background_running=background_running,
             external_execution_authorized=external_execution_authorized,
-            stale=is_stale_heartbeat(heartbeat) if heartbeat else None,
+            stale=stale,
             current_assignment_id=heartbeat.current_assignment_id if heartbeat else None,
             current_ticket_key=heartbeat.current_ticket_key if heartbeat else None,
             current_stage=heartbeat.current_stage if heartbeat else None,
@@ -104,13 +109,25 @@ class DaemonControlService:
 
     def start(self, payload: DaemonStartInput) -> DaemonControlOutput:
         existing = _DAEMON_HANDLES.get(self.store.root)
-        if existing and existing.alive:
+        heartbeat = self._latest_heartbeat(payload.runtime_id)
+        heartbeat_stale = is_stale_heartbeat(heartbeat) if heartbeat else False
+        assignment_changed = bool(
+            payload.allowed_assignment_id
+            and existing
+            and existing.allowed_assignment_id
+            and existing.allowed_assignment_id != payload.allowed_assignment_id
+        )
+        if existing and existing.alive and not heartbeat_stale and not assignment_changed:
             return DaemonControlOutput(
                 daemon=self.status(existing.runtime_id),
                 did_work=False,
                 status="already_running",
                 message="local daemon loop is already running",
             )
+        if existing and existing.alive:
+            existing.stop()
+            existing.thread.join(timeout=2)
+            _DAEMON_HANDLES.pop(self.store.root, None)
         handle = _DaemonLoopHandle(
             root=self.store.root,
             runtime_id=payload.runtime_id,
@@ -118,6 +135,7 @@ class DaemonControlService:
             max_iterations=payload.max_iterations,
             timeout_seconds=payload.timeout_seconds,
             external_execution_authorized=payload.external_execution_authorized,
+            allowed_assignment_id=payload.allowed_assignment_id,
         )
         _DAEMON_HANDLES[self.store.root] = handle
         handle.start()
@@ -149,6 +167,7 @@ class DaemonControlService:
             confirm_execution=external_execution_authorized,
             timeout_seconds=payload.timeout_seconds,
             assignment_id=assignment_id,
+            isolate_worktree=False,
         )
         assignment = self.store.load_assignment(assignment_id)
         return DaemonControlOutput(

@@ -48,6 +48,7 @@ class LocalDaemonWorker:
         llm_agent_client: DeepSeekClient | None = None,
         timeout_seconds: int | None = None,
         assignment_id: str | None = None,
+        isolate_worktree: bool = True,
     ) -> DaemonRunResult:
         self._heartbeat(DaemonStatus.IDLE, "idle")
         assignment = self._next_assignment(assignment_id=assignment_id)
@@ -125,7 +126,7 @@ class LocalDaemonWorker:
                 backlog_planner=backlog_planner or running.backlog_planner_name,
                 llm_agent_client=llm_agent_client,
                 confirm_execution=confirm_execution,
-                isolate_worktree=True,
+                isolate_worktree=isolate_worktree,
                 timeout_seconds=timeout_seconds or 60,
             )
         except Exception as exc:  # pragma: no cover - defensive, tested through blocked result path
@@ -267,6 +268,7 @@ class LocalDaemonWorker:
                 agent_runtime=agent_runtime,
                 backlog_planner=backlog_planner,
                 timeout_seconds=timeout_seconds,
+                isolate_worktree=True,
             )
             iterations += 1
             if max_iterations is not None and iterations >= max_iterations:

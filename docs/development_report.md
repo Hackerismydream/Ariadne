@@ -6787,3 +6787,74 @@ Known limitations:
   execution evidence. It does not run Codex or Claude by itself.
 - Automated tests use fake transports and do not require network or a DeepSeek
   key.
+
+## 2026-06-20 Browser Dogfood First Closure
+
+Plan: `docs/superpowers/plans/2026-06-20-project-version-dogfood-closure-plan.md`
+
+Result: `REAL_CLOSED`
+
+Implemented:
+
+- Added and hardened the browser-only Mini Code Agent dogfood harness.
+- Fixed Workbench assignment/runtime binding so the current issue dispatches to
+  the current target repo and current daemon assignment.
+- Made daemon control replace stale loops and preserve an allowed assignment id.
+- Made assignment dispatch idempotent when an assignment is already claimed,
+  running, or terminal.
+- Made Workbench watch assignment events with HTTP polling as a WebSocket
+  fallback until terminal state.
+- Fixed Codex target repo evidence capture by running Workbench daemon
+  execution against the registered target project rather than an isolated
+  Ariadne worktree.
+- Expanded untracked git directories into concrete changed files for review and
+  UI evidence.
+- Allowed `.mini-code-agent/` run evidence for the Mini Code Agent target issue.
+- Made stale non-terminal LLM role runs terminate as superseded before a new
+  attempt starts.
+- Made DeepSeek structured-response parsing tolerate fenced/prose JSON and fall
+  back only for non-external schema/format failures.
+- Avoided blocking Workbench daemon assignment completion on synchronous full
+  board export; the daemon records the board path and returns execution evidence
+  first.
+- Tightened the browser proof check to inspect the current execution evidence
+  panel rather than historical timeline blockers.
+
+Real dogfood proof:
+
+- Command:
+  `ARIADNE_WORKBENCH_PORT=18768 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real`
+- Browser result: `DOGFOOD_BROWSER_REAL_PATH_COMPLETED`
+- Result directory: `.ariadne/dogfood/browser-20260620T055338Z/`
+- Target project: `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`
+- Issue: `MCA-001`
+- Assignment: `assignment_eebb2b610ce0`
+- Backend: `codex`
+- Handoff packet: `handoff_packet_da262cca66d5`
+- Runtime authorization: `runtime_authorization_a95caa946a17`
+- Execution result: `execution_9c5418cea515`
+- Codex provider session: `019ee398-8c76-7d01-b8e3-7a69141fc193`
+- Exit code: `0`
+- Target test command: `/opt/homebrew/bin/pytest`
+- Target test exit code: `0`
+- Review: `review_53a4993073f8`, verdict `pass`
+- Memory: `.ariadne/memory/tickets/ticket_de51566c81b4.md`
+- Feishu dry-run plan: `.ariadne/feishu_plans/feishu_b35a449bf2e3.json`
+- Next tickets: `.ariadne/artifacts/ticket_de51566c81b4/next_tickets.json`
+
+Verification:
+
+- `python3.11 -m pytest tests/test_run_assignment_service.py tests/test_llm_agents.py tests/test_local_control_plane.py`: passed, `20 passed`.
+- `npm --prefix frontend/ariadne-workbench run build`: passed.
+- `ruff check .`: passed.
+- Browser dogfood real path: passed.
+
+Known limitations:
+
+- The dogfood target project contains repeated run evidence from repair-loop
+  attempts. The latest run is real and passing, but the timeline is noisy.
+- Historical blocked attempts remain visible in the timeline. The current
+  execution evidence panel now correctly scopes proof to the latest assignment.
+- Full static board export is still available separately, but Workbench daemon
+  completion no longer waits on full board export because it previously delayed
+  assignment terminal state.

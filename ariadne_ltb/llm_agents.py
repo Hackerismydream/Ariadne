@@ -156,6 +156,23 @@ def run_ticket_llm_agent(
 
 def _start_llm_run(store: AriadneStore, ticket: BuildTicket, role: LLMAgentRole) -> AgentRun:
     agent_role = f"llm:{role.value}"
+    for run_id in ticket.agent_run_ids:
+        existing = store.load_run(run_id)
+        if existing.agent_role == agent_role and not existing.is_terminal:
+            finished = existing.mark_finished(
+                AgentRunStatus.FAILED,
+                f"Superseded by a new {agent_role} attempt.",
+                error="Previous LLM role attempt did not reach a terminal state.",
+                failure_reason=FailureReason.AGENT_ERROR,
+            )
+            store.save_run(finished)
+            store.append_run_message(
+                finished.id,
+                "superseded",
+                RunMessageType.ERROR,
+                f"Superseded by a new `{role.value}` LLM role attempt.",
+                metadata={"status": finished.status.value, "role": role.value},
+            )
     attempt = 1 + sum(
         1
         for run_id in ticket.agent_run_ids

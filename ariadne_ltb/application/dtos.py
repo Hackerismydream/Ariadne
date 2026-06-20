@@ -410,6 +410,7 @@ class DaemonStartInput(AriadneDTO):
     max_iterations: int | None = Field(default=None, ge=1, le=10_000)
     timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
     external_execution_authorized: bool = False
+    allowed_assignment_id: str | None = None
 
 
 class DaemonControlOutput(AriadneDTO):

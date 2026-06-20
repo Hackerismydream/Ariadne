@@ -17,6 +17,7 @@ import type {
   AriadneTicket,
   AssignmentSummary,
   ProjectResource,
+  DaemonStatus,
   RuntimeInfo,
 } from "../../types";
 
@@ -30,6 +31,7 @@ type UseTicketAgentControlParams = {
   latestAssignment?: AssignmentSummary;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
   productRuntime?: RuntimeInfo;
+  daemonStatus?: DaemonStatus;
   targetProject?: ProjectResource;
   ticket: AriadneTicket;
 };
@@ -56,6 +58,7 @@ export function useTicketAgentControl({
   latestAssignment,
   onRefresh,
   productRuntime,
+  daemonStatus,
   readOnly,
   targetProject,
   ticket,
@@ -64,14 +67,19 @@ export function useTicketAgentControl({
   const [actionMessage, setActionMessage] = useState("");
   const [daemonActionState, setDaemonActionState] = useState<DaemonActionState>("idle");
   const [confirmationTokens, setConfirmationTokens] = useState<Record<string, string>>({});
+  const [lastCreatedAssignmentId, setLastCreatedAssignmentId] = useState<string | undefined>();
   const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentState, setCommentState] = useState<CommentState>("idle");
   const socketRef = useRef<WebSocket | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mutationReady = dataSource === "api" && !readOnly && Boolean(targetProject?.available) && Boolean(productRuntime);
 
   useEffect(() => {
-    return () => socketRef.current?.close();
+    return () => {
+      socketRef.current?.close();
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, []);
 
   async function assignSelectedTicket() {
@@ -88,6 +96,7 @@ export function useTicketAgentControl({
         idempotency_key: idempotencyKey(`assign-${ticket.key}`),
       }) as { assignment?: { id?: string }; confirmation_token?: string };
       if (assigned.assignment?.id && assigned.confirmation_token) {
+        setLastCreatedAssignmentId(assigned.assignment.id);
         setConfirmationTokens((current) => ({
           ...current,
           [assigned.assignment!.id!]: assigned.confirmation_token!,
@@ -108,7 +117,7 @@ export function useTicketAgentControl({
     setActionState("running");
     setActionMessage("");
     try {
-      let assignmentId = latestAssignment?.id;
+      let assignmentId = lastCreatedAssignmentId ?? latestAssignment?.id;
       let confirmationToken = assignmentId ? confirmationTokens[assignmentId] : undefined;
       if (!assignmentId) {
         const assigned = await assignTicket(ticket.key, {
@@ -122,6 +131,23 @@ export function useTicketAgentControl({
         assignmentId = assigned.assignment?.id;
         if (assignmentId && assigned.confirmation_token) {
           confirmationToken = assigned.confirmation_token;
+          setLastCreatedAssignmentId(assignmentId);
+          setConfirmationTokens((current) => ({ ...current, [assignmentId!]: assigned.confirmation_token! }));
+        }
+      }
+      if (assignmentId && !confirmationToken) {
+        const assigned = await assignTicket(ticket.key, {
+          assignee_id: productRuntime.backend,
+          assignee_kind: "agent",
+          backend_name: productRuntime.backend as "codex" | "claude-code",
+          runtime_profile: "production",
+          target_project_id: targetProject.id,
+          idempotency_key: idempotencyKey(`assign-run-${ticket.key}`),
+        }) as { assignment?: { id?: string }; confirmation_token?: string };
+        assignmentId = assigned.assignment?.id ?? assignmentId;
+        if (assignmentId && assigned.confirmation_token) {
+          confirmationToken = assigned.confirmation_token;
+          setLastCreatedAssignmentId(assignmentId);
           setConfirmationTokens((current) => ({ ...current, [assignmentId!]: assigned.confirmation_token! }));
         }
       }
@@ -130,15 +156,19 @@ export function useTicketAgentControl({
       const runKey = idempotencyKey(`run-${ticket.key}`);
       await runAssignment(assignmentId, {
         confirmation_token: confirmationToken,
-        timeout_seconds: 120,
+        timeout_seconds: 600,
         idempotency_key: runKey,
       });
-      await runAssignmentNow(assignmentId, {
-        confirmation_token: confirmationToken,
-        timeout_seconds: 120,
-        idempotency_key: runKey,
-      });
-      setActionMessage("本地 daemon 已 claim 该 assignment；结果和阻塞原因会回流到任务证据面板。");
+      if (daemonStatus?.backgroundRunning) {
+        setActionMessage("当前 assignment 已派发；后台 daemon 会 claim 并执行，结果和阻塞原因会回流到任务证据面板。");
+      } else {
+        await runAssignmentNow(assignmentId, {
+          confirmation_token: confirmationToken,
+          timeout_seconds: 600,
+          idempotency_key: runKey,
+        });
+        setActionMessage("本地 daemon 已 claim 该 assignment；结果和阻塞原因会回流到任务证据面板。");
+      }
       watchAssignmentEvents(assignmentId);
       await onRefresh(ticket.key);
     } catch (error) {
@@ -156,7 +186,9 @@ export function useTicketAgentControl({
       await startDaemon({
         runtime_id: "workbench-local",
         interval_seconds: 2,
+        timeout_seconds: 600,
         external_execution_authorized: true,
+        allowed_assignment_id: lastCreatedAssignmentId ?? latestAssignment?.id ?? null,
       });
       setActionMessage("本地运行时已启动，并已授权 Codex/Claude 执行分配给它的任务。");
       await onRefresh(ticket.key);
@@ -188,6 +220,7 @@ export function useTicketAgentControl({
       return;
     }
     socketRef.current?.close();
+    if (pollRef.current) clearInterval(pollRef.current);
     try {
       const response = await getAssignmentEvents(assignmentId);
       setAssignmentEvents(response.events);
@@ -196,6 +229,28 @@ export function useTicketAgentControl({
         await onRefresh(ticket.key);
       }
       const cursor = response.events.at(-1)?.cursor;
+      pollRef.current = setInterval(() => {
+        void getAssignmentEvents(assignmentId).then((snapshot) => {
+          if (snapshot.events.length) {
+            setAssignmentEvents((current) => mergeEvents(current, snapshot.events));
+          }
+          if (
+            assignmentEventsNeedWorkbenchRefresh(snapshot.events)
+            || ["done", "blocked", "failed", "cancelled"].includes(snapshot.assignment.status)
+          ) {
+            void onRefresh(ticket.key);
+          }
+          if (["done", "blocked", "failed", "cancelled"].includes(snapshot.assignment.status) && pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        }).catch(() => {
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        });
+      }, 2_000);
       socketRef.current = openAssignmentEventsSocket(
         assignmentId,
         (batch) => {
@@ -204,6 +259,10 @@ export function useTicketAgentControl({
             setActionMessage(`实时事件：${batch.events.at(-1)?.stage ?? "progress"} / ${batch.events.at(-1)?.event_type ?? "updated"}`);
             if (assignmentEventsNeedWorkbenchRefresh(batch.events)) {
               void onRefresh(ticket.key);
+            }
+            if (["done", "blocked", "failed", "cancelled"].includes(batch.assignment.status) && pollRef.current) {
+              clearInterval(pollRef.current);
+              pollRef.current = null;
             }
           }
         },

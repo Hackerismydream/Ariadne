@@ -190,7 +190,7 @@ class DeepSeekClient:
 
         try:
             content = body["choices"][0]["message"]["content"]
-            parsed = json.loads(content)
+            parsed = _parse_json_content(str(content))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise LLMClientError(
                 LLMError(
@@ -246,6 +246,19 @@ def default_llm() -> LLMClient:
     if os.environ.get("DEEPSEEK_API_KEY"):
         return DeepSeekClient()
     return DeterministicLLM()
+
+
+def _parse_json_content(content: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+        if not match:
+            raise
+        parsed = json.loads(match.group(0))
+    if not isinstance(parsed, dict):
+        raise json.JSONDecodeError("expected JSON object", content, 0)
+    return parsed
 
 
 def load_local_env(root: str | Path) -> list[str]:

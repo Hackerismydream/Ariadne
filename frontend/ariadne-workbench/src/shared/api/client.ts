@@ -1,5 +1,6 @@
 import type {
   AddTicketCommentRequest,
+  ApiAssignmentSummary,
   AssignmentEvent,
   AssignmentEventStream,
   ApiSourceDocument,
@@ -126,7 +127,7 @@ export function runAssignmentNow(assignmentId: string, payload: RunAssignmentReq
 
 export function getAssignmentEvents(assignmentId: string, since?: string) {
   const query = since ? `?since=${encodeURIComponent(since)}` : "";
-  return requestJson<{ events: AssignmentEvent[] }>(
+  return requestJson<{ assignment: ApiAssignmentSummary; events: AssignmentEvent[] }>(
     `/api/assignments/${encodeURIComponent(assignmentId)}/events${query}`,
   );
 }

@@ -88,7 +88,7 @@ def _compile_mini_code_agent_specs(
 ) -> list[CompiledIssueSpec]:
     capability_text = _repo_capability_text(artifact_payloads) or "reference sources describe compact code-agent loops"
     return [
-        _spec("Bootstrap Python package and CLI", f"Reference inputs indicate a CLI-first agent shape: {capability_text}", ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py"], evidence),
+        _spec("Bootstrap Python package and CLI", f"Reference inputs indicate a CLI-first agent shape: {capability_text}", ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py", ".mini-code-agent/"], evidence),
         _spec("Add DeepSeek-backed LLM client configuration", "The target agent needs a real upstream model client and local configuration path.", ["mini_code_agent/llm.py", "mini_code_agent/config.py", "tests/test_llm_config.py"], evidence),
         _spec("Define tool protocol and model action schema", "Reference code-agent projects converge on typed action and observation contracts.", ["mini_code_agent/protocol.py", "tests/test_protocol.py"], evidence),
         _spec("Implement shell command tool with allowlist", "Coding agents need shell access bounded by an explicit local safety policy.", ["mini_code_agent/tools/shell.py", "tests/test_shell_tool.py"], evidence),

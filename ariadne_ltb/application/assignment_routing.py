@@ -36,6 +36,11 @@ def prepare_direct_agent_assignment(
         reason=f"Direct assignment routed to {agent.name}.",
     )
     store.save_route_decision(route_decision)
+    affected_modules = ticket.metadata.get("affected_modules") or (packet.affected_modules if packet else [])
+    acceptance_criteria = ticket.metadata.get("acceptance_criteria") or (
+        packet.acceptance_criteria if packet else []
+    )
+    tasks = ticket.metadata.get("tasks") or (packet.tasks if packet else [])
     ticket_for_handoff = ticket.model_copy(
         deep=True,
         update={
@@ -43,11 +48,9 @@ def prepare_direct_agent_assignment(
             | {
                 "target_project_id": target_project_id,
                 "target_repo_path": target_repo,
-                "affected_modules": packet.affected_modules if packet else ticket.metadata.get("affected_modules", []),
-                "acceptance_criteria": packet.acceptance_criteria
-                if packet
-                else ticket.metadata.get("acceptance_criteria", []),
-                "tasks": packet.tasks if packet else ticket.metadata.get("tasks", []),
+                "affected_modules": affected_modules,
+                "acceptance_criteria": acceptance_criteria,
+                "tasks": tasks,
                 "test_command": ticket.metadata.get("test_command") or target_test_command(),
             }
         },

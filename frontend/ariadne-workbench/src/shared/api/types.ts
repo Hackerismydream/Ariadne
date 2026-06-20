@@ -374,6 +374,7 @@ export type DaemonStartRequest = {
   max_iterations?: number | null;
   timeout_seconds?: number | null;
   external_execution_authorized?: boolean;
+  allowed_assignment_id?: string | null;
 };
 
 export type AddTicketCommentRequest = {

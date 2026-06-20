@@ -900,7 +900,7 @@ class TicketRunOrchestrator:
                 *([backlog_planner_artifact.id] if backlog_planner_artifact else []),
             ],
         )
-        board_path = export_board(self.store)
+        board_path = _export_board_if_not_daemon_assignment(self.store, self.assignment_id)
         ticket = self.store.load_ticket(ticket.id).append_event(
             "board_exported",
             "Build Board",
@@ -1022,15 +1022,13 @@ class TicketRunOrchestrator:
             )
         )
         self.store.save_ticket(ticket)
-        board_path = export_board(self.store)
         self._progress(
             ticket,
             "board",
             "succeeded",
-            f"Board exported to {board_path}.",
+            f"Board path recorded at {board_path}.",
             payload_ref=str(board_path),
         )
-        board_path = export_board(self.store)
         return TicketRunResult(
             ticket_id=ticket.id,
             ticket_key=ticket.key,
@@ -1137,9 +1135,18 @@ class TicketRunOrchestrator:
     def _require_llm_role_success(self, ticket: BuildTicket, result: LLMAgentResult) -> None:
         if result.succeeded:
             return
+        msg = result.error or "unknown LLM role failure"
+        if _llm_role_failure_can_fallback(msg):
+            self._progress(
+                ticket,
+                f"llm_{result.role.value}",
+                "fallback",
+                f"DeepSeek {result.role.value.replace('_', ' ')} role returned unusable structured output; continuing with deterministic fallback.",
+                payload_ref=result.artifact_id,
+            )
+            return
         board_path = export_board(self.store)
         role_name = result.role.value.replace("_", " ")
-        msg = result.error or "unknown LLM role failure"
         raise RuntimeError(
             f"DeepSeek {role_name} role blocked for {ticket.key}: {msg}; board: {board_path}"
         )
@@ -1265,6 +1272,37 @@ def _blocked_execution(
         test_exit_code=None,
         warnings=[reason],
     )
+
+
+def _llm_role_failure_can_fallback(error: str) -> bool:
+    normalized = error.lower()
+    external_blockers = [
+        "api_key",
+        "api key",
+        "unauthorized",
+        "authentication",
+        "quota",
+        "rate limit",
+        "billing",
+        "transport_error",
+        "timeout",
+    ]
+    if any(token in normalized for token in external_blockers):
+        return False
+    fallback_errors = [
+        "valid json",
+        "json",
+        "schema validation",
+        "invalid_response",
+        "failed schema",
+    ]
+    return any(token in normalized for token in fallback_errors)
+
+
+def _export_board_if_not_daemon_assignment(store: AriadneStore, assignment_id: str | None) -> str:
+    if assignment_id:
+        return str(store.board_dir / "index.md")
+    return str(export_board(store))
 
 
 def _augment_handoff_with_project_resources(

@@ -30,7 +30,12 @@ class RunAssignmentService:
         assignment = self.store.load_assignment(assignment_id)
         ConfirmationTokenService(self.store).verify(assignment, payload.confirmation_token)
         ticket = self.store.load_ticket(assignment.ticket_id)
-        if assignment.status is AssignmentStatus.READY_TO_CLAIM:
+        if assignment.status.is_terminal or assignment.status in {
+            AssignmentStatus.CLAIMED,
+            AssignmentStatus.RUNNING,
+        }:
+            ready_assignment = assignment
+        elif assignment.status is AssignmentStatus.READY_TO_CLAIM:
             ready_assignment = assignment
         elif assignment.metadata.get("route_decision_id") and assignment.metadata.get("handoff_packet_id"):
             ready_assignment = assignment.mark_ready_to_claim(
@@ -89,7 +94,12 @@ class RunAssignmentService:
             },
         )
         self.store.append_runtime_event(event)
-        message = "run dispatched; start or keep `ari daemon start` running to claim the assignment"
+        message = (
+            f"assignment already {ready_assignment.status.value}; keeping current state"
+            if ready_assignment.status.is_terminal
+            or ready_assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}
+            else "run dispatched; start or keep `ari daemon start` running to claim the assignment"
+        )
         self.idempotency.set(
             payload.idempotency_key,
             {

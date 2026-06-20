@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from ariadne_ltb.application.assign_ticket import AssignTicketService
-from ariadne_ltb.application.dtos import AssignTicketInput, RunAssignmentInput
+from ariadne_ltb.application.daemon_control import DaemonControlService
+from ariadne_ltb.application.dtos import AssignTicketInput, DaemonStartInput, RunAssignmentInput
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.daemon import LocalDaemonWorker
@@ -134,6 +135,69 @@ def test_service_test_source_can_run_fallback_backend_against_registered_target(
     assert events.status_code == 200, events.text
     assert events.json()["events"]
     assert "confirmation_token" not in events.text
+
+
+def test_workbench_run_now_executes_against_registered_target_without_isolation(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ingest_sources(store, SOURCE_FIXTURES)
+    target = ensure_demo_target_project(tmp_path)
+    project = TargetProjectRegistry(store).register(target, "Demo Target")
+    assign = AssignTicketService(store).assign(
+        "ARI-003",
+        AssignTicketInput(
+            assignee_id="build-team",
+            assignee_kind="build_team",
+            backend_name="fake-codex",
+            runtime_profile="deterministic",
+            target_project_id=project.id,
+            idempotency_key="assign-direct-target",
+        ),
+        source="test",
+    )
+
+    result = DaemonControlService(store).run_now(
+        assign.assignment.id,
+        RunAssignmentInput(
+            confirmation_token=assign.confirmation_token or "",
+            timeout_seconds=30,
+            idempotency_key="run-direct-target",
+        ),
+    )
+
+    assert result.status == "done"
+    assert result.ticket_run_result is not None
+    execution = store.load_execution_result(result.ticket_run_result["execution_result_id"])
+    assert execution.target_repo_path == str(target)
+    assert execution.target_worktree_path is None
+    assert "demo_todo/cli.py" in execution.changed_files
+    assert not store.list_worktree_isolations()
+
+
+def test_daemon_start_replaces_loop_when_allowed_assignment_changes(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    service = DaemonControlService(store)
+
+    first = service.start(
+        DaemonStartInput(
+            runtime_id="workbench-local",
+            interval_seconds=10,
+            max_iterations=100,
+            allowed_assignment_id="assignment_old",
+        )
+    )
+    second = service.start(
+        DaemonStartInput(
+            runtime_id="workbench-local",
+            interval_seconds=10,
+            max_iterations=100,
+            allowed_assignment_id="assignment_new",
+        )
+    )
+    stopped = service.stop()
+
+    assert first.status == "started"
+    assert second.status == "started"
+    assert stopped.status == "stopped"
 
 
 def test_http_product_assign_rejects_fallback_backend(tmp_path: Path) -> None:

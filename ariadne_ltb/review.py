@@ -17,6 +17,7 @@ from ariadne_ltb.models import (
     ReviewVerdict,
     stable_id,
 )
+from ariadne_ltb.permissions import validate_changed_files
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -91,14 +92,13 @@ def review_execution(
             passed.append("Changed files captured")
         else:
             failed.append("Changed files captured")
-        allowed = set(packet.affected_modules)
-        changed = set(execution.changed_files)
-        if changed and changed.issubset(allowed):
+        scope_validation = validate_changed_files(packet.affected_modules, execution.changed_files)
+        if execution.changed_files and scope_validation.valid:
             passed.append("Changed files are within allowed scope")
         else:
             failed.append("Changed files are within allowed scope")
-            fixes.append("Restrict execution changes to allowed target paths.")
-            failure_reasons.append(FailureReason.SCOPE_VIOLATION)
+            fixes.append(scope_validation.reason or "Restrict execution changes to allowed target paths.")
+            failure_reasons.append(scope_validation.failure_reason or FailureReason.SCOPE_VIOLATION)
         if execution.git_diff:
             passed.append("Git diff captured")
         else:

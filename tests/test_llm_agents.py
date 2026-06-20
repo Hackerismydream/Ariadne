@@ -227,6 +227,63 @@ def test_ticket_llm_agent_blocks_prompt_failures_without_stranding_run(
     assert result.artifact_id in updated_ticket.artifact_ids
 
 
+def test_ticket_llm_agent_supersedes_prior_non_terminal_role_run(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    source_path = tmp_path / "source.md"
+    source_path.write_text("# Source\n\nUse visible progress for agent work.\n", encoding="utf-8")
+    store = AriadneStore(tmp_path)
+    ticket = ingest_sources(store, [source_path])[0]
+    first = run_ticket_llm_agent(
+        store,
+        ticket,
+        LLMAgentRole.BUILD_LEAD,
+        client=DeepSeekClient(
+            api_key="test-secret-key",
+            transport=FakeTransport(error=OSError("connection dropped")),
+        ),
+    )
+    first_run = store.load_run(first.run_id or "")
+    stranded = first_run.model_copy(update={"status": AgentRunStatus.RUNNING, "ended_at": None})
+    store.save_run(stranded)
+
+    second = run_ticket_llm_agent(
+        store,
+        store.load_ticket(ticket.id),
+        LLMAgentRole.BUILD_LEAD,
+        client=DeepSeekClient(
+            api_key="test-secret-key",
+            transport=FakeTransport(
+                {
+                    "model": "deepseek-v4-pro",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"route ticket","decision":"assign to codex",'
+                                    '"evidence":["ticket is code task"],"risks":[],'
+                                    '"recommended_actions":["run codex"]}'
+                                )
+                            }
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18},
+                }
+            ),
+        ),
+    )
+
+    assert second.succeeded is True
+    assert second.run_id != first.run_id
+    superseded = store.load_run(first.run_id or "")
+    assert superseded.status is AgentRunStatus.FAILED
+    assert superseded.is_terminal
+    assert "Superseded" in (superseded.output_summary or "")
+    assert store.load_run(second.run_id or "").status is AgentRunStatus.SUCCEEDED
+
+
 def test_cli_llm_run_agent_requires_external_confirmation(tmp_path: Path) -> None:
     result = CliRunner().invoke(
         app,

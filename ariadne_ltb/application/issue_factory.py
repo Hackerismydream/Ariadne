@@ -89,24 +89,39 @@ class IssueFactoryService:
     ) -> list[BacklogOperation]:
         tasks = compile_issue_specs(self.store, title=title, north_star=north_star, context=context)
         operations: list[BacklogOperation] = []
-        existing_keys = {ticket.key for ticket in self.store.list_tickets()}
+        existing_tickets = self.store.list_tickets()
+        existing_keys = {ticket.key for ticket in existing_tickets}
         prefix = _issue_prefix(self.store, context.manifest.target_project_id, title)
         next_index = _next_ticket_index(existing_keys, prefix)
+        existing_by_title = {}
+        for ticket in sorted(existing_tickets, key=lambda item: item.key):
+            if not ticket.key.startswith(f"{prefix}-"):
+                continue
+            if ticket.metadata.get("target_project_id") != context.manifest.target_project_id:
+                continue
+            existing_by_title.setdefault(ticket.title.strip().lower(), ticket)
         primary_source = context.sources[0] if context.sources else _synthetic_source(title, north_star)
         source_artifact_ids = context.manifest.source_artifact_ids
         source_document_ids = context.manifest.source_document_ids
         for task in tasks:
-            while f"{prefix}-{next_index:03d}" in existing_keys:
-                next_index += 1
-            ticket_key = f"{prefix}-{next_index:03d}"
-            existing_keys.add(ticket_key)
             evidence_refs = task.evidence_refs or context.manifest.evidence_ids or [primary_source.id]
             source_doc = _source_for_task(primary_source, task, context, evidence_refs)
-            ticket_id = stable_id("ticket", source_doc.id, ticket_key)
+            existing_ticket = existing_by_title.get(task.title.strip().lower())
+            if existing_ticket:
+                ticket_key = existing_ticket.key
+                ticket_id = existing_ticket.id
+                operation_type = BacklogOperationType.UPDATE_TICKET
+            else:
+                while f"{prefix}-{next_index:03d}" in existing_keys:
+                    next_index += 1
+                ticket_key = f"{prefix}-{next_index:03d}"
+                ticket_id = stable_id("ticket", source_doc.id, ticket_key)
+                operation_type = BacklogOperationType.ADD_TICKET
+                existing_keys.add(ticket_key)
             operations.append(
                 BacklogOperation(
                     id=stable_id("backlog_op", ticket_id, task.title),
-                    operation_type=BacklogOperationType.ADD_TICKET,
+                    operation_type=operation_type,
                     ticket_id=ticket_id,
                     ticket_key=ticket_key,
                     title=task.title,
@@ -134,7 +149,8 @@ class IssueFactoryService:
                     },
                 )
             )
-            next_index += 1
+            if not existing_ticket:
+                next_index += 1
         return operations
 
 
@@ -193,7 +209,7 @@ def _mini_code_agent_tasks() -> list[dict[str, object]]:
             "Bootstrap Python package and CLI",
             "A minimal coding agent needs an executable package and command-line entrypoint before higher-level agent behavior can be tested.",
             "high",
-            ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py"],
+            ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py", ".mini-code-agent/"],
         ),
         _task(
             "Add DeepSeek-backed LLM client configuration",

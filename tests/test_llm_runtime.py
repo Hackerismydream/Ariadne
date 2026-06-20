@@ -100,6 +100,31 @@ def test_deepseek_request_keeps_cacheable_system_prefix_stable(monkeypatch) -> N
     assert "Requested schema: ariadne_second" in second.messages[1].content
 
 
+def test_deepseek_client_extracts_json_object_from_fenced_response(monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    transport = FakeTransport(
+        response={
+            "id": "chatcmpl_test",
+            "model": "deepseek-v4-pro",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"content": '```json\n{"summary":"ok","decision":"continue"}\n```'},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {},
+        }
+    )
+
+    result = DeepSeekClient(api_key="test-secret-key", transport=transport).complete_json(
+        "Return json.",
+        "ariadne_test",
+    )
+
+    assert result == {"summary": "ok", "decision": "continue"}
+
+
 def test_deepseek_client_redacts_transport_errors(monkeypatch) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     transport = FakeTransport(error=OSError("bad token test-secret-key"))

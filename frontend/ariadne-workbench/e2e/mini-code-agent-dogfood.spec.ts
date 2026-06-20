@@ -67,7 +67,7 @@ async function clickFirst(page: Page, name: string | RegExp) {
 
 test.describe("Mini Code Agent browser dogfood", () => {
   test("drives the real Workbench product path until closure or first blocker", async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(900_000);
 
     await stepOrBlock(testInfo, page, "open real Workbench in API mode", async () => {
       await page.goto(`${workbenchUrl}/?v=browser-dogfood-first#project`, { waitUntil: "domcontentloaded" });
@@ -81,7 +81,14 @@ test.describe("Mini Code Agent browser dogfood", () => {
     await stepOrBlock(testInfo, page, "create or select target project folder", async () => {
       await page.getByLabel("项目文件夹").fill(targetPath);
       await page.getByLabel("项目名称").fill("Mini Code Agent");
+      const targetProjectResponse = page.waitForResponse((response) =>
+        response.request().method() === "POST"
+        && new URL(response.url()).pathname === "/api/target-projects",
+        { timeout: 120_000 },
+      );
       await clickFirst(page, "注册项目");
+      const response = await targetProjectResponse;
+      expect(response.ok(), `target project registration failed: ${response.status()}`).toBeTruthy();
       await expect(page.locator("body")).toContainText(/目标项目已注册|target path does not exist|Target project path does not exist/, { timeout: 20_000 });
       const body = await page.locator("body").innerText();
       expect(body).toContain("目标项目已注册");
@@ -110,7 +117,14 @@ test.describe("Mini Code Agent browser dogfood", () => {
         await page.keyboard.insertText(source);
         await expect(urlInput).toHaveValue(source);
         await expect(addAndAnalyze).toBeEnabled({ timeout: 5_000 });
+        const sourceResponse = page.waitForResponse((response) =>
+          response.request().method() === "POST"
+          && new URL(response.url()).pathname === "/api/sources",
+          { timeout: 120_000 },
+        );
         await addAndAnalyze.click();
+        const response = await sourceResponse;
+        expect(response.ok(), `source request failed: ${response.status()} ${source}`).toBeTruthy();
         await expect(page.locator("body")).toContainText(/分析完成|已打开现有记录|已阻塞|分析失败/, { timeout: 45_000 });
         const body = await page.locator("body").innerText();
         expect(body).not.toMatch(/分析失败|Internal Server Error|Traceback|500/);
@@ -127,7 +141,10 @@ test.describe("Mini Code Agent browser dogfood", () => {
 
     await stepOrBlock(testInfo, page, "apply issue delta", async () => {
       await clickFirst(page, "应用任务变更");
-      await expect(page.locator("body")).toContainText(/任务建议已应用|stale_preview|应用任务变更失败|Internal Server Error/, { timeout: 45_000 });
+      await expect(page.locator("body")).toContainText(
+        /任务建议已应用|已自动应用最新任务建议|已应用|stale_preview|应用任务变更失败|Internal Server Error/,
+        { timeout: 45_000 },
+      );
       const body = await page.locator("body").innerText();
       expect(body).not.toMatch(/stale_preview|应用任务变更失败|Internal Server Error|Traceback|500/);
     });
@@ -154,15 +171,31 @@ test.describe("Mini Code Agent browser dogfood", () => {
     });
 
     await stepOrBlock(testInfo, page, "run current assignment from Workbench", async () => {
-      await clickFirst(page, /分配后由运行时自动 claim|运行/);
-      await expect(page.locator("body")).toContainText(/结果和阻塞原因会回流|缺少执行确认 token|运行失败|已读取 \d+ 条 assignment events/, { timeout: 60_000 });
-      const body = await page.locator("body").innerText();
-      expect(body).not.toMatch(/缺少执行确认 token|运行失败|Internal Server Error|Traceback|500/);
+      const inspector = page.locator(".inspector");
+      await expect(inspector).toBeVisible({ timeout: 20_000 });
+      const runResponse = page.waitForResponse((response) =>
+        response.request().method() === "POST"
+        && /\/api\/assignments\/[^/]+\/run(-now)?$/.test(new URL(response.url()).pathname),
+        { timeout: 120_000 },
+      );
+      await clickFirst(page, /^运行当前任务$/);
+      const response = await runResponse;
+      expect(response.ok(), `assignment run request failed: ${response.status()} ${response.url()}`).toBeTruthy();
+      await expect(inspector).toContainText(/dispatch: requested|claim: claimed|状态运行中|状态ready_to_claim|运行中\.\.\./, { timeout: 60_000 });
+      const inspectorText = await inspector.innerText();
+      expect(inspectorText).not.toMatch(/缺少执行确认 token|运行失败|Internal Server Error|Traceback|500/);
     });
 
     await stepOrBlock(testInfo, page, "inspect execution evidence and version progress", async () => {
-      await expect(page.getByText("执行证据")).toBeVisible({ timeout: 20_000 });
-      const body = await page.locator("body").innerText();
+      const inspector = page.locator(".inspector");
+      const evidencePanel = inspector.locator(".execution-evidence-panel");
+      await expect(evidencePanel.getByText("执行证据")).toBeVisible({ timeout: 20_000 });
+      await expect.poll(async () => classifyInspectorEvidence(await evidencePanel.innerText()), {
+        message: "wait for current assignment to produce real execution evidence or a terminal blocker",
+        timeout: 720_000,
+        intervals: [2_000, 5_000, 10_000],
+      }).not.toBe("pending");
+      const body = await evidencePanel.innerText();
       expect(body).toMatch(/执行结果|Diff|测试退出码|评审|Memory|Next Tickets/);
       expect(body).not.toContain("还没有 execution / diff / tests / review 回流");
       const realExecutionSignals = [
@@ -172,9 +205,12 @@ test.describe("Mini Code Agent browser dogfood", () => {
         /测试退出码\s*(-?\d+)/,
       ];
       const missingRealProof = realExecutionSignals.some((pattern) => !pattern.test(body));
-      const unsafeProof = /fake-codex|dry_run|dry-run|演练模式\s*支持|门禁关闭|已阻塞|blocked/i.test(body);
+      const unsafeProof = /fake-codex|dry_run|dry-run|演练模式\s*支持|门禁关闭|已阻塞/i.test(body);
       if (mode !== "real") {
         throw new Error("BLOCKED_REHEARSAL_NOT_CLOSURE: browser path reached evidence inspection, but real mode was not requested.");
+      }
+      if (classifyInspectorEvidence(body) === "external_blocker") {
+        throw new Error("BLOCKED_NOT_CLOSED: external Codex/Claude execution blocker reached from browser path.");
       }
       if (missingRealProof || unsafeProof) {
         throw new Error("REAL_EXECUTION_NOT_PROVEN: Workbench did not show unblocked Codex/Claude CLI execution with exit code, tests, diff, review, memory, and next tickets.");
@@ -182,3 +218,25 @@ test.describe("Mini Code Agent browser dogfood", () => {
     });
   });
 });
+
+function classifyInspectorEvidence(text: string) {
+  if (/还没有 execution \/ diff \/ tests \/ review 回流/.test(text)) return "pending";
+  if (/状态\s*(ready_to_claim|运行中|running)|实时事件：execution \/ started|阶段\s*execution/i.test(text)) return "pending";
+  if (
+    /command is unavailable|命令不可用|not logged in|login required|quota|rate limit|External execution blocked|ARIADNE_ENABLE_EXTERNAL_EXECUTION|Codex CLI|Claude CLI/i.test(text)
+  ) {
+    return "external_blocker";
+  }
+  const realExecutionSignals = [
+    /后端\s*(codex|claude-code)/i,
+    /执行结果\s*(?!未记录)/,
+    /退出码\s*(-?\d+)/,
+    /测试退出码\s*(-?\d+)/,
+  ];
+  const hasRealProof = realExecutionSignals.every((pattern) => pattern.test(text));
+  if (hasRealProof && !/fake-codex|dry_run|dry-run|演练模式\s*支持|门禁关闭|已阻塞/i.test(text)) {
+    return "real_closed";
+  }
+  if (/已阻塞|failed|Reviewer verdict/i.test(text)) return "product_blocker";
+  return "pending";
+}

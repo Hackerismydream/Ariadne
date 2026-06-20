@@ -54,6 +54,8 @@ def test_issue_factory_compiles_mca_issue_set_from_typed_artifacts(tmp_path: Pat
     assert "Capture git diff and test result" in titles
     assert "Add minimal reviewer checks for task completion" in titles
     assert "Write README quickstart and usage examples" in titles
+    bootstrap = next(operation for operation in preview.operations if operation.ticket_key == "MCA-001")
+    assert ".mini-code-agent/" in bootstrap.metadata["affected_modules"]
 
     for operation in preview.operations:
         assert operation.metadata["target_project_id"] == project_id
@@ -120,6 +122,33 @@ def test_issue_factory_uses_artifact_payload_not_only_title(tmp_path: Path) -> N
     assert artifacts[0].id in loop_issue.metadata["source_artifact_ids"]
     assert loop_issue.metadata["evidence_refs"]
     assert "mini_code_agent/agent_loop.py" in loop_issue.metadata["affected_modules"]
+
+
+def test_issue_factory_updates_existing_target_issue_scope(tmp_path: Path) -> None:
+    store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
+    service = IssueFactoryService(store)
+    first_preview = service.preview(
+        IssueFactoryPreviewInput(goal_id=goal_id, source_ids=source_ids, target_project_id=project_id)
+    )
+    service.apply(first_preview.id)
+    ticket = store.resolve_ticket("MCA-001")
+    old_scope = ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py"]
+    store.save_ticket(ticket.model_copy(deep=True, update={"metadata": ticket.metadata | {"affected_modules": old_scope}}))
+    packet = store.load_build_packet(ticket.build_packet_id)
+    store.save_build_packet(packet.model_copy(update={"affected_modules": old_scope}))
+
+    update_preview = service.preview(
+        IssueFactoryPreviewInput(goal_id=goal_id, source_ids=source_ids, target_project_id=project_id)
+    )
+
+    bootstrap = next(operation for operation in update_preview.operations if operation.ticket_key == "MCA-001")
+    assert bootstrap.operation_type == "update_ticket"
+    assert ".mini-code-agent/" in bootstrap.metadata["affected_modules"]
+    service.apply(update_preview.id)
+    updated_ticket = store.resolve_ticket("MCA-001")
+    updated_packet = store.load_build_packet(updated_ticket.build_packet_id)
+    assert ".mini-code-agent/" in updated_ticket.metadata["affected_modules"]
+    assert ".mini-code-agent/" in updated_packet.affected_modules
 
 
 def test_issue_delta_validator_rejects_generic_code_task() -> None:
