@@ -94,17 +94,17 @@ const navGroups: Array<{
   {
     label: "产品路径",
     items: [
-      { key: "delivery", label: "当前版本", icon: FolderKanban },
-      { key: "project", label: "项目", icon: Target },
-      { key: "sources", label: "输入", icon: BookOpenText },
-      { key: "tasks", label: "任务", icon: ListTodo },
-      { key: "ready", label: "准备运行", icon: Monitor },
+      { key: "delivery", label: "版本工作台", icon: FolderKanban },
+      { key: "project", label: "项目设置", icon: Target },
+      { key: "sources", label: "项目输入", icon: BookOpenText },
+      { key: "tasks", label: "任务建议", icon: ListTodo },
+      { key: "ready", label: "执行任务", icon: Monitor },
     ],
   },
   {
     label: "诊断",
     items: [
-      { key: "diagnostics", label: "运行诊断", icon: Settings },
+      { key: "diagnostics", label: "技术诊断", icon: Settings },
     ],
   },
 ];
@@ -227,6 +227,79 @@ function resultLabel(ok: boolean, blocked = false) {
   if (ok) return "通过";
   if (blocked) return "已阻塞";
   return "失败";
+}
+
+function getActiveTargetProject(data: WorkbenchData) {
+  const deliveryTargetId = data.currentVersionDelivery?.targetProjectId;
+  const goalTargetId = data.goal.targetProjectId;
+  return data.projectResources?.find((resource) => resource.id === deliveryTargetId && resource.available)
+    ?? data.projectResources?.find((resource) => resource.id === goalTargetId && resource.available)
+    ?? data.environment?.activeTargetProject
+    ?? data.projectResources?.find((resource) => resource.available)
+    ?? data.projectResources?.[0]
+    ?? null;
+}
+
+function getCurrentVersionTickets(data: WorkbenchData) {
+  const deliveryKeys = new Set((data.currentVersionDelivery?.deliveryItems ?? []).map((item) => item.ticketKey));
+  const deliveryTickets = data.tickets.filter((ticket) => deliveryKeys.has(ticket.key));
+  if (deliveryTickets.length) return deliveryTickets;
+  const targetProjectId = data.currentVersionDelivery?.targetProjectId ?? data.goal.targetProjectId ?? getActiveTargetProject(data)?.id;
+  const targetTickets = data.tickets.filter((ticket) => targetProjectId && ticket.targetProjectId === targetProjectId);
+  return targetTickets.length ? targetTickets : data.tickets;
+}
+
+function getCurrentVersionWorkflows(data: WorkbenchData) {
+  const currentKeys = new Set(getCurrentVersionTickets(data).map((ticket) => ticket.key));
+  return (data.agentWorkflows ?? []).filter((step) => currentKeys.has(step.ticketKey));
+}
+
+function projectDisplayName(data: WorkbenchData) {
+  return data.currentVersionDelivery?.targetProjectLabel
+    ?? getActiveTargetProject(data)?.label
+    ?? data.goal.title
+    ?? "当前项目";
+}
+
+function userFacingStatus(status?: string) {
+  if (status === "real_closed") return "已完成真实闭环";
+  if (status === "blocked") return "当前阻塞";
+  if (status === "ready_for_review") return "等待审核";
+  if (status === "in_progress") return "推进中";
+  return "待推进";
+}
+
+function nextDeliveryAction(data: WorkbenchData) {
+  const delivery = data.currentVersionDelivery;
+  const inputs = data.projectInputs ?? [];
+  const readyInputs = inputs.filter((input) => input.lifecycle.readyForIssueFactory).length;
+  const currentTickets = getCurrentVersionTickets(data);
+  if (delivery?.status === "real_closed" && delivery.latestRealRun?.reviewVerdict === "pass") {
+    return { label: "查看版本证据", detail: `${delivery.latestRealRun.ticketKey} 已由 ${delivery.latestRealRun.backendName} 完成真实执行，测试和 review 通过。`, page: "ready" as PageKey };
+  }
+  const blockers = [
+    ...(delivery?.blockers ?? []),
+    ...(data.environment?.blockers.map((blocker) => blocker.message) ?? []),
+  ].filter(Boolean);
+  if (!inputs.length) {
+    return { label: "先添加项目输入", detail: "把博客、GitHub 仓库、论文或本地文件夹放进来。", page: "sources" as PageKey };
+  }
+  if (!readyInputs) {
+    return { label: "先分析项目输入", detail: "已有输入还没有形成可用于任务生成的证据。", page: "sources" as PageKey };
+  }
+  if (!currentTickets.length) {
+    return { label: "生成当前版本任务", detail: "用项目目标和已分析输入生成目标项目 issue。", page: "tasks" as PageKey };
+  }
+  if (blockers.length) {
+    return { label: "处理当前阻塞", detail: blockers[0], page: "ready" as PageKey };
+  }
+  if (!delivery?.latestRealRun) {
+    return { label: "分配给 Codex/Claude", detail: "选择当前 issue，创建 assignment 并让本地运行时执行。", page: "ready" as PageKey };
+  }
+  if (delivery.latestRealRun.reviewVerdict !== "pass") {
+    return { label: "查看执行证据并修复", detail: `${delivery.latestRealRun.ticketKey} 已执行，但 review 还没有通过。`, page: "ready" as PageKey };
+  }
+  return { label: "查看版本证据", detail: "当前版本已有执行证据，继续检查 diff、tests、review 和 next issue。", page: "ready" as PageKey };
 }
 
 function apiErrorCode(error: unknown) {
@@ -508,177 +581,183 @@ function DeliveryPage({
 }) {
   const delivery = data.currentVersionDelivery;
   const environment = data.environment;
-  const mainline = data.issueProjection?.mainlineTickets ?? [];
   const latestRun = delivery?.latestRealRun;
-  const targetProject = environment?.activeTargetProject ?? data.projectResources?.[0] ?? null;
+  const targetProject = getActiveTargetProject(data);
+  const currentTickets = getCurrentVersionTickets(data);
+  const currentTicketKeys = new Set(currentTickets.map((ticket) => ticket.key));
+  const currentWorkflows = getCurrentVersionWorkflows(data);
+  const nextAction = nextDeliveryAction(data);
   const readyInputs = data.projectInputs?.filter((input) => input.lifecycle.readyForIssueFactory).length ?? 0;
+  const inputTotal = data.projectInputs?.length ?? data.sources.length;
+  const blockedTickets = currentTickets.filter((ticket) => ticket.status === "blocked").length;
+  const runningTickets = currentTickets.filter((ticket) => ticket.status === "running").length;
+  const doneTickets = currentTickets.filter((ticket) => ticket.status === "done").length;
+  const testLabel = targetProject?.testCommand
+    || (latestRun?.testExitCode === 0 ? "最近测试通过" : "未设置");
 
   return (
     <section className="page full-bleed delivery-page">
       <PageHeader
         icon={<FolderKanban size={17} />}
-        title="当前版本交付"
-        count={delivery?.deliveryItems.length ?? data.tickets.length}
-        description="从项目输入到智能体执行证据，只看当前版本是否真的推进。"
+        title="版本工作台"
+        count={currentTickets.length}
+        description="只看一个项目版本：输入、任务、智能体执行、证据。"
         action={
           <div className="toolbar">
             <button type="button" onClick={() => onNavigate("sources")}>添加输入</button>
             <button type="button" onClick={() => onNavigate("tasks")}>生成任务</button>
-            <button className="primary-action" type="button" onClick={() => onNavigate("ready")}>分配执行</button>
+            <button className="primary-action" type="button" onClick={() => onNavigate(nextAction.page)}>{nextAction.label}</button>
           </div>
         }
       />
-      <section className="delivery-hero">
-        <div>
+      <section className="version-hero" data-testid="delivery-status">
+        <div className="version-heading">
           <p className="eyebrow">{delivery?.versionLabel ?? "v0.1"}</p>
-          <h2 data-testid="delivery-status">{delivery?.summary ?? "还没有形成当前版本交付视图。"}</h2>
-          <p>{delivery?.currentState ?? data.goal.currentState}</p>
+          <h2>{projectDisplayName(data)}</h2>
+          <p>{data.goal.northStar}</p>
+          <div className="version-meta">
+            <span>{targetProject?.localPath ?? "还没有目标项目路径"}</span>
+            <span>测试：{testLabel}</span>
+            <span>API：{dataSource === "api" ? "已连接" : "未连接"}</span>
+          </div>
         </div>
-        <div className="delivery-status-card">
-          <span>产品 API</span>
-          <strong>{dataSource === "api" ? "已连接" : "未连接"}</strong>
-          <span data-testid="environment-mode">执行模式：{environment?.executionMode ?? "unknown"}</span>
-        </div>
+        <aside className={`next-action-card ${delivery?.status ?? "unknown"}`}>
+          <span>{userFacingStatus(delivery?.status)}</span>
+          <strong>{nextAction.label}</strong>
+          <p>{nextAction.detail}</p>
+          <button className="primary-action" type="button" onClick={() => onNavigate(nextAction.page)}>继续</button>
+        </aside>
       </section>
 
-      <section className="delivery-grid">
-        <article className="panel delivery-panel">
-          <h2>目标项目</h2>
-          <PropertyGrid
-            rows={[
-              ["项目", fallbackText(targetProject?.label)],
-              ["路径", fallbackText(targetProject?.localPath)],
-              ["路径存在", targetProject?.pathExists ? "是" : "否"],
-              ["Git 仓库", targetProject?.isGitRepo ? "是" : "否"],
-              ["分支", fallbackText(targetProject?.gitBranch)],
-              ["工作区脏状态", targetProject?.gitDirty ? "有未提交改动" : "干净或未记录"],
-              ["测试命令", fallbackText(targetProject?.testCommand)],
-            ]}
-          />
-          <code data-testid="target-project-path">{targetProject?.localPath ?? "missing-target-project"}</code>
-        </article>
+      <section className="version-metrics" aria-label="当前版本概览">
+        <MetricCard label="输入" value={`${readyInputs}/${inputTotal}`} detail="可用于生成任务" />
+        <MetricCard label="当前任务" value={String(currentTickets.length)} detail={`${runningTickets} 运行 · ${blockedTickets} 阻塞 · ${doneTickets} 完成`} />
+        <MetricCard label="本地运行时" value={statusLabel(data.daemonStatus.status)} detail={data.daemonStatus.currentTicketKey ? `正在处理 ${data.daemonStatus.currentTicketKey}` : "没有当前任务"} />
+        <MetricCard label="最近执行" value={latestRun?.ticketKey ?? "无"} detail={latestRun ? `${latestRun.backendName} · ${statusLabel(latestRun.reviewVerdict ?? "pending")}` : "还没有 Codex/Claude 证据"} />
+      </section>
 
-        <article className="panel delivery-panel">
-          <h2>运行环境</h2>
-          <PropertyGrid
-            rows={[
-              ["连接", environment?.connectionMode ?? dataSource],
-              ["执行", environment?.executionMode ?? "unknown"],
-              ["推荐后端", fallbackText(environment?.selectedBackendRecommendation)],
-              ["生产后端", environment?.productionBackendsAvailable.join(", ") || "无"],
-              ["Daemon", statusLabel(data.daemonStatus.status)],
-              ["后台循环", data.daemonStatus.backgroundRunning ? "运行中" : "未运行"],
-            ]}
-          />
-          {environment?.blockers.length ? (
-            <div className="delivery-blockers">
-              {environment.blockers.map((blocker) => (
-                <span key={blocker.code}>{blocker.message}</span>
-              ))}
-            </div>
-          ) : <p className="muted">当前没有环境阻塞。</p>}
-        </article>
-
-        <article className="panel delivery-panel wide">
-          <h2>交付门禁</h2>
-          <div className="delivery-gates">
-            {(delivery?.gates ?? []).map((gate) => (
-              <div className={`delivery-gate ${gate.status}`} key={gate.id}>
-                <strong>{gate.label}</strong>
-                <span>{statusLabel(gate.status)}</span>
-                <p>{gate.detail}</p>
-                {gate.refId ? <code>{gate.refId}</code> : null}
-              </div>
+      <section className="version-workbench">
+        <article className="version-panel">
+          <ColumnHeader title="1. 项目输入" meta={`${readyInputs}/${inputTotal} 可用`} />
+          <div className="delivery-input-list">
+            {(data.projectInputs ?? []).slice(0, 5).map((input) => (
+              <button key={input.source.id} type="button" onClick={() => onNavigate("sources")}>
+                <strong>{input.source.title}</strong>
+                <span>{input.lifecycle.label}</span>
+                <small>{input.artifacts.length} 个产物 · {input.evidence.length} 条证据</small>
+              </button>
             ))}
-            {!delivery?.gates.length ? <p className="empty-column">还没有门禁证据。</p> : null}
+            {!data.projectInputs?.length ? <p className="empty-column">还没有项目输入。先粘贴链接或选择本地文件夹。</p> : null}
           </div>
         </article>
 
-        <article className="panel delivery-panel wide" data-testid="execution-proof">
-          <h2>最近真实执行</h2>
+        <article className="version-panel">
+          <ColumnHeader title="2. 当前版本任务" meta={`${currentTickets.length} 个`} />
+          <div className="delivery-issue-list">
+            {currentTickets.slice(0, 8).map((ticket) => (
+              <button
+                key={ticket.id}
+                type="button"
+                onClick={() => {
+                  onTicketSelect(ticket.id);
+                  onNavigate("ready");
+                }}
+              >
+                <strong>{ticket.key}</strong>
+                <span>{ticket.title}</span>
+                <small>{statusLabel(ticket.status)} · {ticket.owner}</small>
+              </button>
+            ))}
+            {!currentTickets.length ? <p className="empty-column">还没有当前版本任务。先生成并应用任务建议。</p> : null}
+          </div>
+        </article>
+
+        <article className="version-panel" data-testid="execution-proof">
+          <ColumnHeader title="3. 智能体执行" meta={latestRun ? latestRun.backendName : "未开始"} />
           {latestRun ? (
-            <>
-              <PropertyGrid
-                rows={[
-                  ["Ticket", latestRun.ticketKey],
-                  ["后端", latestRun.backendName],
-                  ["执行结果", latestRun.executionResultId],
-                  ["退出码", String(latestRun.exitCode ?? "未记录")],
-                  ["测试退出码", String(latestRun.testExitCode ?? "未记录")],
-                  ["评审", statusLabel(latestRun.reviewVerdict ?? "pending")],
-                  ["Dry run", latestRun.dryRun ? "是" : "否"],
-                  ["阻塞", latestRun.blocked ? "是" : "否"],
-                ]}
-              />
+            <div className="run-summary">
+              <strong>{latestRun.ticketKey}</strong>
+              <span>执行结果：{latestRun.executionResultId}</span>
+              <span>退出码：{String(latestRun.exitCode ?? "未记录")} · 测试：{String(latestRun.testExitCode ?? "未记录")}</span>
+              <span>评审：{statusLabel(latestRun.reviewVerdict ?? "pending")}</span>
               <div className="file-list">
                 {latestRun.changedFiles.length ? latestRun.changedFiles.map((file) => <code key={file}>{file}</code>) : <span>没有文件变更</span>}
               </div>
-            </>
+            </div>
           ) : (
-            <p className="empty-column">还没有 Codex/Claude 真实执行证据。当前版本不能算闭环。</p>
+            <p className="empty-column">还没有真实执行证据。分配当前任务后，这里会显示 trajectory、diff、tests 和 review。</p>
           )}
         </article>
       </section>
 
-      <section className="delivery-mainline">
-        <div className="delivery-lane">
-          <ColumnHeader title="输入到任务" meta={`${readyInputs}/${data.projectInputs?.length ?? data.sources.length} 个输入可用于 Issue Factory`} />
-          <div className="delivery-input-list">
-            {(data.projectInputs ?? []).slice(0, 6).map((input) => (
-              <button key={input.source.id} type="button" onClick={() => onNavigate("sources")}>
-                <strong>{input.source.title}</strong>
-                <span>{input.lifecycle.label}</span>
-                <small>{input.artifacts.length} 个结构化产物 · {input.evidence.length} 条证据</small>
-              </button>
-            ))}
-            {!data.projectInputs?.length ? <p className="empty-column">还没有项目输入。</p> : null}
-          </div>
-        </div>
-
-        <div className="delivery-lane">
-          <ColumnHeader title="主线 Issue" meta={`${mainline.length} 个`} />
-          <div className="delivery-issue-list">
-            {mainline.slice(0, 10).map((family) => {
-              const ticket = data.tickets.find((candidate) => candidate.id === family.ticketId || candidate.key === family.ticketKey);
-              return (
-                <button
-                  key={family.ticketId}
-                  type="button"
-                  onClick={() => {
-                    if (ticket) onTicketSelect(ticket.id);
-                    onNavigate("ready");
-                  }}
-                >
-                  <strong>{family.ticketKey}</strong>
-                  <span>{family.title}</span>
-                  <small>{statusLabel(family.status)} · repair {family.openRepairCount}/{family.repairCount}</small>
-                </button>
-              );
-            })}
-            {!mainline.length ? <p className="empty-column">还没有当前版本主线任务。</p> : null}
-          </div>
-        </div>
-
-        <div className="delivery-lane">
-          <ColumnHeader title="Agent 工作流" meta={`${data.agentWorkflows?.length ?? 0} 步`} />
-          <div className="workflow-list">
-            {[...(data.agentWorkflows ?? [])]
-              .sort((left, right) => left.ticketKey.localeCompare(right.ticketKey) || left.sequence - right.sequence)
-              .slice(0, 18)
-              .map((step) => (
-                <div className="workflow-step" data-testid="agent-workflow-step" key={step.id}>
-                  <span>{step.ticketKey}</span>
-                  <strong>{step.agentName}</strong>
-                  <em>{statusLabel(step.status)}</em>
-                  <p>{step.nextAction}</p>
-                  <small>{step.outputRefs.length} 个输出证据</small>
+      <details className="technical-details">
+        <summary>技术详情：门禁、环境和 Agent 工作流</summary>
+        <section className="delivery-grid compact">
+          <article className="panel delivery-panel">
+            <h2>运行环境</h2>
+            <PropertyGrid
+              rows={[
+                ["连接", environment?.connectionMode ?? dataSource],
+                ["执行", environment?.executionMode ?? "unknown"],
+                ["推荐后端", fallbackText(environment?.selectedBackendRecommendation)],
+                ["生产后端", environment?.productionBackendsAvailable.join(", ") || "无"],
+                ["Daemon", statusLabel(data.daemonStatus.status)],
+                ["后台循环", data.daemonStatus.backgroundRunning ? "运行中" : "未运行"],
+              ]}
+            />
+            {environment?.blockers.length ? (
+              <div className="delivery-blockers">
+                {environment.blockers.map((blocker) => (
+                  <span key={blocker.code}>{blocker.message}</span>
+                ))}
+              </div>
+            ) : <p className="muted">当前没有环境阻塞。</p>}
+          </article>
+          <article className="panel delivery-panel">
+            <h2>交付门禁</h2>
+            <div className="delivery-gates">
+              {(delivery?.gates ?? []).map((gate) => (
+                <div className={`delivery-gate ${gate.status}`} key={gate.id}>
+                  <strong>{gate.label}</strong>
+                  <span>{statusLabel(gate.status)}</span>
+                  <p>{gate.detail || "已满足"}</p>
+                  {gate.refId ? <code>{gate.refId}</code> : null}
                 </div>
               ))}
-            {!data.agentWorkflows?.length ? <p className="empty-column">还没有 agent 工作流证据。</p> : null}
-          </div>
-        </div>
-      </section>
+              {!delivery?.gates.length ? <p className="empty-column">还没有门禁证据。</p> : null}
+            </div>
+          </article>
+          <article className="panel delivery-panel wide">
+            <h2>Agent 工作流</h2>
+            <div className="workflow-list compact">
+              {[...currentWorkflows]
+                .sort((left, right) => left.ticketKey.localeCompare(right.ticketKey) || left.sequence - right.sequence)
+                .slice(0, 24)
+                .map((step) => (
+                  <div className="workflow-step" data-testid="agent-workflow-step" key={step.id}>
+                    <span>{step.ticketKey}</span>
+                    <strong>{step.agentName}</strong>
+                    <em>{statusLabel(step.status)}</em>
+                    <p>{step.nextAction}</p>
+                    <small>{step.outputRefs.length} 个输出证据</small>
+                  </div>
+                ))}
+              {!currentWorkflows.length ? <p className="empty-column">还没有当前版本 agent 工作流证据。</p> : null}
+            </div>
+          </article>
+        </section>
+      </details>
     </section>
+  );
+}
+
+function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article className="metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </article>
   );
 }
 
@@ -1550,15 +1629,22 @@ function IssuesPage({
   onTicketSelect: (ticketId: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<"current" | "all">("current");
+  const currentTickets = useMemo(() => getCurrentVersionTickets(data), [data]);
+  const baseTickets = scope === "current" ? currentTickets : data.tickets;
+  const effectiveSelectedTicket = scope === "current" && !baseTickets.some((ticket) => ticket.id === selectedTicket.id)
+    ? baseTickets[0] ?? selectedTicket
+    : selectedTicket;
   const visibleTickets = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return data.tickets;
+    const tickets = baseTickets;
+    if (!needle) return tickets;
     if (/^ari-\d+$/.test(needle)) {
       return data.tickets.filter(
         (ticket) => ticket.key.toLowerCase() === needle || ticket.id.toLowerCase() === needle,
       );
     }
-    return data.tickets.filter((ticket) => {
+    return tickets.filter((ticket) => {
       return [
         ticket.key,
         ticket.title,
@@ -1573,7 +1659,7 @@ function IssuesPage({
         .toLowerCase()
         .includes(needle);
     });
-  }, [data.tickets, query]);
+  }, [baseTickets, data.tickets, query]);
   const grouped = useMemo(() => {
     return statusColumns.map((column) => ({
       ...column,
@@ -1585,13 +1671,13 @@ function IssuesPage({
     <section className="page full-bleed">
       <PageHeader
         icon={<ListTodo size={17} />}
-        title="任务"
+        title="当前版本任务"
+        count={visibleTickets.length}
+        description={`${projectDisplayName(data)} · 默认隐藏历史 Ariadne 内部任务`}
         action={
           <div className="toolbar">
-            <button type="button">全部</button>
-            <button type="button">成员</button>
-            <button type="button">智能体</button>
-            <button type="button">筛选</button>
+            <button className={scope === "current" ? "active-filter" : ""} type="button" onClick={() => setScope("current")}>当前版本</button>
+            <button className={scope === "all" ? "active-filter" : ""} type="button" onClick={() => setScope("all")}>全部历史</button>
             <button type="button">看板</button>
           </div>
         }
@@ -1604,7 +1690,7 @@ function IssuesPage({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <span>{visibleTickets.length} / {data.tickets.length}</span>
+        <span>{visibleTickets.length} / {scope === "current" ? currentTickets.length : data.tickets.length}</span>
       </div>
       <div className="issues-layout">
         <div className="kanban">
@@ -1624,7 +1710,8 @@ function IssuesPage({
                   <TicketCard
                     key={ticket.id}
                     ticket={ticket}
-                    selected={ticket.id === selectedTicket.id}
+                    projectLabel={ticket.targetProjectId ? projectDisplayName(data) : "历史任务"}
+                    selected={ticket.id === effectiveSelectedTicket.id}
                     onSelect={onTicketSelect}
                   />
                 ))
@@ -1637,7 +1724,7 @@ function IssuesPage({
           dataSource={dataSource}
           readOnly={readOnly}
           selectedRuntime={selectedRuntime}
-          ticket={selectedTicket}
+          ticket={effectiveSelectedTicket}
           onRefresh={onRefresh}
         />
       </div>
@@ -1647,10 +1734,12 @@ function IssuesPage({
 
 function TicketCard({
   ticket,
+  projectLabel,
   selected,
   onSelect,
 }: {
   ticket: AriadneTicket;
+  projectLabel: string;
   selected: boolean;
   onSelect: (ticketId: string) => void;
 }) {
@@ -1659,7 +1748,7 @@ function TicketCard({
       <span className="issue-key">{ticket.key}</span>
       <strong>{ticket.title}</strong>
       <p>{ticket.summary}</p>
-      <span className="project-pill">📁 Ariadne v1.0</span>
+      <span className="project-pill">{projectLabel}</span>
       <footer>
         <span>{ticket.owner}</span>
         <em>{statusLabel(ticket.reviewVerdict)}</em>

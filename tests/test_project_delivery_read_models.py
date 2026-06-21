@@ -5,8 +5,10 @@ from hashlib import sha256
 from pathlib import Path
 
 from ariadne_ltb.application.agent_workflow_projection import build_agent_workflows
+from ariadne_ltb.application.dtos import CreateProjectGoalInput
 from ariadne_ltb.application.issue_projection import build_issue_projection
 from ariadne_ltb.application.project_inputs import build_project_inputs
+from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.project_version_delivery import build_current_version_delivery
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.workbench_environment import build_workbench_environment
@@ -92,6 +94,58 @@ def test_project_version_delivery_marks_real_codex_closure(tmp_path: Path) -> No
     assert delivery.latest_real_run.changed_files == ["mini_code_agent/cli.py"]
     assert {gate.id: gate.status for gate in delivery.gates}["real_execution"] == "done"
     assert {gate.id: gate.status for gate in delivery.gates}["review"] == "done"
+
+
+def test_project_version_delivery_uses_latest_goal_target_project(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    older_target = tmp_path / "older"
+    newer_target = tmp_path / "newer"
+    older_target.mkdir()
+    newer_target.mkdir()
+    older_project = TargetProjectRegistry(store).register(
+        older_target,
+        "Older Project",
+        target_project_id="target-older",
+        issue_prefix="OLD",
+    )
+    newer_project = TargetProjectRegistry(store).register(
+        newer_target,
+        "Mini Code Agent",
+        target_project_id="target-newer",
+        issue_prefix="MCA",
+    )
+    goal_service = ProjectGoalService(store)
+    goal_service.create(
+        CreateProjectGoalInput(
+            title="Older goal",
+            north_star="Do not show this project as current.",
+            current_state="old",
+            target_state="old target",
+            target_project_id=older_project.id,
+            knowledge_inputs=[],
+            feedback_signals=[],
+        )
+    )
+    goal_service.create(
+        CreateProjectGoalInput(
+            title="Build Mini Code Agent v0.1",
+            north_star="Show this project as current.",
+            current_state="new",
+            target_state="new target",
+            target_project_id=newer_project.id,
+            knowledge_inputs=[],
+            feedback_signals=[],
+        )
+    )
+    store.save_ticket(_ticket(older_project.id, key="OLD-001", title="Old task"))
+    store.save_ticket(_ticket(newer_project.id, key="MCA-001", title="Current task"))
+
+    delivery = build_current_version_delivery(store)
+
+    assert delivery is not None
+    assert delivery.target_project_id == newer_project.id
+    assert delivery.target_project_label == "Mini Code Agent"
+    assert [item.ticket_key for item in delivery.delivery_items] == ["MCA-001"]
 
 
 def test_issue_projection_separates_mainline_repairs_and_history(tmp_path: Path) -> None:

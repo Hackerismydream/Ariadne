@@ -22,7 +22,7 @@ def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliver
     resources = store.load_project_resources()
     if not tickets and not goals and not resources:
         return None
-    goal = goals[-1] if goals else None
+    goal = _active_goal(goals)
     target_project_id = _active_target_project_id(goal, tickets, resources)
     target = _target_resource(resources, target_project_id)
     delivery_tickets = [
@@ -52,6 +52,12 @@ def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliver
         next_actions=_next_actions(status, gates),
         evidence_refs=[item.execution_result_id for item in items if item.execution_result_id],
     )
+
+
+def _active_goal(goals):  # noqa: ANN001
+    if not goals:
+        return None
+    return max(enumerate(goals), key=lambda item: (item[1].created_at, -item[0]))[1]
 
 
 def _active_target_project_id(goal, tickets: list[BuildTicket], resources: list[ProjectResource]) -> str | None:  # noqa: ANN001

@@ -221,9 +221,16 @@ button:disabled {
   opacity: 0.55;
 }
 
+.primary-action,
 .toolbar .primary-action {
   border-color: oklch(0.57 0.18 255);
   background: oklch(0.57 0.18 255);
+  color: white;
+}
+
+.toolbar .active-filter {
+  border-color: var(--primary);
+  background: var(--primary);
   color: white;
 }
 
@@ -298,6 +305,174 @@ button:disabled {
 
 .delivery-page {
   padding-bottom: 28px;
+}
+
+.version-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 18px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  padding: 24px 20px;
+  background: oklch(0.995 0 0);
+}
+
+.version-heading h2 {
+  margin: 6px 0;
+  font-size: 30px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.version-heading p {
+  max-width: 980px;
+  margin: 0;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+.version-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.version-meta span {
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--card);
+  padding: 6px 8px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.next-action-card {
+  display: grid;
+  gap: 9px;
+  align-content: start;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 16px;
+}
+
+.next-action-card.real_closed {
+  border-left-color: var(--success);
+}
+
+.next-action-card.blocked {
+  border-left-color: var(--danger);
+}
+
+.next-action-card span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.next-action-card strong {
+  font-size: 18px;
+}
+
+.next-action-card p {
+  margin: 0;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.next-action-card button {
+  width: fit-content;
+  border: 1px solid var(--brand);
+  border-radius: 8px;
+  min-height: 32px;
+  padding: 0 14px;
+}
+
+.version-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+.metric-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 13px;
+}
+
+.metric-card span,
+.metric-card p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.metric-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+
+.version-workbench {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.86fr) minmax(360px, 1fr) minmax(320px, 0.95fr);
+  gap: 14px;
+  padding: 16px 20px 0;
+}
+
+.version-panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.run-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.run-summary strong {
+  color: var(--brand);
+}
+
+.run-summary span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.technical-details {
+  margin: 16px 20px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.technical-details summary {
+  cursor: pointer;
+  padding: 13px 14px;
+  color: var(--muted-foreground);
+  font-weight: 650;
+}
+
+.technical-details .delivery-grid {
+  padding: 0 14px 14px;
+}
+
+.delivery-grid.compact {
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
 }
 
 .delivery-hero {
@@ -2150,6 +2325,15 @@ button:disabled {
     height: auto;
   }
 
+  .version-hero,
+  .version-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .version-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .inspector {
     border-left: 0;
     border-top: 1px solid var(--border);
@@ -2174,6 +2358,14 @@ button:disabled {
     height: auto;
     grid-template-columns: 1fr;
     overflow: visible;
+  }
+
+  .version-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .version-heading h2 {
+    font-size: 24px;
   }
 
   .knowledge-column {
