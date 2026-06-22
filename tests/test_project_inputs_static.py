@@ -4,15 +4,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "frontend" / "ariadne-workbench" / "src" / "App.tsx"
+SOURCES_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "sources" / "SourcesPage.tsx"
+PLAN_CHANGES_PAGE = (
+    ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "plan-changes" / "PlanChangesPage.tsx"
+)
 
 
 def test_sources_page_uses_project_input_language() -> None:
-    text = APP.read_text(encoding="utf-8")
-    assert "项目输入" in text
-    assert "添加并分析" in text
-    assert "Ariadne 理解" in text
-    assert "关键证据" in text
-    assert "影响的任务" in text
+    text = SOURCES_PAGE.read_text(encoding="utf-8")
+    assert "Sources" in text
+    assert "Add and Analyze" in text
+    assert "Source lifecycle" in text
+    assert "Typed artifacts" in text
+    assert "Evidence snippets" in text
+    assert "Relation to goal" in text
     assert "来源收件箱" not in text
     assert "保存来源" not in text
 
@@ -26,7 +31,8 @@ def test_sources_page_does_not_expose_internal_model_names() -> None:
 
 
 def test_task_generation_explains_selected_analyzed_inputs() -> None:
-    text = APP.read_text(encoding="utf-8")
-    assert "将使用已分析输入生成任务" in text
-    assert "跳过未分析输入" in text
-    assert "查看任务建议" in text
+    text = PLAN_CHANGES_PAGE.read_text(encoding="utf-8")
+    assert "Issue Delta" in text
+    assert "ready sources" in text
+    assert "Generate Issue Delta" in text
+    assert "Apply Changes" in text

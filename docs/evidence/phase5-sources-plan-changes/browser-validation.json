@@ -1,0 +1,71 @@
+{
+  "evidenceDir": "/Users/martinlos/code/Ariadne/docs/evidence/phase5-sources-plan-changes",
+  "sources": {
+    "hasPaste": true,
+    "hasLifecycle": true,
+    "hasArtifacts": true,
+    "hasEvidence": true,
+    "hasPlanCta": true,
+    "addedSourceValue": "https://minimal-agent.com/?ariadne_phase5=1782137694960",
+    "noLongerWorking": true
+  },
+  "planChanges": {
+    "hasIssueDelta": true,
+    "hasGenerate": true,
+    "hasGroups": true,
+    "hasAcceptance": true,
+    "hasSourceArtifacts": true,
+    "applyButtonEnabledAfterGenerate": true,
+    "applyClicked": true,
+    "viewIssuesClicked": true,
+    "staleShown": false,
+    "currentHash": "#issues",
+    "excerpt": "A\nAriadne\n搜索...\n⌘ K\n新建 issue\nC\n\nWorkbench\n\nIssues\nSources\nPlan Changes\nTeam\nRuns\nInbox\n111\nDiagnostics\n?\nCURRENT VERSION CONTEXT\nMCA-001 target repository\n\n用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。\n\nPROJECT\nMCA-001 target repository\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nTARGET VERSION\nBuild Mini Code Agent v0.1\n当前阻塞\nGOAL\nBuild Mini Code Agent v0.1\n用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。\nSOURCES READINESS\n9/61\nready for issue factory\nISSUE DELTA STATUS\n已应用\n140 current issues\nACTIVE RUN\nMCA-001 · 运行中\nAPI connected\nBLOCKED COUNT\n86\n缺少通过 review 的真实执行。\nLATEST EVIDENCE\nMCA-001 · codex · tests n/a · review 已阻塞\nexecution_0cf74424c6fa\nNEXT ACTION\n处理当前阻塞\n缺少通过 review 的真实执行。\nPlan Changes\n10\n\nIssue Delta turns analyzed sources into confirmed current-version issues.\n\nGenerate Issue Delta\nApplied\nView Issues\nIssue Delta\n\nInputs: project goal, 9 ready sources, 9 typed artifacts, 9 evidence snippets.\n\nAdded 10\nUpdated 0\nDeferred 0\nRejected 0\nUnsafe 0\nApplied\n\nIssue delta applied. New issues are available on the board.\n\nDelta items\nbacklog_preview_8aa11cc0eca5\nAdded (10)\nM0TR-001\nBootstrap Python package and CLI\n\nReference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Persist session or trajectory data for review.; Keep an executable test path for every agent iteration.; cc-mini = \"tui.app:main\"; tests/__init__.py; tests/test_ask_user.py; tests/test_buddy_companion.py; tests/test_buddy_mood.py; tests/test_buddy_storage.py; tests/test_config.py; tests/test_context.py; tests/test_coordinator.py; tests/test_cost_tracker.py; tests/test_engine.py; tests/test_llm.py; tests/test_main.py; tests/test_permissions.py; tests/test_plan.py; tests/test_sandbox_checker.py; tests/test_sandbox_command_matcher.py; tests/te\n\nP1\n9 artifacts · 3 acceptance\nM0TR-002\nAdd DeepSeek-backed LLM client configuration\n\nThe target agent needs a real upstream model client and local configuration path.\n\nP1\n9 artifacts · 3 acceptance\nM0TR-003\nDefine tool protocol and model action schema\n\nReference code-agent projects converge on typed action and observation contracts.\n\nP1\n9 artifacts · 3 acceptance\nM0TR-004\nImplement shell command tool with allowlist\n\nCoding agents need shell access bounded by an explicit local safety policy.\n\nP1\n9 artifacts · 3 acceptance\nM0TR-005\nImplement file read and patch tools with review-before-write safety\n\nA useful code agent needs file operations without uncontrolled writes.\n\nP1\n9 artifacts · 3 acceptance\nM0TR-006\nImplement agent loop: prompt -> action -> observation -> repeat\n\nThe core agent behavior is the action/observation loop extracted from references.\n\nP1\n9 artifacts · 3 acceptance\nM0TR-007\nPersist session trace and run summary\n\nAI Builders need inspectable trajectories to debug agent behavior.\n\nP2\n9 artifacts · 3 acceptance\nM0TR-008\nCapture git diff and test result\n\nA code agent run is not reviewable unless it records diff and tests.\n\nP1\n9 artifacts · 3 acceptance\nM0TR-009\nAdd minimal reviewer checks for task completion\n\nA conservative reviewer pass is needed before a run is usable.\n\nP2\n9 artifacts · 3 acceptance\nM0TR-010\nWrite README quickstart and usage examples\n\nThe first version needs a runnable local quickstart.\n\nP2\n9 artifacts · 3 acceptance\nUpdated (0)\n\nNo updated items.\n\nDeferred (0)\n\nNo deferred items.\n\nRejected (0)\n\nNo rejected items.\n\nSelected delta\nM0TR-001\nBoot"
+  },
+  "integration": {
+    "issuesPageVisible": true,
+    "currentVersionStripVisible": true
+  },
+  "apiEvents": [
+    {
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/sources",
+      "status": 200,
+      "method": "POST"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/issue-factory/preview",
+      "status": 200,
+      "method": "POST"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/issue-factory/backlog_preview_8aa11cc0eca5/apply",
+      "status": 200,
+      "method": "POST"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/issues",
+      "status": 200,
+      "method": "GET"
+    }
+  ]
+}

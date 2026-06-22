@@ -12,6 +12,7 @@ import type {
   AssignmentEvent,
   AssignmentEventStream,
   ApiSourceDocument,
+  ApiProjectInputDetail,
   ApiTeamAgentsResponse,
   ApiTeamSkillsResponse,
   ApiWorkbench,
@@ -133,14 +134,18 @@ export function createProjectGoal(payload: CreateProjectGoalRequest) {
 }
 
 export function createSource(payload: CreateSourceRequest) {
-  return requestJson<{ source: ApiSourceDocument; duplicate?: boolean }>("/api/sources", {
+  return requestJson<{ source: ApiSourceDocument; duplicate?: boolean; project_input?: ApiProjectInputDetail | null }>("/api/sources", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
+export function getSourceDetail(sourceId: string) {
+  return requestJson<{ project_input: ApiProjectInputDetail }>(`/api/sources/${encodeURIComponent(sourceId)}`);
+}
+
 export function analyzeSource(sourceId: string) {
-  return requestJson(`/api/sources/${encodeURIComponent(sourceId)}/analyze`, {
+  return requestJson<{ project_input?: ApiProjectInputDetail | null }>(`/api/sources/${encodeURIComponent(sourceId)}/analyze`, {
     method: "POST",
     body: JSON.stringify({}),
   });
@@ -158,6 +163,16 @@ export function applyIssueFactoryPreview(previewId: string) {
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export function refreshIssueFactoryPreview(previewId: string, payload: IssueFactoryPreviewRequest) {
+  return requestJson<{ previous_preview_id: string; preview: ApiWorkbench["backlog_previews"][number] }>(
+    `/api/issue-factory/${encodeURIComponent(previewId)}/refresh`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function assignTicket(ticketIdOrKey: string, payload: AssignTicketRequest) {

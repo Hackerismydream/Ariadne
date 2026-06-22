@@ -16,6 +16,9 @@ ISSUE_DETAIL = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "issu
 TEAM_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "team" / "TeamPage.tsx"
 RUNS_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "runs" / "RunsPage.tsx"
 INBOX_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "inbox" / "InboxPage.tsx"
+SOURCES_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "sources" / "SourcesPage.tsx"
+PLAN_CHANGES_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "plan-changes" / "PlanChangesPage.tsx"
+BACKLOG_LIB = ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "lib" / "backlog.ts"
 DATA = ROOT / "frontend" / "ariadne-workbench" / "src" / "data.ts"
 AGENT_CONTROL = ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "agent-control" / "model.ts"
 RUNTIME_LIB = ROOT / "frontend" / "ariadne-workbench" / "src" / "entities" / "runtime" / "lib.ts"
@@ -138,8 +141,8 @@ def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
 
 def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     api_types = API_TYPES.read_text(encoding="utf-8")
-    app = APP.read_text(encoding="utf-8")
     control = AGENT_CONTROL.read_text(encoding="utf-8")
+    runs_page = RUNS_PAGE.read_text(encoding="utf-8")
 
     daemon_start_block = api_types.split("export type DaemonStartRequest", 1)[1].split("};", 1)[0]
     run_block = api_types.split("export type RunAssignmentRequest", 1)[1].split("};", 1)[0]
@@ -147,7 +150,8 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert "external_execution_authorized" in daemon_start_block
     assert "external_execution_authorized" not in run_block
     assert "confirm_execution" not in run_block
-    assert "授权 Codex/Claude" in app
+    assert "Codex/Claude allowed" in runs_page
+    assert "startDaemon({ external_execution_authorized: true })" in runs_page
     assert "external_execution_authorized: true" in control
     assert "target_project_id:" in control
     assert "allowed_backends:" in control
@@ -296,16 +300,42 @@ def test_frontend_adapter_consumes_typed_source_outputs() -> None:
 
 
 def test_sources_page_does_not_label_unfetched_github_as_analyzed() -> None:
-    app = APP.read_text(encoding="utf-8")
+    sources_page = SOURCES_PAGE.read_text(encoding="utf-8")
     model = (ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "project-inputs" / "model.ts").read_text(
         encoding="utf-8"
     )
 
-    assert "已添加，尚未抓取仓库" in app
-    assert "处理过程" in app
-    assert "source.fetch." in app
+    assert "Paste a URL, GitHub repo, or local path" in sources_page
+    assert "Source lifecycle" in sources_page
+    assert "Typed artifacts" in sources_page
+    assert "Evidence snippets" in sources_page
+    assert "Go to Plan Changes" in sources_page
     assert "抓取中" in model
     assert "已阻塞" in model
+
+
+def test_frontend_phase5_sources_and_plan_changes_are_extracted() -> None:
+    app = APP.read_text(encoding="utf-8")
+    client = (ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    sources_page = SOURCES_PAGE.read_text(encoding="utf-8")
+    plan_page = PLAN_CHANGES_PAGE.read_text(encoding="utf-8")
+    backlog_lib = BACKLOG_LIB.read_text(encoding="utf-8")
+
+    assert "SourcesPage" in app
+    assert "PlanChangesPage" in app
+    assert "function KnowledgePage" not in app
+    assert "function TasksPage" not in app
+    assert "function groupBacklogChanges" not in app
+    assert "export function groupBacklogChanges" in backlog_lib
+    assert "getSourceDetail" in client
+    assert "refreshIssueFactoryPreview" in client
+    for text in ["Paste a URL, GitHub repo, or local path", "Add and Analyze", "Source lifecycle"]:
+        assert text in sources_page
+    for text in ["Issue Delta", "Generate Issue Delta", "Apply Changes", "View Issues", "Refresh Preview"]:
+        assert text in plan_page
+    assert "stale_preview" in plan_page
 
 
 def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:

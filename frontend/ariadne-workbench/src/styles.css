@@ -881,6 +881,93 @@ button:disabled {
   margin-top: 12px;
 }
 
+.primary-source-input {
+  display: grid;
+  gap: 12px;
+}
+
+.paste-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.paste-row input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  padding: 12px;
+}
+
+.source-inference-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.source-inference-row span,
+.source-inference-row button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  padding: 5px 9px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.source-overrides {
+  margin-top: 2px;
+}
+
+.sources-workbench {
+  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.4fr);
+}
+
+.source-lifecycle-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 12px;
+}
+
+.source-lifecycle-card p {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.source-lifecycle-card span {
+  color: var(--success);
+  font-size: 12px;
+}
+
+.artifact-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.artifact-card {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 10px;
+}
+
+.artifact-card span,
+.artifact-card small {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.artifact-card p {
+  margin: 0;
+}
+
 .source-cta-sequence {
   display: flex;
   flex-wrap: wrap;
@@ -944,6 +1031,27 @@ button:disabled {
   color: var(--foreground);
   font-size: 12px;
   font-style: normal;
+}
+
+.issue-delta-detail section p {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.stale-preview-callout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  background: oklch(0.98 0.03 85);
+  padding: 10px 12px;
+  color: var(--foreground);
+}
+
+.stale-preview-callout button {
+  margin-left: auto;
 }
 
 .wide-field {
