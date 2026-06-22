@@ -175,7 +175,7 @@ def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
     assert "offlineFallbackEnabled" in text
 
 
-def test_frontend_product_path_is_four_step_compiler_flow() -> None:
+def test_frontend_product_path_defaults_to_current_issues_context() -> None:
     text = APP.read_text(encoding="utf-8")
     page_key_block = text.split("type PageKey", 1)[1].split(";", 1)[0]
 
@@ -183,7 +183,11 @@ def test_frontend_product_path_is_four_step_compiler_flow() -> None:
         assert page in page_key_block
     assert '"knowledge"' not in page_key_block
     assert '"agents"' not in page_key_block
-    assert 'initialRoute.page ?? "delivery"' in text
+    assert 'initialRoute.page ?? "ready"' in text
+    assert 'redirectHash: "#issues"' in text
+    assert "CurrentVersionContext" in text
+    for label in ["Issues", "Sources", "Plan Changes", "Team", "Runs", "Inbox", "Diagnostics"]:
+        assert label in text
     assert "ProjectVersionDelivery" in (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
         encoding="utf-8"
     )

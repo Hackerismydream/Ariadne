@@ -51,25 +51,35 @@ import type {
 
 type PageKey = "delivery" | "project" | "sources" | "tasks" | "ready" | "diagnostics";
 
-function parseHashRoute(hash = globalThis.location?.hash ?? "") {
+type HashRoute = {
+  page?: PageKey;
+  ticketRef?: string;
+  redirectHash?: string;
+};
+
+function parseHashRoute(hash = globalThis.location?.hash ?? ""): HashRoute {
   const value = hash.replace(/^#/, "").trim();
   if (!value) return {};
   const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
   if (issueMatch) return { page: "ready" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
   const legacyMap: Record<string, PageKey> = {
-    delivery: "delivery",
-    version: "delivery",
     goal: "project",
     knowledge: "sources",
     issues: "ready",
+    "plan-changes": "tasks",
+    team: "diagnostics",
+    runs: "diagnostics",
     agents: "diagnostics",
     runtimes: "diagnostics",
     runtime: "diagnostics",
     skills: "diagnostics",
     inbox: "diagnostics",
   };
+  if (value === "delivery" || value === "version") {
+    return { page: "ready", redirectHash: "#issues" };
+  }
   if (legacyMap[value]) return { page: legacyMap[value] };
-  if (["delivery", "project", "sources", "tasks", "ready", "diagnostics"].includes(value)) {
+  if (["project", "sources", "tasks", "ready", "diagnostics"].includes(value)) {
     return { page: value as PageKey };
   }
   return {};
@@ -87,24 +97,44 @@ function issueHash(ticket: AriadneTicket) {
   return `#issues/${encodeURIComponent(ticket.key)}`;
 }
 
+function pageHash(page: PageKey) {
+  const hashes: Record<PageKey, string> = {
+    project: "#project",
+    sources: "#sources",
+    tasks: "#plan-changes",
+    ready: "#issues",
+    delivery: "#issues",
+    diagnostics: "#diagnostics",
+  };
+  return hashes[page];
+}
+
+function applyRouteRedirect(route: HashRoute) {
+  if (route.redirectHash && globalThis.location?.hash !== route.redirectHash) {
+    globalThis.history?.replaceState(null, "", route.redirectHash);
+  }
+}
+
+function ensureDefaultHashRoute() {
+  if (!globalThis.location?.hash) {
+    globalThis.history?.replaceState(null, "", "#issues");
+  }
+}
+
 const navGroups: Array<{
   label: string;
-  items: Array<{ key: PageKey; label: string; icon: typeof Inbox }>;
+  items: Array<{ id: string; key: PageKey; label: string; icon: typeof Inbox; hash?: string }>;
 }> = [
   {
-    label: "产品路径",
+    label: "Workbench",
     items: [
-      { key: "delivery", label: "版本工作台", icon: FolderKanban },
-      { key: "project", label: "项目设置", icon: Target },
-      { key: "sources", label: "项目输入", icon: BookOpenText },
-      { key: "tasks", label: "任务建议", icon: ListTodo },
-      { key: "ready", label: "执行任务", icon: Monitor },
-    ],
-  },
-  {
-    label: "诊断",
-    items: [
-      { key: "diagnostics", label: "技术诊断", icon: Settings },
+      { id: "issues", key: "ready", label: "Issues", icon: FolderKanban, hash: "#issues" },
+      { id: "sources", key: "sources", label: "Sources", icon: BookOpenText, hash: "#sources" },
+      { id: "plan-changes", key: "tasks", label: "Plan Changes", icon: ListTodo, hash: "#plan-changes" },
+      { id: "team", key: "diagnostics", label: "Team", icon: Users, hash: "#team" },
+      { id: "runs", key: "diagnostics", label: "Runs", icon: Monitor, hash: "#runs" },
+      { id: "inbox", key: "diagnostics", label: "Inbox", icon: Inbox, hash: "#inbox" },
+      { id: "diagnostics", key: "diagnostics", label: "Diagnostics", icon: Settings, hash: "#diagnostics" },
     ],
   },
 ];
@@ -314,7 +344,7 @@ function apiErrorCode(error: unknown) {
 
 export function App() {
   const initialRoute = parseHashRoute();
-  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "delivery");
+  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "ready");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
   const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
@@ -330,6 +360,7 @@ export function App() {
     setDataSource(result.source);
     setReadOnly(result.readOnly);
     const route = parseHashRoute();
+    applyRouteRedirect(route);
     const preferredTicket = findTicketByRef(result.data.tickets, preferredTicketRef);
     const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
     if (route.page) setPage(route.page);
@@ -352,10 +383,11 @@ export function App() {
     });
   }
 
-  function navigate(nextPage: PageKey) {
+  function navigate(nextPage: PageKey, hashOverride?: string) {
     setPage(nextPage);
-    if (globalThis.location?.hash !== `#${nextPage}`) {
-      globalThis.history?.replaceState(null, "", `#${nextPage}`);
+    const nextHash = hashOverride ?? pageHash(nextPage);
+    if (globalThis.location?.hash !== nextHash) {
+      globalThis.history?.replaceState(null, "", nextHash);
     }
   }
 
@@ -371,6 +403,8 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    ensureDefaultHashRoute();
+    applyRouteRedirect(parseHashRoute());
     refreshWorkbenchData().then(() => {
       if (!mounted) return;
     });
@@ -382,6 +416,7 @@ export function App() {
   useEffect(() => {
     function applyHashRoute() {
       const route = parseHashRoute();
+      applyRouteRedirect(route);
       if (route.page) setPage(route.page);
       const routeTicket = findTicketByRef(data.tickets, route.ticketRef);
       if (routeTicket) {
@@ -397,6 +432,7 @@ export function App() {
     <div className="app-shell">
       <Sidebar data={data} page={page} onNavigate={navigate} />
       <main className="main">
+        <CurrentVersionContext data={data} dataSource={dataSource} onNavigate={navigate} />
         <PageFrame
           data={data}
           dataSource={dataSource}
@@ -434,8 +470,9 @@ function Sidebar({
 }: {
   data: WorkbenchData;
   page: PageKey;
-  onNavigate: (page: PageKey) => void;
+  onNavigate: (page: PageKey, hash?: string) => void;
 }) {
+  const currentHash = globalThis.location?.hash || pageHash(page);
   return (
     <aside className="sidebar">
       <button className="workspace-switch" type="button">
@@ -457,16 +494,16 @@ function Sidebar({
           <p>{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
-            const enabled = ["delivery", "project", "sources", "tasks", "ready", "diagnostics"].includes(item.key);
-            const active = item.key === page;
+            const enabled = ["project", "sources", "tasks", "ready", "diagnostics"].includes(item.key);
+            const active = item.key === page && (!item.hash || currentHash === item.hash || item.hash === pageHash(page));
             return (
               <button
                 className={`nav-item ${active ? "active" : ""}`}
                 data-page={item.key}
                 disabled={!enabled}
-                key={item.key}
+                key={item.id}
                 type="button"
-                onClick={() => enabled && onNavigate(item.key as PageKey)}
+                onClick={() => enabled && onNavigate(item.key as PageKey, item.hash)}
               >
                 <Icon size={16} />
                 <span>{item.label}</span>
@@ -504,7 +541,6 @@ function PageFrame({
   onTicketSelect: (ticketId: string) => void;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  if (page === "delivery") return <DeliveryPage data={data} dataSource={dataSource} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />;
   if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
   if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onNavigate={onNavigate} onRefresh={onRefresh} />;
   if (page === "tasks") return <TasksPage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
@@ -539,6 +575,76 @@ function PageFrame({
         onTicketSelect={onTicketSelect}
       />
     </>
+  );
+}
+
+function CurrentVersionContext({
+  data,
+  dataSource,
+  onNavigate,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  onNavigate: (page: PageKey, hash?: string) => void;
+}) {
+  const delivery = data.currentVersionDelivery;
+  const targetProject = getActiveTargetProject(data);
+  const currentTickets = getCurrentVersionTickets(data);
+  const currentWorkflows = getCurrentVersionWorkflows(data);
+  const nextAction = nextDeliveryAction(data);
+  const inputTotal = data.projectInputs?.length ?? data.sources.length;
+  const readyInputs = data.projectInputs?.filter((input) => input.lifecycle.readyForIssueFactory).length ?? 0;
+  const blockedCount = (delivery?.blockers.length ?? 0)
+    + currentTickets.filter((ticket) => ticket.status === "blocked").length
+    + data.inbox.filter((item) => item.active !== false && item.status !== "resolved").length;
+  const activeWorkflow = currentWorkflows.find((step) => ["queued", "claimed", "running", "in_progress"].includes(step.status))
+    ?? currentWorkflows.find((step) => ["blocked", "failed"].includes(step.status));
+  const activeRun = data.daemonStatus.currentTicketKey
+    ? `${data.daemonStatus.currentTicketKey} · ${statusLabel(data.daemonStatus.status)}`
+    : activeWorkflow
+      ? `${activeWorkflow.ticketKey} · ${activeWorkflow.agentName} · ${statusLabel(activeWorkflow.status)}`
+      : "No active run";
+  const latestEvidence = delivery?.latestRealRun
+    ? `${delivery.latestRealRun.ticketKey} · ${delivery.latestRealRun.backendName} · tests ${delivery.latestRealRun.testExitCode ?? "n/a"} · review ${statusLabel(delivery.latestRealRun.reviewVerdict ?? "pending")}`
+    : delivery?.evidenceRefs[0] ?? "No real execution evidence yet";
+  const issueDeltaStatus = data.backlogMutationPreview.status
+    ? statusLabel(data.backlogMutationPreview.status)
+    : userFacingStatus(delivery?.status);
+  const goalText = data.goal.northStar || data.goal.title;
+
+  return (
+    <section className="current-version-context" data-testid="current-version-context" aria-label="Current Version Context">
+      <div className="context-primary">
+        <span>Current Version Context</span>
+        <strong>{projectDisplayName(data)}</strong>
+        <p>{goalText}</p>
+      </div>
+      <div className="context-grid">
+        <ContextItem label="Project" value={targetProject?.label ?? delivery?.targetProjectLabel ?? projectDisplayName(data)} detail={targetProject?.localPath ?? "Target project not registered"} />
+        <ContextItem label="Target Version" value={delivery?.versionLabel ?? "v0.1"} detail={userFacingStatus(delivery?.status)} />
+        <ContextItem label="Goal" value={data.goal.title} detail={goalText} />
+        <ContextItem label="Sources readiness" value={`${readyInputs}/${inputTotal}`} detail={inputTotal ? "ready for issue factory" : "no project inputs"} />
+        <ContextItem label="Issue Delta status" value={issueDeltaStatus} detail={`${currentTickets.length} current issues`} />
+        <ContextItem label="Active Run" value={activeRun} detail={dataSource === "api" ? "API connected" : "read-only/disconnected"} />
+        <ContextItem label="Blocked count" value={String(blockedCount)} detail={delivery?.blockers[0] ?? data.environment?.blockers[0]?.message ?? "no top blocker"} />
+        <ContextItem label="Latest Evidence" value={latestEvidence} detail={delivery?.latestRealRun?.executionResultId ?? delivery?.generatedAt ?? "not generated"} />
+        <button className="context-next-action" type="button" onClick={() => onNavigate(nextAction.page, pageHash(nextAction.page))}>
+          <span>Next Action</span>
+          <strong>{nextAction.label}</strong>
+          <small>{nextAction.detail}</small>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ContextItem({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="context-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
   );
 }
 
