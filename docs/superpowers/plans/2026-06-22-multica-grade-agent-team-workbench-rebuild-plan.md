@@ -12,6 +12,16 @@
 - **评审来源:** 3 个 subagent 并行评审，覆盖产品心智、架构边界、执行验收
 - **禁止口径:** 不允许把 Ariadne 继续做成 demo dashboard、fixture board、fake-codex-first、CLI-only 工具、或裸 Multica clone
 
+## 执行入口
+
+执行本计划前必须先读：
+
+```text
+/Users/martinlos/code/Ariadne/docs/superpowers/plans/2026-06-22-multica-grade-workbench-execution-brief.md
+```
+
+该 brief 是防止 Codex 长跑执行时发生上下文偏移的硬入口。后续实现必须先按 brief 锁定当前 repo 现实、必读文档、不可违反约束、phase 执行规则和偏移检测，再执行本计划的具体 phase。
+
 ## 目标
 
 把 Ariadne 重构成面向 AI Builder 的本地 Agent Team Workbench：
