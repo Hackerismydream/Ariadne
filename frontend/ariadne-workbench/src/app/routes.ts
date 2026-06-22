@@ -1,4 +1,4 @@
-export type PageKey = "delivery" | "project" | "sources" | "tasks" | "ready" | "diagnostics";
+export type PageKey = "delivery" | "project" | "sources" | "tasks" | "ready" | "team" | "runs" | "inbox" | "diagnostics";
 
 export type HashRoute = {
   page?: PageKey;
@@ -16,19 +16,19 @@ export function parseHashRoute(hash = globalThis.location?.hash ?? ""): HashRout
     knowledge: "sources",
     issues: "ready",
     "plan-changes": "tasks",
-    team: "diagnostics",
-    runs: "diagnostics",
-    agents: "diagnostics",
-    runtimes: "diagnostics",
-    runtime: "diagnostics",
-    skills: "diagnostics",
-    inbox: "diagnostics",
+    team: "team",
+    agents: "team",
+    skills: "team",
+    runs: "runs",
+    runtimes: "runs",
+    runtime: "runs",
+    inbox: "inbox",
   };
   if (value === "delivery" || value === "version") {
     return { page: "ready", redirectHash: "#issues" };
   }
   if (legacyMap[value]) return { page: legacyMap[value] };
-  if (["project", "sources", "tasks", "ready", "diagnostics"].includes(value)) {
+  if (["project", "sources", "tasks", "ready", "team", "runs", "inbox", "diagnostics"].includes(value)) {
     return { page: value as PageKey };
   }
   return {};
@@ -41,6 +41,9 @@ export function pageHash(page: PageKey) {
     tasks: "#plan-changes",
     ready: "#issues",
     delivery: "#issues",
+    team: "#team",
+    runs: "#runs",
+    inbox: "#inbox",
     diagnostics: "#diagnostics",
   };
   return hashes[page];

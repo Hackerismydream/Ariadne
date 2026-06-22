@@ -13,6 +13,9 @@ CURRENT_STRIP = (
 )
 ISSUES_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "issues" / "IssuesPage.tsx"
 ISSUE_DETAIL = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "issues" / "IssueDetail.tsx"
+TEAM_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "team" / "TeamPage.tsx"
+RUNS_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "runs" / "RunsPage.tsx"
+INBOX_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "inbox" / "InboxPage.tsx"
 DATA = ROOT / "frontend" / "ariadne-workbench" / "src" / "data.ts"
 AGENT_CONTROL = ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "agent-control" / "model.ts"
 RUNTIME_LIB = ROOT / "frontend" / "ariadne-workbench" / "src" / "entities" / "runtime" / "lib.ts"
@@ -156,7 +159,7 @@ def test_frontend_inbox_exposes_repair_rerun_acknowledge_resolve_actions() -> No
         encoding="utf-8"
     )
     api_types = API_TYPES.read_text(encoding="utf-8")
-    app = APP.read_text(encoding="utf-8")
+    inbox_page = INBOX_PAGE.read_text(encoding="utf-8")
 
     for endpoint in [
         "/api/inbox/${encodeURIComponent(itemId)}/repair",
@@ -167,12 +170,12 @@ def test_frontend_inbox_exposes_repair_rerun_acknowledge_resolve_actions() -> No
         assert endpoint in api_client
     assert "export type InboxActionRequest" in api_types
     assert "export type InboxActionResponse" in api_types
-    for label in ["创建修复任务", "重跑", "确认已读", "标记已解决"]:
-        assert label in app
-    assert "createInboxRepairTicket(item.id)" in app
-    assert "rerunInboxAssignment(item.id)" in app
-    assert "acknowledgeInboxItem(item.id)" in app
-    assert "resolveInboxItem(item.id)" in app
+    for label in ["Repair", "Rerun", "Acknowledge", "Resolve"]:
+        assert label in inbox_page
+    assert "createInboxRepairTicket(item.id)" in inbox_page
+    assert "rerunInboxAssignment(item.id" in inbox_page
+    assert "acknowledgeInboxItem(item.id" in inbox_page
+    assert "resolveInboxItem(item.id" in inbox_page
 
 
 def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
@@ -191,10 +194,16 @@ def test_frontend_product_path_defaults_to_current_issues_context() -> None:
     current_strip = CURRENT_STRIP.read_text(encoding="utf-8")
     page_key_block = routes.split("export type PageKey", 1)[1].split(";", 1)[0]
 
-    for page in ['"delivery"', '"project"', '"sources"', '"tasks"', '"ready"']:
+    for page in ['"delivery"', '"project"', '"sources"', '"tasks"', '"ready"', '"team"', '"runs"', '"inbox"']:
         assert page in page_key_block
     assert '"knowledge"' not in page_key_block
     assert '"agents"' not in page_key_block
+    assert 'team: "team"' in routes
+    assert 'runs: "runs"' in routes
+    assert 'inbox: "inbox"' in routes
+    assert 'key: "team"' in sidebar
+    assert 'key: "runs"' in sidebar
+    assert 'key: "inbox"' in sidebar
     assert 'initialRoute.page ?? "ready"' in text
     assert 'redirectHash: "#issues"' in routes
     assert "CurrentVersionStrip" in text
@@ -205,6 +214,50 @@ def test_frontend_product_path_defaults_to_current_issues_context() -> None:
         encoding="utf-8"
     )
     assert "currentVersionDelivery" in text
+
+
+def test_frontend_phase4_pages_consume_page_scoped_api_contracts() -> None:
+    api_client = (ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "client.ts").read_text(
+        encoding="utf-8"
+    )
+    app = APP.read_text(encoding="utf-8")
+    routes = ROUTES.read_text(encoding="utf-8")
+    team_page = TEAM_PAGE.read_text(encoding="utf-8")
+    runs_page = RUNS_PAGE.read_text(encoding="utf-8")
+    inbox_page = INBOX_PAGE.read_text(encoding="utf-8")
+
+    for helper in [
+        "getTeamAgents",
+        "getTeamBuildTeams",
+        "getTeamSkills",
+        "getRunsRuntimes",
+        "getRunsAssignments",
+        "getInbox",
+    ]:
+        assert f"export function {helper}" in api_client
+
+    assert "TeamPage" in app
+    assert "RunsPage" in app
+    assert "InboxControlPage" in app
+    assert 'page === "team"' in app
+    assert 'page === "runs"' in app
+    assert 'page === "inbox"' in app
+    assert 'team: "diagnostics"' not in routes
+    assert 'runs: "diagnostics"' not in routes
+    assert 'inbox: "diagnostics"' not in routes
+    for helper in ["getTeamAgents", "getTeamBuildTeams", "getTeamSkills"]:
+        assert helper in team_page
+    for helper in ["getRunsRuntimes", "getRunsAssignments", "getDaemonStatus", "startDaemon", "stopDaemon"]:
+        assert helper in runs_page
+    assert "disabled_reasons" in runs_page
+    for helper in [
+        "getInbox",
+        "createInboxRepairTicket",
+        "rerunInboxAssignment",
+        "acknowledgeInboxItem",
+        "resolveInboxItem",
+    ]:
+        assert helper in inbox_page
 
 
 def test_frontend_api_contract_exposes_source_analysis_artifacts_and_evidence() -> None:

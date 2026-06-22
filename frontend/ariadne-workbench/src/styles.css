@@ -2255,6 +2255,113 @@ button:disabled {
   font-size: 12px;
 }
 
+.control-surface-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+
+.control-surface-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.compact-table {
+  overflow: hidden;
+}
+
+.team-agent-row {
+  grid-template-columns: minmax(180px, 1.3fr) 110px 130px 120px 100px 90px minmax(180px, 1.2fr);
+}
+
+.runs-runtime-row {
+  grid-template-columns: minmax(180px, 1.2fr) 110px 100px 120px 100px 70px minmax(220px, 1.5fr);
+}
+
+.runs-assignment-row {
+  grid-template-columns: minmax(150px, 1.1fr) 140px 120px 100px 160px minmax(220px, 1.5fr);
+}
+
+.team-agent-row span,
+.runs-runtime-row span,
+.runs-assignment-row span {
+  overflow-wrap: anywhere;
+}
+
+.card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.control-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 12px;
+}
+
+.control-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-card header span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.control-card p {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.control-card dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.control-card dl div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.control-card dt {
+  color: var(--muted-foreground);
+}
+
+.control-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-row span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.runs-daemon-strip {
+  max-width: none;
+  padding: 0 20px;
+}
+
+.panel h2 svg {
+  vertical-align: -3px;
+}
+
 .agent-dock {
   position: fixed;
   right: 16px;

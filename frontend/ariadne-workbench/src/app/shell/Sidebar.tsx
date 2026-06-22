@@ -14,9 +14,9 @@ const navGroups: Array<{
       { id: "issues", key: "ready", label: "Issues", icon: FolderKanban, hash: "#issues" },
       { id: "sources", key: "sources", label: "Sources", icon: BookOpenText, hash: "#sources" },
       { id: "plan-changes", key: "tasks", label: "Plan Changes", icon: ListTodo, hash: "#plan-changes" },
-      { id: "team", key: "diagnostics", label: "Team", icon: Users, hash: "#team" },
-      { id: "runs", key: "diagnostics", label: "Runs", icon: Monitor, hash: "#runs" },
-      { id: "inbox", key: "diagnostics", label: "Inbox", icon: Inbox, hash: "#inbox" },
+      { id: "team", key: "team", label: "Team", icon: Users, hash: "#team" },
+      { id: "runs", key: "runs", label: "Runs", icon: Monitor, hash: "#runs" },
+      { id: "inbox", key: "inbox", label: "Inbox", icon: Inbox, hash: "#inbox" },
       { id: "diagnostics", key: "diagnostics", label: "Diagnostics", icon: Settings, hash: "#diagnostics" },
     ],
   },
@@ -53,7 +53,7 @@ export function WorkbenchSidebar({
           <p>{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
-            const enabled = ["project", "sources", "tasks", "ready", "diagnostics"].includes(item.key);
+            const enabled = ["project", "sources", "tasks", "ready", "team", "runs", "inbox", "diagnostics"].includes(item.key);
             const active = item.key === page && (!item.hash || currentHash === item.hash || item.hash === pageHash(page));
             return (
               <button

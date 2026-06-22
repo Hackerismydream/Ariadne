@@ -454,6 +454,95 @@ export type ApiBuildSkill = {
   updated_at: string;
 };
 
+export type ApiTeamAgent = {
+  id: string;
+  name: string;
+  role: string;
+  backend_name?: string | null;
+  runtime_compatibility: string;
+  active_assignment_count: number;
+  blocked_count: number;
+  configuration: {
+    enabled?: boolean;
+    capabilities?: string[];
+    [key: string]: unknown;
+  };
+};
+
+export type ApiBuildTeam = {
+  id: string;
+  name: string;
+  description: string;
+  lead_agent_id: string;
+  implementer_agent_id: string;
+  reviewer_agent_id: string;
+  default_backend_name: string;
+  skill_refs: string[];
+  enabled: boolean;
+};
+
+export type ApiRunsRuntime = {
+  runtime_id: string;
+  backend_name: string;
+  display_name: string;
+  daemon_state: string;
+  available: boolean;
+  can_assign: boolean;
+  can_run: boolean;
+  external_execution_enabled: boolean;
+  command_template_set: boolean;
+  queue_depth: number;
+  active_assignment?: string | null;
+  disabled_reasons: string[];
+};
+
+export type ApiInboxListItem = {
+  id: string;
+  issue_key?: string | null;
+  failure_reason: string;
+  severity: string;
+  action_type: string;
+  created_at: string;
+  status: string;
+  resolution_note?: string | null;
+};
+
+export type ApiTeamAgentsResponse = {
+  schema_version: string;
+  source: string;
+  agents: ApiTeamAgent[];
+};
+
+export type ApiBuildTeamsResponse = {
+  schema_version: string;
+  source: string;
+  build_teams: ApiBuildTeam[];
+};
+
+export type ApiTeamSkillsResponse = {
+  schema_version: string;
+  source: string;
+  skills: ApiBuildSkill[];
+};
+
+export type ApiRunsRuntimesResponse = {
+  schema_version: string;
+  source: string;
+  runtimes: ApiRunsRuntime[];
+};
+
+export type ApiRunsAssignmentsResponse = {
+  schema_version: string;
+  source: string;
+  assignments: ApiAssignmentSummary[];
+};
+
+export type ApiInboxListResponse = {
+  schema_version: string;
+  source: string;
+  inbox: ApiInboxListItem[];
+};
+
 export type ApiDeliveryGate = {
   id: string;
   label: string;

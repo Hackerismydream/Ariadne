@@ -1,13 +1,19 @@
 import type {
   AddTicketCommentRequest,
   ApiAssignmentSummary,
+  ApiBuildTeamsResponse,
   ApiIssueAssignResponse,
   ApiIssueDetailResponse,
   ApiIssueListResponse,
   ApiIssueRunResponse,
+  ApiInboxListResponse,
+  ApiRunsAssignmentsResponse,
+  ApiRunsRuntimesResponse,
   AssignmentEvent,
   AssignmentEventStream,
   ApiSourceDocument,
+  ApiTeamAgentsResponse,
+  ApiTeamSkillsResponse,
   ApiWorkbench,
   AssignTicketRequest,
   CreateProjectGoalRequest,
@@ -86,6 +92,30 @@ export function addIssueComment(issueIdOrKey: string, payload: AddTicketCommentR
 
 export function getRuntimeStatus() {
   return requestJson<{ capabilities: ApiWorkbench["runtime_capabilities"] }>("/api/runtime/status");
+}
+
+export function getTeamAgents() {
+  return requestJson<ApiTeamAgentsResponse>("/api/team/agents");
+}
+
+export function getTeamBuildTeams() {
+  return requestJson<ApiBuildTeamsResponse>("/api/team/build-teams");
+}
+
+export function getTeamSkills() {
+  return requestJson<ApiTeamSkillsResponse>("/api/team/skills");
+}
+
+export function getRunsRuntimes() {
+  return requestJson<ApiRunsRuntimesResponse>("/api/runs/runtimes");
+}
+
+export function getRunsAssignments() {
+  return requestJson<ApiRunsAssignmentsResponse>("/api/runs/assignments");
+}
+
+export function getInbox() {
+  return requestJson<ApiInboxListResponse>("/api/inbox");
 }
 
 export function registerTargetProject(payload: RegisterTargetProjectRequest) {

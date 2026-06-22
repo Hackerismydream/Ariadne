@@ -18,7 +18,10 @@ import { WorkbenchSidebar } from "./app/shell/Sidebar";
 import { loadWorkbenchData, workbenchData, type WorkbenchDataSource } from "./data";
 import { inferSourceInput, sourceAnalysisLabel, type SourceFormType } from "./features/project-inputs/model";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
+import { InboxPage as InboxControlPage } from "./pages/inbox/InboxPage";
 import { IssuesWorkbenchPage } from "./pages/issues/IssuesPage";
+import { RunsPage } from "./pages/runs/RunsPage";
+import { TeamPage } from "./pages/team/TeamPage";
 import { AriadneApiError } from "./shared/api/errors";
 import { CurrentVersionStrip } from "./widgets/current-version/CurrentVersionStrip";
 import {
@@ -396,6 +399,9 @@ function PageFrame({
   if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
   if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onNavigate={onNavigate} onRefresh={onRefresh} />;
   if (page === "tasks") return <TasksPage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
+  if (page === "team") return <TeamPage />;
+  if (page === "runs") return <RunsPage />;
+  if (page === "inbox") return <InboxControlPage />;
   if (page === "ready") {
     return (
       <IssuesWorkbenchPage
@@ -407,25 +413,7 @@ function PageFrame({
       />
     );
   }
-  return (
-    <>
-      <RuntimesPage
-        data={data}
-        dataSource={dataSource}
-        selectedRuntime={selectedRuntime}
-        onRuntimeSelect={onRuntimeSelect}
-      />
-      <AgentsPage data={data} />
-      <SkillsPage data={data} />
-      <InboxPage
-        data={data}
-        readOnly={readOnly}
-        onNavigate={onNavigate}
-        onRefresh={onRefresh}
-        onTicketSelect={onTicketSelect}
-      />
-    </>
-  );
+  return <DiagnosticsPage data={data} dataSource={dataSource} selectedRuntime={selectedRuntime} />;
 }
 
 function PageHeader({
@@ -451,6 +439,54 @@ function PageHeader({
       </div>
       {action}
     </header>
+  );
+}
+
+function DiagnosticsPage({
+  data,
+  dataSource,
+  selectedRuntime,
+}: {
+  data: WorkbenchData;
+  dataSource: WorkbenchDataSource;
+  selectedRuntime: string;
+}) {
+  const currentRuntime = data.runtimes.find((runtime) => runtime.backend === selectedRuntime) ?? data.runtimes[0];
+  return (
+    <section className="page full-bleed diagnostics-page">
+      <PageHeader
+        icon={<Settings size={17} />}
+        title="Diagnostics"
+        description={dataSource === "api" ? "Local FastAPI control plane technical diagnostics." : "Workbench is not connected to the local API."}
+      />
+      <div className="control-surface-grid">
+        <section className="panel">
+          <h2><Monitor size={16} /> Daemon</h2>
+          <PropertyGrid
+            rows={[
+              ["Status", statusLabel(data.daemonStatus.status)],
+              ["Background loop", data.daemonStatus.backgroundRunning ? "Running" : "Stopped"],
+              ["External execution", data.daemonStatus.externalExecutionAuthorized ? "Authorized" : "Not authorized"],
+              ["Current issue", data.daemonStatus.currentTicketKey ?? "None"],
+              ["Stage", data.daemonStatus.currentStage ?? "Not recorded"],
+              ["Claimable", String(data.daemonStatus.claimableAssignmentCount)],
+              ["Running", String(data.daemonStatus.runningAssignmentCount)],
+              ["Blocked", String(data.daemonStatus.blockedAssignmentCount)],
+              ["Heartbeat", data.daemonStatus.heartbeatAt ?? "Not recorded"],
+              ["Last error", data.daemonStatus.lastError ?? "None"],
+            ]}
+          />
+        </section>
+        <section className="panel">
+          <h2><Monitor size={16} /> Selected Runtime</h2>
+          {currentRuntime ? <RuntimeCapability runtime={currentRuntime} /> : <p className="empty-column">No runtime snapshot.</p>}
+        </section>
+        <section className="panel wide">
+          <h2>Backend Smoke Evidence</h2>
+          <BackendSmokeSummary items={data.backendSmokeEvidence ?? []} />
+        </section>
+      </div>
+    </section>
   );
 }
 
