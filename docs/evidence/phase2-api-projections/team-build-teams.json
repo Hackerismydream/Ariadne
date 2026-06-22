@@ -1,0 +1,21 @@
+{
+    "schema_version": "ariadne.build-teams.v1",
+    "build_teams": [
+        {
+            "id": "build-team",
+            "name": "Ariadne Build Team",
+            "description": "Local Build Lead routing team: route ticket to implementer, then review, memory, and backlog update through the standard runtime loop.",
+            "lead_agent_id": "build-lead",
+            "implementer_agent_id": "codex",
+            "reviewer_agent_id": "reviewer",
+            "default_backend_name": "codex",
+            "skill_refs": [
+                "codex-handoff",
+                "review-diff",
+                "feishu-write-plan"
+            ],
+            "enabled": true
+        }
+    ],
+    "source": "build_team_projection"
+}

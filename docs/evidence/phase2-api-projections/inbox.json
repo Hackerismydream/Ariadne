@@ -1,0 +1,26 @@
+{
+    "schema_version": "ariadne.inbox.v1",
+    "inbox": [
+        {
+            "id": "inbox_c775e753cc05",
+            "issue_key": "ARI-003",
+            "failure_reason": "agent_error",
+            "severity": "medium",
+            "action_type": "human_review_required",
+            "created_at": "2026-06-22T07:15:02Z",
+            "status": "open",
+            "resolution_note": null
+        },
+        {
+            "id": "inbox_cc1f7ea94d4e",
+            "issue_key": "ARI-003",
+            "failure_reason": "agent_error",
+            "severity": "medium",
+            "action_type": "human_review_required",
+            "created_at": "2026-06-22T07:15:02Z",
+            "status": "open",
+            "resolution_note": null
+        }
+    ],
+    "source": "inbox_projection"
+}

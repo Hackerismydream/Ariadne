@@ -1,0 +1,52 @@
+{
+    "schema_version": "ariadne.runs-runtimes.v1",
+    "runtimes": [
+        {
+            "runtime_id": "local:dry-run",
+            "backend_name": "dry-run",
+            "display_name": "Dry-run fallback",
+            "daemon_state": "failed",
+            "available": true,
+            "can_assign": false,
+            "can_run": false,
+            "external_execution_enabled": false,
+            "command_template_set": false,
+            "queue_depth": 0,
+            "active_assignment": "assignment_fdbf1ced5489",
+            "disabled_reasons": []
+        },
+        {
+            "runtime_id": "local:codex",
+            "backend_name": "codex",
+            "display_name": "CodexBackend",
+            "daemon_state": "failed",
+            "available": true,
+            "can_assign": true,
+            "can_run": true,
+            "external_execution_enabled": false,
+            "command_template_set": false,
+            "queue_depth": 0,
+            "active_assignment": "assignment_fdbf1ced5489",
+            "disabled_reasons": [
+                "ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset"
+            ]
+        },
+        {
+            "runtime_id": "local:claude-code",
+            "backend_name": "claude-code",
+            "display_name": "ClaudeCodeBackend",
+            "daemon_state": "failed",
+            "available": true,
+            "can_assign": true,
+            "can_run": true,
+            "external_execution_enabled": false,
+            "command_template_set": false,
+            "queue_depth": 0,
+            "active_assignment": "assignment_fdbf1ced5489",
+            "disabled_reasons": [
+                "ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset"
+            ]
+        }
+    ],
+    "source": "runtime_capability_projection"
+}

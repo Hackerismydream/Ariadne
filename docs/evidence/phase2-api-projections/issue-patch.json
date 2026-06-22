@@ -1,0 +1,60 @@
+{
+    "schema_version": "ariadne.issue-detail.v1",
+    "issue": {
+        "id": "ticket_903afb57e2ab",
+        "key": "ARI-003",
+        "title": "Add JSON export command to demo target CLI",
+        "status": "planning",
+        "priority": "high",
+        "assignee": "Build Lead",
+        "project": "resource_af692d8e43a5",
+        "target_version": "Phase 2 API current version",
+        "source_count": 2,
+        "evidence_count": 0,
+        "last_run_status": null,
+        "review_verdict": null,
+        "blocked_reason": null,
+        "updated_at": "2026-06-22T07:14:25Z",
+        "body": "github_repo source: # GitHub README Note - Tiny CLI Project Pattern This README describes a small Python CLI called `demo-todo`. ## Current commands ```bash demo-todo add \"task\" demo-todo list ``` ## Useful pattern Small CLIs should expose machine-readable export commands so othe",
+        "comments": [],
+        "timeline": [
+            {
+                "id": "ticket_903afb57e2ab:ticket:0",
+                "event_type": "ticket_created",
+                "actor": "Source Router",
+                "summary": "Created ticket from github_repo source.",
+                "timestamp": "2026-06-22T07:14:25Z",
+                "ref_id": "source_ef91c69de579"
+            },
+            {
+                "id": "ticket_903afb57e2ab:ticket:1",
+                "event_type": "source_ingested",
+                "actor": "Source Router",
+                "summary": "Ingested github_repo source: GitHub README Note - Tiny CLI Project Pattern.",
+                "timestamp": "2026-06-22T07:14:25Z",
+                "ref_id": "source_ef91c69de579"
+            },
+            {
+                "id": "ticket_903afb57e2ab:ticket:2",
+                "event_type": "backlog_updated",
+                "actor": "Backlog",
+                "summary": "Backlog update recorded: Ingested 4 source(s); created 4 ticket(s) and updated 0 ticket(s).",
+                "timestamp": "2026-06-22T07:14:25Z",
+                "ref_id": "backlog_655843e6feb8"
+            }
+        ],
+        "assignments": [],
+        "execution_results": [],
+        "source_links": [
+            "/Users/martinlos/code/Ariadne/examples/sources/github_tiny_cli_readme.md",
+            "source_ef91c69de579"
+        ],
+        "route_decision": null,
+        "handoff": null,
+        "diff_summary": null,
+        "test_summary": null,
+        "review_summary": null,
+        "next_issue_links": []
+    },
+    "source": "build_ticket_projection"
+}

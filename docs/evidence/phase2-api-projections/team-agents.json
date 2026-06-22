@@ -1,0 +1,107 @@
+{
+    "schema_version": "ariadne.team-agents.v1",
+    "agents": [
+        {
+            "id": "build-lead",
+            "name": "Build Lead",
+            "role": "router",
+            "backend_name": null,
+            "runtime_compatibility": "deterministic",
+            "active_assignment_count": 0,
+            "blocked_count": 0,
+            "configuration": {
+                "planner_name": "deterministic",
+                "agent_runtime": "deterministic",
+                "backlog_planner_name": "deterministic",
+                "enabled": true,
+                "capabilities": [
+                    "route",
+                    "plan",
+                    "delegate"
+                ]
+            }
+        },
+        {
+            "id": "claude-code",
+            "name": "Claude Code",
+            "role": "coding_agent",
+            "backend_name": "claude-code",
+            "runtime_compatibility": "deterministic",
+            "active_assignment_count": 0,
+            "blocked_count": 0,
+            "configuration": {
+                "planner_name": "deterministic",
+                "agent_runtime": "deterministic",
+                "backlog_planner_name": "deterministic",
+                "enabled": true,
+                "capabilities": [
+                    "execute",
+                    "diff",
+                    "tests",
+                    "external"
+                ]
+            }
+        },
+        {
+            "id": "codex",
+            "name": "Codex",
+            "role": "coding_agent",
+            "backend_name": "codex",
+            "runtime_compatibility": "deterministic",
+            "active_assignment_count": 0,
+            "blocked_count": 0,
+            "configuration": {
+                "planner_name": "deterministic",
+                "agent_runtime": "deterministic",
+                "backlog_planner_name": "deterministic",
+                "enabled": true,
+                "capabilities": [
+                    "execute",
+                    "diff",
+                    "tests",
+                    "external"
+                ]
+            }
+        },
+        {
+            "id": "memory",
+            "name": "Memory",
+            "role": "memory",
+            "backend_name": null,
+            "runtime_compatibility": "deterministic",
+            "active_assignment_count": 0,
+            "blocked_count": 0,
+            "configuration": {
+                "planner_name": "deterministic",
+                "agent_runtime": "deterministic",
+                "backlog_planner_name": "deterministic",
+                "enabled": true,
+                "capabilities": [
+                    "memory",
+                    "feishu_preview",
+                    "next_tickets"
+                ]
+            }
+        },
+        {
+            "id": "reviewer",
+            "name": "Reviewer",
+            "role": "reviewer",
+            "backend_name": null,
+            "runtime_compatibility": "deterministic",
+            "active_assignment_count": 0,
+            "blocked_count": 0,
+            "configuration": {
+                "planner_name": "deterministic",
+                "agent_runtime": "deterministic",
+                "backlog_planner_name": "deterministic",
+                "enabled": true,
+                "capabilities": [
+                    "review",
+                    "acceptance_criteria"
+                ]
+            }
+        }
+    ],
+    "source": "agent_profile_projection"
+}

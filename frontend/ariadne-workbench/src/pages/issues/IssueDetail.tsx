@@ -1,0 +1,278 @@
+import { ArrowLeft, MessageSquare, Play, RotateCcw, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { addIssueComment, assignIssue, getIssue, rerunIssue, runIssueNow } from "../../shared/api/client";
+import type { ApiIssueDetail } from "../../shared/api/types";
+import type { ProjectResource, RuntimeInfo } from "../../types";
+
+function idempotencyKey(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Action failed";
+}
+
+function display(value: string | number | null | undefined, fallback = "Not recorded") {
+  return value === null || value === undefined || value === "" ? fallback : String(value);
+}
+
+function statusLabel(status: string | null | undefined) {
+  const labels: Record<string, string> = {
+    assigned: "Assigned",
+    blocked: "Blocked",
+    done: "Done",
+    failed: "Failed",
+    in_progress: "Running",
+    open: "Backlog",
+    planning: "Planning",
+    queued: "Queued",
+    ready: "Ready",
+    reviewing: "Review",
+    running: "Running",
+  };
+  return labels[status ?? ""] ?? status ?? "Unknown";
+}
+
+export function IssueDetail({
+  issueKey,
+  readOnly,
+  selectedRuntime,
+  targetProject,
+  runtimes,
+  onBack,
+  onRefreshWorkbench,
+}: {
+  issueKey: string;
+  readOnly: boolean;
+  selectedRuntime: string;
+  targetProject?: ProjectResource | null;
+  runtimes: RuntimeInfo[];
+  onBack: () => void;
+  onRefreshWorkbench: (preferredIssueRef?: string) => Promise<void>;
+}) {
+  const [issue, setIssue] = useState<ApiIssueDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [comment, setComment] = useState("");
+  const [confirmationToken, setConfirmationToken] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const activeRuntime = useMemo(
+    () => runtimes.find((runtime) => runtime.backend === selectedRuntime && runtime.canAssign)
+      ?? runtimes.find((runtime) => runtime.canAssign)
+      ?? runtimes[0],
+    [runtimes, selectedRuntime],
+  );
+
+  async function refreshIssue() {
+    setLoading(true);
+    try {
+      const response = await getIssue(issueKey);
+      setIssue(response.issue);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshIssue();
+  }, [issueKey]);
+
+  async function runAction(label: string, action: () => Promise<string>) {
+    if (busyAction) return;
+    setBusyAction(label);
+    setMessage(`${label}...`);
+    try {
+      const nextMessage = await action();
+      await refreshIssue();
+      await onRefreshWorkbench(issueKey);
+      setMessage(nextMessage);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function assignCurrentIssue() {
+    if (!targetProject?.id) throw new Error("No target project is registered for the current version.");
+    if (!activeRuntime?.backend) throw new Error("No assignable runtime is available.");
+    const response = await assignIssue(issueKey, {
+      assignee_id: activeRuntime.backend === "claude-code" ? "claude-code" : "codex",
+      assignee_kind: "agent",
+      backend_name: activeRuntime.backend === "claude-code" ? "claude-code" : "codex",
+      runtime_profile: "production",
+      target_project_id: targetProject.id,
+      idempotency_key: idempotencyKey("phase3-assign"),
+    });
+    if (response.confirmation_token) setConfirmationToken(response.confirmation_token);
+    return `Assigned ${response.assignment.ticket_key} to ${response.assignment.agent_name}.`;
+  }
+
+  async function runCurrentIssue(now: boolean) {
+    if (!confirmationToken) {
+      throw new Error("This browser session has no confirmation token. Assign the issue first, then run it.");
+    }
+    const payload = {
+      confirmation_token: confirmationToken,
+      idempotency_key: idempotencyKey(now ? "phase3-run-now" : "phase3-rerun"),
+    };
+    const response = now ? await runIssueNow(issueKey, payload) : await rerunIssue(issueKey, payload);
+    return response.message || `${now ? "Run now" : "Rerun"} requested.`;
+  }
+
+  async function submitComment() {
+    if (!comment.trim()) throw new Error("Comment is empty.");
+    await addIssueComment(issueKey, {
+      body: comment.trim(),
+      idempotency_key: idempotencyKey("phase3-comment"),
+    });
+    setComment("");
+    return "Comment added.";
+  }
+
+  if (loading && !issue) {
+    return (
+      <section className="page issue-detail-page">
+        <button className="outline-button" type="button" onClick={onBack}><ArrowLeft size={16} /> Back to board</button>
+        <p className="empty-column">Loading issue detail...</p>
+      </section>
+    );
+  }
+
+  if (!issue) {
+    return (
+      <section className="page issue-detail-page">
+        <button className="outline-button" type="button" onClick={onBack}><ArrowLeft size={16} /> Back to board</button>
+        <p className="action-message">{message || `Issue not found: ${issueKey}`}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="page issue-detail-page" data-testid="issue-detail">
+      <header className="issue-detail-header">
+        <button className="outline-button" type="button" onClick={onBack}><ArrowLeft size={16} /> Back to board</button>
+        <div>
+          <span className="issue-key">{issue.key}</span>
+          <h1>{issue.title}</h1>
+          <p>{issue.body}</p>
+        </div>
+        <aside>
+          <span className={`state ${issue.status}`}>{statusLabel(issue.status)}</span>
+          <span>{issue.priority}</span>
+        </aside>
+      </header>
+
+      <section className="issue-action-bar">
+        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Assign", assignCurrentIssue)}>
+          <UserPlus size={15} /> Assign
+        </button>
+        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Run Now", () => runCurrentIssue(true))}>
+          <Play size={15} /> Run Now
+        </button>
+        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Rerun", () => runCurrentIssue(false))}>
+          <RotateCcw size={15} /> Rerun
+        </button>
+        <input
+          aria-label="Add issue comment"
+          disabled={readOnly || busyAction !== null}
+          placeholder="Add a comment..."
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+        />
+        <button disabled={readOnly || busyAction !== null || !comment.trim()} type="button" onClick={() => void runAction("Comment", submitComment)}>
+          <MessageSquare size={15} /> Comment
+        </button>
+      </section>
+      {message ? <p className="action-message">{message}</p> : null}
+
+      <div className="issue-detail-grid">
+        <main className="issue-detail-main">
+          <section className="panel">
+            <h2>Execution Results</h2>
+            {issue.execution_results.length ? issue.execution_results.map((result) => (
+              <article className="execution-result-row" key={result.id}>
+                <strong>{result.backend_name}</strong>
+                <span>exit {display(result.exit_code)}</span>
+                <span>tests {display(result.test_exit_code)}</span>
+                <span>{result.blocked ? `blocked: ${display(result.failure_reason)}` : "not blocked"}</span>
+                <div className="file-list">
+                  {result.changed_files.length ? result.changed_files.map((file) => <code key={file}>{file}</code>) : <span>No changed files recorded</span>}
+                </div>
+              </article>
+            )) : <p className="empty-column">No execution results yet.</p>}
+          </section>
+
+          <section className="panel">
+            <h2>Timeline</h2>
+            <ol className="phase3-timeline">
+              {issue.timeline.map((event) => (
+                <li key={event.id}>
+                  <span>{event.timestamp}</span>
+                  <strong>{event.actor}</strong>
+                  <em>{event.event_type}</em>
+                  <p>{event.summary}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="panel">
+            <h2>Comments</h2>
+            {issue.comments.length ? issue.comments.map((item) => (
+              <article className="comment-card" key={item.id}>
+                <strong>{item.author}</strong>
+                <span>{item.created_at}</span>
+                <p>{item.body}</p>
+              </article>
+            )) : <p className="empty-column">No comments yet.</p>}
+          </section>
+        </main>
+
+        <aside className="issue-detail-sidebar">
+          <section className="panel">
+            <h2>Summary</h2>
+            <div className="property-grid">
+              <div><span>Assignee</span><strong>{display(issue.assignee, "Unassigned")}</strong></div>
+              <div><span>Runtime</span><strong>{activeRuntime?.backend ?? selectedRuntime}</strong></div>
+              <div><span>Last run</span><strong>{display(issue.last_run_status)}</strong></div>
+              <div><span>Review</span><strong>{display(issue.review_verdict)}</strong></div>
+              <div><span>Evidence</span><strong>{issue.evidence_count}</strong></div>
+              <div><span>Blocked</span><strong>{display(issue.blocked_reason, "No")}</strong></div>
+            </div>
+          </section>
+          <section className="panel">
+            <h2>Handoff / Route</h2>
+            <code className="wide-code">{JSON.stringify(issue.handoff ?? issue.route_decision ?? {}, null, 2)}</code>
+          </section>
+          <section className="panel">
+            <h2>Diff / Tests / Review</h2>
+            <p>{display(issue.diff_summary)}</p>
+            <p>{display(issue.test_summary)}</p>
+            <p>{display(issue.review_summary)}</p>
+          </section>
+          <section className="panel">
+            <h2>Links</h2>
+            <div className="module-row">
+              {issue.source_links.map((item) => <code key={item}>{item}</code>)}
+              {issue.next_issue_links.map((item) => <button type="button" key={item} onClick={() => { globalThis.location.hash = `#issues/${encodeURIComponent(item)}`; }}>{item}</button>)}
+            </div>
+          </section>
+          <section className="panel">
+            <h2>Assignments</h2>
+            {issue.assignments.length ? issue.assignments.map((assignment) => (
+              <div className="assignment-row" key={assignment.id}>
+                <strong>{assignment.agent_name}</strong>
+                <span>{assignment.backend_name}</span>
+                <span>{statusLabel(assignment.status)}</span>
+                <code>{assignment.id}</code>
+              </div>
+            )) : <p className="empty-column">No assignments yet.</p>}
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
+}

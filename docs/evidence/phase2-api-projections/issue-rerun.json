@@ -1,0 +1,33 @@
+{
+    "assignment": {
+        "id": "assignment_fdbf1ced5489",
+        "ticket_id": "ticket_903afb57e2ab",
+        "ticket_key": "ARI-003",
+        "agent_id": "codex",
+        "agent_name": "Codex",
+        "backend_name": "codex",
+        "status": "ready_to_claim",
+        "readiness_status": "ready_to_claim",
+        "claimable": true,
+        "route_decision_id": "route_a8a1b81cb3f2",
+        "handoff_packet_id": "handoff_packet_dab354738149",
+        "handoff_hash": "04c1e3c960fafdd90150524c62a00488e74259886950a87da300bf92b0a41f78",
+        "build_context_id": null,
+        "blocked_reason": null,
+        "runtime_scope": "resource_af692d8e43a5",
+        "target_project_id": "resource_af692d8e43a5",
+        "parent_assignment_id": null,
+        "retry_reason": null,
+        "retry_policy": null,
+        "created_at": "2026-06-22T07:15:02Z",
+        "started_at": null,
+        "ended_at": null,
+        "blocker": null,
+        "failure_reason": null
+    },
+    "did_work": false,
+    "status": "ready_to_claim",
+    "message": "run dispatched; start or keep `ari daemon start` running to claim the assignment",
+    "ticket_run_result": null,
+    "idempotent_replay": false
+}

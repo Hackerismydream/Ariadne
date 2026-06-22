@@ -9,21 +9,18 @@ import {
   Search,
   Send,
   Settings,
-  Sparkles,
   Target,
   Users,
-  Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { applyRouteRedirect, ensureDefaultHashRoute, pageHash, parseHashRoute, type PageKey } from "./app/routes";
+import { WorkbenchSidebar } from "./app/shell/Sidebar";
 import { loadWorkbenchData, workbenchData, type WorkbenchDataSource } from "./data";
-import { addTicketCommentButtonLabel } from "./features/add-ticket-comment/ui";
-import { assignTicketButtonLabel } from "./features/assign-ticket/ui";
-import { runAssignmentButtonLabel } from "./features/run-assignment/ui";
-import { watchRunEventsButtonLabel } from "./features/watch-run-events/ui";
-import { useTicketAgentControl } from "./features/agent-control/model";
 import { inferSourceInput, sourceAnalysisLabel, type SourceFormType } from "./features/project-inputs/model";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
+import { IssuesWorkbenchPage } from "./pages/issues/IssuesPage";
 import { AriadneApiError } from "./shared/api/errors";
+import { CurrentVersionStrip } from "./widgets/current-version/CurrentVersionStrip";
 import {
   analyzeSource,
   applyIssueFactoryPreview,
@@ -39,41 +36,10 @@ import {
 import type {
   AriadneTicket,
   BackendSmokeEvidence,
-  FeishuTicketEvidence,
-  LLMAgentEvidence,
-  ReleaseEvidenceSummary,
   RuntimeInfo,
-  TicketExecutionEvidence,
-  TicketStatus,
   TimelineEvent,
   WorkbenchData,
 } from "./types";
-
-type PageKey = "delivery" | "project" | "sources" | "tasks" | "ready" | "diagnostics";
-
-function parseHashRoute(hash = globalThis.location?.hash ?? "") {
-  const value = hash.replace(/^#/, "").trim();
-  if (!value) return {};
-  const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
-  if (issueMatch) return { page: "ready" as PageKey, ticketRef: decodeURIComponent(issueMatch[1]) };
-  const legacyMap: Record<string, PageKey> = {
-    delivery: "delivery",
-    version: "delivery",
-    goal: "project",
-    knowledge: "sources",
-    issues: "ready",
-    agents: "diagnostics",
-    runtimes: "diagnostics",
-    runtime: "diagnostics",
-    skills: "diagnostics",
-    inbox: "diagnostics",
-  };
-  if (legacyMap[value]) return { page: legacyMap[value] };
-  if (["delivery", "project", "sources", "tasks", "ready", "diagnostics"].includes(value)) {
-    return { page: value as PageKey };
-  }
-  return {};
-}
 
 function findTicketByRef(tickets: AriadneTicket[], ticketRef: string | undefined) {
   if (!ticketRef) return undefined;
@@ -86,38 +52,6 @@ function findTicketByRef(tickets: AriadneTicket[], ticketRef: string | undefined
 function issueHash(ticket: AriadneTicket) {
   return `#issues/${encodeURIComponent(ticket.key)}`;
 }
-
-const navGroups: Array<{
-  label: string;
-  items: Array<{ key: PageKey; label: string; icon: typeof Inbox }>;
-}> = [
-  {
-    label: "产品路径",
-    items: [
-      { key: "delivery", label: "版本工作台", icon: FolderKanban },
-      { key: "project", label: "项目设置", icon: Target },
-      { key: "sources", label: "项目输入", icon: BookOpenText },
-      { key: "tasks", label: "任务建议", icon: ListTodo },
-      { key: "ready", label: "执行任务", icon: Monitor },
-    ],
-  },
-  {
-    label: "诊断",
-    items: [
-      { key: "diagnostics", label: "技术诊断", icon: Settings },
-    ],
-  },
-];
-
-const statusColumns: Array<{ status: TicketStatus; label: string; tone: string }> = [
-  { status: "inbox", label: "收件箱", tone: "neutral" },
-  { status: "planning", label: "规划中", tone: "neutral" },
-  { status: "ready", label: "待执行", tone: "neutral" },
-  { status: "running", label: "进行中", tone: "running" },
-  { status: "reviewing", label: "审核中", tone: "review" },
-  { status: "done", label: "完成", tone: "done" },
-  { status: "blocked", label: "阻塞", tone: "blocked" },
-];
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -209,10 +143,6 @@ function previewStatusLabel(status: WorkbenchData["backlogMutationPreview"]["sta
   if (status === "applied") return "已应用";
   if (status === "blocked") return "已阻塞：存在不安全变更";
   return "仅预览";
-}
-
-function yesNo(value: boolean) {
-  return value ? "是" : "否";
 }
 
 function availabilityLabel(value: boolean) {
@@ -314,10 +244,11 @@ function apiErrorCode(error: unknown) {
 
 export function App() {
   const initialRoute = parseHashRoute();
-  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "delivery");
+  const [page, setPage] = useState<PageKey>(initialRoute.page ?? "ready");
   const [data, setData] = useState<WorkbenchData>(workbenchData);
   const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
+  const [issueRef, setIssueRef] = useState(initialRoute.ticketRef);
   const [selectedTicketId, setSelectedTicketId] = useState(
     findTicketByRef(workbenchData.tickets, initialRoute.ticketRef)?.id ?? workbenchData.tickets[0]?.id ?? "",
   );
@@ -330,6 +261,8 @@ export function App() {
     setDataSource(result.source);
     setReadOnly(result.readOnly);
     const route = parseHashRoute();
+    applyRouteRedirect(route);
+    setIssueRef(preferredTicketRef ?? route.ticketRef);
     const preferredTicket = findTicketByRef(result.data.tickets, preferredTicketRef);
     const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
     if (route.page) setPage(route.page);
@@ -352,10 +285,11 @@ export function App() {
     });
   }
 
-  function navigate(nextPage: PageKey) {
+  function navigate(nextPage: PageKey, hashOverride?: string) {
     setPage(nextPage);
-    if (globalThis.location?.hash !== `#${nextPage}`) {
-      globalThis.history?.replaceState(null, "", `#${nextPage}`);
+    const nextHash = hashOverride ?? pageHash(nextPage);
+    if (globalThis.location?.hash !== nextHash) {
+      globalThis.history?.replaceState(null, "", nextHash);
     }
   }
 
@@ -363,6 +297,7 @@ export function App() {
     const ticket = data.tickets.find((candidate) => candidate.id === ticketId);
     if (!ticket) return;
     setSelectedTicketId(ticket.id);
+    setIssueRef(ticket.key);
     setPage("ready");
     if (globalThis.location?.hash !== issueHash(ticket)) {
       globalThis.history?.replaceState(null, "", issueHash(ticket));
@@ -371,6 +306,8 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    ensureDefaultHashRoute();
+    applyRouteRedirect(parseHashRoute());
     refreshWorkbenchData().then(() => {
       if (!mounted) return;
     });
@@ -382,7 +319,9 @@ export function App() {
   useEffect(() => {
     function applyHashRoute() {
       const route = parseHashRoute();
+      applyRouteRedirect(route);
       if (route.page) setPage(route.page);
+      setIssueRef(route.ticketRef);
       const routeTicket = findTicketByRef(data.tickets, route.ticketRef);
       if (routeTicket) {
         setPage("ready");
@@ -395,8 +334,9 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar data={data} page={page} onNavigate={navigate} />
+      <WorkbenchSidebar data={data} page={page} onNavigate={navigate} />
       <main className="main">
+        <CurrentVersionStrip data={data} dataSource={dataSource} onNavigate={navigate} />
         <PageFrame
           data={data}
           dataSource={dataSource}
@@ -404,6 +344,7 @@ export function App() {
           page={page}
           selectedRuntime={selectedRuntime}
           selectedTicket={selectedTicket}
+          issueRef={issueRef}
           onNavigate={navigate}
           onRuntimeSelect={setSelectedRuntime}
           onTicketSelect={selectTicket}
@@ -427,66 +368,13 @@ function isProductRuntime(backend: string) {
   return backend === "codex" || backend === "claude-code";
 }
 
-function Sidebar({
-  data,
-  page,
-  onNavigate,
-}: {
-  data: WorkbenchData;
-  page: PageKey;
-  onNavigate: (page: PageKey) => void;
-}) {
-  return (
-    <aside className="sidebar">
-      <button className="workspace-switch" type="button">
-        <span className="workspace-avatar">A</span>
-        <span>Ariadne</span>
-      </button>
-      <button className="sidebar-command" type="button">
-        <Search size={16} />
-        <span>搜索...</span>
-        <kbd>⌘ K</kbd>
-      </button>
-      <button className="create-button" type="button">
-        <Plus size={16} />
-        <span>新建 issue</span>
-        <kbd>C</kbd>
-      </button>
-      {navGroups.map((group) => (
-        <nav className="nav-group" key={group.label}>
-          <p>{group.label}</p>
-          {group.items.map((item) => {
-            const Icon = item.icon;
-            const enabled = ["delivery", "project", "sources", "tasks", "ready", "diagnostics"].includes(item.key);
-            const active = item.key === page;
-            return (
-              <button
-                className={`nav-item ${active ? "active" : ""}`}
-                data-page={item.key}
-                disabled={!enabled}
-                key={item.key}
-                type="button"
-                onClick={() => enabled && onNavigate(item.key as PageKey)}
-              >
-                <Icon size={16} />
-                <span>{item.label}</span>
-                {item.key === "diagnostics" ? <em>{data.inbox.length}</em> : null}
-              </button>
-            );
-          })}
-        </nav>
-      ))}
-      <button className="help-button" type="button">?</button>
-    </aside>
-  );
-}
-
 function PageFrame({
   data,
   dataSource,
   page,
   selectedRuntime,
   selectedTicket,
+  issueRef,
   onNavigate,
   onRuntimeSelect,
   onTicketSelect,
@@ -499,25 +387,23 @@ function PageFrame({
   page: PageKey;
   selectedRuntime: string;
   selectedTicket: AriadneTicket;
+  issueRef?: string;
   onNavigate: (page: PageKey) => void;
   onRuntimeSelect: (backend: string) => void;
   onTicketSelect: (ticketId: string) => void;
   onRefresh: (preferredTicketRef?: string) => Promise<void>;
 }) {
-  if (page === "delivery") return <DeliveryPage data={data} dataSource={dataSource} onNavigate={onNavigate} onTicketSelect={onTicketSelect} />;
   if (page === "project") return <GoalPage data={data} dataSource={dataSource} onRefresh={onRefresh} onTicketSelect={onTicketSelect} />;
   if (page === "sources") return <KnowledgePage data={data} dataSource={dataSource} onNavigate={onNavigate} onRefresh={onRefresh} />;
   if (page === "tasks") return <TasksPage data={data} dataSource={dataSource} onRefresh={onRefresh} />;
   if (page === "ready") {
     return (
-      <IssuesPage
+      <IssuesWorkbenchPage
         data={data}
-        dataSource={dataSource}
         readOnly={readOnly}
         selectedRuntime={selectedRuntime}
-        selectedTicket={selectedTicket}
-        onRefresh={onRefresh}
-        onTicketSelect={onTicketSelect}
+        issueRef={issueRef}
+        onRefreshWorkbench={onRefresh}
       />
     );
   }
@@ -1609,570 +1495,6 @@ function groupBacklogChanges(changes: WorkbenchData["backlogChanges"]) {
     deferred: changes.filter((change) => change.kind === "deferred"),
     rejected: changes.filter((change) => change.kind === "rejected"),
   };
-}
-
-function IssuesPage({
-  data,
-  dataSource,
-  readOnly,
-  selectedRuntime,
-  selectedTicket,
-  onRefresh,
-  onTicketSelect,
-}: {
-  data: WorkbenchData;
-  dataSource: WorkbenchDataSource;
-  readOnly: boolean;
-  selectedRuntime: string;
-  selectedTicket: AriadneTicket;
-  onRefresh: (preferredTicketRef?: string) => Promise<void>;
-  onTicketSelect: (ticketId: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<"current" | "all">("current");
-  const currentTickets = useMemo(() => getCurrentVersionTickets(data), [data]);
-  const baseTickets = scope === "current" ? currentTickets : data.tickets;
-  const effectiveSelectedTicket = scope === "current" && !baseTickets.some((ticket) => ticket.id === selectedTicket.id)
-    ? baseTickets[0] ?? selectedTicket
-    : selectedTicket;
-  const visibleTickets = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const tickets = baseTickets;
-    if (!needle) return tickets;
-    if (/^ari-\d+$/.test(needle)) {
-      return data.tickets.filter(
-        (ticket) => ticket.key.toLowerCase() === needle || ticket.id.toLowerCase() === needle,
-      );
-    }
-    return tickets.filter((ticket) => {
-      return [
-        ticket.key,
-        ticket.title,
-        ticket.summary,
-        ticket.owner,
-        ticket.decision,
-        ticket.reviewVerdict,
-        ticket.backendSmoke?.backendName ?? "",
-        ticket.github?.branch ?? "",
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    });
-  }, [baseTickets, data.tickets, query]);
-  const grouped = useMemo(() => {
-    return statusColumns.map((column) => ({
-      ...column,
-      tickets: visibleTickets.filter((ticket) => ticket.status === column.status),
-    }));
-  }, [visibleTickets]);
-
-  return (
-    <section className="page full-bleed">
-      <PageHeader
-        icon={<ListTodo size={17} />}
-        title="当前版本任务"
-        count={visibleTickets.length}
-        description={`${projectDisplayName(data)} · 默认隐藏历史 Ariadne 内部任务`}
-        action={
-          <div className="toolbar">
-            <button className={scope === "current" ? "active-filter" : ""} type="button" onClick={() => setScope("current")}>当前版本</button>
-            <button className={scope === "all" ? "active-filter" : ""} type="button" onClick={() => setScope("all")}>全部历史</button>
-            <button type="button">看板</button>
-          </div>
-        }
-      />
-      <div className="issue-search-bar">
-        <Search size={16} />
-        <input
-          aria-label="按任务编号、标题、负责人、后端或分支搜索"
-          placeholder="搜索任务编号、标题、负责人、后端..."
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <span>{visibleTickets.length} / {scope === "current" ? currentTickets.length : data.tickets.length}</span>
-      </div>
-      <div className="issues-layout">
-        <div className="kanban">
-          {grouped.map((column) => (
-            <section className={`kanban-column ${column.tone}`} key={column.status}>
-              <header>
-                <span className="ring" />
-                <h2>{column.label}</h2>
-                <em>{column.tickets.length}</em>
-                <button type="button">•••</button>
-                <button type="button">+</button>
-              </header>
-              {column.tickets.length === 0 ? (
-                <p className="empty-column">无 issue</p>
-              ) : (
-                column.tickets.map((ticket) => (
-                  <TicketCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    projectLabel={ticket.targetProjectId ? projectDisplayName(data) : "历史任务"}
-                    selected={ticket.id === effectiveSelectedTicket.id}
-                    onSelect={onTicketSelect}
-                  />
-                ))
-              )}
-            </section>
-          ))}
-        </div>
-        <TicketInspector
-          data={data}
-          dataSource={dataSource}
-          readOnly={readOnly}
-          selectedRuntime={selectedRuntime}
-          ticket={effectiveSelectedTicket}
-          onRefresh={onRefresh}
-        />
-      </div>
-    </section>
-  );
-}
-
-function TicketCard({
-  ticket,
-  projectLabel,
-  selected,
-  onSelect,
-}: {
-  ticket: AriadneTicket;
-  projectLabel: string;
-  selected: boolean;
-  onSelect: (ticketId: string) => void;
-}) {
-  return (
-    <button className={`issue-card ${selected ? "selected" : ""}`} type="button" onClick={() => onSelect(ticket.id)}>
-      <span className="issue-key">{ticket.key}</span>
-      <strong>{ticket.title}</strong>
-      <p>{ticket.summary}</p>
-      <span className="project-pill">{projectLabel}</span>
-      <footer>
-        <span>{ticket.owner}</span>
-        <em>{statusLabel(ticket.reviewVerdict)}</em>
-      </footer>
-    </button>
-  );
-}
-
-function TicketInspector({
-  data,
-  dataSource,
-  readOnly,
-  selectedRuntime,
-  ticket,
-  onRefresh,
-}: {
-  data: WorkbenchData;
-  dataSource: WorkbenchDataSource;
-  readOnly: boolean;
-  selectedRuntime: string;
-  ticket: AriadneTicket;
-  onRefresh: (preferredTicketRef?: string) => Promise<void>;
-}) {
-  const targetProject = data.projectResources?.find((resource) => resource.id === ticket.targetProjectId && resource.available)
-    ?? data.projectResources?.find((resource) => resource.available)
-    ?? data.projectResources?.[0];
-  const ticketAssignments = data.assignments?.filter((assignment) =>
-    assignment.ticketId === ticket.id || assignment.ticketKey === ticket.key,
-  ) ?? [];
-  const latestAssignment = ticketAssignments.find((assignment) => assignment.id === ticket.latestAssignmentId)
-    ?? [...ticketAssignments].sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""))[0];
-  const productRuntime = selectableProductionRuntimes(data.runtimes).find((runtime) => runtime.backend === selectedRuntime)
-    ?? selectableProductionRuntimes(data.runtimes)[0];
-  const {
-    actionMessage,
-    actionState,
-    assignmentEvents,
-    assignSelectedTicket,
-    commentDraft,
-    commentState,
-    daemonActionState,
-    mutationReady,
-    postComment,
-    runSelectedAssignment,
-    setCommentDraft,
-    startLocalDaemon,
-    stopLocalDaemon,
-    watchAssignmentEvents,
-  } = useTicketAgentControl({
-    dataSource,
-    latestAssignment,
-    onRefresh,
-    daemonStatus: data.daemonStatus,
-    productRuntime,
-    readOnly,
-    targetProject,
-    ticket,
-  });
-
-  return (
-    <aside className="inspector">
-      <section className="inspector-header">
-        <span className="issue-key">{ticket.key}</span>
-        <h2>{ticket.title}</h2>
-        <p>{ticket.summary}</p>
-      </section>
-      <PropertyGrid
-        rows={[
-          ["状态", statusLabel(ticket.status)],
-          ["负责人", ticket.owner],
-          ["决策", buildDecisionLabel(ticket.decision)],
-          ["来源", ticket.source],
-          ["评审", statusLabel(ticket.reviewVerdict)],
-          ["记忆", fallbackText(ticket.memoryPath)],
-          ["后续任务", fallbackText(ticket.nextTicketsPath)],
-        ]}
-      />
-      <section className="panel nested action-panel">
-        <h3>智能体控制</h3>
-        <p className="muted">
-          {mutationReady
-            ? `API 模式 · 目标 ${targetProject?.label} · 后端 ${productRuntime?.backend}`
-            : "未连接产品 API，或缺少可用目标/运行时。先启动 ari workbench serve 并注册目标项目。"}
-        </p>
-        <div className="daemon-strip">
-          <strong>本地运行时：{statusLabel(data.daemonStatus.status)}</strong>
-          <span>{data.daemonStatus.backgroundRunning ? "后台循环运行中" : "后台循环未运行"}</span>
-          <span>{data.daemonStatus.externalExecutionAuthorized ? "已授权 Codex/Claude" : "未授权外部执行"}</span>
-          <span>可领取 {data.daemonStatus.claimableAssignmentCount}</span>
-          <span>{data.daemonStatus.currentTicketKey ?? "无当前任务"}</span>
-        </div>
-        <div className="action-row">
-          <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={assignSelectedTicket}>
-            {assignTicketButtonLabel(actionState)}
-          </button>
-          <button disabled={!mutationReady || actionState !== "idle"} type="button" onClick={runSelectedAssignment}>
-            {actionState === "running" ? runAssignmentButtonLabel(actionState) : "运行当前任务"}
-          </button>
-          <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void startLocalDaemon()}>
-            {daemonActionState === "starting" ? "启动中..." : "授权 Codex/Claude 并启动运行时"}
-          </button>
-          <button disabled={dataSource !== "api" || daemonActionState !== "idle"} type="button" onClick={() => void stopLocalDaemon()}>
-            {daemonActionState === "stopping" ? "停止中..." : "停止本地运行时"}
-          </button>
-          <button disabled={dataSource !== "api" || !latestAssignment?.id} type="button" onClick={() => void watchAssignmentEvents()}>
-            {watchRunEventsButtonLabel(assignmentEvents.length ? "watching" : "idle")}
-          </button>
-        </div>
-        <p className="muted">最近 assignment：{fallbackText(latestAssignment?.id)}</p>
-        <div className="comment-row">
-          <input
-            aria-label="添加任务评论"
-            disabled={!mutationReady || commentState !== "idle"}
-            placeholder="添加任务评论..."
-            value={commentDraft}
-            onChange={(event) => setCommentDraft(event.target.value)}
-          />
-          <button disabled={!mutationReady || commentState !== "idle" || !commentDraft.trim()} type="button" onClick={() => void postComment()}>
-            {addTicketCommentButtonLabel(commentState)}
-          </button>
-        </div>
-        {assignmentEvents.length ? (
-          <div className="event-list">
-            {assignmentEvents.map((event) => (
-              <p key={event.id}>
-                <strong>{event.stage}</strong>
-                <span>{event.summary}</span>
-              </p>
-            ))}
-          </div>
-        ) : null}
-        {actionMessage ? <p className="action-message">{actionMessage}</p> : null}
-      </section>
-      <GitHubEvidencePanel ticket={ticket} />
-      <ExecutionEvidencePanel evidence={ticket.executionEvidence} />
-      <BackendSmokePanel smoke={ticket.backendSmoke} />
-      <LLMAgentEvidencePanel agents={ticket.llmAgents ?? []} />
-      <FeishuEvidencePanel feishu={ticket.feishu} />
-      <ReleaseEvidencePanel evidence={ticket.releaseEvidence} />
-      <section className="panel nested">
-        <h3>运行进度时间线</h3>
-        <Timeline items={ticket.progress} />
-      </section>
-      <section className="panel nested">
-        <h3>验收标准</h3>
-        <List items={ticket.acceptance} />
-      </section>
-      <section className="panel nested">
-        <h3>变更文件</h3>
-        <div className="file-list">
-          {ticket.changedFiles.length ? ticket.changedFiles.map((file) => <code key={file}>{file}</code>) : <span>暂无 diff</span>}
-        </div>
-      </section>
-    </aside>
-  );
-}
-
-function ExecutionEvidencePanel({ evidence }: { evidence?: TicketExecutionEvidence }) {
-  if (!evidence) {
-    return (
-      <section className="panel nested">
-        <h3>执行证据</h3>
-        <p className="muted">还没有 execution / diff / tests / review 回流。</p>
-      </section>
-    );
-  }
-  return (
-    <section className="panel nested execution-evidence-panel">
-      <h3>执行证据</h3>
-      <PropertyGrid
-        rows={[
-          ["Assignment", fallbackText(evidence.assignmentId)],
-          ["状态", statusLabel(evidence.assignmentStatus ?? "unknown")],
-          ["后端", fallbackText(evidence.backendName)],
-          ["执行结果", fallbackText(evidence.executionResultId)],
-          ["阻塞", evidence.blocked ? fallbackText(evidence.blockReason, "已阻塞") : "否"],
-          ["失败类型", fallbackText(evidence.failureReason ?? evidence.assignmentFailureReason)],
-          ["退出码", String(evidence.exitCode ?? "未记录")],
-          ["测试命令", fallbackText(evidence.testCommand)],
-          ["测试退出码", String(evidence.testExitCode ?? "未记录")],
-          ["评审", statusLabel(evidence.reviewVerdict ?? "pending")],
-          ["Handoff", fallbackText(evidence.handoffFile)],
-          ["Diff", fallbackText(evidence.diffArtifactPath)],
-          ["日志", fallbackText(evidence.executionLogArtifactPath)],
-          ["Memory", fallbackText(evidence.memoryPath)],
-          ["Feishu Plan", fallbackText(evidence.feishuPlanPath)],
-          ["Next Tickets", fallbackText(evidence.nextTicketsPath)],
-        ]}
-      />
-      {evidence.assignmentBlocker ? <p className="muted">{evidence.assignmentBlocker}</p> : null}
-      {evidence.command ? <code className="wide-code">{evidence.command}</code> : null}
-      {evidence.changedFiles.length ? (
-        <div className="file-list">
-          {evidence.changedFiles.map((file) => <code key={file}>{file}</code>)}
-        </div>
-      ) : null}
-      {evidence.stdoutExcerpt || evidence.stderrExcerpt || evidence.testStdoutExcerpt || evidence.testStderrExcerpt ? (
-        <div className="log-grid">
-          {evidence.stdoutExcerpt ? <pre>stdout{`\n${evidence.stdoutExcerpt}`}</pre> : null}
-          {evidence.stderrExcerpt ? <pre>stderr{`\n${evidence.stderrExcerpt}`}</pre> : null}
-          {evidence.testStdoutExcerpt ? <pre>test stdout{`\n${evidence.testStdoutExcerpt}`}</pre> : null}
-          {evidence.testStderrExcerpt ? <pre>test stderr{`\n${evidence.testStderrExcerpt}`}</pre> : null}
-        </div>
-      ) : null}
-      {evidence.warnings.length ? (
-        <div className="check-summary">
-          {evidence.warnings.map((warning) => <span key={warning}>{warning}</span>)}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function LLMAgentEvidencePanel({ agents }: { agents: LLMAgentEvidence[] }) {
-  if (!agents.length) {
-    return (
-      <section className="panel nested">
-        <h3>上游 LLM 智能体</h3>
-        <p className="muted">还没有记录上游 LLM 智能体证据。</p>
-      </section>
-    );
-  }
-  return (
-    <section className="panel nested llm-panel">
-      <h3>上游 LLM 智能体</h3>
-      <div className="llm-agent-list">
-        {agents.map((agent) => (
-          <div className="llm-agent-row" key={`${agent.role}-${agent.id}`}>
-            <strong>{agent.role}</strong>
-            <span className={`state ${agent.succeeded ? "online" : "offline"}`}>
-              {resultLabel(agent.succeeded, true)}
-            </span>
-            <span>{agent.provider}</span>
-            <span>{agent.model}</span>
-            <span>{agent.totalTokens ? `${agent.totalTokens} token` : "用量未记录"}</span>
-            <p>{agent.summary ?? agent.decision ?? "未记录摘要。"}</p>
-            <code>{agent.path}</code>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function FeishuEvidencePanel({ feishu }: { feishu?: FeishuTicketEvidence }) {
-  if (!feishu) {
-    return (
-      <section className="panel nested">
-        <h3>Feishu</h3>
-        <p className="muted">还没有记录飞书写入证据。</p>
-      </section>
-    );
-  }
-  const status = feishu.ok && !feishu.blocked && !feishu.dryRun ? "通过" : feishu.blocked ? "已阻塞" : "失败";
-  return (
-    <section className="panel nested feishu-panel">
-      <h3>Feishu</h3>
-      <PropertyGrid
-        rows={[
-          ["状态", status],
-          ["演练模式", yesNo(feishu.dryRun)],
-          ["返回码", String(feishu.returncode ?? "未记录")],
-          ["文档", feishu.documentUrl ?? feishu.documentId ?? "未记录"],
-          ["创建时间", feishu.createdAt],
-          ["证据", feishu.path],
-        ]}
-      />
-      {feishu.documentUrl ? <a href={feishu.documentUrl}>打开飞书文档</a> : null}
-      {feishu.operationSummary ? <p>{feishu.operationSummary}</p> : null}
-      {feishu.reason ? <p className="muted">{feishu.reason}</p> : null}
-    </section>
-  );
-}
-
-function ReleaseEvidencePanel({ evidence }: { evidence?: ReleaseEvidenceSummary }) {
-  if (!evidence) {
-    return (
-      <section className="panel nested">
-        <h3>发布证据包</h3>
-        <p className="muted">还没有同步发布证据包。</p>
-      </section>
-    );
-  }
-  const checks = Object.entries(evidence.productReadinessChecks ?? {});
-  const readyChecks = checks.filter(([, status]) => status === "ready").length;
-  const successEvidenceCount = Object.values(evidence.realSuccessEvidence ?? {}).filter(Boolean).length;
-  const failureEvidenceCount = Object.values(evidence.realFailureEvidence ?? {}).filter(Boolean).length;
-  const nextActions = evidence.readinessNextActions ?? [];
-  const staleReasons = evidence.evidencePacketStaleReasons ?? [];
-  return (
-    <section className="panel nested release-panel">
-      <h3>发布证据包</h3>
-      <PropertyGrid
-        rows={[
-          ["生产验收", fallbackText(evidence.productionAcceptanceStatus, "未知")],
-          ["产品就绪", fallbackText(evidence.productReadinessStatus, "未知")],
-          ["运行门禁", fallbackText(evidence.runGateStatus, "未知")],
-          ["证据过期", evidence.evidencePacketStale ? "是" : "否"],
-          ["检查项", checks.length ? `${readyChecks}/${checks.length} 就绪` : "未记录"],
-          ["真实证据", `${successEvidenceCount} 条成功 / ${failureEvidenceCount} 条失败`],
-          ["执行次数", `${evidence.executionResultCount ?? 0}`],
-          ["生成时间", fallbackText(evidence.generatedAt)],
-          ["证据包", fallbackText(evidence.packetPath)],
-        ]}
-      />
-      {nextActions.length ? (
-        <div className="next-actions" aria-label="发布证据下一步">
-          <strong>下一步</strong>
-          <ul>
-            {nextActions.slice(0, 5).map((action) => (
-              <li key={action}>{action}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {staleReasons.length ? (
-        <div className="next-actions warning" aria-label="发布证据过期原因">
-          <strong>证据包需要重新生成</strong>
-          <ul>
-            {staleReasons.slice(0, 4).map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {checks.length ? (
-        <div className="check-summary release-checks" aria-label="产品就绪检查">
-          {checks.slice(0, 8).map(([name, status]) => (
-            <span key={name}>
-              {name}: {status}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function BackendSmokePanel({ smoke }: { smoke?: BackendSmokeEvidence }) {
-  if (!smoke) {
-    return (
-      <section className="panel nested">
-        <h3>后端冒烟证据</h3>
-        <p className="muted">还没有记录后端冒烟证据。</p>
-      </section>
-    );
-  }
-  return (
-    <section className="panel nested smoke-panel">
-      <h3>后端冒烟证据</h3>
-      <PropertyGrid
-        rows={[
-          ["后端", smoke.backendName],
-          ["是否成功", yesNo(smoke.succeeded)],
-          ["分配记录", statusLabel(smoke.assignmentStatus)],
-          ["执行结果", fallbackText(smoke.executionResultId)],
-          ["退出码", String(smoke.exitCode ?? "未记录")],
-          ["测试", String(smoke.testExitCode ?? "未记录")],
-          ["评审", statusLabel(smoke.reviewVerdict ?? "未记录")],
-          ["智能体运行时", smoke.agentRuntime],
-        ]}
-      />
-      <div className="file-list smoke-files">
-        {smoke.changedFiles.map((file) => <code key={file}>{file}</code>)}
-      </div>
-      <div className="link-row">
-        {smoke.handoffFile ? <code>{smoke.handoffFile}</code> : null}
-        {smoke.boardPath ? <code>{smoke.boardPath}</code> : null}
-      </div>
-      {smoke.blocker ? <p className="muted">{smoke.blocker}</p> : null}
-    </section>
-  );
-}
-
-function GitHubEvidencePanel({ ticket }: { ticket: AriadneTicket }) {
-  const github = ticket.github;
-  if (!github) {
-    return (
-      <section className="panel nested">
-        <h3>GitHub</h3>
-        <p className="muted">还没有记录 GitHub 证据。</p>
-      </section>
-    );
-  }
-  const checks = github.checkCounts;
-  return (
-    <section className="panel nested github-panel">
-      <h3>GitHub</h3>
-      <PropertyGrid
-        rows={[
-          ["操作", github.operation],
-          ["仓库", fallbackText(github.repo)],
-          ["Issue", github.issueUrl ? `#${github.issueNumber ?? ""}` : "未记录"],
-          ["PR", github.prUrl ? `#${github.prNumber ?? ""}` : "未记录"],
-          ["分支", fallbackText(github.branch)],
-          ["基线", fallbackText(github.baseBranch)],
-          ["可合并", fallbackText(github.mergeable)],
-          ["评审", fallbackText(github.reviewDecision, "无")],
-          ["检查", fallbackText(github.checksStatus)],
-        ]}
-      />
-      <div className="link-row">
-        {github.issueUrl ? <a href={github.issueUrl}>Issue</a> : null}
-        {github.prUrl ? <a href={github.prUrl}>PR</a> : null}
-        {github.commentUrl ? <a href={github.commentUrl}>评论</a> : null}
-      </div>
-      {github.commitSha ? <code className="commit-sha">{github.commitSha}</code> : null}
-      {checks ? (
-        <div className="check-summary">
-          <span>通过 {checks.pass}</span>
-          <span>等待 {checks.pending}</span>
-          <span>失败 {checks.fail}</span>
-          <span>总数 {checks.total}</span>
-        </div>
-      ) : null}
-      <div className="github-history">
-        {github.history.map((item) => (
-          <span key={`${item.operation}-${item.createdAt}`}>
-            {item.operation} · {resultLabel(item.ok, item.blocked)}
-          </span>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 function AgentsPage({ data }: { data: WorkbenchData }) {

@@ -1,0 +1,45 @@
+{
+    "ticket": {
+        "id": "ticket_903afb57e2ab",
+        "key": "ARI-003",
+        "title": "Add JSON export command to demo target CLI",
+        "status": "planning",
+        "source_type": "github_repo",
+        "priority": "high",
+        "assigned_agent_id": null,
+        "latest_assignment_id": null,
+        "latest_execution_result_id": null,
+        "latest_review_verdict": null,
+        "build_packet_id": "packet_14076540c78f",
+        "summary": "github_repo source: # GitHub README Note - Tiny CLI Project Pattern This README describes a small Python CLI called `demo-todo`. ## Current commands ```bash demo-todo add \"task\" demo-todo list ``` ## Useful pattern Small CLIs should expose machine-readable export commands so othe",
+        "acceptance_criteria": [
+            "`demo-todo export-json` exists.",
+            "Output is a valid JSON list.",
+            "Target project tests pass.",
+            "Changed files stay inside the target project."
+        ],
+        "affected_modules": [
+            "demo_todo/cli.py",
+            "tests/test_cli.py"
+        ],
+        "source_ref": "/Users/martinlos/code/Ariadne/examples/sources/github_tiny_cli_readme.md",
+        "target_project_id": "resource_af692d8e43a5",
+        "evidence": null
+    },
+    "comments": [
+        {
+            "id": "comment_81496d4b8660",
+            "ticket_id": "ticket_903afb57e2ab",
+            "ticket_key": "ARI-003",
+            "author_type": "human",
+            "author": "human",
+            "kind": "comment",
+            "body": "Phase 2 curl evidence comment",
+            "thread_id": "comment_81496d4b8660",
+            "parent_comment_id": null,
+            "created_at": "2026-06-22T07:15:02Z"
+        }
+    ],
+    "runtime_events": [],
+    "artifacts": []
+}

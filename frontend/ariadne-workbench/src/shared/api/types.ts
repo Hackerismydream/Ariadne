@@ -108,6 +108,101 @@ export type ApiAssignmentSummary = {
   failure_reason?: string | null;
 };
 
+export type ApiIssueExecutionResultSummary = {
+  id: string;
+  backend_name: string;
+  blocked: boolean;
+  failure_reason?: string | null;
+  exit_code?: number | null;
+  test_exit_code?: number | null;
+  changed_files: string[];
+  diff_artifact_path?: string | null;
+  execution_log_artifact_path?: string | null;
+  started_at: string;
+  ended_at: string;
+};
+
+export type ApiIssueTimelineEvent = {
+  id: string;
+  event_type: string;
+  actor: string;
+  summary: string;
+  timestamp: string;
+  ref_id?: string | null;
+};
+
+export type ApiIssueComment = {
+  id: string;
+  ticket_id: string;
+  ticket_key: string;
+  author: string;
+  author_type: string;
+  kind: string;
+  body: string;
+  created_at: string;
+  thread_id?: string | null;
+  payload_ref?: string | null;
+};
+
+export type ApiIssueListItem = {
+  id: string;
+  key: string;
+  title: string;
+  status: string;
+  priority: string;
+  assignee?: string | null;
+  project?: string | null;
+  target_version?: string | null;
+  source_count: number;
+  evidence_count: number;
+  last_run_status?: string | null;
+  review_verdict?: string | null;
+  blocked_reason?: string | null;
+  updated_at: string;
+};
+
+export type ApiIssueDetail = ApiIssueListItem & {
+  body: string;
+  comments: ApiIssueComment[];
+  timeline: ApiIssueTimelineEvent[];
+  assignments: ApiAssignmentSummary[];
+  execution_results: ApiIssueExecutionResultSummary[];
+  source_links: string[];
+  route_decision?: Record<string, unknown> | null;
+  handoff?: Record<string, unknown> | null;
+  diff_summary?: string | null;
+  test_summary?: string | null;
+  review_summary?: string | null;
+  next_issue_links: string[];
+};
+
+export type ApiIssueListResponse = {
+  schema_version: string;
+  source: string;
+  issues: ApiIssueListItem[];
+};
+
+export type ApiIssueDetailResponse = {
+  schema_version: string;
+  issue: ApiIssueDetail;
+};
+
+export type ApiIssueAssignResponse = {
+  ticket: ApiTicketSummary;
+  assignment: ApiAssignmentSummary;
+  confirmation_token?: string | null;
+  route_decision_artifact_path?: string | null;
+  idempotent_replay?: boolean;
+};
+
+export type ApiIssueRunResponse = {
+  assignment?: ApiAssignmentSummary | null;
+  did_work?: boolean;
+  status: string;
+  message: string;
+  ticket_run_result?: Record<string, unknown> | null;
+};
+
 export type ApiRuntimeCapability = {
   backend_name: string;
   display_name: string;

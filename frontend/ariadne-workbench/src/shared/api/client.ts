@@ -1,6 +1,10 @@
 import type {
   AddTicketCommentRequest,
   ApiAssignmentSummary,
+  ApiIssueAssignResponse,
+  ApiIssueDetailResponse,
+  ApiIssueListResponse,
+  ApiIssueRunResponse,
   AssignmentEvent,
   AssignmentEventStream,
   ApiSourceDocument,
@@ -35,6 +39,49 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getWorkbench() {
   return requestJson<ApiWorkbench>("/api/workbench");
+}
+
+export function getIssues() {
+  return requestJson<ApiIssueListResponse>("/api/issues");
+}
+
+export function getIssue(issueIdOrKey: string) {
+  return requestJson<ApiIssueDetailResponse>(`/api/issues/${encodeURIComponent(issueIdOrKey)}`);
+}
+
+export function assignIssue(
+  issueIdOrKey: string,
+  payload: AssignTicketRequest,
+) {
+  return requestJson<ApiIssueAssignResponse>(`/api/issues/${encodeURIComponent(issueIdOrKey)}/assign`, {
+    method: "POST",
+    headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function runIssueNow(issueIdOrKey: string, payload: RunAssignmentRequest) {
+  return requestJson<ApiIssueRunResponse>(`/api/issues/${encodeURIComponent(issueIdOrKey)}/run-now`, {
+    method: "POST",
+    headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function rerunIssue(issueIdOrKey: string, payload: RunAssignmentRequest) {
+  return requestJson<ApiIssueRunResponse>(`/api/issues/${encodeURIComponent(issueIdOrKey)}/rerun`, {
+    method: "POST",
+    headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addIssueComment(issueIdOrKey: string, payload: AddTicketCommentRequest) {
+  return requestJson<{ comment: unknown }>(`/api/issues/${encodeURIComponent(issueIdOrKey)}/comments`, {
+    method: "POST",
+    headers: payload.idempotency_key ? { "Idempotency-Key": payload.idempotency_key } : undefined,
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getRuntimeStatus() {

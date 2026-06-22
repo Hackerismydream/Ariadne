@@ -501,6 +501,193 @@ class IssueProjectionDTO(AriadneDTO):
     history_items: list[IssueChildDTO] = Field(default_factory=list)
 
 
+class IssueListItemDTO(AriadneDTO):
+    id: str
+    key: str
+    title: str
+    status: str
+    priority: str
+    assignee: str | None = None
+    project: str | None = None
+    target_version: str | None = None
+    source_count: int = 0
+    evidence_count: int = 0
+    last_run_status: str | None = None
+    review_verdict: str | None = None
+    blocked_reason: str | None = None
+    updated_at: str
+
+
+class IssueExecutionResultSummaryDTO(AriadneDTO):
+    id: str
+    backend_name: str
+    blocked: bool = False
+    failure_reason: str | None = None
+    exit_code: int | None = None
+    test_exit_code: int | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    diff_artifact_path: str | None = None
+    execution_log_artifact_path: str | None = None
+    started_at: str | None = None
+    ended_at: str | None = None
+
+
+class IssueTimelineEventDTO(AriadneDTO):
+    id: str
+    event_type: str
+    actor: str
+    summary: str
+    timestamp: str
+    ref_id: str | None = None
+
+
+class IssueDetailDTO(IssueListItemDTO):
+    body: str
+    comments: list[CommentDTO] = Field(default_factory=list)
+    timeline: list[IssueTimelineEventDTO] = Field(default_factory=list)
+    assignments: list[AssignmentDTO] = Field(default_factory=list)
+    execution_results: list[IssueExecutionResultSummaryDTO] = Field(default_factory=list)
+    source_links: list[str] = Field(default_factory=list)
+    route_decision: dict[str, Any] | None = None
+    handoff: dict[str, Any] | None = None
+    diff_summary: str | None = None
+    test_summary: str | None = None
+    review_summary: str | None = None
+    next_issue_links: list[str] = Field(default_factory=list)
+
+
+class IssueListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.issues.v1"] = "ariadne.issues.v1"
+    issues: list[IssueListItemDTO] = Field(default_factory=list)
+    scope: str = "current_version_mainline"
+    source: str = "build_ticket_projection"
+
+
+class IssueDetailResponse(AriadneDTO):
+    schema_version: Literal["ariadne.issue-detail.v1"] = "ariadne.issue-detail.v1"
+    issue: IssueDetailDTO
+    source: str = "build_ticket_projection"
+
+
+class IssuePatchInput(AriadneDTO):
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    status: str | None = None
+    priority: str | None = Field(default=None, max_length=40)
+
+
+class InboxListItemDTO(AriadneDTO):
+    id: str
+    issue_key: str | None = None
+    failure_reason: str
+    severity: str
+    action_type: str
+    created_at: str
+    status: str
+    resolution_note: str | None = None
+
+
+class InboxListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.inbox.v1"] = "ariadne.inbox.v1"
+    inbox: list[InboxListItemDTO] = Field(default_factory=list)
+    source: str = "inbox_projection"
+
+
+class AgentTaskSnapshotDTO(AriadneDTO):
+    active_assignment: str | None = None
+    current_issue_key: str | None = None
+    backend: str | None = None
+    queued_count: int = 0
+    blocked_count: int = 0
+    heartbeat: str | None = None
+    last_event: str | None = None
+
+
+class AgentTaskSnapshotResponse(AriadneDTO):
+    schema_version: Literal["ariadne.agent-task-snapshot.v1"] = "ariadne.agent-task-snapshot.v1"
+    snapshot: AgentTaskSnapshotDTO
+    source: str = "assignment_daemon_projection"
+
+
+class ProjectListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.projects.v1"] = "ariadne.projects.v1"
+    projects: list[TargetProjectDTO] = Field(default_factory=list)
+    source: str = "project_resource_projection"
+
+
+class ProjectDetailResponse(AriadneDTO):
+    schema_version: Literal["ariadne.project-detail.v1"] = "ariadne.project-detail.v1"
+    project: TargetProjectDTO
+    source: str = "project_resource_projection"
+
+
+class AgentListItemDTO(AriadneDTO):
+    id: str
+    name: str
+    role: str
+    backend_name: str | None = None
+    runtime_compatibility: str = "local"
+    active_assignment_count: int = 0
+    blocked_count: int = 0
+    configuration: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team-agents.v1"] = "ariadne.team-agents.v1"
+    agents: list[AgentListItemDTO] = Field(default_factory=list)
+    source: str = "agent_profile_projection"
+
+
+class BuildTeamListItemDTO(AriadneDTO):
+    id: str
+    name: str
+    description: str = ""
+    lead_agent_id: str
+    implementer_agent_id: str
+    reviewer_agent_id: str
+    default_backend_name: str
+    skill_refs: list[str] = Field(default_factory=list)
+    enabled: bool = True
+
+
+class BuildTeamListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.build-teams.v1"] = "ariadne.build-teams.v1"
+    build_teams: list[BuildTeamListItemDTO] = Field(default_factory=list)
+    source: str = "build_team_projection"
+
+
+class SkillListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team-skills.v1"] = "ariadne.team-skills.v1"
+    skills: list[BuildSkillDTO] = Field(default_factory=list)
+    source: str = "build_skill_projection"
+
+
+class RuntimeListItemDTO(AriadneDTO):
+    runtime_id: str
+    backend_name: str
+    display_name: str
+    daemon_state: str
+    available: bool
+    can_assign: bool
+    can_run: bool
+    external_execution_enabled: bool
+    command_template_set: bool
+    queue_depth: int = 0
+    active_assignment: str | None = None
+    disabled_reasons: list[str] = Field(default_factory=list)
+
+
+class RuntimeListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.runs-runtimes.v1"] = "ariadne.runs-runtimes.v1"
+    runtimes: list[RuntimeListItemDTO] = Field(default_factory=list)
+    source: str = "runtime_capability_projection"
+
+
+class AssignmentListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.runs-assignments.v1"] = "ariadne.runs-assignments.v1"
+    assignments: list[AssignmentDTO] = Field(default_factory=list)
+    source: str = "assignment_projection"
+
+
 class ArtifactRefDTO(AriadneDTO):
     id: str
     artifact_type: str

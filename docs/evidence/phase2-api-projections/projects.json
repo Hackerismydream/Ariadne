@@ -1,0 +1,24 @@
+{
+    "schema_version": "ariadne.projects.v1",
+    "projects": [
+        {
+            "id": "resource_af692d8e43a5",
+            "label": "Phase 2 Evidence Target",
+            "available": true,
+            "disabled_reason": "",
+            "metadata": {
+                "daemon_id": "local",
+                "label": "Phase 2 Evidence Target"
+            },
+            "local_path": "/private/tmp/ariadne-phase2-evidence-store/.ariadne/demo_target_project",
+            "path_exists": true,
+            "is_git_repo": true,
+            "git_branch": "main",
+            "git_dirty": false,
+            "test_command": "",
+            "issue_prefix": "",
+            "boundary_role": "target_repo"
+        }
+    ],
+    "source": "project_resource_projection"
+}

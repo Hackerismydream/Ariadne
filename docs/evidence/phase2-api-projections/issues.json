@@ -1,0 +1,23 @@
+{
+    "schema_version": "ariadne.issues.v1",
+    "issues": [
+        {
+            "id": "ticket_903afb57e2ab",
+            "key": "ARI-003",
+            "title": "Add JSON export command to demo target CLI",
+            "status": "planning",
+            "priority": "high",
+            "assignee": "Build Lead",
+            "project": "resource_af692d8e43a5",
+            "target_version": "Phase 2 API current version",
+            "source_count": 2,
+            "evidence_count": 0,
+            "last_run_status": null,
+            "review_verdict": null,
+            "blocked_reason": null,
+            "updated_at": "2026-06-22T07:14:25Z"
+        }
+    ],
+    "scope": "current_version_mainline",
+    "source": "build_ticket_projection"
+}

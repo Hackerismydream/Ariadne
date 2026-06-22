@@ -1,0 +1,13 @@
+{
+    "schema_version": "ariadne.agent-task-snapshot.v1",
+    "snapshot": {
+        "active_assignment": "assignment_fdbf1ced5489",
+        "current_issue_key": "ARI-003",
+        "backend": null,
+        "queued_count": 0,
+        "blocked_count": 0,
+        "heartbeat": "2026-06-22T07:15:02Z",
+        "last_event": "DeepSeek build lead role blocked for ARI-003: DEEPSEEK_API_KEY is required for DeepSeekClient.; board: /private/tmp/ariadne-phase2-evidence-store/.ariadne/board/index.md"
+    },
+    "source": "assignment_daemon_projection"
+}

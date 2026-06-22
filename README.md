@@ -108,14 +108,10 @@ raw shell commands. The Workbench does show the registered target project path
 so the single local user can verify which repository Codex or Claude will
 modify.
 
-> **即将变更：** 默认路由将在 Phase 1 从 `#delivery` 变更为
-> `#issues`。原 Delivery 页面内容将上移为所有页面顶部的
-> `Current Version Context` persistent strip。见
-> `docs/superpowers/plans/2026-06-22-multica-grade-agent-team-workbench-rebuild-plan.md`
-> Phase 1。
-
-The default Workbench screen is currently **Current Version Delivery**. It is
-the product closure surface for the AI Builder loop:
+The default Workbench screen is now **Issues** (`#issues`). Current version
+delivery context is always visible at the top of every page through the
+`Current Version Context` strip. It keeps the product closure surface for the AI
+Builder loop in view:
 
 ```text
 Project goal + external inputs

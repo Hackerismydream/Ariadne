@@ -10,9 +10,9 @@
 
 ## 当前执行阶段
 
-Phase 1: Product IA and Current Version Context
+Phase 3: Issues Workbench 重构
 
-范围见下方 Phase 1 Scope 章节。不要执行 Phase 2-7 的任何内容。
+范围见 `docs/superpowers/plans/2026-06-22-phase3-handoff.md`。不要执行 Phase 4-7 的任何内容。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -38,51 +38,38 @@ Phase 1: Product IA and Current Version Context
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 1 Scope
+## Phase 3 Scope
 
 ### 做
 
-1. 默认 hash route 从 `delivery` 改为 `issues`（修改 `useState<PageKey>` 初始值）
-2. 新增 `CurrentVersionContext` 组件 — 固定在所有页面顶部的 persistent strip
-   - 数据来源：现有 `GET /api/workbench` 返回的 `currentVersionDelivery`
-   - 展示字段：Project, Target Version, Goal, Sources readiness, Issue Delta status, Active Run, Blocked count, Latest Evidence, Next Action
-3. 左侧导航 label 更新为：Issues, Sources, Plan Changes, Team, Runs, Inbox, Diagnostics
-4. `delivery` 页面内容整合进 `CurrentVersionContext` strip，`#delivery` hash 重定向到 `#issues`
-5. 更新 README 默认路由描述
-6. 所有现有测试继续通过（pytest 399 passed, ruff clean, npm run build success）
+1. 从 App.tsx 抽离组件到多文件结构（pages/, widgets/, app/shell/）
+2. Issues 页面切换到 `GET /api/issues`（不再从 `/api/workbench` aggregate 解析 issues）
+3. Issue board view：按 status 分列（Backlog/Ready/Assigned/Running/Review/Blocked/Done）
+4. Issue detail page：`#issues/{key}` 展示完整信息（body, assignments, evidence, timeline, comments, actions）
+5. 所有 action 调用真实 API（assign, run-now, rerun, comment）
+6. 保持 CurrentVersionContext strip 不变（仍从 `/api/workbench` 拿数据）
+7. 所有旧 hash route 仍然工作
 
 ### 不做
 
+- 不改后端 Python 代码
 - 不新增 API endpoint
-- 不拆分 App.tsx 为多文件路由系统
-- 不引入 React Router 或任何新前端依赖
-- 不创建新的 Issue 数据模型
-- 不改后端 Python 代码（除非修复 existing API response 不足以支持 Context strip 的字段）
-- 不实现 Phase 2-7 的任何功能
-
-### PageKey 映射表
-
-当前 -> Phase 1 后：
-
-| 当前 PageKey | Phase 1 后 | 说明 |
-|---|---|---|
-| `delivery` | 删除（重定向到 `issues`） | 内容上移为 CurrentVersionContext strip |
-| `project` | 保持 | 暂不改动 |
-| `sources` | 保持 | 暂不改动 |
-| `tasks` | 改名 `plan-changes` | label 改，hash 兼容 |
-| `ready` | 改名 `issues` | 成为默认页，hash `#issues` 已有 legacyMap 支持 |
-| `diagnostics` | 保持 | Phase 3+ 再拆分为 team/runs/inbox/diagnostics |
+- 不引入 React Router（继续 hash + useState）
+- 不引入新 npm 依赖
+- 不实现 drag-drop
+- 不实现 issue 创建/删除
+- 不实现 WebSocket 实时更新
+- 不改 Team/Runs/Inbox 页面（Phase 4）
 
 ### 验收标准
 
-1. 浏览器打开 `http://127.0.0.1:8766/` 默认显示 issues 页面
-2. 页面顶部有 CurrentVersionContext strip，展示当前版本核心信息
-3. 左侧导航显示新 label
-4. `#delivery` 自动跳转到 `#issues`
-5. `python3.11 -m pytest` — 全部通过
-6. `ruff check .` — clean
-7. `cd frontend/ariadne-workbench && npm run build` — success
-8. 截图证明以上 1-4 成立
+1. `python3.11 -m pytest` — 全部通过
+2. `ruff check .` — clean
+3. `cd frontend/ariadne-workbench && npm run build` — success
+4. 浏览器 `#issues` 展示 issue board（按 status 分列）
+5. 点击 card 进入 `#issues/{key}` detail 页面
+6. detail 页面 actions（assign/comment）调用真实 API
+7. 截图保存到 `docs/evidence/phase3-issues-workbench/`
 
 ## Multica 参考说明
 
