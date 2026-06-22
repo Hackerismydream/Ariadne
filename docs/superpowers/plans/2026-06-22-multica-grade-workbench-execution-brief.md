@@ -31,6 +31,9 @@
    - Lifecycle: `/Users/martinlos/code/multica/server/internal/handler/task_lifecycle.go`
    - Retry schema: `/Users/martinlos/code/multica/server/migrations/055_task_lease_and_retry.up.sql`
    - Daemon: `/Users/martinlos/code/multica/server/cmd/multica/cmd_daemon.go`
+
+> **降级规则：** 如果执行环境无法访问 Multica 路径，不要报错或跳过。直接使用主计划中的 "Multica 对照实现笔记" 章节作为参考依据。该章节已包含每个 phase 需要的 Multica 机制摘要。
+
 6. 当前 phase 对应的 Ariadne 代码入口：
    - Frontend shell: `/Users/martinlos/code/Ariadne/frontend/ariadne-workbench/src/App.tsx`
    - Frontend API client: `/Users/martinlos/code/Ariadne/frontend/ariadne-workbench/src/shared/api/client.ts`

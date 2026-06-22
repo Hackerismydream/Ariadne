@@ -429,9 +429,25 @@ Project Goal + Target Version -> Current Version Context -> Issues
 **命令:**
 
 ```bash
+cd /Users/martinlos/code/Ariadne
+python3.11 -m pytest
+ruff check .
 cd /Users/martinlos/code/Ariadne/frontend/ariadne-workbench
 npm run build
 ```
+
+### Phase 1 不做
+
+以下属于 Phase 2+ 的范围，Phase 1 严禁触碰：
+
+- 不新增任何 API endpoint（包括 `/api/issues`、`/api/team`、`/api/runs`）。
+- 不新增 Python 后端代码（除非是修复现有 API 返回数据不足以渲染 Context strip）。
+- 不拆分 `App.tsx` 为多文件路由系统，保持 monolithic shell。
+- 不引入 React Router 或任何新前端依赖。
+- 不创建新的数据模型（Issue model、Agent model、Run model）。
+- 不实现 issue board view / kanban / drag-drop。
+- 不实现 issue detail 页面。
+- 不实现 daemon claim / heartbeat / retry 逻辑。
 
 ---
 
