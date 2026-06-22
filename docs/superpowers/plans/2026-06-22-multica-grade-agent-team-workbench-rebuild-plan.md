@@ -5,7 +5,7 @@
 ## 计划元数据
 
 - **计划时间戳:** `2026-06-22 10:44:08 CST`
-- **最后更新:** `2026-06-22 10:44:08 CST`
+- **最后更新:** `2026-06-22 10:53:53 CST`
 - **目标版本:** Ariadne v1.x Multica-grade local Agent Team Workbench
 - **执行分支建议:** `codex/multica-grade-workbench-rebuild`
 - **执行对象:** 后续 Codex / Ariadne implementation agent
@@ -189,6 +189,141 @@ http://127.0.0.1:8766/#issues
 - Postgres-backed workspace service
 - hosted auth / billing / multi-tenant workspace
 - Multica 的完整 schema 和部署模型
+
+---
+
+## Multica 对照实现笔记
+
+本节来自 4 个 subagent 对 Multica 对应模块的并行阅读。后续实现必须把这些作为机制约束，而不是把 Multica 的代码结构原样搬进 Ariadne。
+
+### 1. Navigation / Product IA 对照
+
+**读到的 Multica 机制:**
+
+- `app-sidebar.tsx` 把导航分成个人待处理、工作对象、配置对象三层心智。
+- workspace 是 persistent context，所有导航 href 都由当前 workspace 派生。
+- sidebar header 提供 context-aware 的创建入口；在 project detail 中创建 issue 会自动带上 project context。
+- pinned section 让用户把当前关注的 issue/project 固定在侧栏，而不是只依赖页面标题。
+- 展示文案和 nav schema 解耦，label 不散落在组件里。
+
+**Ariadne 应吸收:**
+
+- 把 Multica 的 workspace context 换成 Ariadne 的 `Current Version Context`：当前项目、目标版本、目标、source readiness、issue delta、active run、blocker、latest evidence、next action。
+- 一级导航保持 `Issues / Sources / Plan Changes / Team / Runs / Inbox / Diagnostics`，不把 Agents、Runtimes、Skills 都摊成裸一级入口。
+- 新增集中 route/nav schema，所有主页面 href 必须由当前 project/version scope 派生。
+- `New Issue`、`Add Source`、`Review Plan Change` 必须自动带当前 project/version，不让用户重新选择上下文。
+- 可吸收 pinned 思路，但 pin 的对象应该是 current-version artifacts：关键 issue、source artifact、active run、blocker、evidence。
+
+**Ariadne 禁止照搬:**
+
+- 不引入 workspace switcher、workspace creation、invitations、hosted auth、logout/avatar、billing/usage。
+- 不照搬 Autopilot/Squads 的 SaaS team taxonomy；Ariadne 用 Build Lead、Reviewer、Runtime backend 和 current-version delivery 状态表达团队协作。
+- 不用 workspace slug 替代 Ariadne 的主上下文；主上下文必须是 AI Builder 的 project/version。
+
+**写入实施要求:**
+
+- Phase 1 必须先建立 `CurrentVersionStrip` 或同等 persistent context，再做漂亮导航。
+- `#issues` 默认展示 current-version mainline issue set；历史 repair issues 和旧 ARI/MCA issue 默认折叠到 Inbox/History。
+- route/nav schema 不允许散落在 `App.tsx` 字符串判断里。
+
+### 2. Issues Workbench 对照
+
+**读到的 Multica 机制:**
+
+- `IssuesPage` 是总控层：统一管理 view mode、grouping、status、priority、assignee、project、label、date、sort、agent-running filter。
+- agent 正在执行不是卡片本地猜测，而是 page 层订阅 task snapshot，派生 running issue ids，再参与过滤。
+- board/list/swimlane 共用同一批过滤结果；差异只是视图投影。
+- board 支持按 status 或 assignee 分组；拖拽只生成最小状态变更，例如 status、assignee、position。
+- issue detail 是单个 issue 的事实中心：标题、描述、属性、父子 issue、评论 timeline、execution log、PR/token/metadata 等在同一个 detail surface。
+- 评论和 activity 共用 timeline，但连续 activity 会合并，resolved thread 会折叠，避免执行噪音淹没用户讨论。
+- execution log 放在 issue detail 侧栏，语义是 active runs + collapsed past runs。
+
+**Ariadne 应吸收:**
+
+- Issues Workbench 先确定 current project/version issue set，再派生 status board、agent/backend board、list。
+- `Issue == BuildTicket projection`，但 UI 使用 issue 语言：status、assignee、priority、project/version、source tags、child progress、active run。
+- Board 至少保留两个组织维度：
+  - `grouping=status`：看交付流。
+  - `grouping=assignee/backend`：看 Codex、Claude、Reviewer、Human、Build Lead 的责任分布。
+- Issue card 必须显示 runtime snapshot 派生的 running、blocked、needs review、latest evidence。
+- Issue Detail 必须把 BuildTicket projection、source references、acceptance criteria、handoff packet、assignment、execution log、comments、review report、blocker、child repair issues 放在一个页面。
+- 子 issue 用于 current version 拆解和 repair path；repair issue 必须追溯 parent issue、run evidence、blocker id。
+- Timeline 应包含 comments、status/assignee 变更、run started/completed/failed、review、blocker，但默认合并降噪。
+
+**Ariadne 禁止照搬:**
+
+- 不照搬 React Query + Zustand + WebSocket invalidation 的完整协作模型；Ariadne v1.x 用 Python local API + `.ariadne` projection。
+- 不照搬 server pagination、workspace cache key、大规模 SaaS board 优化。
+- 不把 GitHub PR sidebar 做成默认复杂度；只有真实 run 产生 PR/diff evidence 时才展示。
+- 不新增第二套 issue persistence。
+
+**写入实施要求:**
+
+- Phase 3 必须把 Issue Detail 作为事实中心，不允许用户继续在 Delivery、Runs、Inbox、Artifacts 之间拼事实。
+- Execution Log 必须以 `issueId` 为主键展示 active run 和 collapsed past runs，并链接 stdout、stderr、diff、test result、review report、memory update。
+- 没有 evidence artifact 的 run 只能显示 blocked 或 failed，不能显示 success。
+
+### 3. Team / Runs / Daemon 对照
+
+**读到的 Multica 机制:**
+
+- Agent 不是抽象头像，而是绑定 runtime/backend 的可执行身份；列表展示 name、description、owner、runtime、model、visibility、runs、last active、status。
+- Agent status 由 agents + runtimes + task snapshot 批量推导，行内直接显示 Online / Unstable / Offline / Archived，并叠加 running/queued tasks。
+- Runtimes 页按 machine 聚合 runtime；即使本机 daemon 停止，也会合成 local placeholder，让 Start 按钮始终可见。
+- Runtime health 不是裸 status，而是由 `last_seen_at` 推导 online、recently_lost、offline、about_to_gc，并定时刷新。
+- daemon start/stop/restart/status/logs 是完整操作面：start 写 pid/log，等待 starting -> running；stop 优先 graceful shutdown，失败再 kill；status 输出 running/starting/stopped、pid、uptime、version、agents、workspaces。
+- task snapshot 是 shared truth：active task + latest outcome per agent；Agents、Runtimes、Issues 都从同一份 snapshot 派生 presence/workload。
+
+**Ariadne 应吸收:**
+
+- Team 页面把 agent 当成“绑定 runtime/backend capability 的可执行身份”，至少显示 name、role/capability、backend/runtime、model、skills、availability、running/queued count、last active、management actions。
+- Team / Runs / Issue Detail 的 running、queued、blocked 必须来自同一份 local task snapshot。
+- Runs 页面采用 machine-first local runtime 模型：顶部是 This Machine / Python daemon，下面列 Codex、Claude、Reviewer 等 backend capability。
+- daemon stopped / starting / not registered 时也必须显示 local machine placeholder，让 Start、Stop、Status、Logs、Diagnose 可达。
+- `why cannot run` 必须是一等 blocker reason，不是 toast 文案。至少包含：`daemon_stopped`、`daemon_starting`、`backend_cli_missing`、`runtime_offline`、`max_concurrency_reached`、`waiting_local_directory`、`handoff_missing`、`no_confirmed_issue_set`。
+- Current Version Context 顶部加入 active run 摘要：当前 issue、agent/backend、daemon state、running/queued count、latest evidence、top blocker。
+
+**Ariadne 禁止照搬:**
+
+- 不引入 Go daemon、Go server、Postgres、remote runtime registry、cloud runtime、多 workspace runtime grouping。
+- 不照搬完整 daemon CLI flags 面；UI 只暴露用户能理解的 Start、Stop、Restart、Status、Logs、Diagnose。
+- 不把 Multica AgentRuntime schema 原样搬进 `.ariadne`；Ariadne 需要的是 local backend capability projection。
+
+**写入实施要求:**
+
+- Phase 4 必须先做 shared local task snapshot，再做 Team / Runs UI，否则三处状态会各说各话。
+- Runtime / Agent workload 聚合方式：先建 `assignment.agent_id -> backend/runtime_id`，再聚合成 `runtime_id -> agentIds + runningCount + queuedCount + blockedCount`。
+- Archive / cancel agent work 必须带影响说明；如果 agent 有 running/queued assignments，UI 要提示会取消或阻断哪些 issue，并把 cancellation/blocker evidence 写回当前 version。
+
+### 4. Task Lifecycle 对照
+
+**读到的 Multica 机制:**
+
+- claim 是显式生命周期事件，不是简单取一条任务；它表达“谁拥有这次执行”。
+- `attempt`、`max_attempts`、`parent_task_id` 支持自动 retry 和 manual rerun 形成 attempt chain。
+- `failure_reason` 驱动 retry / rerun / blocker 策略，失败不是只有 `failed`。
+- runtime heartbeat 表示 daemon 是否活着；task heartbeat 表示当前任务是否还在推进。
+- daemon startup 做 orphan recovery：把上一代 daemon 遗留的 running/dispatched/waiting tasks 标记为 `runtime_recovery`，再走统一失败处理和 retry。
+- auto retry 和 manual rerun 语义不同：auto retry 可继承 session/work_dir；manual rerun 表示用户否定上次输出，默认 fresh session。
+
+**Ariadne 应吸收:**
+
+- 在 `.ariadne` local-first store 中把 `AgentRun` 作为一等对象，字段至少包括：`run_id`、`ticket_id`、`assignment_id`、`agent_id`、`backend`、`status`、`attempt`、`max_attempts`、`parent_run_id`、`failure_reason`、`session_id`、`work_dir`、`claimed_at`、`started_at`、`last_heartbeat_at`、`completed_at`、`evidence_paths`。
+- 用 JSONL lifecycle events 表达状态变化：`run:queued`、`run:claimed`、`run:started`、`run:heartbeat`、`run:failed`、`run:retry_queued`、`run:rerun_queued`、`run:completed`。
+- local claim 使用 Python 文件锁或 atomic write；不引入 DB lock。
+- Python daemon 启动时扫描 `.ariadne` 中属于当前 runtime 的 non-terminal runs，把遗留 `claimed/running` 标记为 `failed + runtime_recovery`，再按 retry policy 创建新 attempt 或 blocker。
+- retry policy 必须产品可见：Issue Detail / Runs 显示 Attempt 2/3、failure reason、parent run、是否自动 retry、为什么不 retry。
+
+**Ariadne 禁止照搬:**
+
+- 不引入 Postgres migration、`agent_task_queue` clone、`FOR UPDATE SKIP LOCKED`、server-side row lock、Go daemon。
+- 不把 lifecycle 藏成后端字段；它必须在 Issue Detail、Runs、Inbox、Current Version Context 中可见。
+
+**写入实施要求:**
+
+- Phase 6 必须把 Task Lifecycle 当产品能力，不是后端字段。
+- `failed` 不能是唯一失败信息；至少区分 `agent_error`、`timeout`、`runtime_offline`、`runtime_recovery`、`manual`、`blocked_external`。
+- retry exhausted 不能静默停在 failed；必须生成 blocker / inbox item，并把 issue next action 指向 rerun、修复环境、改 handoff 或人工介入。
 
 ---
 
@@ -835,3 +970,11 @@ Phase 7: browser dogfood closure evidence
 - [x] 增加 blocked dogfood 验收。
 - [x] 增加 `npm run e2e` / `verify_product_closure.sh` 硬门槛。
 - [x] 增加 commit / PR / rollback 规则。
+
+Multica 对照实现阅读已吸收：
+
+- [x] Issues Workbench：吸收 page-level scope/filter/snapshot、status/backend 双分组、Issue Detail 事实中心、Execution Log 降噪。
+- [x] Team / Runs / Daemon：吸收 agent capability、shared task snapshot、local machine placeholder、daemon Start/Stop/Status/Logs、why-cannot-run blocker reason。
+- [x] Task Lifecycle：吸收 claim、attempt chain、failure reason、heartbeat、orphan recovery、auto retry 与 manual rerun 区分。
+- [x] Navigation / IA：吸收 persistent context、context-aware create、pin current-version artifacts、集中 route/nav schema。
+- [x] 明确禁止照搬 Multica 的 Go/Postgres/workspace/auth/billing/remote runtime registry。
