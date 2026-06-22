@@ -10,9 +10,9 @@
 
 ## 当前执行阶段
 
-Phase 3: Issues Workbench 重构
+Phase 4: Team, Runs, and Inbox Control Surfaces
 
-范围见 `docs/superpowers/plans/2026-06-22-phase3-handoff.md`。不要执行 Phase 4-7 的任何内容。
+范围见 `docs/superpowers/plans/2026-06-22-phase4-handoff.md`。不要执行 Phase 5-7 的任何内容。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -38,38 +38,38 @@ Phase 3: Issues Workbench 重构
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 3 Scope
+## Phase 4 Scope
 
 ### 做
 
-1. 从 App.tsx 抽离组件到多文件结构（pages/, widgets/, app/shell/）
-2. Issues 页面切换到 `GET /api/issues`（不再从 `/api/workbench` aggregate 解析 issues）
-3. Issue board view：按 status 分列（Backlog/Ready/Assigned/Running/Review/Blocked/Done）
-4. Issue detail page：`#issues/{key}` 展示完整信息（body, assignments, evidence, timeline, comments, actions）
-5. 所有 action 调用真实 API（assign, run-now, rerun, comment）
-6. 保持 CurrentVersionContext strip 不变（仍从 `/api/workbench` 拿数据）
-7. 所有旧 hash route 仍然工作
+1. 扩展 `PageKey` 加入 `"team" | "runs" | "inbox"`，更新 routes.ts
+2. Team 页面消费 `GET /api/team/agents` + `/api/team/build-teams` + `/api/team/skills`
+3. Runs 页面消费 `GET /api/runs/runtimes` + `/api/runs/assignments` + `GET /api/daemon/status`
+4. Runs 页面支持 Start/Stop Daemon（`POST /api/daemon/start` / `POST /api/daemon/stop`）
+5. Inbox 页面消费 `GET /api/inbox`，支持 repair/rerun/acknowledge/resolve actions
+6. Diagnostics 只保留技术诊断，不再承载 team/runs/inbox 内容
+7. 所有已有 route 继续工作
 
 ### 不做
 
 - 不改后端 Python 代码
 - 不新增 API endpoint
-- 不引入 React Router（继续 hash + useState）
+- 不实现 agent 配置编辑（enable/disable、model selection）
+- 不实现 daemon claim/heartbeat/retry/orphan recovery（Phase 6）
+- 不实现 WebSocket
 - 不引入新 npm 依赖
-- 不实现 drag-drop
-- 不实现 issue 创建/删除
-- 不实现 WebSocket 实时更新
-- 不改 Team/Runs/Inbox 页面（Phase 4）
+- 不动 Issues 页面
+- 不动 Sources / Plan Changes 页面（Phase 5）
 
 ### 验收标准
 
 1. `python3.11 -m pytest` — 全部通过
 2. `ruff check .` — clean
 3. `cd frontend/ariadne-workbench && npm run build` — success
-4. 浏览器 `#issues` 展示 issue board（按 status 分列）
-5. 点击 card 进入 `#issues/{key}` detail 页面
-6. detail 页面 actions（assign/comment）调用真实 API
-7. 截图保存到 `docs/evidence/phase3-issues-workbench/`
+4. `#team` 展示 agents、build teams、skills
+5. `#runs` 展示 runtimes、assignments、daemon control（start/stop 调真实 API）
+6. `#inbox` 展示 items，actions 调真实 API
+7. 截图保存到 `docs/evidence/phase4-team-runs-inbox/`
 
 ## Multica 参考说明
 
