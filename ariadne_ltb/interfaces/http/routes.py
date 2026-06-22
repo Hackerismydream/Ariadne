@@ -14,6 +14,7 @@ from ariadne_ltb.application.dtos import (
     DaemonStartInput,
     InboxActionInput,
     IssueFactoryPreviewInput,
+    IssuePatchInput,
     RegisterTargetProjectInput,
     RunAssignmentInput,
 )
@@ -38,7 +39,14 @@ from ariadne_ltb.application.runtime_status import RuntimeStatusService
 from ariadne_ltb.application.source_analysis import SourceAnalysisService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.web_sources import WebSourceService
+from ariadne_ltb.application.workbench_agents import WorkbenchAgentsService
+from ariadne_ltb.application.workbench_inbox import WorkbenchInboxService
+from ariadne_ltb.application.workbench_issue_detail import WorkbenchIssueDetailService
+from ariadne_ltb.application.workbench_issues import WorkbenchIssuesService
+from ariadne_ltb.application.workbench_projects import WorkbenchProjectsService
 from ariadne_ltb.application.workbench_projection import WorkbenchProjectionService
+from ariadne_ltb.application.workbench_runtimes import WorkbenchRuntimesService
+from ariadne_ltb.application.workbench_task_snapshot import WorkbenchTaskSnapshotService
 from ariadne_ltb.interfaces.http.dependencies import get_store
 from ariadne_ltb.storage import AriadneStore
 
@@ -56,6 +64,127 @@ def get_workbench(
     store: AriadneStore = Depends(get_store),
 ) -> dict:
     return WorkbenchProjectionService(store).get(include_internal_backends).model_dump(mode="json")
+
+
+@router.get("/api/issues")
+def list_issues(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchIssuesService(store).list().model_dump(mode="json")
+
+
+@router.get("/api/issues/{issue_id_or_key}")
+def get_issue(issue_id_or_key: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchIssueDetailService(store).get(issue_id_or_key).model_dump(mode="json")
+
+
+@router.patch("/api/issues/{issue_id_or_key}")
+def patch_issue(
+    issue_id_or_key: str,
+    payload: IssuePatchInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return WorkbenchIssuesService(store).patch(issue_id_or_key, payload).model_dump(mode="json")
+
+
+@router.post("/api/issues/{issue_id_or_key}/comments")
+def create_issue_comment(
+    issue_id_or_key: str,
+    payload: CreateCommentInput,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    if idempotency_key and not payload.idempotency_key:
+        payload = payload.model_copy(update={"idempotency_key": idempotency_key})
+    return {
+        "comment": WorkbenchIssuesService(store)
+        .add_comment(issue_id_or_key, payload)["comment"]
+        .model_dump(mode="json")
+    }
+
+
+@router.get("/api/issues/{issue_id_or_key}/timeline")
+def issue_timeline(issue_id_or_key: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchIssuesService(store).timeline(issue_id_or_key).model_dump(mode="json")
+
+
+@router.post("/api/issues/{issue_id_or_key}/assign")
+def assign_issue(
+    issue_id_or_key: str,
+    payload: AssignTicketInput,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    if idempotency_key and not payload.idempotency_key:
+        payload = payload.model_copy(update={"idempotency_key": idempotency_key})
+    return WorkbenchIssuesService(store).assign(issue_id_or_key, payload).model_dump(mode="json")
+
+
+@router.post("/api/issues/{issue_id_or_key}/rerun")
+def rerun_issue(
+    issue_id_or_key: str,
+    payload: RunAssignmentInput,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    if idempotency_key and not payload.idempotency_key:
+        payload = payload.model_copy(update={"idempotency_key": idempotency_key})
+    return WorkbenchIssuesService(store).rerun(issue_id_or_key, payload).model_dump(mode="json")
+
+
+@router.post("/api/issues/{issue_id_or_key}/run-now")
+def run_issue_now(
+    issue_id_or_key: str,
+    payload: RunAssignmentInput,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    if idempotency_key and not payload.idempotency_key:
+        payload = payload.model_copy(update={"idempotency_key": idempotency_key})
+    return WorkbenchIssuesService(store).run_now(issue_id_or_key, payload).model_dump(mode="json")
+
+
+@router.get("/api/inbox")
+def list_inbox(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchInboxService(store).list().model_dump(mode="json")
+
+
+@router.get("/api/agent-task-snapshot")
+def agent_task_snapshot(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchTaskSnapshotService(store).get().model_dump(mode="json")
+
+
+@router.get("/api/projects")
+def list_projects(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchProjectsService(store).list().model_dump(mode="json")
+
+
+@router.get("/api/projects/{project_id}")
+def get_project(project_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchProjectsService(store).detail(project_id).model_dump(mode="json")
+
+
+@router.get("/api/team/agents")
+def list_team_agents(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).list_agents().model_dump(mode="json")
+
+
+@router.get("/api/team/build-teams")
+def list_build_teams(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).list_build_teams().model_dump(mode="json")
+
+
+@router.get("/api/team/skills")
+def list_team_skills(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).list_skills().model_dump(mode="json")
+
+
+@router.get("/api/runs/runtimes")
+def list_run_runtimes(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchRuntimesService(store).list_runtimes().model_dump(mode="json")
+
+
+@router.get("/api/runs/assignments")
+def list_run_assignments(store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchRuntimesService(store).list_assignments().model_dump(mode="json")
 
 
 @router.get("/api/runtime/status")

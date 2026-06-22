@@ -10,9 +10,9 @@
 
 ## 当前执行阶段
 
-Phase 1: Product IA and Current Version Context
+Phase 2: Multica-style API Projections
 
-范围见下方 Phase 1 Scope 章节。不要执行 Phase 2-7 的任何内容。
+范围见 `docs/superpowers/plans/2026-06-22-phase2-handoff.md`。不要执行 Phase 3-7 的任何内容。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -38,51 +38,51 @@ Phase 1: Product IA and Current Version Context
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 1 Scope
+## Phase 2 Scope
 
 ### 做
 
-1. 默认 hash route 从 `delivery` 改为 `issues`（修改 `useState<PageKey>` 初始值）
-2. 新增 `CurrentVersionContext` 组件 — 固定在所有页面顶部的 persistent strip
-   - 数据来源：现有 `GET /api/workbench` 返回的 `currentVersionDelivery`
-   - 展示字段：Project, Target Version, Goal, Sources readiness, Issue Delta status, Active Run, Blocked count, Latest Evidence, Next Action
-3. 左侧导航 label 更新为：Issues, Sources, Plan Changes, Team, Runs, Inbox, Diagnostics
-4. `delivery` 页面内容整合进 `CurrentVersionContext` strip，`#delivery` hash 重定向到 `#issues`
-5. 更新 README 默认路由描述
-6. 所有现有测试继续通过（pytest 399 passed, ruff clean, npm run build success）
+1. 新增 Multica-style read-model endpoints：
+   - `GET /api/issues`
+   - `GET /api/issues/{issue_id_or_key}`
+   - `PATCH /api/issues/{issue_id_or_key}`
+   - `POST /api/issues/{issue_id_or_key}/comments`
+   - `GET /api/issues/{issue_id_or_key}/timeline`
+   - `POST /api/issues/{issue_id_or_key}/assign`
+   - `POST /api/issues/{issue_id_or_key}/rerun`
+   - `POST /api/issues/{issue_id_or_key}/run-now`
+   - `GET /api/inbox`
+   - `GET /api/agent-task-snapshot`
+   - `GET /api/projects`
+   - `GET /api/projects/{project_id}`
+   - `GET /api/team/agents`
+   - `GET /api/team/build-teams`
+   - `GET /api/team/skills`
+   - `GET /api/runs/runtimes`
+   - `GET /api/runs/assignments`
+2. 所有 endpoint 必须从现有 `AriadneStore` 投影 `BuildTicket`、assignment、run、comment、artifact、inbox、runtime、agent profile、project resource。
+3. `/api/issues` 默认只返回 current project/version mainline issue set。
+4. action endpoints 必须复用现有 assign/run/comment/daemon services。
+5. `/api/workbench` 保持不变，作为 legacy aggregate。
+6. 新增真实 HTTP/API 测试和 curl evidence。
 
 ### 不做
 
-- 不新增 API endpoint
-- 不拆分 App.tsx 为多文件路由系统
-- 不引入 React Router 或任何新前端依赖
-- 不创建新的 Issue 数据模型
-- 不改后端 Python 代码（除非修复 existing API response 不足以支持 Context strip 的字段）
-- 不实现 Phase 2-7 的任何功能
-
-### PageKey 映射表
-
-当前 -> Phase 1 后：
-
-| 当前 PageKey | Phase 1 后 | 说明 |
-|---|---|---|
-| `delivery` | 删除（重定向到 `issues`） | 内容上移为 CurrentVersionContext strip |
-| `project` | 保持 | 暂不改动 |
-| `sources` | 保持 | 暂不改动 |
-| `tasks` | 改名 `plan-changes` | label 改，hash 兼容 |
-| `ready` | 改名 `issues` | 成为默认页，hash `#issues` 已有 legacyMap 支持 |
-| `diagnostics` | 保持 | Phase 3+ 再拆分为 team/runs/inbox/diagnostics |
+- 不修改前端代码。
+- 不修改 `/api/workbench` 返回结构。
+- 不新增 model 类到 `models.py`。
+- 不新增 JSON/JSONL 存储。
+- 不实现 WebSocket。
+- 不引入新 Python 依赖。
+- 不实现 Phase 3-7。
 
 ### 验收标准
 
-1. 浏览器打开 `http://127.0.0.1:8766/` 默认显示 issues 页面
-2. 页面顶部有 CurrentVersionContext strip，展示当前版本核心信息
-3. 左侧导航显示新 label
-4. `#delivery` 自动跳转到 `#issues`
-5. `python3.11 -m pytest` — 全部通过
-6. `ruff check .` — clean
-7. `cd frontend/ariadne-workbench && npm run build` — success
-8. 截图证明以上 1-4 成立
+1. `python3.11 -m pytest` — 全部通过。
+2. `ruff check .` — clean。
+3. `cd frontend/ariadne-workbench && npm run build` — success。
+4. 启动 workbench 后，用 curl 验证 Phase 2 endpoints 返回 HTTP 200 + 合法 JSON。
+5. curl 响应样例保存到 `docs/evidence/phase2-api-projections/`。
 
 ## Multica 参考说明
 
