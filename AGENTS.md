@@ -10,9 +10,9 @@
 
 ## 当前执行阶段
 
-Phase 4: Team, Runs, and Inbox Control Surfaces
+Phase 5: Sources and Plan Changes Integration
 
-范围见 `docs/superpowers/plans/2026-06-22-phase4-handoff.md`。不要执行 Phase 5-7 的任何内容。
+范围见 `docs/superpowers/plans/2026-06-22-phase5-handoff.md`。不要执行 Phase 6-7 的任何内容。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -38,38 +38,38 @@ Phase 4: Team, Runs, and Inbox Control Surfaces
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 4 Scope
+## Phase 5 Scope
 
 ### 做
 
-1. 扩展 `PageKey` 加入 `"team" | "runs" | "inbox"`，更新 routes.ts
-2. Team 页面消费 `GET /api/team/agents` + `/api/team/build-teams` + `/api/team/skills`
-3. Runs 页面消费 `GET /api/runs/runtimes` + `/api/runs/assignments` + `GET /api/daemon/status`
-4. Runs 页面支持 Start/Stop Daemon（`POST /api/daemon/start` / `POST /api/daemon/stop`）
-5. Inbox 页面消费 `GET /api/inbox`，支持 repair/rerun/acknowledge/resolve actions
-6. Diagnostics 只保留技术诊断，不再承载 team/runs/inbox 内容
-7. 所有已有 route 继续工作
+1. 从 App.tsx 抽离 `KnowledgePage` → `src/pages/sources/SourcesPage.tsx`
+2. 从 App.tsx 抽离 `TasksPage` → `src/pages/plan-changes/PlanChangesPage.tsx`
+3. Sources 页面改为"粘贴链接"为第一交互，展示 source lifecycle + artifacts + evidence
+4. Plan Changes 页面改为 "Issue Delta" 心智：按操作类型分组展示 delta items
+5. 应用 delta 后导航到 `#issues`，board 展示新 issue
+6. Stale preview 不崩溃，展示 refresh 选项
+7. 英文 labels（匹配其他页面）
+8. App.tsx 行数从 ~2012 减少到 ~1200
 
 ### 不做
 
 - 不改后端 Python 代码
 - 不新增 API endpoint
-- 不实现 agent 配置编辑（enable/disable、model selection）
-- 不实现 daemon claim/heartbeat/retry/orphan recovery（Phase 6）
-- 不实现 WebSocket
 - 不引入新 npm 依赖
-- 不动 Issues 页面
-- 不动 Sources / Plan Changes 页面（Phase 5）
+- 不改 Issues / Team / Runs / Inbox 页面
+- 不改 CurrentVersionContext strip
+- 不实现 source 删除
+- 不实现 real-time 分析进度（无 WebSocket）
 
 ### 验收标准
 
 1. `python3.11 -m pytest` — 全部通过
 2. `ruff check .` — clean
 3. `cd frontend/ariadne-workbench && npm run build` — success
-4. `#team` 展示 agents、build teams、skills
-5. `#runs` 展示 runtimes、assignments、daemon control（start/stop 调真实 API）
-6. `#inbox` 展示 items，actions 调真实 API
-7. 截图保存到 `docs/evidence/phase4-team-runs-inbox/`
+4. `#sources` — 粘贴 URL → 创建 + 分析 → lifecycle 展示 → "Go to Plan Changes"
+5. `#plan-changes` — Generate delta → delta items 分组展示 → Apply → navigate to `#issues`
+6. Stale preview 不 500，展示 refresh
+7. 截图保存到 `docs/evidence/phase5-sources-plan-changes/`
 
 ## Multica 参考说明
 
