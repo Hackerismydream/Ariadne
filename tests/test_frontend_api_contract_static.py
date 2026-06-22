@@ -6,6 +6,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 API_TYPES = ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "types.ts"
 APP = ROOT / "frontend" / "ariadne-workbench" / "src" / "App.tsx"
+ROUTES = ROOT / "frontend" / "ariadne-workbench" / "src" / "app" / "routes.ts"
+SIDEBAR = ROOT / "frontend" / "ariadne-workbench" / "src" / "app" / "shell" / "Sidebar.tsx"
+CURRENT_STRIP = (
+    ROOT / "frontend" / "ariadne-workbench" / "src" / "widgets" / "current-version" / "CurrentVersionStrip.tsx"
+)
+ISSUES_PAGE = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "issues" / "IssuesPage.tsx"
+ISSUE_DETAIL = ROOT / "frontend" / "ariadne-workbench" / "src" / "pages" / "issues" / "IssueDetail.tsx"
 DATA = ROOT / "frontend" / "ariadne-workbench" / "src" / "data.ts"
 AGENT_CONTROL = ROOT / "frontend" / "ariadne-workbench" / "src" / "features" / "agent-control" / "model.ts"
 RUNTIME_LIB = ROOT / "frontend" / "ariadne-workbench" / "src" / "entities" / "runtime" / "lib.ts"
@@ -88,33 +95,35 @@ def test_frontend_mutations_refresh_the_current_ticket() -> None:
 
 
 def test_frontend_assignment_events_show_recent_progress() -> None:
-    text = APP.read_text(encoding="utf-8")
+    text = ISSUE_DETAIL.read_text(encoding="utf-8")
 
-    assert "assignmentEvents.map((event)" in text
+    assert "issue.timeline.map((event)" in text
     assert "assignmentEvents.slice(-12)" not in text
     assert "assignmentEvents.slice(0, 6)" not in text
 
 
 def test_frontend_uses_latest_assignment_for_ticket_actions() -> None:
-    text = APP.read_text(encoding="utf-8")
-    inspector_block = text.split("function TicketInspector", 1)[1].split("return (", 1)[0]
+    text = ISSUE_DETAIL.read_text(encoding="utf-8")
 
-    assert "ticket.latestAssignmentId" in inspector_block
-    assert "assignment.id === ticket.latestAssignmentId" in inspector_block
-    assert "createdAt" in inspector_block
+    assert "assignIssue(issueKey" in text
+    assert "runIssueNow(issueKey" in text
+    assert "rerunIssue(issueKey" in text
+    assert "addIssueComment(issueKey" in text
 
 
 def test_frontend_exposes_daemon_and_execution_evidence_contract() -> None:
     api_types = API_TYPES.read_text(encoding="utf-8")
     app = APP.read_text(encoding="utf-8")
+    issue_detail = ISSUE_DETAIL.read_text(encoding="utf-8")
     data = DATA.read_text(encoding="utf-8")
     control = AGENT_CONTROL.read_text(encoding="utf-8")
 
     assert "export type ApiDaemonStatus" in api_types
     assert "export type ApiTicketEvidenceBundle" in api_types
     assert "daemon_status: ApiDaemonStatus" in api_types
-    assert "TicketExecutionEvidence" in app
-    assert "ExecutionEvidencePanel" in app
+    assert "ApiIssueExecutionResultSummary" in api_types
+    assert "Execution Results" in issue_detail
+    assert "Diff / Tests / Review" in issue_detail
     assert "data.daemonStatus" in app
     assert "本地运行时会自动 claim" in control
     assert "adaptTicketEvidence" in data
@@ -177,17 +186,21 @@ def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
 
 def test_frontend_product_path_defaults_to_current_issues_context() -> None:
     text = APP.read_text(encoding="utf-8")
-    page_key_block = text.split("type PageKey", 1)[1].split(";", 1)[0]
+    routes = ROUTES.read_text(encoding="utf-8")
+    sidebar = SIDEBAR.read_text(encoding="utf-8")
+    current_strip = CURRENT_STRIP.read_text(encoding="utf-8")
+    page_key_block = routes.split("export type PageKey", 1)[1].split(";", 1)[0]
 
     for page in ['"delivery"', '"project"', '"sources"', '"tasks"', '"ready"']:
         assert page in page_key_block
     assert '"knowledge"' not in page_key_block
     assert '"agents"' not in page_key_block
     assert 'initialRoute.page ?? "ready"' in text
-    assert 'redirectHash: "#issues"' in text
-    assert "CurrentVersionContext" in text
+    assert 'redirectHash: "#issues"' in routes
+    assert "CurrentVersionStrip" in text
+    assert "Current Version Context" in current_strip
     for label in ["Issues", "Sources", "Plan Changes", "Team", "Runs", "Inbox", "Diagnostics"]:
-        assert label in text
+        assert label in sidebar
     assert "ProjectVersionDelivery" in (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
         encoding="utf-8"
     )
@@ -243,7 +256,7 @@ def test_sources_page_does_not_label_unfetched_github_as_analyzed() -> None:
 
 
 def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:
-    app = APP.read_text(encoding="utf-8")
+    issue_detail = ISSUE_DETAIL.read_text(encoding="utf-8")
     types = (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
         encoding="utf-8"
     )
@@ -257,8 +270,8 @@ def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:
         "evidencePacketStale",
         "evidencePacketStaleReasons",
     ]:
-        assert field in types
-        assert field in sync_script
-    assert "下一步" in app
-    assert "证据包需要重新生成" in app
-    assert "证据过期" in app
+            assert field in types
+            assert field in sync_script
+    assert "Diff / Tests / Review" in issue_detail
+    assert "Execution Results" in issue_detail
+    assert "next_issue_links" in issue_detail

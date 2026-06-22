@@ -1,0 +1,67 @@
+{
+  "firstKey": "MCA-002",
+  "boardOk": 1,
+  "detailOk": 1,
+  "commentApiOk": true,
+  "assignApiOk": true,
+  "columns": [
+    "Backlog",
+    "Ready",
+    "Assigned",
+    "Running",
+    "Review",
+    "Blocked",
+    "Done"
+  ],
+  "sourcesOk": 1,
+  "planOk": 1,
+  "diagnosticsOk": 1,
+  "redirectedHash": "#issues",
+  "apiEvents": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/issues",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/issues/MCA-002",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8766/api/issues/MCA-002/comments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/issues/MCA-002",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8766/api/issues/MCA-002/assign",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/issues/MCA-002",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8766/api/issues",
+      "status": 200
+    }
+  ]
+}

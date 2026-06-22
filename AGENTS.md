@@ -10,9 +10,9 @@
 
 ## 当前执行阶段
 
-Phase 2: Multica-style API Projections
+Phase 3: Issues Workbench 重构
 
-范围见 `docs/superpowers/plans/2026-06-22-phase2-handoff.md`。不要执行 Phase 3-7 的任何内容。
+范围见 `docs/superpowers/plans/2026-06-22-phase3-handoff.md`。不要执行 Phase 4-7 的任何内容。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -38,51 +38,38 @@ Phase 2: Multica-style API Projections
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 2 Scope
+## Phase 3 Scope
 
 ### 做
 
-1. 新增 Multica-style read-model endpoints：
-   - `GET /api/issues`
-   - `GET /api/issues/{issue_id_or_key}`
-   - `PATCH /api/issues/{issue_id_or_key}`
-   - `POST /api/issues/{issue_id_or_key}/comments`
-   - `GET /api/issues/{issue_id_or_key}/timeline`
-   - `POST /api/issues/{issue_id_or_key}/assign`
-   - `POST /api/issues/{issue_id_or_key}/rerun`
-   - `POST /api/issues/{issue_id_or_key}/run-now`
-   - `GET /api/inbox`
-   - `GET /api/agent-task-snapshot`
-   - `GET /api/projects`
-   - `GET /api/projects/{project_id}`
-   - `GET /api/team/agents`
-   - `GET /api/team/build-teams`
-   - `GET /api/team/skills`
-   - `GET /api/runs/runtimes`
-   - `GET /api/runs/assignments`
-2. 所有 endpoint 必须从现有 `AriadneStore` 投影 `BuildTicket`、assignment、run、comment、artifact、inbox、runtime、agent profile、project resource。
-3. `/api/issues` 默认只返回 current project/version mainline issue set。
-4. action endpoints 必须复用现有 assign/run/comment/daemon services。
-5. `/api/workbench` 保持不变，作为 legacy aggregate。
-6. 新增真实 HTTP/API 测试和 curl evidence。
+1. 从 App.tsx 抽离组件到多文件结构（pages/, widgets/, app/shell/）
+2. Issues 页面切换到 `GET /api/issues`（不再从 `/api/workbench` aggregate 解析 issues）
+3. Issue board view：按 status 分列（Backlog/Ready/Assigned/Running/Review/Blocked/Done）
+4. Issue detail page：`#issues/{key}` 展示完整信息（body, assignments, evidence, timeline, comments, actions）
+5. 所有 action 调用真实 API（assign, run-now, rerun, comment）
+6. 保持 CurrentVersionContext strip 不变（仍从 `/api/workbench` 拿数据）
+7. 所有旧 hash route 仍然工作
 
 ### 不做
 
-- 不修改前端代码。
-- 不修改 `/api/workbench` 返回结构。
-- 不新增 model 类到 `models.py`。
-- 不新增 JSON/JSONL 存储。
-- 不实现 WebSocket。
-- 不引入新 Python 依赖。
-- 不实现 Phase 3-7。
+- 不改后端 Python 代码
+- 不新增 API endpoint
+- 不引入 React Router（继续 hash + useState）
+- 不引入新 npm 依赖
+- 不实现 drag-drop
+- 不实现 issue 创建/删除
+- 不实现 WebSocket 实时更新
+- 不改 Team/Runs/Inbox 页面（Phase 4）
 
 ### 验收标准
 
-1. `python3.11 -m pytest` — 全部通过。
-2. `ruff check .` — clean。
-3. `cd frontend/ariadne-workbench && npm run build` — success。
-4. 启动 workbench 后，用 curl 验证 Phase 2 endpoints 返回 HTTP 200 + 合法 JSON。
-5. curl 响应样例保存到 `docs/evidence/phase2-api-projections/`。
+1. `python3.11 -m pytest` — 全部通过
+2. `ruff check .` — clean
+3. `cd frontend/ariadne-workbench && npm run build` — success
+4. 浏览器 `#issues` 展示 issue board（按 status 分列）
+5. 点击 card 进入 `#issues/{key}` detail 页面
+6. detail 页面 actions（assign/comment）调用真实 API
+7. 截图保存到 `docs/evidence/phase3-issues-workbench/`
 
 ## Multica 参考说明
 
