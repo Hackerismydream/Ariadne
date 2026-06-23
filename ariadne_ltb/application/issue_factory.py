@@ -8,7 +8,7 @@ from ariadne_ltb.application.dtos import (
     IssueFactoryApplyOutput,
     IssueFactoryPreviewInput,
 )
-from ariadne_ltb.application.issue_compiler import CompiledIssueSpec, compile_issue_specs
+from ariadne_ltb.application.issue_compiler import CompiledIssueSpec
 from ariadne_ltb.application.issue_delta_validation import validate_issue_delta_operations
 from ariadne_ltb.application.mappers import backlog_preview_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
@@ -87,7 +87,15 @@ class IssueFactoryService:
         north_star: str,
         context: IssueFactoryContext,
     ) -> list[BacklogOperation]:
-        tasks = compile_issue_specs(self.store, title=title, north_star=north_star, context=context)
+        from ariadne_ltb.knowledge import compile_issues
+
+        tasks = compile_issues(
+            self.store,
+            project_id=context.manifest.target_project_id,
+            title=title,
+            north_star=north_star,
+            context=context,
+        )
         operations: list[BacklogOperation] = []
         existing_tickets = self.store.list_tickets()
         existing_keys = {ticket.key for ticket in existing_tickets}
