@@ -2876,6 +2876,95 @@ button:disabled {
   padding: 10px 0;
 }
 
+.execution-result-header,
+.artifact-link-row,
+.issue-blocker-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.artifact-link-row a {
+  overflow-wrap: anywhere;
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.verdict-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #f8fafc;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.verdict-badge.pass {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.verdict-badge.fail,
+.verdict-badge.blocked {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.issue-blocker-callout {
+  justify-content: space-between;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  padding: 12px 14px;
+  color: #7f1d1d;
+}
+
+.issue-blocker-callout p {
+  flex: 1;
+  min-width: 240px;
+  margin: 0;
+}
+
+.assignment-progress-panel {
+  margin: 0 20px;
+}
+
+.assignment-event-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assignment-event-list li {
+  display: grid;
+  gap: 3px;
+  border-left: 3px solid var(--primary);
+  background: #f8fafc;
+  padding: 8px 10px;
+}
+
+.assignment-event-list span,
+.assignment-event-list small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.assignment-event-list p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
 .phase3-timeline {
   list-style: none;
   margin: 0;

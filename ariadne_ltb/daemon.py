@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
-from ariadne_ltb.failure import record_assignment_failure
+from ariadne_ltb.failure import SAFE_RETRY_FAILURE_REASONS, record_assignment_failure
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
     AssignmentStatus,
@@ -21,6 +21,7 @@ from ariadne_ltb.models import (
 )
 from ariadne_ltb.orchestrator import TicketRunOrchestrator, TicketRunResult
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.storage import is_assignment_lease_expired
 from ariadne_ltb.llm import DeepSeekClient
 
 
@@ -52,6 +53,7 @@ class LocalDaemonWorker:
         allowed_backends: list[str] | None = None,
         isolate_worktree: bool = True,
     ) -> DaemonRunResult:
+        self._recover_stale_assignments()
         self._heartbeat(DaemonStatus.IDLE, "idle")
         assignment = self._next_assignment(
             assignment_id=assignment_id,
@@ -147,20 +149,21 @@ class LocalDaemonWorker:
                 actor=running.agent_name,
                 stage="execution",
             )
+            retried = self._maybe_auto_retry(ticket, failure.assignment)
+            latest_assignment = retried or failure.assignment
             self._heartbeat(
-                DaemonStatus.FAILED,
-                "failed",
-                assignment=failure.assignment,
+                DaemonStatus.IDLE if retried else DaemonStatus.FAILED,
+                "auto_retry_queued" if retried else "failed",
+                assignment=latest_assignment,
                 ticket=ticket,
-                last_event_id=failure.event_id,
-                last_error=failure.assignment.blocker,
+                last_error=None if retried else failure.assignment.blocker,
             )
             return DaemonRunResult(
                 runtime_id=self.runtime_id,
                 did_work=True,
-                assignment_id=running.id,
+                assignment_id=latest_assignment.id,
                 ticket_key=ticket.key,
-                status=failure.assignment.status.value,
+                status=latest_assignment.status.value,
                 message=str(exc),
             )
 
@@ -177,13 +180,15 @@ class LocalDaemonWorker:
                 actor=running.agent_name,
                 stage="execution",
             )
+            retried = self._maybe_auto_retry(ticket, failure.assignment)
+            heartbeat_assignment = retried or failure.assignment
             self._heartbeat(
-                DaemonStatus.BLOCKED,
-                "blocked",
-                assignment=failure.assignment,
+                DaemonStatus.IDLE if retried else DaemonStatus.BLOCKED,
+                "auto_retry_queued" if retried else "blocked",
+                assignment=heartbeat_assignment,
                 ticket=ticket,
                 last_event_id=failure.event_id,
-                last_error=failure.assignment.blocker,
+                last_error=None if retried else failure.assignment.blocker,
             )
         elif result.review_verdict == "pass":
             done = running.mark_done(
@@ -232,13 +237,15 @@ class LocalDaemonWorker:
                 actor=running.agent_name,
                 stage="review",
             )
+            retried = self._maybe_auto_retry(ticket, failure.assignment)
+            heartbeat_assignment = retried or failure.assignment
             self._heartbeat(
-                DaemonStatus.BLOCKED,
-                "blocked",
-                assignment=failure.assignment,
+                DaemonStatus.IDLE if retried else DaemonStatus.BLOCKED,
+                "auto_retry_queued" if retried else "blocked",
+                assignment=heartbeat_assignment,
                 ticket=ticket,
                 last_event_id=failure.event_id,
-                last_error=failure.assignment.blocker,
+                last_error=None if retried else failure.assignment.blocker,
             )
 
         latest = self.store.load_assignment(running.id)
@@ -257,6 +264,95 @@ class LocalDaemonWorker:
             message=f"assignment {latest.status.value}",
             ticket_run_result=result,
         )
+
+    def _recover_stale_assignments(self) -> int:
+        try:
+            heartbeat = self.store.load_worker_heartbeat(self.runtime_id)
+        except FileNotFoundError:
+            heartbeat = None
+        heartbeat_stale = heartbeat is None or is_stale_heartbeat(heartbeat)
+        recovered = 0
+        for assignment in self.store.list_assignments():
+            if assignment.status not in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
+                continue
+            if assignment.claimed_by_runtime_id != self.runtime_id:
+                continue
+            if not heartbeat_stale and not is_assignment_lease_expired(assignment):
+                continue
+            ticket = self.store.load_ticket(assignment.ticket_id)
+            requeued = assignment.requeue("Stale heartbeat - orphan recovery")
+            self.store.save_assignment(requeued)
+            event = runtime_event(
+                ticket,
+                self.runtime_id,
+                "recovery",
+                "orphan_requeued",
+                "Ariadne",
+                assignment_id=requeued.id,
+                payload_ref=requeued.id,
+                failure_reason=FailureReason.RUNTIME_RECOVERY,
+                metadata={
+                    "previous_status": assignment.status.value,
+                    "previous_runtime_id": assignment.claimed_by_runtime_id,
+                    "retry_count": requeued.metadata.get("retry_count"),
+                    "requeue_reason": requeued.metadata.get("requeue_reason"),
+                },
+            )
+            self.store.append_runtime_event(event)
+            self.store.add_comment(
+                ticket,
+                CommentAuthorType.SYSTEM,
+                "Ariadne",
+                CommentKind.RECOVERY,
+                f"Recovered stale assignment {assignment.id}; queued it for retry.",
+                payload_ref=requeued.id,
+                thread_id=requeued.id,
+            )
+            recovered += 1
+        return recovered
+
+    def _maybe_auto_retry(
+        self,
+        ticket: BuildTicket,
+        assignment: TicketAssignment,
+        max_retries: int = 2,
+    ) -> TicketAssignment | None:
+        if assignment.failure_reason not in SAFE_RETRY_FAILURE_REASONS:
+            return None
+        retry_count = int(assignment.metadata.get("retry_count", 0))
+        if retry_count >= max_retries:
+            return None
+        requeued = assignment.requeue(f"Auto-retry #{retry_count + 1}: {assignment.failure_reason.value}")
+        self.store.save_assignment(requeued)
+        self.store.add_comment(
+            ticket,
+            CommentAuthorType.SYSTEM,
+            "Ariadne",
+            CommentKind.RECOVERY,
+            (
+                f"Auto-retry queued for assignment {assignment.id} "
+                f"({requeued.metadata.get('retry_count')}/{max_retries})."
+            ),
+            payload_ref=requeued.id,
+            thread_id=requeued.id,
+        )
+        event = runtime_event(
+            ticket,
+            self.runtime_id,
+            "retry",
+            "auto_retry_queued",
+            "Ariadne",
+            assignment_id=requeued.id,
+            payload_ref=requeued.id,
+            failure_reason=assignment.failure_reason,
+            metadata={
+                "retry_count": requeued.metadata.get("retry_count"),
+                "max_retries": max_retries,
+                "requeue_reason": requeued.metadata.get("requeue_reason"),
+            },
+        )
+        self.store.append_runtime_event(event)
+        return requeued
 
     def run_loop(
         self,

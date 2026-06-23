@@ -488,6 +488,8 @@ class AriadneStore:
     ) -> bool:
         if assignment.status is AssignmentStatus.READY_TO_CLAIM:
             pass
+        elif assignment.status is AssignmentStatus.QUEUED and assignment.metadata.get("requeue_reason"):
+            pass
         elif assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
             if not is_assignment_lease_expired(assignment):
                 return False

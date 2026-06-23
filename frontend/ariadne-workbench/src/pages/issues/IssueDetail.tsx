@@ -1,7 +1,7 @@
 import { ArrowLeft, MessageSquare, Play, RotateCcw, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { addIssueComment, assignIssue, getIssue, rerunIssue, runIssueNow } from "../../shared/api/client";
-import type { ApiIssueDetail } from "../../shared/api/types";
+import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, rerunIssue, runIssueNow } from "../../shared/api/client";
+import type { ApiAssignmentSummary, ApiIssueDetail, AssignmentEvent } from "../../shared/api/types";
 import type { ProjectResource, RuntimeInfo } from "../../types";
 
 function idempotencyKey(prefix: string) {
@@ -33,6 +33,10 @@ function statusLabel(status: string | null | undefined) {
   return labels[status ?? ""] ?? status ?? "Unknown";
 }
 
+function activeAssignment(assignments: ApiAssignmentSummary[]) {
+  return assignments.find((assignment) => ["claimed", "running"].includes(assignment.status)) ?? null;
+}
+
 export function IssueDetail({
   issueKey,
   readOnly,
@@ -56,12 +60,15 @@ export function IssueDetail({
   const [comment, setComment] = useState("");
   const [confirmationToken, setConfirmationToken] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
+  const [eventsMessage, setEventsMessage] = useState("");
   const activeRuntime = useMemo(
     () => runtimes.find((runtime) => runtime.backend === selectedRuntime && runtime.canAssign)
       ?? runtimes.find((runtime) => runtime.canAssign)
       ?? runtimes[0],
     [runtimes, selectedRuntime],
   );
+  const active = issue ? activeAssignment(issue.assignments) : null;
 
   async function refreshIssue() {
     setLoading(true);
@@ -78,6 +85,39 @@ export function IssueDetail({
   useEffect(() => {
     void refreshIssue();
   }, [issueKey]);
+
+  useEffect(() => {
+    if (!active?.id) {
+      setAssignmentEvents([]);
+      setEventsMessage("");
+      return undefined;
+    }
+
+    const assignmentId = active.id;
+    let cancelled = false;
+    async function refreshEvents() {
+      try {
+        const response = await getAssignmentEvents(assignmentId);
+        if (!cancelled) {
+          setAssignmentEvents(response.events);
+          setEventsMessage("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setEventsMessage(errorMessage(error));
+        }
+      }
+    }
+
+    void refreshEvents();
+    const interval = globalThis.setInterval(() => {
+      void refreshEvents();
+    }, 5000);
+    return () => {
+      cancelled = true;
+      globalThis.clearInterval(interval);
+    };
+  }, [active?.id]);
 
   async function runAction(label: string, action: () => Promise<string>) {
     if (busyAction) return;
@@ -187,6 +227,13 @@ export function IssueDetail({
         </button>
       </section>
       {message ? <p className="action-message">{message}</p> : null}
+      {issue.blocked_reason ? (
+        <section className="issue-blocker-callout" data-testid="issue-blocker-link">
+          <strong>Blocked</strong>
+          <p>{issue.blocked_reason}</p>
+          <button type="button" onClick={() => { globalThis.location.hash = "#inbox"; }}>Open Inbox</button>
+        </section>
+      ) : null}
 
       <div className="issue-detail-grid">
         <main className="issue-detail-main">
@@ -194,15 +241,41 @@ export function IssueDetail({
             <h2>Execution Results</h2>
             {issue.execution_results.length ? issue.execution_results.map((result) => (
               <article className="execution-result-row" key={result.id}>
-                <strong>{result.backend_name}</strong>
+                <header className="execution-result-header">
+                  <strong>{result.backend_name}</strong>
+                  <span className={result.blocked ? "verdict-badge blocked" : "verdict-badge pass"}>
+                    {result.blocked ? `blocked: ${display(result.failure_reason)}` : "completed"}
+                  </span>
+                </header>
                 <span>exit {display(result.exit_code)}</span>
                 <span>tests {display(result.test_exit_code)}</span>
-                <span>{result.blocked ? `blocked: ${display(result.failure_reason)}` : "not blocked"}</span>
                 <div className="file-list">
                   {result.changed_files.length ? result.changed_files.map((file) => <code key={file}>{file}</code>) : <span>No changed files recorded</span>}
                 </div>
+                <div className="artifact-link-row">
+                  {result.diff_artifact_path ? <a href={`#artifact:${encodeURIComponent(result.diff_artifact_path)}`}>Diff artifact: {result.diff_artifact_path}</a> : <span>No diff artifact recorded</span>}
+                  {result.execution_log_artifact_path ? <a href={`#artifact:${encodeURIComponent(result.execution_log_artifact_path)}`}>Execution log: {result.execution_log_artifact_path}</a> : null}
+                </div>
               </article>
             )) : <p className="empty-column">No execution results yet.</p>}
+          </section>
+
+          <section className="panel" data-testid="issue-assignment-progress">
+            <h2>Assignment Progress</h2>
+            {active ? <p><strong>{active.id}</strong> · {statusLabel(active.status)} · polling every 5s</p> : <p className="empty-column">No active assignment is currently claimed or running.</p>}
+            {eventsMessage ? <p className="action-message">{eventsMessage}</p> : null}
+            {assignmentEvents.length ? (
+              <ol className="assignment-event-list">
+                {assignmentEvents.map((event) => (
+                  <li key={event.id}>
+                    <span>{event.timestamp}</span>
+                    <strong>{event.stage} / {event.event_type}</strong>
+                    <p>{event.summary}</p>
+                    <small>{event.actor}{event.ref_id ? ` · ${event.ref_id}` : ""}</small>
+                  </li>
+                ))}
+              </ol>
+            ) : active ? <p className="empty-column">No progress events recorded yet.</p> : null}
           </section>
 
           <section className="panel">
@@ -238,7 +311,10 @@ export function IssueDetail({
               <div><span>Assignee</span><strong>{display(issue.assignee, "Unassigned")}</strong></div>
               <div><span>Runtime</span><strong>{activeRuntime?.backend ?? selectedRuntime}</strong></div>
               <div><span>Last run</span><strong>{display(issue.last_run_status)}</strong></div>
-              <div><span>Review</span><strong>{display(issue.review_verdict)}</strong></div>
+              <div>
+                <span>Review</span>
+                <strong className={`verdict-badge ${issue.review_verdict ?? "unknown"}`}>{display(issue.review_verdict)}</strong>
+              </div>
               <div><span>Evidence</span><strong>{issue.evidence_count}</strong></div>
               <div><span>Blocked</span><strong>{display(issue.blocked_reason, "No")}</strong></div>
             </div>

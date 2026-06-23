@@ -1,13 +1,14 @@
 import { Monitor, Play, RefreshCw, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
+  getAssignmentEvents,
   getDaemonStatus,
   getRunsAssignments,
   getRunsRuntimes,
   startDaemon,
   stopDaemon,
 } from "../../shared/api/client";
-import type { ApiAssignmentSummary, ApiDaemonStatus, ApiRunsRuntime } from "../../shared/api/types";
+import type { ApiAssignmentSummary, ApiDaemonStatus, ApiRunsRuntime, AssignmentEvent } from "../../shared/api/types";
 
 function display(value: string | number | boolean | null | undefined, fallback = "Not recorded") {
   if (value === null || value === undefined || value === "") return fallback;
@@ -38,6 +39,11 @@ export function RunsPage() {
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [progressEvents, setProgressEvents] = useState<AssignmentEvent[]>([]);
+  const [progressMessage, setProgressMessage] = useState("");
+  const activeAssignmentId = daemon?.current_assignment_id
+    ?? assignments.find((assignment) => ["claimed", "running"].includes(assignment.status))?.id
+    ?? null;
 
   async function refreshRuns() {
     setLoading(true);
@@ -76,6 +82,39 @@ export function RunsPage() {
   useEffect(() => {
     void refreshRuns();
   }, []);
+
+  useEffect(() => {
+    if (!activeAssignmentId) {
+      setProgressEvents([]);
+      setProgressMessage("");
+      return undefined;
+    }
+
+    const assignmentId = activeAssignmentId;
+    let cancelled = false;
+    async function refreshProgress() {
+      try {
+        const response = await getAssignmentEvents(assignmentId);
+        if (!cancelled) {
+          setProgressEvents(response.events);
+          setProgressMessage("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setProgressMessage(error instanceof Error ? error.message : "Failed to load assignment progress.");
+        }
+      }
+    }
+
+    void refreshProgress();
+    const interval = globalThis.setInterval(() => {
+      void refreshProgress();
+    }, 5000);
+    return () => {
+      cancelled = true;
+      globalThis.clearInterval(interval);
+    };
+  }, [activeAssignmentId]);
 
   return (
     <section className="page full-bleed runs-page">
@@ -145,6 +184,24 @@ export function RunsPage() {
         </div>
       </section>
       {daemon?.last_error ? <p className="action-message">{daemon.last_error}</p> : null}
+
+      <section className="panel wide assignment-progress-panel" data-testid="runs-assignment-progress">
+        <h2>Active Assignment Progress</h2>
+        {activeAssignmentId ? <p><strong>{activeAssignmentId}</strong> · polling every 5s</p> : <p className="empty-column">No active assignment is currently claimed or running.</p>}
+        {progressMessage ? <p className="action-message">{progressMessage}</p> : null}
+        {progressEvents.length ? (
+          <ol className="assignment-event-list">
+            {progressEvents.slice(-12).map((event) => (
+              <li key={event.id}>
+                <span>{event.timestamp}</span>
+                <strong>{event.stage} / {event.event_type}</strong>
+                <p>{event.summary}</p>
+                <small>{event.actor}{event.ref_id ? ` · ${event.ref_id}` : ""}</small>
+              </li>
+            ))}
+          </ol>
+        ) : activeAssignmentId ? <p className="empty-column">No progress events recorded yet.</p> : null}
+      </section>
 
       <div className="control-surface-grid">
         <section className="panel wide">

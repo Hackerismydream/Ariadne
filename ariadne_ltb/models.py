@@ -657,6 +657,28 @@ class TicketAssignment(AriadneModel):
         assignment.lease_expires_at = None
         return assignment
 
+    def requeue(self, reason: str) -> TicketAssignment:
+        retry_count = int(self.metadata.get("retry_count", 0)) + 1
+        return self.model_copy(
+            deep=True,
+            update={
+                "status": AssignmentStatus.QUEUED,
+                "claimed_by_runtime_id": None,
+                "claimed_at": None,
+                "lease_expires_at": None,
+                "started_at": None,
+                "ended_at": None,
+                "blocker": None,
+                "failure_reason": None,
+                "metadata": self.metadata
+                | {
+                    "requeue_reason": reason,
+                    "retry_count": retry_count,
+                    "last_requeued_at": utc_now(),
+                },
+            },
+        )
+
 
 class TicketComment(AriadneModel):
     id: str

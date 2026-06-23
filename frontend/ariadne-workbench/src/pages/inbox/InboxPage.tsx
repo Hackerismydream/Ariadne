@@ -69,6 +69,20 @@ export function InboxPage() {
     void refreshInbox();
   }, []);
 
+  useEffect(() => {
+    function refreshOnInboxNavigation() {
+      if (globalThis.location.hash.startsWith("#inbox")) {
+        void refreshInbox();
+      }
+    }
+    globalThis.addEventListener("hashchange", refreshOnInboxNavigation);
+    globalThis.addEventListener("focus", refreshOnInboxNavigation);
+    return () => {
+      globalThis.removeEventListener("hashchange", refreshOnInboxNavigation);
+      globalThis.removeEventListener("focus", refreshOnInboxNavigation);
+    };
+  }, []);
+
   return (
     <section className="page full-bleed inbox-control-page">
       <header className="page-header">

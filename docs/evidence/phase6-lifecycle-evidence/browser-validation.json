@@ -1,0 +1,88 @@
+{
+  "evidenceDir": "/Users/martinlos/code/Ariadne/docs/evidence/phase6-lifecycle-evidence",
+  "daemon": {
+    "status": "running",
+    "current_assignment_id": "assignment_cc9025949897",
+    "current_ticket_key": "MCA-001"
+  },
+  "selectedIssue": "MCA-001",
+  "screenshotMode": "viewport-jpeg",
+  "runs": {
+    "hasProgressPanel": true,
+    "mentionsPolling": true,
+    "hasAssignments": true
+  },
+  "issueDetail": {
+    "hasAssignmentProgress": true,
+    "hasExecutionResults": true,
+    "hasReviewBadge": true,
+    "hasDiffArtifactLabel": true,
+    "hasInboxLink": true
+  },
+  "inbox": {
+    "visible": true,
+    "hasRecoveryActions": true
+  },
+  "apiEvents": [
+    {
+      "url": "http://127.0.0.1:8766/api/runs/assignments",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/daemon/status",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/runs/runtimes",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/assignments/assignment_cc9025949897/events",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/assignments/assignment_cc9025949897/events",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/assignments/assignment_cc9025949897/events",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/workbench",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/assignments/assignment_cc9025949897/events",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/issues",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/issues/MCA-001",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/assignments/assignment_cc9025949897/events",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:8766/api/inbox",
+      "status": 200,
+      "method": "GET"
+    }
+  ]
+}
