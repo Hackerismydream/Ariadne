@@ -133,6 +133,38 @@ def test_compile_graph_uses_theme_fallback_when_planning_llm_fails(tmp_path: Pat
     assert specs[0].evidence_refs == ["theme_0"]
 
 
+def test_retry_prompt_includes_previous_quality_issues(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    knowledge = ProjectKnowledgeStore(store, "project_1")
+    purpose = knowledge.save_project_purpose(
+        ProjectPurpose(project_id="project_1", title="Project", one_line="Build")
+    )
+    knowledge.save_synthesis_theme(
+        SynthesisTheme(
+            id="theme_1",
+            project_id="project_1",
+            label="Theme",
+            contributing_source_ids=["source_1"],
+            claims=["Claim"],
+            priority_signal="high",
+            affected_modules=["module.py"],
+            last_updated_cycle="cycle_1",
+        )
+    )
+    llm = RetryingCompileLLM()
+
+    specs = compile_from_knowledge(
+        store,
+        project_id="project_1",
+        target_project_id="project_1",
+        purpose=purpose,
+        llm=llm,
+    )
+
+    assert len(specs) == 3
+    assert "count_out_of_range" in llm.plan_prompts[1]
+
+
 def _issue(title: str, evidence_ref: str) -> dict[str, Any]:
     return {
         "title": title,
@@ -183,6 +215,37 @@ class FailingPlanLLM:
                     _sparse_issue("Implement Theme 1") | {"evidence_refs": ["theme_1"]},
                     _sparse_issue("Implement Theme 2") | {"evidence_refs": ["theme_2"]},
                 ]
+            }
+        if schema_name == "GoalCoverageScore":
+            return {"coverage": 0.8, "reason": "ok"}
+        raise AssertionError(schema_name)
+
+
+class RetryingCompileLLM:
+    def __init__(self) -> None:
+        self.plan_prompts: list[str] = []
+
+    def complete_json(self, prompt: str, schema_name: str) -> dict[str, Any]:
+        if schema_name == "IssueDecompositionDrafts":
+            self.plan_prompts.append(prompt)
+            if len(self.plan_prompts) == 1:
+                return {"issues": [_issue("Too small", "theme_1")]}
+            return {
+                "issues": [
+                    _issue("One", "theme_1"),
+                    _issue("Two", "theme_1"),
+                    _issue("Three", "theme_1"),
+                ]
+            }
+        if schema_name == "GroundedIssueDrafts":
+            return {
+                "issues": [
+                    _issue("One", "theme_1"),
+                    _issue("Two", "theme_1"),
+                    _issue("Three", "theme_1"),
+                ]
+                if len(self.plan_prompts) > 1
+                else [_issue("Too small", "theme_1")]
             }
         if schema_name == "GoalCoverageScore":
             return {"coverage": 0.8, "reason": "ok"}

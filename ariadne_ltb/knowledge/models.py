@@ -31,6 +31,7 @@ class SourceInsight(AriadneModel):
     id: str
     project_id: str
     source_document_id: str
+    source_content_hash: str = ""
     summary: str
     key_claims: list[ClaimWithEvidence] = Field(default_factory=list)
     reusable_patterns: list[str] = Field(default_factory=list)
@@ -84,4 +85,3 @@ class OutcomeEntry(AriadneModel):
 class OutcomesLog(AriadneModel):
     project_id: str
     entries: list[OutcomeEntry] = Field(default_factory=list)
-

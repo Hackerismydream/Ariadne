@@ -22,19 +22,31 @@ def plan_decomposition(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, An
     contradictions = [
         ContradictionRecord.model_validate(item) for item in state.get("unresolved_contradictions", [])
     ]
+    previous_quality_issues = list(state.get("quality_issues") or [])
     try:
         response = llm.complete_json(
-            plan_decomposition_prompt(purpose, themes, outcomes, blockers, contradictions),
+            plan_decomposition_prompt(
+                purpose,
+                themes,
+                outcomes,
+                blockers,
+                contradictions,
+                previous_quality_issues,
+            ),
             "IssueDecompositionDrafts",
         )
     except Exception:
         return {
             "draft_issues": _drafts_from_themes(themes),
             "compile_attempts": int(state.get("compile_attempts") or 0) + 1,
-            "quality_issues": [*state.get("quality_issues", []), "llm_plan_decomposition_failed"],
+            "quality_issues": [],
         }
     issues = [item for item in response.get("issues", []) if isinstance(item, dict)]
-    return {"draft_issues": issues, "compile_attempts": int(state.get("compile_attempts") or 0) + 1}
+    return {
+        "draft_issues": issues,
+        "compile_attempts": int(state.get("compile_attempts") or 0) + 1,
+        "quality_issues": [],
+    }
 
 
 def _drafts_from_themes(themes: list[SynthesisTheme]) -> list[dict[str, Any]]:

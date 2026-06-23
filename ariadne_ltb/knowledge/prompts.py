@@ -88,8 +88,18 @@ def plan_decomposition_prompt(
     outcomes_log: OutcomesLog,
     blockers: list[BlockerLearning],
     contradictions: list[ContradictionRecord],
+    previous_quality_issues: list[str] | None = None,
 ) -> str:
+    feedback_block = ""
+    if previous_quality_issues:
+        feedback_block = (
+            "\nThe previous compilation attempt failed these quality checks. "
+            "Fix them in this retry:\n"
+            + "\n".join(f"- {issue}" for issue in previous_quality_issues)
+            + "\n"
+        )
     return f"""{purpose_prompt_header(purpose)}
+{feedback_block}
 
 Generate a project issue decomposition for the current version.
 Return only JSON with:
@@ -172,4 +182,3 @@ Blocker reason: {blocker_reason}
 Summary:
 {summary}
 """
-

@@ -17,40 +17,68 @@ def reflect_on_run(
 ) -> None:
     if not run.status.is_terminal:
         return
+    try:
+        _reflect_inner(store, run, review, llm)
+    except Exception:
+        return
+
+
+def _reflect_inner(
+    store: AriadneStore,
+    run: AgentRun,
+    review: ReviewReport | None,
+    llm: KnowledgeLLM | None,
+) -> None:
     ticket = store.load_ticket(run.ticket_id)
     project_id = str(ticket.metadata.get("target_project_id") or "default")
     knowledge_store = ProjectKnowledgeStore(store, project_id)
     log = knowledge_store.load_outcomes_log()
-    existing_entry = next(
-        (entry for entry in log.entries if entry.ticket_key == ticket.key and f"run:{run.id}" in entry.learnings),
-        None,
-    )
-    if existing_entry:
-        if review and existing_entry.review_verdict is None:
-            existing_entry.review_verdict = review.verdict.value
-            knowledge_store.save_outcomes_log(log)
-        return
-    status = _outcome_status(run.status)
-    blocker_reason = run.failure_reason.value if run.failure_reason else None
-    entry = OutcomeEntry(
-        ticket_key=ticket.key,
-        ticket_title=ticket.title,
-        status=status,
-        review_verdict=review.verdict.value if review else None,
-        blocker_reason=blocker_reason,
-        learnings=[
-            f"run:{run.id}",
-            run.output_summary or run.error or "Agent run reached a terminal state.",
-        ],
-    )
-    log.entries.append(entry)
+    new_status = _outcome_status(run.status)
+    new_blocker = run.failure_reason.value if run.failure_reason else None
+    new_review = review.verdict.value if review else None
+    new_learning = run.output_summary or run.error or ""
+
+    open_entry = None
+    for entry in reversed(log.entries):
+        if entry.ticket_key != ticket.key:
+            continue
+        if entry.review_verdict is None or (
+            entry.status == "done" and entry.blocker_reason is None and new_blocker
+        ):
+            open_entry = entry
+        break
+
+    blocker_added = False
+    if open_entry is not None:
+        if new_review and open_entry.review_verdict is None:
+            open_entry.review_verdict = new_review
+        if new_blocker and open_entry.blocker_reason is None:
+            open_entry.blocker_reason = new_blocker
+            blocker_added = True
+            if open_entry.status == "done":
+                open_entry.status = new_status
+        if new_learning and new_learning not in open_entry.learnings:
+            open_entry.learnings.append(new_learning)
+    else:
+        log.entries.append(
+            OutcomeEntry(
+                ticket_key=ticket.key,
+                ticket_title=ticket.title,
+                status=new_status,
+                review_verdict=new_review,
+                blocker_reason=new_blocker,
+                learnings=[new_learning] if new_learning else [],
+            )
+        )
+        blocker_added = bool(new_blocker)
+
     knowledge_store.save_outcomes_log(log)
-    if blocker_reason:
+    if new_blocker and blocker_added:
         _upsert_blocker_learning(
             knowledge_store,
             ticket.key,
-            blocker_reason,
-            run.output_summary or run.error or "",
+            new_blocker,
+            new_learning,
             llm,
         )
 

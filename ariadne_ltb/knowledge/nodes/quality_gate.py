@@ -9,7 +9,7 @@ from ariadne_ltb.knowledge.prompts import goal_coverage_prompt
 
 def quality_gate(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
     specs = [dict(item) for item in state.get("validated_issues", [])]
-    issues: list[str] = list(state.get("quality_issues", []))
+    issues: list[str] = []
     score = 1.0
 
     if not (3 <= len(specs) <= 20):
@@ -76,4 +76,3 @@ def quality_gate(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
 
 def _has_hard_failure(issues: list[str]) -> bool:
     return "dependency_cycle" in issues or "count_out_of_range" in issues
-

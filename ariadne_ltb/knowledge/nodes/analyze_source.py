@@ -35,6 +35,7 @@ def analyze_source(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
         id=stable_id("source_insight", state["project_id"], source_id),
         project_id=state["project_id"],
         source_document_id=source_id,
+        source_content_hash=str(source.get("content_hash") or ""),
         summary=str(response.get("summary") or source.get("summary") or ""),
         key_claims=claims,
         reusable_patterns=[str(item) for item in response.get("reusable_patterns", [])],
@@ -43,4 +44,3 @@ def analyze_source(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
         last_ingest_cycle=state["cycle_id"],
     )
     return {"new_insights": [insight], "current_source_index": index + 1}
-

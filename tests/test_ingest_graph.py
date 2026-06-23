@@ -53,6 +53,40 @@ def test_ingest_graph_persists_only_new_source_insight(tmp_path: Path) -> None:
     assert len(knowledge.list_source_insights()) == 1
 
 
+def test_ingest_graph_re_runs_when_source_content_hash_changes(tmp_path: Path) -> None:
+    store, context = _source_context(tmp_path)
+    purpose = ProjectPurpose(project_id="project_1", title="Project", one_line="Build")
+    knowledge = ProjectKnowledgeStore(store, "project_1")
+
+    ingest_sources(store, project_id="project_1", purpose=purpose, context=context, llm=FakeKnowledgeLLM())
+    first = knowledge.source_insight_by_source_id()["source_1"]
+    assert first.revision == 1
+    assert first.source_content_hash == "hash"
+
+    source = store.load_source_document("source_1")
+    updated_source = source.model_copy(update={"content_hash": "hash-2"})
+    store.save_source_document(updated_source)
+    updated_context = IssueFactoryContext(
+        manifest=context.manifest,
+        sources=[updated_source],
+        artifacts=context.artifacts,
+        evidence=context.evidence,
+    )
+
+    result = ingest_sources(
+        store,
+        project_id="project_1",
+        purpose=purpose,
+        context=updated_context,
+        llm=FakeKnowledgeLLM(),
+    )
+
+    second = knowledge.source_insight_by_source_id()["source_1"]
+    assert result["changed_source_ids"] == ["source_1"]
+    assert second.revision == 2
+    assert second.source_content_hash == "hash-2"
+
+
 def _source_context(tmp_path: Path) -> tuple[AriadneStore, IssueFactoryContext]:
     store = AriadneStore(tmp_path)
     source = SourceDocument(
@@ -76,4 +110,3 @@ def _source_context(tmp_path: Path) -> tuple[AriadneStore, IssueFactoryContext]:
         context_fingerprint="context",
     )
     return store, IssueFactoryContext(manifest=manifest, sources=[source], artifacts=[], evidence=[])
-

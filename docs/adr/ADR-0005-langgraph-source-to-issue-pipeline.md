@@ -84,6 +84,12 @@ The graph returns the same `CompiledIssueSpec` shape as the old compiler.
 `reflect_on_run()` is not a graph. It is a best-effort terminal AgentRun hook
 that appends OutcomesLog entries and updates BlockerLearning.
 
+Reflect operates at **ticket-cycle granularity**, not per-`AgentRun`. The
+orchestrator calls `reflect_on_run` at terminal points of a ticket cycle
+(execution end and review end), and reflect merges them into a single
+OutcomeEntry per cycle. Planner / Build-Lead / Knowledge / Memory sub-runs do
+not trigger reflect -- they are not direct outcome carriers.
+
 ## Prompt Grounding
 
 Every LLM node must put ProjectPurpose at the top of its prompt:
@@ -143,4 +149,3 @@ Negative:
 - Real quality depends on DeepSeek output and prompt quality.
 - ProjectKnowledge needs a future Phase 9 UI/diagnostic surface, but must not be
   exposed as an API in Phase 8.
-
