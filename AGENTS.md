@@ -10,9 +10,9 @@
 
 ## 当前执行阶段
 
-Phase 6: Lifecycle Hardening and Execution Evidence
+Phase 8: LangGraph Source-to-Issue Agent Pipeline
 
-范围见 `docs/superpowers/plans/2026-06-22-phase6-handoff.md`。不要执行 Phase 7 的任何内容。
+范围见 `docs/superpowers/plans/2026-06-23-phase8-langgraph-handoff.md`。ADR 见 `docs/adr/ADR-0005-langgraph-source-to-issue-pipeline.md`。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -38,39 +38,38 @@ Phase 6: Lifecycle Hardening and Execution Evidence
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 6 Scope
+## Phase 8 Scope
 
 ### 做
 
-1. Orphan recovery：stale CLAIMED/RUNNING assignments 自动 requeue
-2. Auto-retry：safe failure reasons（command_unavailable 等）自动 retry，max 2 次，用 metadata 追踪 retry_count
-3. `TicketAssignment.requeue()` method（如果不存在）
-4. Runs 页面：daemon 有 active assignment 时，polling `GET /api/assignments/{id}/events` 展示 progress
-5. Issue Detail：active assignment 时 polling progress events
-6. Issue Detail：execution results 增加 diff_artifact_path 链接、review verdict badge、blocked → inbox 链接
-7. Inbox 页面：navigate 时 auto-refresh
-8. 新增 orphan recovery + auto-retry 测试
+1. 新增 `ariadne_ltb/application/langgraph_pipeline/` 模块
+2. 实现 6 个 graph nodes：prepare_sources, analyze_source, synthesize, compile_issues, quality_gate, fallback_compile
+3. 用 LangGraph StateGraph 串联，有条件边（source loop, quality retry, fallback）
+4. 复用现有 DeepSeekClient 通过 thin adapter
+5. 替换 `issue_factory.py:90` 调用 `compile_issue_specs_langgraph()`
+6. 无 API key 时自动 fallback 到现有模板
+7. Quality gate 失败 retry 2 次后 fallback 到模板
+8. 新增 `langgraph>=0.2` + `langchain-core>=0.3` 依赖
+9. 新增 node unit tests + graph integration tests
 
 ### 不做
 
-- 不实现 WebSocket（用 5s polling）
-- 不引入新 npm 依赖
-- 不实现跨 runtime orphan recovery
-- 不实现 retry policy 配置 UI
-- 不改 Sources / Plan Changes / Team 页面
-- 不新增 API endpoint
-- 不改 Issue board view
+- 不改 HTTP routes
+- 不改前端代码
+- 不加 langchain-openai / langsmith / langchain-community
+- 不加 MemorySaver checkpoint
+- 不实现 human-in-the-loop interrupt
+- 不改 source_analysis.py
+- 不实现 async
+- 不删除旧 issue_compiler.py
 
 ### 验收标准
 
-1. `python3.11 -m pytest` — 全部通过
+1. `python3.11 -m pytest` — 全部通过（含新测试 + 现有测试 fallback 通过）
 2. `ruff check .` — clean
 3. `cd frontend/ariadne-workbench && npm run build` — success
-4. Orphan recovery 测试：stale assignment 被 requeue + re-executed
-5. Auto-retry 测试：safe failure → retry → 3rd fail stops
-6. `#runs` 展示 assignment progress events
-7. `#issues/{key}` 展示 progress polling + execution evidence 增强
-8. 截图保存到 `docs/evidence/phase6-lifecycle-evidence/`
+4. 有 API key 时：issue delta 生成的 issues 基于 source 内容推理，不是固定模板
+5. 无 API key 时：deterministic fallback，现有行为不变
 
 ## Multica 参考说明
 
