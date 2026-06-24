@@ -7,11 +7,11 @@ from subprocess import CompletedProcess
 from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
-from ariadne_ltb.full_demo import default_source_fixtures, run_full_demo
+from ariadne_ltb.full_demo import default_regression_sources, run_full_demo
 
 
 def _seed_ticket_with_feishu_plan(root: Path) -> None:
-    run_full_demo(root=root, source_paths=default_source_fixtures(), backend_name="fake-codex")
+    run_full_demo(root=root, source_paths=default_regression_sources(), backend_name="fake-codex")
 
 
 def _latest_result(root: Path) -> dict:

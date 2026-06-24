@@ -257,7 +257,7 @@ python3.11 -m ariadne_ltb.cli export board
 
 ## Planning
 
-Offline fixture planning is deterministic and requires no credentials:
+Offline regression planning is deterministic and requires no credentials:
 
 ```bash
 ari ticket plan ARI-003 --planner deterministic
@@ -362,7 +362,7 @@ Tests use fake transports and do not require network access or a DeepSeek key.
 - `shell`: low-level confirmed command backend for local debugging.
 - `fake-codex`: deterministic local simulator for automated tests, offline
   regression fixtures, and explicit debug runs only. It only patches the
-  fixture target when the handoff mentions `export-json` and allowed paths
+  regression target when the handoff mentions `export-json` and allowed paths
   include `demo_todo/cli.py` and `tests/test_cli.py`.
 - `dry-run`: preview/safety/no-credential fallback that records an execution
   result without changing files. It is not production execution evidence.
@@ -423,7 +423,7 @@ ari backend diagnose claude-code
 ```
 
 Run first-class real backend smoke tests only when explicitly gated. These use
-the product path: source fixtures -> ticket -> assignment -> local daemon ->
+the product path: example sources -> ticket -> assignment -> local daemon ->
 backend execution -> review -> memory -> board.
 
 ```bash

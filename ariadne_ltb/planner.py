@@ -373,7 +373,7 @@ def _contains_product_demo_path(modules: list[str], metadata: dict[str, object])
     source_document = metadata.get("source_document")
     source_metadata = source_document.get("metadata", {}) if isinstance(source_document, dict) else {}
     entrypoint = str(source_metadata.get("entrypoint") or "").lower() if isinstance(source_metadata, dict) else ""
-    if entrypoint == "offline_regression_fixture":
+    if entrypoint == "offline_regression_input":
         return False
     return any("demo_todo" in module or "export-json" in module for module in modules)
 

@@ -155,7 +155,7 @@ def source_document_from_path(path: Path) -> SourceDocument:
         content_hash=content_hash,
         summary=summary,
         metadata={
-            "entrypoint": "offline_regression_fixture" if _is_offline_regression_path(path) else "local_source_ingest",
+            "entrypoint": "offline_regression_input" if _is_offline_regression_path(path) else "local_source_ingest",
             "filename": path.name,
             "headings": extract_headings(content),
             "action_verbs": extract_action_verbs(content),
@@ -381,7 +381,7 @@ def packet_work_items(source: SourceDocument) -> tuple[list[str], list[str], lis
             [
                 "Repository analysis captures manifests, entrypoints, tests, and reuse constraints.",
                 "Generated work items cite source evidence and avoid copying reference source code.",
-                "Affected modules are target-project paths, not demo fixture paths.",
+                "Affected modules are target-project paths, not offline regression paths.",
             ],
             ["src/", "tests/"],
         )
@@ -406,4 +406,4 @@ def _is_offline_regression_path(path: Path) -> bool:
 
 
 def _is_offline_regression_source(source: SourceDocument) -> bool:
-    return str(source.metadata.get("entrypoint") or "") == "offline_regression_fixture"
+    return str(source.metadata.get("entrypoint") or "") == "offline_regression_input"

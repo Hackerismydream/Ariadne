@@ -76,7 +76,7 @@ Workbench.
 - Browser actions call assignment/run/comment APIs; they do not send raw shell
   commands or local filesystem paths.
 - If the API is unavailable, product mode shows a disconnected read-only state.
-- Bundled fixture data is not a product data source. The Workbench either loads
+- Bundled test data is not a product data source. The Workbench either loads
   persisted state from Ariadne's local API or shows a disconnected read-only
   state.
 - Multica screenshots and source files are used only as design and interaction

@@ -62,7 +62,7 @@ def _uses_demo_path(metadata: dict[str, object]) -> bool:
     source_document = metadata.get("source_document")
     source_metadata = source_document.get("metadata", {}) if isinstance(source_document, dict) else {}
     entrypoint = str(source_metadata.get("entrypoint") or "").lower() if isinstance(source_metadata, dict) else ""
-    explicit_demo = "demo" in target_project_id or entrypoint == "offline_regression_fixture"
+    explicit_demo = "demo" in target_project_id or entrypoint == "offline_regression_input"
     if explicit_demo:
         return False
     return any("demo_todo" in str(module) or "export-json" in str(module) for module in affected)

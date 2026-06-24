@@ -21,8 +21,9 @@ Phase 8: Knowledge Orchestration Layer
 1. **Ticket-centered:** BuildTicket 是工作中心，Goal 只是输入，Issue 只是 BuildTicket 的产品投影
 2. **No separate Issue persistence:** `/api/issues` 必须从 BuildTicket 投影，不得创建独立的 Issue 数据模型或存储
 3. **Local-first:** Python runtime, single-user, JSON/JSONL/.ariadne 存储，不得引入 Go/Postgres/auth/workspace/billing
-4. **No fake acceptance:** `fake-codex` 和 `demo full` 只用于 offline regression fixture，不得作为产品验收证据
+4. **No fake acceptance:** `fake-codex` 和 `demo full` 只用于 automated tests / offline regression harness，不得作为产品验收证据
 5. **Evidence required:** 真实执行（Codex/Claude/Feishu/GitHub）必须有 evidence，失败必须产生 blocker + Inbox item
+6. **No mock product data:** 落地的产品代码、Workbench、API projection、CLI product path、agent/runtime/orchestrator 不允许使用 mock / fixture / sample / static fallback 数据。所有产品数据必须来自真实用户输入、外部 source、目标代码库扫描、agent run、review、memory、或 `.ariadne` 持久化 store。Mock/fixture 数据只允许出现在 automated tests、test fixtures、或明确的离线回归测试 harness 中，且不能被产品路径读取。
 
 ## 偏移检测
 
@@ -38,6 +39,8 @@ Phase 8: Knowledge Orchestration Layer
 - 删除 Delivery 信息导致看不到当前版本目标（应上移为 Context strip，不是删除）
 - 页面按钮存在但没有真实 API action
 - UI 读取 static fixture 当产品路径
+- 在产品代码中新增 mock / fixture / sample / static fallback 数据
+- 让 Workbench、API、CLI、agent runtime 从测试 fixture、hardcoded sample、前端内置数据、`web_data` snapshot、或假默认对象读取产品状态
 - 引入 React Router 或其他路由库
 - 拆分 App.tsx 为多文件路由系统（Phase 1 不做）
 - 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint

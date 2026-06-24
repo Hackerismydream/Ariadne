@@ -28,7 +28,7 @@ class FullDemoResult:
     next_tickets_path: Path
 
 
-def default_source_fixtures() -> list[Path]:
+def default_regression_sources() -> list[Path]:
     return sorted((Path(__file__).resolve().parents[1] / "examples" / "sources").glob("*.md"))
 
 
@@ -42,7 +42,7 @@ def run_full_demo(
     root_path = Path(root).resolve()
     store = AriadneStore(root_path)
     ensure_demo_target_project(root_path)
-    sources = source_paths or default_source_fixtures()
+    sources = source_paths or default_regression_sources()
     tickets = ingest_sources(store, sources)
     selected = select_code_task_ticket(store, tickets)
     result = TicketRunOrchestrator(store).run_ticket(

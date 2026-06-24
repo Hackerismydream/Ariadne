@@ -20,7 +20,7 @@ python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready
 scripts/verify_workbench.sh
 
 section "Offline deterministic verification (non-acceptance)"
-echo "This section validates fixtures and deterministic regression only; it is not product acceptance."
+echo "This section validates offline deterministic regression only; it is not product acceptance."
 python3.11 -m ariadne_ltb.cli demo full
 python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md
 python3.11 -m ariadne_ltb.cli ticket list

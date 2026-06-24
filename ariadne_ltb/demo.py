@@ -30,7 +30,7 @@ def create_demo_ticket(source_path: Path) -> BuildTicket:
         title="Implement Ariadne MVP Ticket Kernel",
         description=(
             "Create a local deterministic Python Ticket Kernel that turns the Multica "
-            "research note into a Build Packet, offline fixture execution, review, "
+            "research note into a Build Packet, offline regression execution, review, "
             "Feishu preview write plan, and static board."
         ),
         source_type="research_note",

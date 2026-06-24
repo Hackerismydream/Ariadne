@@ -48,7 +48,7 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     profiles = store.ensure_default_agent_profiles()
     capabilities = collect_runtime_capabilities()
     store_invariants = check_store_invariants(store)
-    fixtures_ok = (code_root / "examples" / "sources").exists()
+    example_sources_ok = (code_root / "examples" / "sources").exists()
     board_ok = (store.board_dir / "index.md").exists()
     gitignore_path = repo_root / ".gitignore"
     if not gitignore_path.exists():
@@ -61,7 +61,7 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     return [
         f"agent profiles: {'ok' if profiles else 'missing'}",
         f"backend capability: {'ok' if capabilities else 'missing'}",
-        f"source fixtures: {'ok' if fixtures_ok else 'missing'}",
+        f"example sources: {'ok' if example_sources_ok else 'missing'}",
         f"ticket count: {len(store.list_tickets())}",
         f"assignment queue: {len(store.list_assignments())}",
         f"journal exists: {'ok' if store.journal_path.exists() else 'missing'}",

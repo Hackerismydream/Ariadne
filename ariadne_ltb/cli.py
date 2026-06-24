@@ -30,7 +30,7 @@ from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, backend_for_n
 from ariadne_ltb.feishu import create_lark_doc_from_plan
 from ariadne_ltb.full_demo import (
     FullDemoResult,
-    default_source_fixtures,
+    default_regression_sources,
     run_full_demo,
     select_code_task_ticket,
 )
@@ -168,23 +168,23 @@ def configure(
 
 @app.command()
 def demo(
-    mode: Annotated[str, typer.Argument(help="Offline fixture mode: `kernel`, `full`, or `codex`.")] = "kernel",
-    backend: Annotated[str, typer.Option("--backend", help="Offline fixture backend.")] = OFFLINE_TEST_BACKEND,
+    mode: Annotated[str, typer.Argument(help="Offline regression mode: `kernel`, `full`, or `codex`.")] = "kernel",
+    backend: Annotated[str, typer.Option("--backend", help="Offline regression backend.")] = OFFLINE_TEST_BACKEND,
     confirm_execution: Annotated[
         bool,
-        typer.Option("--confirm-execution", help="Allow gated external execution for the codex fixture mode."),
+        typer.Option("--confirm-execution", help="Allow gated external execution for the codex regression mode."),
     ] = False,
     timeout_seconds: Annotated[
         int,
         typer.Option("--timeout-seconds", help="Maximum seconds for external backend commands."),
     ] = 60,
 ) -> None:
-    """Run offline regression fixtures; not the product path."""
+    """Run offline regression harnesses; not the product path."""
     if mode in {"full", "codex"}:
         selected_backend = "codex" if mode == "codex" else backend
         result = run_full_demo(
             root=state.root,
-            source_paths=default_source_fixtures(),
+            source_paths=default_regression_sources(),
             backend_name=selected_backend,
             confirm_execution=confirm_execution,
             timeout_seconds=timeout_seconds,
@@ -1089,7 +1089,7 @@ def backend_smoke_test(
         target_project_id="ariadne-local",
         label="backend smoke target repository",
     )
-    tickets = ingest_sources(store, default_source_fixtures())
+    tickets = ingest_sources(store, default_regression_sources())
     selected = select_code_task_ticket(store, tickets)
     assignment = store.create_assignment(
         selected,
@@ -1818,7 +1818,7 @@ def ticket_run(
             "--target-repo-path",
             help=(
                 "Target repository path. For production runs pass the real project repo; "
-                "omitting this uses the offline fixture target for smoke/regression only."
+                "omitting this uses the offline regression target for smoke/regression only."
             ),
         ),
     ] = None,
@@ -1942,7 +1942,7 @@ def ticket_execute(
     command: Annotated[str, typer.Option("--command", help="Command for shell/codex backends.")] = "",
     confirm_execution: Annotated[bool, typer.Option("--confirm-execution")] = False,
 ) -> None:
-    """Run a low-level debug execution against the fixture target project."""
+    """Run a low-level debug execution against the regression target project."""
     store = AriadneStore(state.root)
     ticket = store.resolve_ticket(ticket_id)
     if not ticket.build_packet_id:

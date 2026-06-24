@@ -57,7 +57,7 @@ def test_ticket_run_help_presents_production_aware_auto_defaults() -> None:
     assert "defaults to llm" in compact_output
     assert "[default: auto]" in result.output
     assert "Defaults to the local fixture target" not in result.output
-    assert "offline fixture target" in compact_output
+    assert "offline regression target" in compact_output
     assert "smoke/regression only" in compact_output
 
 
