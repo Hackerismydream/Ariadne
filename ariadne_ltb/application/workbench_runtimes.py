@@ -5,6 +5,7 @@ from ariadne_ltb.application.current_version_scope import current_version_mainli
 from ariadne_ltb.application.dtos import AssignmentListResponse, RuntimeListItemDTO, RuntimeListResponse
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
+from ariadne_ltb.application.work_truth import current_active_assignment
 from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND
 from ariadne_ltb.models import AssignmentStatus
 from ariadne_ltb.storage import AriadneStore
@@ -16,6 +17,7 @@ class WorkbenchRuntimesService:
 
     def list_runtimes(self) -> RuntimeListResponse:
         daemon = DaemonControlService(self.store).status()
+        active = current_active_assignment(self.store, daemon)
         current_ticket_ids = self._current_ticket_ids()
         queue_depth = sum(
             1
@@ -42,7 +44,7 @@ class WorkbenchRuntimesService:
                     external_execution_enabled=capability.external_execution_enabled,
                     command_template_set=capability.command_template_set,
                     queue_depth=queue_depth,
-                    active_assignment=daemon.current_assignment_id,
+                    active_assignment=active.id if active else None,
                     disabled_reasons=capability.disabled_reasons,
                 )
                 for capability in RuntimeStatusService(self.store).snapshot(include_internal=False)

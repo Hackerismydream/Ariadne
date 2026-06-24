@@ -4,16 +4,20 @@ function statusLabel(status: string | null | undefined) {
   const labels: Record<string, string> = {
     assigned: "Assigned",
     blocked: "Blocked",
+    blocked_before_execution: "Blocked before execution",
     closed: "Done",
     done: "Done",
+    executed_failed: "Execution failed",
     in_progress: "Running",
     open: "Backlog",
     planning: "Planning",
     ready: "Ready",
     released: "Done",
     review_pending: "Review",
+    review_blocked: "Review blocked",
     reviewing: "Review",
     running: "Running",
+    succeeded: "Succeeded",
   };
   return labels[status ?? ""] ?? status ?? "Unknown";
 }

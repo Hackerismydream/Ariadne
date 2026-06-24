@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ariadne_ltb.application.work_truth import reduce_work_truth
 from ariadne_ltb.models import AssignmentStatus, BuildTicket, ExecutionResult, InboxStatus, ReviewReport
 from ariadne_ltb.storage import AriadneStore
 
@@ -33,14 +34,15 @@ def build_ticket_current_state(store: AriadneStore, ticket: BuildTicket) -> Tick
         for item in store.list_inbox_items()
         if item.ticket_id == ticket.id and item.status is InboxStatus.OPEN and getattr(item, "active", True)
     ]
-    if success:
-        active_blockers = 0
-        historical_blockers = len(blocker_assignments) + len(open_inbox)
-        state = "current_success"
-    elif blocker_assignments or open_inbox:
+    truth = reduce_work_truth(assignment=assignment, execution=execution, review=review)
+    if truth.terminal_verdict in {"blocked_before_execution", "executed_failed", "review_blocked"} or blocker_assignments or open_inbox:
         active_blockers = len(blocker_assignments) + len(open_inbox)
         historical_blockers = 0
         state = "current_blocked"
+    elif success:
+        active_blockers = 0
+        historical_blockers = len(blocker_assignments) + len(open_inbox)
+        state = "current_success"
     else:
         active_blockers = 0
         historical_blockers = 0

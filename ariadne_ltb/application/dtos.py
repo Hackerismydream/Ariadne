@@ -117,7 +117,9 @@ class LatestRealRunDTO(AriadneDTO):
     review_verdict: str | None = None
     dry_run: bool
     blocked: bool
+    terminal_verdict: str = "unknown"
     changed_files: list[str] = Field(default_factory=list)
+    preflight_dirty_files: list[str] = Field(default_factory=list)
     handoff_file: str | None = None
     diff_artifact_path: str | None = None
     execution_log_artifact_path: str | None = None
@@ -149,8 +151,10 @@ class DeliveryItemDTO(AriadneDTO):
     feishu_plan_path: str | None = None
     next_tickets_path: str | None = None
     changed_files: list[str] = Field(default_factory=list)
+    preflight_dirty_files: list[str] = Field(default_factory=list)
     acceptance_criteria: list[str] = Field(default_factory=list)
     evidence_status: str = "missing"
+    terminal_verdict: str = "unknown"
 
 
 class ProjectVersionDeliveryDTO(AriadneDTO):
@@ -513,6 +517,7 @@ class IssueListItemDTO(AriadneDTO):
     source_count: int = 0
     evidence_count: int = 0
     last_run_status: str | None = None
+    terminal_verdict: str = "unknown"
     review_verdict: str | None = None
     blocked_reason: str | None = None
     updated_at: str
@@ -526,6 +531,8 @@ class IssueExecutionResultSummaryDTO(AriadneDTO):
     exit_code: int | None = None
     test_exit_code: int | None = None
     changed_files: list[str] = Field(default_factory=list)
+    preflight_dirty_files: list[str] = Field(default_factory=list)
+    terminal_verdict: str = "unknown"
     diff_artifact_path: str | None = None
     execution_log_artifact_path: str | None = None
     started_at: str | None = None

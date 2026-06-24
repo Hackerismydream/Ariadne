@@ -27,7 +27,8 @@ from ariadne_ltb.application.mappers import assignment_dto, comment_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.assign_ticket import AssignTicketService
-from ariadne_ltb.models import BuildTicket, ExecutionResult, ReviewReport, TicketAssignment, TicketStatus, utc_now
+from ariadne_ltb.application.work_truth import reduce_work_truth
+from ariadne_ltb.models import AssignmentStatus, BuildTicket, ExecutionResult, ReviewReport, TicketAssignment, TicketStatus, utc_now
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -148,10 +149,15 @@ class WorkbenchIssuesService:
 
     def _list_context(self) -> dict[str, dict[str, object]]:
         latest_assignments: dict[str, TicketAssignment] = {}
+        latest_blocking_assignments: dict[str, TicketAssignment] = {}
         for assignment in self.store.list_assignments():
             current = latest_assignments.get(assignment.ticket_id)
             if current is None or assignment.created_at > current.created_at:
                 latest_assignments[assignment.ticket_id] = assignment
+            if assignment.status in {AssignmentStatus.BLOCKED, AssignmentStatus.FAILED}:
+                current_blocker = latest_blocking_assignments.get(assignment.ticket_id)
+                if current_blocker is None or self._assignment_timestamp(assignment) > self._assignment_timestamp(current_blocker):
+                    latest_blocking_assignments[assignment.ticket_id] = assignment
         latest_executions: dict[str, ExecutionResult] = {}
         execution_counts: dict[str, int] = {}
         for execution in self.store.list_execution_results():
@@ -166,18 +172,20 @@ class WorkbenchIssuesService:
             current_review = latest_reviews.get(review.ticket_id)
             if current_review is None or review.created_at > current_review.created_at:
                 latest_reviews[review.ticket_id] = review
-        latest_run_status: dict[str, str] = {}
+        latest_run_status: dict[str, tuple[str, str]] = {}
         for run in self.store.list_runs():
+            timestamp = run.ended_at or run.started_at or ""
             current = latest_run_status.get(run.ticket_id)
-            if current is None or (run.ended_at or run.started_at or "") > current:
-                latest_run_status[run.ticket_id] = run.status.value
+            if current is None or timestamp > current[0]:
+                latest_run_status[run.ticket_id] = (timestamp, run.status.value)
         return {
             "assignments": latest_assignments,
+            "blocking_assignments": latest_blocking_assignments,
             "executions": latest_executions,
             "execution_counts": execution_counts,
             "reviews": latest_reviews,
             "review_counts": review_counts,
-            "run_status": latest_run_status,
+            "run_status": {ticket_id: item[1] for ticket_id, item in latest_run_status.items()},
         }
 
     def _issue_item(
@@ -198,6 +206,16 @@ class WorkbenchIssuesService:
         run_status = (
             context["run_status"].get(ticket.id) if context else self._latest_run_status(ticket)
         )
+        blocking_assignment = (
+            context["blocking_assignments"].get(ticket.id)
+            if context
+            else self._blocking_assignment(ticket, execution if isinstance(execution, ExecutionResult) else None)
+        )
+        effective_assignment = self._effective_assignment(
+            assignment if isinstance(assignment, TicketAssignment) else None,
+            blocking_assignment if isinstance(blocking_assignment, TicketAssignment) else None,
+            execution if isinstance(execution, ExecutionResult) else None,
+        )
         evidence_count = (
             int(context["execution_counts"].get(ticket.id, 0))
             + int(context["review_counts"].get(ticket.id, 0))
@@ -205,22 +223,30 @@ class WorkbenchIssuesService:
             if context
             else self._evidence_count(ticket)
         )
+        truth = reduce_work_truth(
+            assignment=effective_assignment,
+            execution=execution if isinstance(execution, ExecutionResult) else None,
+            review=review if isinstance(review, ReviewReport) else None,
+            run_status=run_status,
+        )
         return IssueListItemDTO(
             id=ticket.id,
             key=ticket.key,
             title=ticket.title,
             status=ticket.status.value,
             priority=ticket.priority,
-            assignee=assignment.agent_name if isinstance(assignment, TicketAssignment) else ticket.owner_agent,
+            assignee=effective_assignment.agent_name if effective_assignment else ticket.owner_agent,
             project=ticket.metadata.get("target_project_id"),
             target_version=target_version,
             source_count=len(self._source_links(ticket)),
             evidence_count=evidence_count,
-            last_run_status=run_status or (assignment.status.value if assignment else None),
+            last_run_status=truth.terminal_verdict,
+            terminal_verdict=truth.terminal_verdict,
             review_verdict=review.verdict.value if isinstance(review, ReviewReport) else None,
-            blocked_reason=self._blocked_reason(
+            blocked_reason=truth.blocked_reason
+            or self._blocked_reason(
                 ticket,
-                assignment if isinstance(assignment, TicketAssignment) else None,
+                effective_assignment,
                 execution if isinstance(execution, ExecutionResult) else None,
             ),
             updated_at=ticket.updated_at or ticket.created_at,
@@ -228,6 +254,38 @@ class WorkbenchIssuesService:
 
     def _latest_assignment(self, ticket: BuildTicket) -> TicketAssignment | None:
         return self.store.find_latest_assignment_for_ticket(ticket.id)
+
+    def _blocking_assignment(
+        self,
+        ticket: BuildTicket,
+        execution: ExecutionResult | None,
+    ) -> TicketAssignment | None:
+        blockers = [
+            assignment
+            for assignment in self.store.list_assignments_for_ticket(ticket.id)
+            if assignment.status in {AssignmentStatus.BLOCKED, AssignmentStatus.FAILED}
+        ]
+        if not blockers:
+            return None
+        latest = sorted(blockers, key=self._assignment_timestamp)[-1]
+        if execution is None or self._assignment_timestamp(latest) >= execution.ended_at:
+            return latest
+        return None
+
+    def _effective_assignment(
+        self,
+        assignment: TicketAssignment | None,
+        blocking_assignment: TicketAssignment | None,
+        execution: ExecutionResult | None,
+    ) -> TicketAssignment | None:
+        if blocking_assignment is None:
+            return assignment
+        if execution is None or self._assignment_timestamp(blocking_assignment) >= execution.ended_at:
+            return blocking_assignment
+        return assignment
+
+    def _assignment_timestamp(self, assignment: TicketAssignment) -> str:
+        return assignment.ended_at or assignment.started_at or assignment.claimed_at or assignment.created_at
 
     def _latest_run_status(self, ticket: BuildTicket) -> str | None:
         runs = [run for run in self.store.list_runs() if run.ticket_id == ticket.id]
@@ -259,6 +317,7 @@ class WorkbenchIssuesService:
             return None
 
     def _execution_summary(self, result: ExecutionResult) -> IssueExecutionResultSummaryDTO:
+        truth = reduce_work_truth(execution=result)
         return IssueExecutionResultSummaryDTO(
             id=result.id,
             backend_name=result.backend_name,
@@ -266,7 +325,9 @@ class WorkbenchIssuesService:
             failure_reason=result.failure_reason.value if result.failure_reason else None,
             exit_code=result.exit_code,
             test_exit_code=result.test_exit_code,
-            changed_files=result.changed_files,
+            changed_files=list(truth.agent_changed_files),
+            preflight_dirty_files=list(truth.preflight_dirty_files),
+            terminal_verdict=truth.terminal_verdict,
             diff_artifact_path=self._artifact_path(result.diff_artifact_id),
             execution_log_artifact_path=self._artifact_path(result.execution_log_artifact_id),
             started_at=result.started_at,
