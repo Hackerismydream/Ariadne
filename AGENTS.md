@@ -10,9 +10,11 @@
 
 ## 当前执行阶段
 
-Phase 8: LangGraph Source-to-Issue Agent Pipeline
+Phase 8: Knowledge Orchestration Layer
 
-范围见 `docs/superpowers/plans/2026-06-23-phase8-langgraph-handoff.md`。ADR 见 `docs/adr/ADR-0005-langgraph-source-to-issue-pipeline.md`。
+范围见 `docs/superpowers/plans/2026-06-23-phase8-knowledge-orchestration-handoff.md`。
+旧 `docs/superpowers/plans/2026-06-23-phase8-langgraph-handoff.md.superseded`
+已废弃。ADR 见 `docs/adr/ADR-0005-langgraph-source-to-issue-pipeline.md`。
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -29,6 +31,9 @@ Phase 8: LangGraph Source-to-Issue Agent Pipeline
 - 设计 Goal-first runtime（Goal 驱动调度而非 Ticket 驱动）
 - 新增独立 Issue persistence layer（Issue model, Issue table, Issue file）
 - `/api/issues` 绕过 BuildTicket 直接读写
+- 在 Layer 2 之外新建持久化 wiki / markdown 文件
+- 把 ProjectKnowledge 暴露成 HTTP API
+- 在 Phase 8 实现 Query / Lint / Memory
 - `#issues` 展示所有历史 tickets 而非当前 project/version mainline issue set
 - 删除 Delivery 信息导致看不到当前版本目标（应上移为 Context strip，不是删除）
 - 页面按钮存在但没有真实 API action
@@ -42,26 +47,32 @@ Phase 8: LangGraph Source-to-Issue Agent Pipeline
 
 ### 做
 
-1. 新增 `ariadne_ltb/application/langgraph_pipeline/` 模块
-2. 实现 6 个 graph nodes：prepare_sources, analyze_source, synthesize, compile_issues, quality_gate, fallback_compile
-3. 用 LangGraph StateGraph 串联，有条件边（source loop, quality retry, fallback）
-4. 复用现有 DeepSeekClient 通过 thin adapter
-5. 替换 `issue_factory.py:90` 调用 `compile_issue_specs_langgraph()`
-6. 无 API key 时自动 fallback 到现有模板
-7. Quality gate 失败 retry 2 次后 fallback 到模板
+1. 新增 `ariadne_ltb/knowledge/` 模块
+2. 新增 ProjectKnowledge Layer 2 模型：
+   ProjectPurpose, SourceInsight, SynthesisTheme, ContradictionRecord,
+   BlockerLearning, OutcomesLog
+3. 实现 Ingest LangGraph：prepare_changes, analyze_source, update_themes,
+   detect_contradictions
+4. 实现 Compile LangGraph：load_knowledge, plan_decomposition,
+   ground_evidence, validate_dag, quality_gate
+5. `issue_factory.py` 调用 `ariadne_ltb.knowledge.compile_issues()`
+6. AgentRun 终态 best-effort 触发 `reflect_on_run()`
+7. 无 API key 或 graph 失败时自动 fallback 到现有模板
 8. 新增 `langgraph>=0.2` + `langchain-core>=0.3` 依赖
-9. 新增 node unit tests + graph integration tests
+9. 新增模型、store、graph、reflect、fallback integration tests
 
 ### 不做
 
 - 不改 HTTP routes
 - 不改前端代码
 - 不加 langchain-openai / langsmith / langchain-community
-- 不加 MemorySaver checkpoint
+- 不加 MemorySaver checkpoint（Layer 2 持久化替代 checkpoint）
 - 不实现 human-in-the-loop interrupt
 - 不改 source_analysis.py
 - 不实现 async
 - 不删除旧 issue_compiler.py
+- 不实现 Query / Lint / Memory
+- 不暴露 ProjectKnowledge HTTP API
 
 ### 验收标准
 

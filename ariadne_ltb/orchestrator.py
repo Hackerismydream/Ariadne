@@ -594,6 +594,12 @@ class TicketRunOrchestrator:
             f"Reviewer verdict: {review.verdict.value}.",
             [review_artifact.id],
         )
+        try:
+            from ariadne_ltb.knowledge import reflect_on_run
+
+            reflect_on_run(self.store, run=review_run, review=review)
+        except Exception:
+            pass
         ticket = self.store.load_ticket(ticket.id).with_run(review_run.id).with_artifacts([review_artifact])
         ticket = ticket.append_event(
             "review_finished",
@@ -1227,6 +1233,12 @@ def _finish_run(
         failure_reason=failure_reason,
     )
     store.save_run(finished)
+    try:
+        from ariadne_ltb.knowledge import reflect_on_run
+
+        reflect_on_run(store, run=finished, review=None)
+    except Exception:
+        pass
     store.append_run_message(
         finished.id,
         "finish",

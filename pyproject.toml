@@ -11,6 +11,8 @@ requires-python = ">=3.11"
 license = { file = "LICENSE" }
 dependencies = [
   "fastapi>=0.115",
+  "langchain-core>=0.3",
+  "langgraph>=0.2",
   "pydantic>=2.0",
   "typer>=0.12",
   "uvicorn>=0.30",
@@ -33,3 +35,4 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "-p no:langsmith_plugin"
