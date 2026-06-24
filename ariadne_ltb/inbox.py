@@ -100,7 +100,10 @@ def refresh_inbox(store: AriadneStore) -> list[InboxItem]:
         if not result.ok or result.blocked:
             items.append(_from_github(store, result))
 
-    deduped = _archive_superseded_items(store, _preserve_existing_status(store, _dedupe(items)))
+    deduped = _archive_superseded_items(
+        store,
+        _canonicalize_runtime_failures(_preserve_existing_status(store, _dedupe(items))),
+    )
     store.save_inbox_items(deduped)
     return deduped
 
@@ -532,6 +535,53 @@ def _dedupe(items: list[InboxItem]) -> list[InboxItem]:
     for item in items:
         by_id[item.id] = item
     return sorted(by_id.values(), key=lambda item: (item.severity.value, item.created_at, item.id))
+
+
+def _canonicalize_runtime_failures(items: list[InboxItem]) -> list[InboxItem]:
+    canonical_by_key: dict[tuple[str, str], InboxItem] = {}
+    result_by_id: dict[str, InboxItem] = {}
+    for item in items:
+        key = _runtime_failure_key(item)
+        if key is None:
+            result_by_id[item.id] = item
+            continue
+        current = canonical_by_key.get(key)
+        if current is None or _runtime_failure_priority(item) < _runtime_failure_priority(current):
+            canonical_by_key[key] = item
+
+    canonical_ids = {item.id for item in canonical_by_key.values()}
+    for item in items:
+        key = _runtime_failure_key(item)
+        if key is None or item.id in canonical_ids:
+            result_by_id[item.id] = item
+            continue
+        canonical = canonical_by_key[key]
+        result_by_id[item.id] = item.model_copy(
+            update={
+                "status": InboxStatus.RESOLVED,
+                "active": False,
+                "current_state": "canonicalized_blocker",
+                "archive_reason": "superseded_by_canonical_runtime_blocker",
+                "superseded_by_ref": canonical.id,
+                "resolution_note": f"superseded by canonical blocker {canonical.id}",
+            }
+        )
+    return sorted(
+        result_by_id.values(),
+        key=lambda item: (not item.active, item.ticket_key or "", item.failure_reason.value if item.failure_reason else "", item.id),
+    )
+
+
+def _runtime_failure_key(item: InboxItem) -> tuple[str, str] | None:
+    if item.source_type not in {"assignment", "agent_run", "execution"}:
+        return None
+    if not item.ticket_id or item.failure_reason is None:
+        return None
+    return (item.ticket_id, item.failure_reason.value)
+
+
+def _runtime_failure_priority(item: InboxItem) -> int:
+    return {"assignment": 0, "execution": 1, "agent_run": 2}.get(item.source_type, 99)
 
 
 def _preserve_existing_status(store: AriadneStore, items: list[InboxItem]) -> list[InboxItem]:

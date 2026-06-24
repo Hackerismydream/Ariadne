@@ -12,6 +12,10 @@ from ariadne_ltb.application.dtos import (
     RunAssignmentInput,
     RuntimeScopeDTO,
 )
+from ariadne_ltb.application.assignment_control import (
+    canonicalize_duplicate_runnable_assignments,
+    is_claimable_assignment,
+)
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.daemon import LocalDaemonWorker, is_stale_heartbeat
@@ -86,6 +90,7 @@ class DaemonControlService:
         self.store = store
 
     def status(self, runtime_id: str = "workbench-local") -> DaemonStatusDTO:
+        canonicalize_duplicate_runnable_assignments(self.store)
         handle = _DAEMON_HANDLES.get(self.store.root)
         heartbeat = self._latest_heartbeat(runtime_id)
         open_assignments = self.store.list_open_assignments()
@@ -126,6 +131,23 @@ class DaemonControlService:
         )
 
     def start(self, payload: DaemonStartInput) -> DaemonControlOutput:
+        canonicalize_duplicate_runnable_assignments(self.store)
+        if self._is_broad_claim(payload):
+            claimable = [
+                assignment
+                for assignment in self.store.list_open_assignments()
+                if is_claimable_assignment(assignment)
+            ]
+            if len(claimable) > 1:
+                return DaemonControlOutput(
+                    daemon=self.status(payload.runtime_id),
+                    did_work=False,
+                    status="broad_claim_blocked",
+                    message=(
+                        "daemon start needs an assignment, project, or backend scope when multiple "
+                        "claimable assignments exist"
+                    ),
+                )
         existing = _DAEMON_HANDLES.get(self.store.root)
         heartbeat = self._latest_heartbeat(payload.runtime_id)
         heartbeat_stale = is_stale_heartbeat(heartbeat) if heartbeat else False
@@ -205,6 +227,14 @@ class DaemonControlService:
             status=result.status,
             message=result.message or dispatch.message,
             ticket_run_result=asdict(result.ticket_run_result) if result.ticket_run_result else None,
+        )
+
+    def _is_broad_claim(self, payload: DaemonStartInput) -> bool:
+        return (
+            not payload.allowed_assignment_id
+            and not payload.target_project_id
+            and not payload.allowed_backends
+            and payload.scope_mode != "paused"
         )
 
     def _latest_heartbeat(self, runtime_id: str):

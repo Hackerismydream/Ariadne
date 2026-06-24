@@ -43,6 +43,7 @@ export function RunsPage() {
   const [progressMessage, setProgressMessage] = useState("");
   const activeAssignmentId = assignments.find((assignment) => ["claimed", "running"].includes(assignment.status))?.id
     ?? null;
+  const claimableAssignment = assignments.find((assignment) => assignment.status === "ready_to_claim") ?? null;
 
   async function refreshRuns() {
     setLoading(true);
@@ -76,6 +77,17 @@ export function RunsPage() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function startScopedDaemon() {
+    const assignment = claimableAssignment;
+    return startDaemon({
+      external_execution_authorized: true,
+      allowed_assignment_id: assignment?.id ?? null,
+      target_project_id: assignment?.target_project_id ?? null,
+      allowed_backends: assignment?.backend_name ? [assignment.backend_name] : [],
+      scope_mode: assignment ? "assignment" : "project",
+    });
   }
 
   useEffect(() => {
@@ -132,9 +144,9 @@ export function RunsPage() {
             className="primary-action"
             disabled={busyAction !== null}
             type="button"
-            onClick={() => void runDaemonAction("Start Daemon", () => startDaemon({ external_execution_authorized: true }))}
+            onClick={() => void runDaemonAction("Start Daemon", startScopedDaemon)}
           >
-            <Play size={15} /> Start Daemon
+            <Play size={15} /> Start Daemon{claimableAssignment ? ` · ${claimableAssignment.ticket_key}` : ""}
           </button>
           <button
             disabled={busyAction !== null}
@@ -238,6 +250,7 @@ export function RunsPage() {
               <span>Agent</span>
               <span>Backend</span>
               <span>Status</span>
+              <span>Attempt</span>
               <span>Created</span>
               <span>Blocked / failure</span>
             </div>
@@ -247,6 +260,7 @@ export function RunsPage() {
                 <span>{assignment.agent_name}</span>
                 <span>{display(assignment.backend_name)}</span>
                 <span>{statusLabel(assignment.status)}</span>
+                <span>{display(assignment.attempt, "1")}</span>
                 <span>{display(assignment.created_at)}</span>
                 <span>{assignment.blocked_reason ?? assignment.failure_reason ?? assignment.blocker ?? "None"}</span>
               </div>

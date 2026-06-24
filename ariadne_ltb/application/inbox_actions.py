@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ariadne_ltb.application.errors import ConflictError, NotFoundError, ValidationAppError
+from ariadne_ltb.application.inbox_recovery import classify_inbox_item
 from ariadne_ltb.inbox import (
     create_repair_ticket_from_inbox,
     find_repair_ticket_for_inbox_item,
@@ -37,6 +38,7 @@ class InboxActionService:
 
     def create_repair_ticket(self, item_id: str, priority: str = "high") -> InboxActionResult:
         item = self._load_typed_item(item_id)
+        self._require_allowed_action(item, "create_repair_ticket")
         existing = find_repair_ticket_for_inbox_item(self.store, item.id)
         result = create_repair_ticket_from_inbox(self.store, item.id, priority=priority)
         repair_ticket = result.ticket or existing
@@ -64,6 +66,7 @@ class InboxActionService:
 
     def acknowledge(self, item_id: str, note: str = "") -> InboxActionResult:
         item = self._load_typed_item(item_id)
+        self._require_allowed_action(item, "acknowledge")
         updated = self.store.update_inbox_item_status(
             item.id,
             InboxStatus.ACKNOWLEDGED,
@@ -83,6 +86,7 @@ class InboxActionService:
 
     def resolve(self, item_id: str, note: str = "") -> InboxActionResult:
         item = self._load_typed_item(item_id)
+        self._require_allowed_action(item, "resolve")
         updated = self.store.update_inbox_item_status(
             item.id,
             InboxStatus.RESOLVED,
@@ -102,6 +106,7 @@ class InboxActionService:
 
     def rerun_linked_assignment(self, item_id: str, reason: str = "", force: bool = False) -> InboxActionResult:
         item = self._load_typed_item(item_id)
+        self._require_allowed_action(item, "rerun")
         assignment = self._resolve_linked_assignment(item)
         try:
             retry = create_retry_assignment(
@@ -136,6 +141,25 @@ class InboxActionService:
             action="inbox_assignment_rerun_created",
             assignment=retry,
             message=f"Retry assignment created: {retry.id}.",
+        )
+
+    def _require_allowed_action(self, item: InboxItem, action: str) -> None:
+        recovery = classify_inbox_item(item)
+        if action in recovery.allowed_actions:
+            return
+        message = (
+            "Inbox action is not safe to rerun for this blocker state."
+            if action == "rerun"
+            else "Inbox action is not allowed for this blocker state."
+        )
+        raise ConflictError(
+            message,
+            {
+                "inbox_item_id": item.id,
+                "requested_action": action,
+                "allowed_actions": recovery.allowed_actions,
+                "recovery_class": recovery.recovery_class,
+            },
         )
 
     def _load_typed_item(self, item_id: str) -> InboxItem:

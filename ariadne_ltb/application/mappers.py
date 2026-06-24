@@ -34,6 +34,7 @@ from ariadne_ltb.models import (
     TicketAssignment,
     TicketComment,
 )
+from ariadne_ltb.retry import is_safe_to_retry
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -180,14 +181,25 @@ def assignment_dto(assignment: TicketAssignment) -> AssignmentDTO:
         runtime_scope=assignment.metadata.get("target_project_id"),
         target_project_id=assignment.metadata.get("target_project_id"),
         parent_assignment_id=assignment.parent_assignment_id,
+        attempt=assignment.attempt,
         retry_reason=assignment.retry_reason,
         retry_policy=assignment.retry_policy,
+        retry_allowed=is_safe_to_retry(assignment),
+        retry_blocked_reason=None if is_safe_to_retry(assignment) else _retry_blocked_reason(assignment),
         created_at=assignment.created_at,
         started_at=assignment.started_at,
         ended_at=assignment.ended_at,
         blocker=assignment.blocker,
         failure_reason=assignment.failure_reason.value if assignment.failure_reason else None,
     )
+
+
+def _retry_blocked_reason(assignment: TicketAssignment) -> str | None:
+    if assignment.status.value not in {"blocked", "failed"}:
+        return "assignment is not blocked or failed"
+    if assignment.failure_reason:
+        return f"{assignment.failure_reason.value} is not safe for automatic retry"
+    return "missing typed failure reason"
 
 
 def comment_dto(comment: TicketComment) -> CommentDTO:

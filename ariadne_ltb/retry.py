@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ariadne_ltb.journal import runtime_event
+from ariadne_ltb.application.assignment_control import existing_child_retry
 from ariadne_ltb.models import (
     AssignmentStatus,
     CommentAuthorType,
@@ -62,6 +63,9 @@ def create_retry_assignment(
         )
         msg = f"unsafe retry for {assignment.id}: {assignment.failure_reason}"
         raise ValueError(msg)
+    existing = existing_child_retry(store, assignment.id)
+    if existing is not None:
+        return existing
 
     retry = assignment.model_copy(
         deep=True,

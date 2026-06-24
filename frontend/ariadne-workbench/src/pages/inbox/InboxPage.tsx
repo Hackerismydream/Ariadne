@@ -27,6 +27,10 @@ function statusLabel(status: string | null | undefined) {
   return labels[status ?? ""] ?? status ?? "Unknown";
 }
 
+function actionAllowed(item: ApiInboxListItem, action: string) {
+  return (item.allowed_actions ?? []).includes(action);
+}
+
 export function InboxPage() {
   const [items, setItems] = useState<ApiInboxListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,38 +115,51 @@ export function InboxPage() {
             <div className="inbox-meta">
               <span>{statusLabel(item.status)}</span>
               <span>{item.action_type}</span>
+              <span>{item.recovery_class ?? "human_required"}</span>
               <span>{item.created_at}</span>
+            </div>
+            <div className="inbox-meta">
+              <span>Blocker {item.canonical_blocker_id ?? item.id}</span>
+              <span>Allowed: {(item.allowed_actions ?? []).join(", ") || "none"}</span>
             </div>
             {item.resolution_note ? <small>{item.resolution_note}</small> : null}
             <div className="inbox-actions">
-              <button
-                disabled={busyAction !== null}
-                type="button"
-                onClick={() => void runInboxAction(item, "Repair", () => createInboxRepairTicket(item.id))}
-              >
-                <Wrench size={13} /> Repair
-              </button>
-              <button
-                disabled={busyAction !== null}
-                type="button"
-                onClick={() => void runInboxAction(item, "Rerun", () => rerunInboxAssignment(item.id, { reason: "retry from workbench inbox" }))}
-              >
-                <RotateCcw size={13} /> Rerun
-              </button>
-              <button
-                disabled={busyAction !== null}
-                type="button"
-                onClick={() => void runInboxAction(item, "Acknowledge", () => acknowledgeInboxItem(item.id, { note: "Acknowledged from Workbench." }))}
-              >
-                Acknowledge
-              </button>
-              <button
-                disabled={busyAction !== null}
-                type="button"
-                onClick={() => void runInboxAction(item, "Resolve", () => resolveInboxItem(item.id, { note: "Resolved from Workbench." }))}
-              >
-                Resolve
-              </button>
+              {actionAllowed(item, "create_repair_ticket") ? (
+                <button
+                  disabled={busyAction !== null}
+                  type="button"
+                  onClick={() => void runInboxAction(item, "Repair", () => createInboxRepairTicket(item.id))}
+                >
+                  <Wrench size={13} /> Repair
+                </button>
+              ) : null}
+              {actionAllowed(item, "rerun") ? (
+                <button
+                  disabled={busyAction !== null}
+                  type="button"
+                  onClick={() => void runInboxAction(item, "Rerun", () => rerunInboxAssignment(item.id, { reason: "retry from workbench inbox" }))}
+                >
+                  <RotateCcw size={13} /> Rerun
+                </button>
+              ) : null}
+              {actionAllowed(item, "acknowledge") ? (
+                <button
+                  disabled={busyAction !== null}
+                  type="button"
+                  onClick={() => void runInboxAction(item, "Acknowledge", () => acknowledgeInboxItem(item.id, { note: "Acknowledged from Workbench." }))}
+                >
+                  Acknowledge
+                </button>
+              ) : null}
+              {actionAllowed(item, "resolve") ? (
+                <button
+                  disabled={busyAction !== null}
+                  type="button"
+                  onClick={() => void runInboxAction(item, "Resolve", () => resolveInboxItem(item.id, { note: "Resolved from Workbench." }))}
+                >
+                  Resolve
+                </button>
+              ) : null}
             </div>
           </article>
         ))}

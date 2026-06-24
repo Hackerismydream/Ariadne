@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from ariadne_ltb.application.assignment_control import has_persisted_runtime_authorization
 from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.dtos import RunAssignmentInput, RunAssignmentOutput
-from ariadne_ltb.application.errors import ValidationAppError
+from ariadne_ltb.application.errors import BlockedError, ValidationAppError
 from ariadne_ltb.application.idempotency import IdempotencyStore
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.journal import runtime_event
@@ -28,12 +29,35 @@ class RunAssignmentService:
                 idempotent_replay=True,
             )
         assignment = self.store.load_assignment(assignment_id)
-        ConfirmationTokenService(self.store).verify(assignment, payload.confirmation_token)
+        if payload.confirmation_token:
+            ConfirmationTokenService(self.store).verify(assignment, payload.confirmation_token)
+        elif not has_persisted_runtime_authorization(assignment):
+            raise BlockedError(
+                "assignment has no persisted runtime authorization; assign it from Workbench first",
+                {"assignment_id": assignment.id},
+            )
         ticket = self.store.load_ticket(assignment.ticket_id)
-        if assignment.status.is_terminal or assignment.status in {
-            AssignmentStatus.CLAIMED,
-            AssignmentStatus.RUNNING,
-        }:
+        if assignment.status.is_terminal:
+            message = f"assignment already {assignment.status.value}; no run dispatch was recorded"
+            self.idempotency.set(
+                payload.idempotency_key,
+                {
+                    "assignment_id": assignment.id,
+                    "did_work": False,
+                    "status": assignment.status.value,
+                    "message": message,
+                    "ticket_run_result": None,
+                },
+                "run_assignment",
+            )
+            return RunAssignmentOutput(
+                assignment=assignment_dto(assignment),
+                did_work=False,
+                status=assignment.status.value,
+                message=message,
+                ticket_run_result=None,
+            )
+        if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}:
             ready_assignment = assignment
         elif assignment.status is AssignmentStatus.READY_TO_CLAIM:
             ready_assignment = assignment

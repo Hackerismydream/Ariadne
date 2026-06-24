@@ -217,6 +217,16 @@ export function runAssignmentNow(assignmentId: string, payload: RunAssignmentReq
   });
 }
 
+export function retryAssignment(assignmentId: string, payload: InboxActionRequest = {}) {
+  return requestJson<{ assignment: ApiAssignmentSummary; message: string; parent_assignment_id: string }>(
+    `/api/assignments/${encodeURIComponent(assignmentId)}/retry`,
+    {
+    method: "POST",
+    body: JSON.stringify(payload),
+    },
+  );
+}
+
 export function getAssignmentEvents(assignmentId: string, since?: string) {
   const query = since ? `?since=${encodeURIComponent(since)}` : "";
   return requestJson<{ assignment: ApiAssignmentSummary; events: AssignmentEvent[] }>(

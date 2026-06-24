@@ -101,8 +101,11 @@ export type ApiAssignmentSummary = {
   runtime_scope?: string | null;
   target_project_id?: string | null;
   parent_assignment_id?: string | null;
+  attempt?: number | null;
   retry_reason?: string | null;
   retry_policy?: string | null;
+  retry_allowed?: boolean;
+  retry_blocked_reason?: string | null;
   created_at?: string | null;
   blocker?: string | null;
   failure_reason?: string | null;
@@ -502,9 +505,16 @@ export type ApiRunsRuntime = {
 export type ApiInboxListItem = {
   id: string;
   issue_key?: string | null;
+  source_type?: string | null;
+  source_id?: string | null;
+  linked_assignment_id?: string | null;
+  canonical_blocker_id?: string | null;
   failure_reason: string;
   severity: string;
   action_type: string;
+  allowed_actions?: string[];
+  primary_action?: string | null;
+  recovery_class?: string | null;
   created_at: string;
   status: string;
   resolution_note?: string | null;

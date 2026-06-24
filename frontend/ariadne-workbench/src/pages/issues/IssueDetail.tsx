@@ -1,6 +1,6 @@
 import { ArrowLeft, MessageSquare, Play, RotateCcw, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, rerunIssue, runIssueNow } from "../../shared/api/client";
+import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, retryAssignment, runIssueNow } from "../../shared/api/client";
 import type { ApiAssignmentSummary, ApiIssueDetail, AssignmentEvent } from "../../shared/api/types";
 import type { ProjectResource, RuntimeInfo } from "../../types";
 
@@ -155,16 +155,20 @@ export function IssueDetail({
     return `Assigned ${response.assignment.ticket_key} to ${response.assignment.agent_name}.`;
   }
 
-  async function runCurrentIssue(now: boolean) {
-    if (!confirmationToken) {
-      throw new Error("This browser session has no confirmation token. Assign the issue first, then run it.");
-    }
+  async function runCurrentIssue() {
     const payload = {
       confirmation_token: confirmationToken,
-      idempotency_key: idempotencyKey(now ? "phase3-run-now" : "phase3-rerun"),
+      idempotency_key: idempotencyKey("phase3-run-now"),
     };
-    const response = now ? await runIssueNow(issueKey, payload) : await rerunIssue(issueKey, payload);
-    return response.message || `${now ? "Run now" : "Rerun"} requested.`;
+    const response = await runIssueNow(issueKey, payload);
+    return response.message || "Run now requested.";
+  }
+
+  async function retryAssignmentRow(assignment: ApiAssignmentSummary) {
+    const response = await retryAssignment(assignment.id, {
+      reason: `retry ${assignment.ticket_key} attempt ${assignment.attempt ?? 1} from Workbench issue detail`,
+    });
+    return response.message || `Retry requested for ${assignment.id}.`;
   }
 
   async function submitComment() {
@@ -214,11 +218,8 @@ export function IssueDetail({
         <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Assign", assignCurrentIssue)}>
           <UserPlus size={15} /> Assign
         </button>
-        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Run Now", () => runCurrentIssue(true))}>
+        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Run Now", runCurrentIssue)}>
           <Play size={15} /> Run Now
-        </button>
-        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Rerun", () => runCurrentIssue(false))}>
-          <RotateCcw size={15} /> Rerun
         </button>
         <input
           aria-label="Add issue comment"
@@ -354,7 +355,18 @@ export function IssueDetail({
                 <strong>{assignment.agent_name}</strong>
                 <span>{assignment.backend_name}</span>
                 <span>{statusLabel(assignment.status)}</span>
+                <span>Attempt {assignment.attempt ?? 1}</span>
+                {assignment.parent_assignment_id ? <small>Parent {assignment.parent_assignment_id}</small> : null}
                 <code>{assignment.id}</code>
+                {assignment.retry_allowed ? (
+                  <button
+                    disabled={readOnly || busyAction !== null}
+                    type="button"
+                    onClick={() => void runAction(`Retry ${assignment.id}`, () => retryAssignmentRow(assignment))}
+                  >
+                    <RotateCcw size={13} /> Retry this attempt
+                  </button>
+                ) : assignment.retry_blocked_reason ? <small>{assignment.retry_blocked_reason}</small> : null}
               </div>
             )) : <p className="empty-column">No assignments yet.</p>}
           </section>

@@ -37,12 +37,20 @@ def classify_inbox_item(item: InboxItem) -> InboxRecovery:
         return InboxRecovery("historical", "view_history", ["view_history"])
     reason = _reason_value(item.failure_reason)
     if reason in AUTO_RERUNNABLE:
-        return InboxRecovery("auto_rerunnable", "rerun", ["rerun", "acknowledge"])
+        return InboxRecovery("auto_rerunnable", "rerun", ["rerun", "acknowledge", "resolve"])
     if reason in REPAIR_REQUIRED:
-        return InboxRecovery("repair_ticket_required", "create_repair_ticket", ["create_repair_ticket", "acknowledge"])
+        return InboxRecovery(
+            "repair_ticket_required",
+            "create_repair_ticket",
+            ["create_repair_ticket", "acknowledge", "resolve"],
+        )
     if reason in CONFIRMATION_REQUIRED:
-        return InboxRecovery("confirmation_required", "authorize_and_rerun", ["rerun", "acknowledge"])
-    return InboxRecovery("human_required", "manual_review", ["create_repair_ticket", "acknowledge", "resolve"])
+        return InboxRecovery("confirmation_required", "authorize_in_runtime", ["acknowledge", "resolve"])
+    return InboxRecovery(
+        "human_required",
+        "manual_review",
+        ["create_repair_ticket", "acknowledge", "resolve"],
+    )
 
 
 def _reason_value(reason: FailureReason | None) -> str:
