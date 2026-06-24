@@ -2,6 +2,17 @@
 
 This folder contains promptable workflows for running separate grill threads.
 
+All workflows require the `grill-me` skill:
+
+```text
+/Users/martinlos/.codex/skills/grill-me/SKILL.md
+```
+
+They use `grill-me` as the strict questioning standard, but run it as an
+unattended multi-round review instead of stopping after each question for user
+input. Where reviewer or judge subagents are required, use real subagents if
+available; otherwise simulate isolated subagents and label them.
+
 Use them in this order:
 
 1. `2026-06-24-multica-parity-grill-workflow.md`

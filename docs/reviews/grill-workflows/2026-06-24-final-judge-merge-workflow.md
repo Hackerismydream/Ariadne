@@ -13,6 +13,33 @@ that should drive Ariadne from its current state toward a Multica-grade AI
 Builder Agent Workbench?
 ```
 
+## Required Skill And Subagent Rules
+
+This workflow must use the `grill-me` skill:
+
+```text
+/Users/martinlos/.codex/skills/grill-me/SKILL.md
+```
+
+Use `grill-me` for its relentless `/grilling` standard when challenging,
+deduplicating, and scoring the two prior grill lists. Because this is a merge
+workflow, do not pause after every question to wait for the user. Apply the
+strict questioning standard internally to the merge.
+
+Use subagents where independent judgment is needed:
+
+- If the environment provides a subagent or multi-agent tool, use it for Step 2
+  deduplication and Step 3 scoring.
+- Recommended subagents:
+  - Multica parity judge
+  - Knowledge orchestration judge
+  - Dogfood closure judge
+  - Evidence quality judge
+- If real subagents are unavailable, simulate isolated judge subagents in
+  separate markdown sections and clearly label them as `simulated subagent`.
+- The final Judge may select the 41 issues only after reading the independent
+  judge outputs.
+
 ## Inputs
 
 Required input files:
@@ -64,6 +91,9 @@ different surfaces.
 
 Keep the sharper wording. Preserve both evidence sources.
 
+This step must use the required judge subagents or clearly labeled simulated
+judge subagents.
+
 ### Step 3: Score
 
 Score each issue:
@@ -76,6 +106,10 @@ knowledge-layer relevance: 0-5
 verifiability: 0-5
 implementation leverage: 0-5
 ```
+
+This step must use the required judge subagents or clearly labeled simulated
+judge subagents. The final score may differ from subagent scores, but the
+reason must be recorded.
 
 ### Step 4: Select 41
 
@@ -150,6 +184,17 @@ Each grill issue must use this format:
 
 ```text
 You are the final judge for the Ariadne grill process.
+
+You must use the grill-me skill:
+/Users/martinlos/.codex/skills/grill-me/SKILL.md
+
+Use grill-me's relentless /grilling standard, but do not pause for interactive
+user answers. Apply the strict questioning style internally while merging and
+scoring the two grill lists.
+
+Where the workflow requires judge subagents, you must use real subagents if
+the environment supports them. If real subagents are unavailable, simulate
+isolated judge subagents and label them as simulated subagents.
 
 First wait until these two files exist:
 /Users/martinlos/code/Ariadne/docs/reviews/grill-workflows/results/YYYY-MM-DD-multica-parity-final-grill-list.md

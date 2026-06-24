@@ -28,6 +28,28 @@ Review loop
 Do not review Ariadne's knowledge-source compiler here except where it blocks
 the work-management layer.
 
+## Required Skill And Subagent Rules
+
+This workflow must use the `grill-me` skill:
+
+```text
+/Users/martinlos/.codex/skills/grill-me/SKILL.md
+```
+
+Use `grill-me` for its relentless `/grilling` standard: sharp questions,
+branch-by-branch pressure, no vague praise, no shallow acceptance. Because this
+workflow is intended for unattended review, do not pause after every question to
+wait for the user. Convert the `grill-me` questioning style into the 5-round
+candidate / reviewer / judge loop below.
+
+Where this workflow requires independent reviewers, subagents are mandatory:
+
+- If the environment provides a subagent or multi-agent tool, use it.
+- If the environment cannot launch real subagents, simulate isolated subagents
+  in separate markdown sections and clearly label them as `simulated subagent`.
+- Do not collapse the four reviewer roles into one blended review.
+- The Judge may merge only after all reviewer outputs exist.
+
 ## Required Reading
 
 Read these Ariadne files first:
@@ -134,10 +156,11 @@ Question format:
 - Why this matters for AI Builder workbench maturity:
 ```
 
-### Role 2: Four Independent Reviewers
+### Role 2: Four Independent Reviewer Subagents
 
-Create four independent reviewer markdown sections. They must not merge their
-opinions before writing.
+Launch four independent reviewer subagents. If true subagents are unavailable,
+write four isolated `simulated subagent` markdown sections. They must not merge
+their opinions before writing.
 
 Reviewer 1: Product Operator
 
@@ -259,6 +282,16 @@ Also include:
 
 ```text
 You are reviewing Ariadne as the Multica Parity Grill thread.
+
+You must use the grill-me skill:
+/Users/martinlos/.codex/skills/grill-me/SKILL.md
+
+Use grill-me's relentless /grilling standard, but do not pause for interactive
+user answers. Convert that strict questioning style into the workflow below.
+
+Where the workflow requires reviewer subagents, you must use real subagents if
+the environment supports them. If real subagents are unavailable, simulate four
+isolated reviewer subagents and label them as simulated subagents.
 
 Read and follow:
 /Users/martinlos/code/Ariadne/docs/reviews/grill-workflows/2026-06-24-multica-parity-grill-workflow.md
