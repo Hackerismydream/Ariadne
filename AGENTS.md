@@ -6,15 +6,42 @@
 2. `docs/adr/ADR-0004-ticket-centered-agent-workbench.md` — 架构决策
 3. `docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md` — 核心循环
 4. `docs/superpowers/plans/2026-06-22-multica-grade-workbench-execution-brief.md` — 执行 brief
-5. `docs/superpowers/plans/2026-06-22-multica-grade-agent-team-workbench-rebuild-plan.md` — 主计划
+5. `docs/reviews/grill-workflows/results/2026-06-24-final-41-grill-list.md` — 当前问题清单
+6. `docs/superpowers/plans/2026-06-24-grill-closure-campaign-plan.md` — 当前执行计划
+7. `docs/superpowers/plans/2026-06-22-multica-grade-agent-team-workbench-rebuild-plan.md` — 历史主计划和 Multica 对照笔记
 
 ## 当前执行阶段
 
-Phase 8: Knowledge Orchestration Layer
+Grill Closure Campaign
 
-范围见 `docs/superpowers/plans/2026-06-23-phase8-knowledge-orchestration-handoff.md`。
-旧 `docs/superpowers/plans/2026-06-23-phase8-langgraph-handoff.md.superseded`
-已废弃。ADR 见 `docs/adr/ADR-0005-langgraph-source-to-issue-pipeline.md`。
+范围见：
+
+```text
+docs/superpowers/plans/2026-06-24-grill-closure-campaign-plan.md
+docs/reviews/grill-workflows/results/2026-06-24-final-41-grill-list.md
+```
+
+Phase 8: Knowledge Orchestration Layer 已完成为当前产品的一部分，但不再是
+当前唯一执行边界。后续工作必须优先把 41 个 grill findings 收敛为真实浏览器产品闭环：
+
+```text
+Sources
+  -> Current Issue Delta
+  -> Current Issue Set
+  -> Assignment
+  -> Runtime Run
+  -> Evidence
+  -> Review / Memory / Next Issues
+  -> Version Progress
+```
+
+旧 Phase 8 handoff 仍可作为知识层参考：
+
+```text
+docs/superpowers/plans/2026-06-23-phase8-knowledge-orchestration-handoff.md
+docs/superpowers/plans/2026-06-23-phase8-langgraph-handoff.md.superseded
+docs/adr/ADR-0005-langgraph-source-to-issue-pipeline.md
+```
 
 ## 核心约束（违反任何一条必须停下来）
 
@@ -34,56 +61,45 @@ Phase 8: Knowledge Orchestration Layer
 - `/api/issues` 绕过 BuildTicket 直接读写
 - 在 Layer 2 之外新建持久化 wiki / markdown 文件
 - 把 ProjectKnowledge 暴露成 HTTP API
-- 在 Phase 8 实现 Query / Lint / Memory
+- 在当前 campaign 内把 ProjectKnowledge 暴露成原始 CRUD HTTP API
+- 在当前 campaign 内实现 Query / Lint / Memory，除非有新的批准计划
 - `#issues` 展示所有历史 tickets 而非当前 project/version mainline issue set
 - 删除 Delivery 信息导致看不到当前版本目标（应上移为 Context strip，不是删除）
 - 页面按钮存在但没有真实 API action
 - UI 读取 static fixture 当产品路径
 - 在产品代码中新增 mock / fixture / sample / static fallback 数据
 - 让 Workbench、API、CLI、agent runtime 从测试 fixture、hardcoded sample、前端内置数据、`web_data` snapshot、或假默认对象读取产品状态
-- 引入 React Router 或其他路由库
-- 拆分 App.tsx 为多文件路由系统（Phase 1 不做）
-- 为了让 UI 能工作而自行创建 Phase 2+ 的 API endpoint
+- 为了让 UI 能工作而绕过 BuildTicket/Assignment/Artifact store 自行创建第二套 product state
 - 引入 Go/Postgres/auth/workspace/billing
 
-## Phase 8 Scope
+## Grill Closure Campaign Scope
 
 ### 做
 
-1. 新增 `ariadne_ltb/knowledge/` 模块
-2. 新增 ProjectKnowledge Layer 2 模型：
-   ProjectPurpose, SourceInsight, SynthesisTheme, ContradictionRecord,
-   BlockerLearning, OutcomesLog
-3. 实现 Ingest LangGraph：prepare_changes, analyze_source, update_themes,
-   detect_contradictions
-4. 实现 Compile LangGraph：load_knowledge, plan_decomposition,
-   ground_evidence, validate_dag, quality_gate
-5. `issue_factory.py` 调用 `ariadne_ltb.knowledge.compile_issues()`
-6. AgentRun 终态 best-effort 触发 `reflect_on_run()`
-7. 无 API key 或 graph 失败时自动 fallback 到现有模板
-8. 新增 `langgraph>=0.2` + `langchain-core>=0.3` 依赖
-9. 新增模型、store、graph、reflect、fallback integration tests
+1. 修复 Truth Layer：统一 current work / terminal verdict / evidence validity。
+2. 修复 Runtime Control：assignment 唯一性、attempt lineage、scoped daemon claim、canonical blocker、Inbox allowed actions。
+3. 修复 Issue Detail / Evidence Center：让单个 issue 页面成为事实中心，证据可打开且语义有效。
+4. 修复 Knowledge-to-Issue：current issue delta、compiler provenance、target codebase snapshot、source artifact quality、claim-level evidence。
+5. 建立 Browser Dogfood Closure Ledger：只在真实浏览器闭环推进目标项目版本时标记 `REAL_CLOSED`。
 
 ### 不做
 
-- 不改 HTTP routes
-- 不改前端代码
-- 不加 langchain-openai / langsmith / langchain-community
-- 不加 MemorySaver checkpoint（Layer 2 持久化替代 checkpoint）
-- 不实现 human-in-the-loop interrupt
-- 不改 source_analysis.py
-- 不实现 async
-- 不删除旧 issue_compiler.py
-- 不实现 Query / Lint / Memory
-- 不暴露 ProjectKnowledge HTTP API
+- 不新增独立 Issue persistence。
+- 不把 `/api/issues` 做成绕过 BuildTicket 的第二套 work store。
+- 不引入 Go/Postgres/auth/workspace/billing。
+- 不把 fake-codex、demo full、dry-run、CLI-only run 当成产品验收。
+- 不使用 mock/static fixture/sample data 作为 Workbench 或 API 产品数据。
+- 不暴露 ProjectKnowledge 原始 CRUD HTTP API；只能通过产品投影展示 provenance/evidence。
+- 不先做 board drag/drop、sidebar polish、视觉改版，除非当前 phase 明确要求。
 
 ### 验收标准
 
-1. `python3.11 -m pytest` — 全部通过（含新测试 + 现有测试 fallback 通过）
-2. `ruff check .` — clean
-3. `cd frontend/ariadne-workbench && npm run build` — success
-4. 有 API key 时：issue delta 生成的 issues 基于 source 内容推理，不是固定模板
-5. 无 API key 时：deterministic fallback，现有行为不变
+1. `python3.11 -m pytest` — 全部通过或 phase 文档列出确切 blocker。
+2. `ruff check .` — clean。
+3. `cd frontend/ariadne-workbench && npm run build` — 前端受影响时必须通过。
+4. 每个 phase 必须有浏览器 evidence。
+5. P0 修复不得依赖 fake-codex、demo full、mock data、static fixture、CLI-only path。
+6. 如果真实 Codex/Claude 执行被环境阻塞，必须显示为 `BLOCKED_WITH_EVIDENCE`，并写入 Issue Detail + Inbox + closure ledger；不得声称闭环。
 
 ## Multica 参考说明
 
