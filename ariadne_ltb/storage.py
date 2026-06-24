@@ -167,10 +167,12 @@ class AriadneStore:
 
     def _write_model(self, path: Path, model: BaseModel) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        temporary_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+        temporary_path.write_text(
             model.model_dump_json(indent=2, exclude_none=False) + "\n",
             encoding="utf-8",
         )
+        temporary_path.replace(path)
 
     def _read_model(self, path: Path, model_type: type[T]) -> T:
         return model_type.model_validate_json(path.read_text(encoding="utf-8"))
