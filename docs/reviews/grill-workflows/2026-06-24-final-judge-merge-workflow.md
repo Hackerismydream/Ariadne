@@ -68,6 +68,38 @@ Also read:
   question, why it matters, how to verify.
 - Do not accept mock, fixture, demo, or CLI-only evidence as product closure.
 
+## Non-Negotiable Execution Requirement
+
+You must complete the full merge method before writing the final 41 list.
+
+The working notes or final appendix must contain evidence of:
+
+1. Step 1 Normalize.
+2. Step 2 Deduplicate with independent judge subagents.
+3. Step 3 Score with independent judge subagents.
+4. Step 4 Select exactly 41 issues.
+5. Step 5 Assign priority.
+
+If there are fewer than 41 strong issues after deduplication, run the additional
+mini-round described in Step 4 before finalizing. If there are more than 41,
+cut by score and record rejected candidates.
+
+Do not compress the process into a single-pass merge. Do not produce the final
+list until every merge step has evidence.
+
+Before writing the final file, self-check:
+
+```text
+Did I normalize both input lists?
+Did I run independent judge subagents for deduplication?
+Did I run independent judge subagents for scoring?
+Did I select exactly 41 issues?
+Did I record rejected / merged candidates?
+Does every final issue have evidence and a verification method?
+```
+
+If any answer is no, continue the workflow instead of finalizing.
+
 ## Merge Method
 
 ### Step 1: Normalize
@@ -205,4 +237,32 @@ Then read and follow:
 
 Your output must be exactly one final markdown file with 41 evidence-backed
 grill issues. Do not implement fixes. Do not create a roadmap yet.
+
+Non-negotiable execution requirement:
+
+You must complete the full merge method before writing the final 41 list.
+
+Your output or intermediate notes must contain evidence of:
+1. Step 1 Normalize
+2. Step 2 Deduplicate with independent judge subagents
+3. Step 3 Score with independent judge subagents
+4. Step 4 Select exactly 41 issues
+5. Step 5 Assign priority
+
+If there are fewer than 41 strong issues after deduplication, run the additional
+mini-round described in Step 4 before finalizing. If there are more than 41,
+cut by score and record rejected candidates.
+
+Do not compress the process into a single-pass merge.
+Do not produce the final list until every merge step has evidence.
+
+Before writing the final file, self-check:
+- Did I normalize both input lists?
+- Did I run independent judge subagents for deduplication?
+- Did I run independent judge subagents for scoring?
+- Did I select exactly 41 issues?
+- Did I record rejected / merged candidates?
+- Does every final issue have evidence and a verification method?
+
+If any answer is no, continue the workflow instead of finalizing.
 ```

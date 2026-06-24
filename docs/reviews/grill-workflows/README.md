@@ -13,6 +13,11 @@ unattended multi-round review instead of stopping after each question for user
 input. Where reviewer or judge subagents are required, use real subagents if
 available; otherwise simulate isolated subagents and label them.
 
+Thread A and Thread B must run exactly 5 rounds. Each round must contain 9
+candidate questions, four independent reviewer subagent outputs, Judge scoring,
+and a round ledger. Thread C must show normalize / deduplicate / score / select
+41 / prioritize evidence before writing the final list.
+
 Use them in this order:
 
 1. `2026-06-24-multica-parity-grill-workflow.md`

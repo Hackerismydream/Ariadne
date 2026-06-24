@@ -99,6 +99,36 @@ layer above Multica-style issue work.
   file, issue delta, ticket body, handoff, browser behavior, API response, or
   target repo diff.
 
+## Non-Negotiable Execution Requirement
+
+You must execute exactly 5 rounds.
+
+For every round, the working notes or final appendix must contain:
+
+1. Candidate Generator: exactly 9 candidate grill questions.
+2. Four independent reviewer subagent outputs.
+3. Judge scoring and merge decision.
+4. Round Ledger with keep / drop / merge / remaining gaps / next focus.
+
+If the final output does not include evidence that all 5 rounds were executed,
+the task is incomplete.
+
+Do not compress the process into a single-pass review. Do not skip intermediate
+ledgers. Do not produce the final list until Round 5 is complete.
+
+Before writing the final file, self-check:
+
+```text
+Did I complete Round 1?
+Did I complete Round 2?
+Did I complete Round 3?
+Did I complete Round 4?
+Did I complete Round 5?
+Does each round include 9 candidates, 4 reviewer outputs, and a Judge ledger?
+```
+
+If any answer is no, continue the workflow instead of finalizing.
+
 ## Browser And Artifact Checks
 
 Start or use the running Workbench:
@@ -318,4 +348,31 @@ Your output must be the final markdown file requested by that workflow.
 Do not implement fixes. Do not write a broad essay. Run the 5-round grill loop,
 use browser/API/code/artifact evidence, and produce the final knowledge
 orchestration grill list.
+
+Non-negotiable execution requirement:
+
+You must execute exactly 5 rounds.
+
+For every round, your output or intermediate notes must contain:
+1. Candidate Generator: exactly 9 candidate grill questions
+2. Four independent reviewer subagent outputs
+3. Judge scoring and merge decision
+4. Round Ledger with keep/drop/merge/remaining gaps/next focus
+
+If the final output does not include evidence that all 5 rounds were executed,
+the task is incomplete.
+
+Do not compress the process into a single-pass review.
+Do not skip intermediate ledgers.
+Do not produce the final list until Round 5 is complete.
+
+Before writing the final file, self-check:
+- Did I complete Round 1?
+- Did I complete Round 2?
+- Did I complete Round 3?
+- Did I complete Round 4?
+- Did I complete Round 5?
+- Does each round include 9 candidates, 4 reviewer outputs, and a Judge ledger?
+
+If any answer is no, continue the workflow instead of finalizing.
 ```
