@@ -184,11 +184,14 @@ def test_frontend_inbox_exposes_repair_rerun_acknowledge_resolve_actions() -> No
 
 def test_frontend_product_mode_does_not_silently_fallback_to_fixture() -> None:
     text = DATA.read_text(encoding="utf-8")
-    disconnected_block = text.split("if (!offlineFallbackEnabled())", 1)[1].split("try {", 1)[0]
 
-    assert 'source: "disconnected"' in disconnected_block
-    assert 'source: "fixture"' not in disconnected_block
-    assert "offlineFallbackEnabled" in text
+    assert 'export type WorkbenchDataSource = "api" | "disconnected"' in text
+    assert 'source: "disconnected"' in text
+    assert 'source: "fixture"' not in text
+    assert 'source: "snapshot"' not in text
+    assert "/web_data/workbench.json" not in text
+    assert "offlineFallbackEnabled" not in text
+    assert "ARI-FE-001" not in text
 
 
 def test_frontend_product_path_defaults_to_current_issues_context() -> None:

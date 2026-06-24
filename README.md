@@ -573,9 +573,10 @@ cd frontend/ariadne-workbench
 npm run dev
 ```
 
-`npm run sync:data` still exists for explicit offline snapshot regression. Use
-`?offline=1` or `VITE_ARIADNE_OFFLINE_FIXTURE=1` to view snapshot/fixture data.
-Those modes are read-only and are not product-path evidence.
+The product Workbench does not fall back to bundled fixture data. Browser data
+must come from Ariadne's local API and persisted `.ariadne` state. If the API is
+not reachable, the frontend shows a read-only disconnected state instead of
+silently inventing sample tickets.
 
 Build static assets:
 
@@ -583,16 +584,15 @@ Build static assets:
 npm run build
 ```
 
-Verify the workbench frontend build and offline snapshot regression:
+Verify the workbench frontend build:
 
 ```bash
 scripts/verify_workbench.sh
 ```
 
-`npm run sync:data` writes `public/web_data/workbench.json` from local tickets,
-runtime capability, project resources, inbox items, Feishu/GitHub integration
-results, release evidence, and progress events. That generated file is ignored
-because it contains machine-local paths.
+`npm run sync:data` remains available only as a developer regression helper for
+manually inspecting a generated snapshot file. It is not loaded by the product
+Workbench and is not release evidence.
 
 ## GitHub
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 
 from ariadne_ltb.application.comments import CommentService
+from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets
 from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.dtos import (
     AssignTicketInput,
@@ -137,12 +138,7 @@ class WorkbenchIssuesService:
         return target.id if target else None, goal.title if goal else None
 
     def _current_version_mainline_tickets(self, target_project_id: str | None) -> list[BuildTicket]:
-        tickets = self.store.list_tickets()
-        if target_project_id:
-            scoped = [ticket for ticket in tickets if ticket.metadata.get("target_project_id") == target_project_id]
-            if scoped:
-                return sorted(scoped, key=lambda item: item.key)
-        return sorted([ticket for ticket in tickets if ticket.status is not TicketStatus.SUPERSEDED], key=lambda item: item.key)
+        return current_version_mainline_tickets(self.store, target_project_id)
 
     def _resolve_ticket(self, issue_id_or_key: str) -> BuildTicket:
         try:

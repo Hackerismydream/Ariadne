@@ -9,7 +9,15 @@ from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.interfaces.http.app import create_app
-from ariadne_ltb.models import FailureReason, TicketStatus
+from ariadne_ltb.models import (
+    BacklogOperation,
+    BacklogOperationType,
+    BacklogPreview,
+    BacklogUpdateTrigger,
+    BuildTicket,
+    FailureReason,
+    TicketStatus,
+)
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
 
@@ -62,6 +70,128 @@ def test_issues_endpoint_returns_current_version_mainline_tickets(tmp_path: Path
     assert issue["id"]
     assert issue["target_version"] == "Demo current version"
     assert issue["source_count"] >= 1
+
+
+def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boundary(tmp_path: Path) -> None:
+    store, project_id = _prepared_store(tmp_path)
+    old_ticket = BuildTicket(
+        id="old-ticket",
+        key="MCA-OLD",
+        title="Old persisted issue",
+        description="Historical issue from an earlier preview.",
+        source_type="manual_goal",
+        source_ref="old",
+        status=TicketStatus.PLANNING,
+        metadata={"target_project_id": project_id, "issue_class": "mainline", "root_ticket_key": "MCA-OLD"},
+    )
+    current_ticket = BuildTicket(
+        id="current-ticket",
+        key="MCA-NEW",
+        title="Current version issue",
+        description="Issue from the latest applied preview.",
+        source_type="manual_goal",
+        source_ref="new",
+        status=TicketStatus.PLANNING,
+        metadata={"target_project_id": project_id, "issue_class": "mainline", "root_ticket_key": "MCA-NEW"},
+    )
+    store.save_ticket(old_ticket)
+    store.save_ticket(current_ticket)
+    store.save_backlog_preview(
+        BacklogPreview(
+            id="preview-old",
+            trigger_type=BacklogUpdateTrigger.MANUAL_GOAL,
+            trigger_ref="goal",
+            idempotency_key="preview-old",
+            base_ticket_fingerprint="old",
+            rationale="old preview",
+            applied_at="2026-06-20T00:00:00Z",
+            operations=[
+                BacklogOperation(
+                    id="op-old",
+                    operation_type=BacklogOperationType.ADD_TICKET,
+                    reason="old preview",
+                    ticket_id=old_ticket.id,
+                    ticket_key=old_ticket.key,
+                    title=old_ticket.title,
+                    metadata={"target_project_id": project_id, "included": True},
+                )
+            ],
+        )
+    )
+    store.save_backlog_preview(
+        BacklogPreview(
+            id="preview-current",
+            trigger_type=BacklogUpdateTrigger.MANUAL_GOAL,
+            trigger_ref="goal",
+            idempotency_key="preview-current",
+            base_ticket_fingerprint="current",
+            rationale="current preview",
+            applied_at="2026-06-21T00:00:00Z",
+            operations=[
+                BacklogOperation(
+                    id="op-current",
+                    operation_type=BacklogOperationType.ADD_TICKET,
+                    reason="current preview",
+                    ticket_id=current_ticket.id,
+                    ticket_key=current_ticket.key,
+                    title=current_ticket.title,
+                    metadata={"target_project_id": project_id, "included": True},
+                )
+            ],
+        )
+    )
+    client = TestClient(create_app(tmp_path))
+
+    response = client.get("/api/issues")
+
+    assert response.status_code == 200, response.text
+    keys = [item["key"] for item in response.json()["issues"]]
+    assert keys == ["MCA-NEW"]
+
+
+def test_workbench_endpoint_is_scoped_to_current_version_issue_set(tmp_path: Path) -> None:
+    store, project_id = _prepared_store(tmp_path)
+    current = store.resolve_ticket("ARI-003")
+    historical = BuildTicket(
+        id="historical-ticket",
+        key="MCA-HIST",
+        title="Historical issue",
+        description="Old work that should stay stored but not pollute the Workbench.",
+        source_type="manual_goal",
+        source_ref="history",
+        status=TicketStatus.PLANNING,
+        metadata={"target_project_id": project_id, "issue_class": "mainline", "root_ticket_key": "MCA-HIST"},
+    )
+    store.save_ticket(historical)
+    store.save_backlog_preview(
+        BacklogPreview(
+            id="preview-current-only",
+            trigger_type=BacklogUpdateTrigger.MANUAL_GOAL,
+            trigger_ref="goal",
+            idempotency_key="preview-current-only",
+            base_ticket_fingerprint="current-only",
+            rationale="current preview",
+            applied_at="2026-06-21T00:00:00Z",
+            operations=[
+                BacklogOperation(
+                    id="op-current-only",
+                    operation_type=BacklogOperationType.ADD_TICKET,
+                    reason="current preview",
+                    ticket_id=current.id,
+                    ticket_key=current.key,
+                    title=current.title,
+                    metadata={"target_project_id": project_id, "included": True},
+                )
+            ],
+        )
+    )
+    client = TestClient(create_app(tmp_path))
+
+    response = client.get("/api/workbench")
+
+    assert response.status_code == 200, response.text
+    keys = [item["key"] for item in response.json()["tickets"]]
+    assert keys == ["ARI-003"]
 
 
 def test_issue_detail_timeline_and_comment_facade(tmp_path: Path) -> None:

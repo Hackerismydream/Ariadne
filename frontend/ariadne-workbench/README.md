@@ -56,10 +56,9 @@ From the repository root:
 scripts/verify_workbench.sh
 ```
 
-The script syncs local `.ariadne/` data into the ignored
-`public/web_data/workbench.json` snapshot and then runs the production build.
-Snapshot mode is an explicit offline regression path, not the product data
-path.
+The script runs the production build against the API-first frontend. Generated
+snapshot files are developer artifacts only and are not loaded by the product
+Workbench.
 
 ## Current Pages
 
@@ -77,7 +76,8 @@ path.
 - Browser actions call assignment/run/comment APIs; they do not send raw shell
   commands or local filesystem paths.
 - If the API is unavailable, product mode shows a disconnected read-only state.
-- Generated snapshot and fixture data require explicit offline mode
-  (`?offline=1` or `VITE_ARIADNE_OFFLINE_FIXTURE=1`) and are read-only.
+- Bundled fixture data is not a product data source. The Workbench either loads
+  persisted state from Ariadne's local API or shows a disconnected read-only
+  state.
 - Multica screenshots and source files are used only as design and interaction
   references.

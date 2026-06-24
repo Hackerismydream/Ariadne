@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ariadne_ltb.application.daemon_control import DaemonControlService
+from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets, current_version_target_project_id
 from ariadne_ltb.application.dtos import AssignmentListResponse, RuntimeListItemDTO, RuntimeListResponse
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
@@ -15,10 +16,12 @@ class WorkbenchRuntimesService:
 
     def list_runtimes(self) -> RuntimeListResponse:
         daemon = DaemonControlService(self.store).status()
+        current_ticket_ids = self._current_ticket_ids()
         queue_depth = sum(
             1
             for assignment in self.store.list_assignments()
-            if assignment.status in {
+            if assignment.ticket_id in current_ticket_ids
+            and assignment.status in {
                 AssignmentStatus.QUEUED,
                 AssignmentStatus.ROUTED,
                 AssignmentStatus.HANDOFF_READY,
@@ -48,10 +51,17 @@ class WorkbenchRuntimesService:
         )
 
     def list_assignments(self) -> AssignmentListResponse:
+        current_ticket_ids = self._current_ticket_ids()
         return AssignmentListResponse(
             assignments=[
                 assignment_dto(assignment)
                 for assignment in self.store.list_assignments()
-                if assignment.backend_name != OFFLINE_TEST_BACKEND
+                if assignment.backend_name != OFFLINE_TEST_BACKEND and assignment.ticket_id in current_ticket_ids
             ]
         )
+
+    def _current_ticket_ids(self) -> set[str]:
+        target_project_id = current_version_target_project_id(self.store)
+        return {
+            ticket.id for ticket in current_version_mainline_tickets(self.store, target_project_id)
+        }

@@ -9,7 +9,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { applyRouteRedirect, ensureDefaultHashRoute, pageHash, parseHashRoute, type PageKey } from "./app/routes";
 import { WorkbenchSidebar } from "./app/shell/Sidebar";
-import { loadWorkbenchData, workbenchData, type WorkbenchDataSource } from "./data";
+import { emptyWorkbenchData, loadWorkbenchData, type WorkbenchDataSource } from "./data";
 import { selectableProductionRuntimes } from "./entities/runtime/lib";
 import { InboxPage as InboxControlPage } from "./pages/inbox/InboxPage";
 import { IssuesWorkbenchPage } from "./pages/issues/IssuesPage";
@@ -175,14 +175,14 @@ function nextDeliveryAction(data: WorkbenchData) {
 export function App() {
   const initialRoute = parseHashRoute();
   const [page, setPage] = useState<PageKey>(initialRoute.page ?? "ready");
-  const [data, setData] = useState<WorkbenchData>(workbenchData);
+  const [data, setData] = useState<WorkbenchData>(emptyWorkbenchData);
   const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
   const [issueRef, setIssueRef] = useState(initialRoute.ticketRef);
   const [selectedTicketId, setSelectedTicketId] = useState(
-    findTicketByRef(workbenchData.tickets, initialRoute.ticketRef)?.id ?? workbenchData.tickets[0]?.id ?? "",
+    findTicketByRef(emptyWorkbenchData.tickets, initialRoute.ticketRef)?.id ?? "",
   );
-  const [selectedRuntime, setSelectedRuntime] = useState(workbenchData.runtimes[0]?.backend ?? "fake-codex");
+  const [selectedRuntime, setSelectedRuntime] = useState("");
   const selectedTicket = data.tickets.find((ticket) => ticket.id === selectedTicketId) ?? data.tickets[0];
 
   async function refreshWorkbenchData(preferredTicketRef?: string) {

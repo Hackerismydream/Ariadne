@@ -8,6 +8,7 @@ from ariadne_ltb.application.dtos import (
     LatestRealRunDTO,
     ProjectVersionDeliveryDTO,
 )
+from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.models import BuildTicket, ExecutionResult, ProjectResource, ReviewReport, utc_now
 from ariadne_ltb.storage import AriadneStore
@@ -25,7 +26,7 @@ def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliver
     goal = _active_goal(goals)
     target_project_id = _active_target_project_id(goal, tickets, resources)
     target = _target_resource(resources, target_project_id)
-    delivery_tickets = [
+    delivery_tickets = current_version_mainline_tickets(store, target_project_id) or [
         ticket for ticket in tickets if _belongs_to_target(ticket, target_project_id)
     ] or tickets
     items = [_delivery_item(store, ticket) for ticket in sorted(delivery_tickets, key=lambda item: item.key)]
