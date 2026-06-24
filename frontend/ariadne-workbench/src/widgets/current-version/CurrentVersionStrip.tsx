@@ -115,15 +115,21 @@ export function CurrentVersionStrip({
   const blockedCount = (delivery?.blockers.length ?? 0)
     + currentTickets.filter((ticket) => ticket.status === "blocked").length
     + data.inbox.filter((item) => item.active !== false && item.status !== "resolved").length;
-  const activeWorkflow = currentWorkflows.find((step) => ["queued", "claimed", "running", "in_progress"].includes(step.status))
-    ?? currentWorkflows.find((step) => ["blocked", "failed"].includes(step.status));
-  const activeRun = data.daemonStatus.currentTicketKey
-    ? `${data.daemonStatus.currentTicketKey} · ${statusLabel(data.daemonStatus.status)}`
+  const blockingWorkflow = currentWorkflows.find((step) => ["blocked", "failed"].includes(step.status));
+  const runningWorkflow = currentWorkflows.find((step) => ["queued", "claimed", "running", "in_progress"].includes(step.status));
+  const activeWorkflow = delivery?.status === "blocked"
+    ? blockingWorkflow ?? runningWorkflow
+    : runningWorkflow ?? blockingWorkflow;
+  const activeDaemonTicket = data.daemonStatus.stale === true ? null : data.daemonStatus.currentTicketKey;
+  const activeRun = delivery?.status === "blocked" && !blockingWorkflow
+    ? `Blocked · ${delivery.blockers[0] ?? "current version blocked"}`
     : activeWorkflow
-      ? `${activeWorkflow.ticketKey} · ${activeWorkflow.agentName} · ${statusLabel(activeWorkflow.status)}`
-      : "No active run";
+        ? `${activeWorkflow.ticketKey} · ${activeWorkflow.agentName} · ${statusLabel(activeWorkflow.status)}`
+        : activeDaemonTicket
+          ? `${activeDaemonTicket} · ${statusLabel(data.daemonStatus.status)}`
+          : "No active run";
   const latestEvidence = delivery?.latestRealRun
-    ? `${delivery.latestRealRun.ticketKey} · ${delivery.latestRealRun.backendName} · tests ${delivery.latestRealRun.testExitCode ?? "n/a"} · review ${statusLabel(delivery.latestRealRun.reviewVerdict ?? "pending")}`
+    ? `${delivery.latestRealRun.ticketKey} · ${delivery.latestRealRun.backendName} · ${statusLabel(delivery.latestRealRun.terminalVerdict ?? "unknown")} · tests ${delivery.latestRealRun.testExitCode ?? "n/a"} · review ${statusLabel(delivery.latestRealRun.reviewVerdict ?? "pending")}`
     : delivery?.evidenceRefs[0] ?? "No real execution evidence yet";
   const issueDeltaStatus = data.backlogMutationPreview.status
     ? statusLabel(data.backlogMutationPreview.status)

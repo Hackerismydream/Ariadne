@@ -20,7 +20,9 @@ function statusLabel(status: string | null | undefined) {
   const labels: Record<string, string> = {
     assigned: "Assigned",
     blocked: "Blocked",
+    blocked_before_execution: "Blocked before execution",
     done: "Done",
+    executed_failed: "Execution failed",
     failed: "Failed",
     in_progress: "Running",
     open: "Backlog",
@@ -28,7 +30,10 @@ function statusLabel(status: string | null | undefined) {
     queued: "Queued",
     ready: "Ready",
     reviewing: "Review",
+    review_blocked: "Review blocked",
     running: "Running",
+    succeeded: "Succeeded",
+    unknown: "Unknown",
   };
   return labels[status ?? ""] ?? status ?? "Unknown";
 }
@@ -243,8 +248,8 @@ export function IssueDetail({
               <article className="execution-result-row" key={result.id}>
                 <header className="execution-result-header">
                   <strong>{result.backend_name}</strong>
-                  <span className={result.blocked ? "verdict-badge blocked" : "verdict-badge pass"}>
-                    {result.blocked ? `blocked: ${display(result.failure_reason)}` : "completed"}
+                  <span className={result.terminal_verdict === "succeeded" ? "verdict-badge pass" : "verdict-badge blocked"}>
+                    {statusLabel(result.terminal_verdict)}
                   </span>
                 </header>
                 <span>exit {display(result.exit_code)}</span>
@@ -252,6 +257,12 @@ export function IssueDetail({
                 <div className="file-list">
                   {result.changed_files.length ? result.changed_files.map((file) => <code key={file}>{file}</code>) : <span>No changed files recorded</span>}
                 </div>
+                {result.preflight_dirty_files?.length ? (
+                  <div className="file-list">
+                    <span>Preflight dirty files</span>
+                    {result.preflight_dirty_files.map((file) => <code key={file}>{file}</code>)}
+                  </div>
+                ) : null}
                 <div className="artifact-link-row">
                   {result.diff_artifact_path ? <a href={`#artifact:${encodeURIComponent(result.diff_artifact_path)}`}>Diff artifact: {result.diff_artifact_path}</a> : <span>No diff artifact recorded</span>}
                   {result.execution_log_artifact_path ? <a href={`#artifact:${encodeURIComponent(result.execution_log_artifact_path)}`}>Execution log: {result.execution_log_artifact_path}</a> : null}

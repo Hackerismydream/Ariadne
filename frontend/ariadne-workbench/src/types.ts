@@ -545,7 +545,9 @@ export type LatestRealRun = {
   reviewVerdict?: string | null;
   dryRun: boolean;
   blocked: boolean;
+  terminalVerdict?: string;
   changedFiles: string[];
+  preflightDirtyFiles?: string[];
   handoffFile?: string | null;
   diffArtifactPath?: string | null;
   executionLogArtifactPath?: string | null;
@@ -567,7 +569,9 @@ export type DeliveryItem = {
   testExitCode?: number | null;
   reviewVerdict?: string | null;
   evidenceStatus: string;
+  terminalVerdict?: string;
   changedFiles: string[];
+  preflightDirtyFiles?: string[];
 };
 
 export type ProjectVersionDelivery = {

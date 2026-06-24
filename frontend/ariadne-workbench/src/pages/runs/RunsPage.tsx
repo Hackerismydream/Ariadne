@@ -41,8 +41,7 @@ export function RunsPage() {
   const [message, setMessage] = useState("");
   const [progressEvents, setProgressEvents] = useState<AssignmentEvent[]>([]);
   const [progressMessage, setProgressMessage] = useState("");
-  const activeAssignmentId = daemon?.current_assignment_id
-    ?? assignments.find((assignment) => ["claimed", "running"].includes(assignment.status))?.id
+  const activeAssignmentId = assignments.find((assignment) => ["claimed", "running"].includes(assignment.status))?.id
     ?? null;
 
   async function refreshRuns() {
@@ -164,7 +163,7 @@ export function RunsPage() {
         </div>
         <div>
           <span>Current issue</span>
-          <strong>{display(daemon?.current_ticket_key)}</strong>
+          <strong>{daemon?.stale ? "Stale heartbeat" : display(daemon?.current_ticket_key)}</strong>
         </div>
         <div>
           <span>Heartbeat</span>

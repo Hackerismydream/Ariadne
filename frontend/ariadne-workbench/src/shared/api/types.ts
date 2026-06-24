@@ -116,6 +116,8 @@ export type ApiIssueExecutionResultSummary = {
   exit_code?: number | null;
   test_exit_code?: number | null;
   changed_files: string[];
+  preflight_dirty_files?: string[];
+  terminal_verdict?: string;
   diff_artifact_path?: string | null;
   execution_log_artifact_path?: string | null;
   started_at: string;
@@ -156,6 +158,7 @@ export type ApiIssueListItem = {
   source_count: number;
   evidence_count: number;
   last_run_status?: string | null;
+  terminal_verdict?: string;
   review_verdict?: string | null;
   blocked_reason?: string | null;
   updated_at: string;
@@ -561,7 +564,9 @@ export type ApiLatestRealRun = {
   review_verdict?: string | null;
   dry_run: boolean;
   blocked: boolean;
+  terminal_verdict?: string;
   changed_files: string[];
+  preflight_dirty_files?: string[];
   handoff_file?: string | null;
   diff_artifact_path?: string | null;
   execution_log_artifact_path?: string | null;
@@ -583,7 +588,9 @@ export type ApiDeliveryItem = {
   test_exit_code?: number | null;
   review_verdict?: string | null;
   evidence_status: string;
+  terminal_verdict?: string;
   changed_files: string[];
+  preflight_dirty_files?: string[];
 };
 
 export type ApiProjectVersionDelivery = {

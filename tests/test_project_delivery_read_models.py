@@ -16,6 +16,7 @@ from ariadne_ltb.models import (
     AssignmentStatus,
     BuildTicket,
     ExecutionResult,
+    FailureReason,
     ReviewReport,
     ReviewVerdict,
     SourceDocument,
@@ -94,6 +95,118 @@ def test_project_version_delivery_marks_real_codex_closure(tmp_path: Path) -> No
     assert delivery.latest_real_run.changed_files == ["mini_code_agent/cli.py"]
     assert {gate.id: gate.status for gate in delivery.gates}["real_execution"] == "done"
     assert {gate.id: gate.status for gate in delivery.gates}["review"] == "done"
+
+
+def test_project_version_delivery_does_not_close_blocked_real_codex_run(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "target"
+    target.mkdir()
+    project = TargetProjectRegistry(store).register(
+        target,
+        "Mini Code Agent",
+        target_project_id="target-mini-code-agent",
+        issue_prefix="MCA",
+    )
+    ticket = _ticket(project.id)
+    store.save_ticket(ticket)
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(assignment.mark_done())
+    execution = ExecutionResult(
+        id="exec-real-codex-blocked",
+        ticket_id=ticket.id,
+        assignment_id=assignment.id,
+        backend_name="codex",
+        target_repo_path=str(target),
+        dry_run=False,
+        blocked=True,
+        block_reason="Codex CLI unavailable",
+        failure_reason=FailureReason.EXTERNAL_EXECUTION_BLOCKED,
+        command="codex exec",
+        exit_code=1,
+        changed_files=["README.md"],
+        test_command="python3.11 -m pytest",
+        test_exit_code=None,
+    )
+    store.save_execution_result(execution)
+    store.save_ticket(
+        ticket.model_copy(
+            update={
+                "metadata": ticket.metadata
+                | {
+                    "latest_assignment_id": assignment.id,
+                    "execution_result_id": execution.id,
+                    "target_project_id": project.id,
+                }
+            }
+        )
+    )
+
+    delivery = build_current_version_delivery(store)
+
+    assert delivery is not None
+    assert delivery.status == "blocked"
+    assert delivery.latest_real_run is not None
+    assert delivery.latest_real_run.terminal_verdict == "blocked_before_execution"
+    assert delivery.latest_real_run.changed_files == []
+    gates = {gate.id: gate for gate in delivery.gates}
+    assert gates["real_execution"].status == "blocked"
+    assert "blocked_before_execution" in gates["real_execution"].detail
+
+
+def test_project_version_delivery_marks_blocked_assignment_without_execution(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "target"
+    target.mkdir()
+    project = TargetProjectRegistry(store).register(target, "Mini Code Agent", target_project_id="target")
+    ticket = _ticket(project.id)
+    store.save_ticket(ticket)
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(assignment.mark_blocked("handoff missing", FailureReason.UNKNOWN))
+
+    delivery = build_current_version_delivery(store)
+
+    assert delivery is not None
+    assert delivery.status == "blocked"
+    assert delivery.delivery_items[0].evidence_status == "blocked_before_execution"
+    assert delivery.delivery_items[0].terminal_verdict == "blocked_before_execution"
+    gates = {gate.id: gate for gate in delivery.gates}
+    assert gates["assignment"].status == "blocked"
+    assert gates["assignment"].ref_id == assignment.id
+
+
+def test_project_version_delivery_separates_dirty_base_from_agent_changes(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "target"
+    target.mkdir()
+    project = TargetProjectRegistry(store).register(target, "Mini Code Agent", target_project_id="target")
+    ticket = _ticket(project.id)
+    store.save_ticket(ticket)
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(assignment.mark_done())
+    execution = ExecutionResult(
+        id="exec-dirty-base",
+        ticket_id=ticket.id,
+        assignment_id=assignment.id,
+        backend_name="codex",
+        target_repo_path=str(target),
+        dry_run=False,
+        blocked=True,
+        block_reason="base checkout is dirty",
+        failure_reason=FailureReason.DIRTY_BASE_CHECKOUT,
+        command="codex exec",
+        exit_code=1,
+        git_status_before=" M README.md\n?? scratch.py\n",
+        changed_files=["README.md", "scratch.py"],
+    )
+    store.save_execution_result(execution)
+    store.save_ticket(ticket.model_copy(update={"metadata": ticket.metadata | {"execution_result_id": execution.id}}))
+
+    delivery = build_current_version_delivery(store)
+
+    assert delivery is not None
+    item = delivery.delivery_items[0]
+    assert item.changed_files == []
+    assert item.preflight_dirty_files == ["README.md", "scratch.py"]
 
 
 def test_project_version_delivery_uses_latest_goal_target_project(tmp_path: Path) -> None:

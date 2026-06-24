@@ -15,8 +15,14 @@ from ariadne_ltb.models import (
     BacklogPreview,
     BacklogUpdateTrigger,
     BuildTicket,
+    DaemonStatus,
+    ExecutionResult,
     FailureReason,
+    ReviewReport,
+    ReviewVerdict,
     TicketStatus,
+    WorkerHeartbeat,
+    utc_now,
 )
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
@@ -281,6 +287,77 @@ def test_inbox_runtime_team_projects_and_snapshot_endpoints(tmp_path: Path) -> N
     assert payloads["/api/projects"]["projects"][0]["id"]
     assert payloads["/api/runs/assignments"]["assignments"][0]["ticket_key"] == "ARI-003"
     assert payloads["/api/agent-task-snapshot"]["snapshot"]["blocked_count"] == 1
+
+
+def test_stale_heartbeat_does_not_define_active_work(tmp_path: Path) -> None:
+    store, _project_id = _prepared_store(tmp_path)
+    ticket = store.resolve_ticket("ARI-003")
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"))
+    blocked = assignment.mark_blocked("external execution gate closed", FailureReason.EXTERNAL_EXECUTION_BLOCKED)
+    store.save_assignment(blocked)
+    store.save_worker_heartbeat(
+        WorkerHeartbeat(
+            runtime_id="workbench-local",
+            pid=999999,
+            status=DaemonStatus.STOPPED,
+            current_assignment_id=blocked.id,
+            current_ticket_id=ticket.id,
+            current_ticket_key=ticket.key,
+            current_stage="stopped",
+            started_at=utc_now(),
+            heartbeat_at=utc_now(),
+            last_error=blocked.blocker,
+        )
+    )
+    client = TestClient(create_app(tmp_path))
+
+    snapshot = client.get("/api/agent-task-snapshot")
+    runtimes = client.get("/api/runs/runtimes")
+
+    assert snapshot.status_code == 200, snapshot.text
+    assert snapshot.json()["snapshot"]["active_assignment"] is None
+    assert snapshot.json()["snapshot"]["current_issue_key"] is None
+    assert snapshot.json()["snapshot"]["blocked_count"] == 1
+    assert runtimes.status_code == 200, runtimes.text
+    assert all(runtime["active_assignment"] is None for runtime in runtimes.json()["runtimes"])
+
+
+def test_blocked_assignment_dominates_prior_success_in_issue_projection(tmp_path: Path) -> None:
+    store, _project_id = _prepared_store(tmp_path)
+    ticket = store.resolve_ticket("ARI-003")
+    success_assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(success_assignment.mark_done())
+    execution = ExecutionResult(
+        id="exec-prior-success",
+        ticket_id=ticket.id,
+        assignment_id=success_assignment.id,
+        backend_name="codex",
+        dry_run=False,
+        blocked=False,
+        command="codex exec",
+        exit_code=0,
+        test_command="python3.11 -m pytest",
+        test_exit_code=0,
+        changed_files=["src/cli.py"],
+    )
+    store.save_execution_result(execution)
+    store.save_review_report(ReviewReport(id="review-prior-success", ticket_id=ticket.id, verdict=ReviewVerdict.PASS))
+    blocked_assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(
+        blocked_assignment.mark_blocked("external execution gate closed", FailureReason.EXTERNAL_EXECUTION_BLOCKED)
+    )
+    client = TestClient(create_app(tmp_path))
+
+    listing = client.get("/api/issues")
+    detail = client.get("/api/issues/ARI-003")
+
+    assert listing.status_code == 200, listing.text
+    issue = listing.json()["issues"][0]
+    assert issue["last_run_status"] == "blocked_before_execution"
+    assert issue["terminal_verdict"] == "blocked_before_execution"
+    assert issue["blocked_reason"] == "external execution gate closed"
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["issue"]["terminal_verdict"] == "blocked_before_execution"
 
 
 def test_project_detail_endpoint(tmp_path: Path) -> None:

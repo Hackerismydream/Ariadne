@@ -10,6 +10,7 @@ from ariadne_ltb.application.dtos import (
 )
 from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets
 from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.work_truth import reduce_work_truth
 from ariadne_ltb.models import BuildTicket, ExecutionResult, ProjectResource, ReviewReport, utc_now
 from ariadne_ltb.storage import AriadneStore
 
@@ -86,6 +87,7 @@ def _delivery_item(store: AriadneStore, ticket: BuildTicket) -> DeliveryItemDTO:
     assignment = store.find_latest_assignment_for_ticket(ticket.id)
     execution = _latest_execution(store, ticket)
     review = _review(store, ticket)
+    truth = reduce_work_truth(assignment=assignment, execution=execution, review=review)
     memory_path = str(store.memory_dir / "tickets" / f"{ticket.id}.json")
     return DeliveryItemDTO(
         ticket_id=ticket.id,
@@ -110,9 +112,11 @@ def _delivery_item(store: AriadneStore, ticket: BuildTicket) -> DeliveryItemDTO:
         memory_path=memory_path if (store.memory_dir / "tickets" / f"{ticket.id}.json").exists() else ticket.metadata.get("memory_path"),
         feishu_plan_path=ticket.metadata.get("feishu_plan_path"),
         next_tickets_path=ticket.metadata.get("next_tickets_path"),
-        changed_files=execution.changed_files if execution else [],
+        changed_files=list(truth.agent_changed_files),
+        preflight_dirty_files=list(truth.preflight_dirty_files),
         acceptance_criteria=[str(item) for item in ticket.metadata.get("acceptance_criteria", [])],
-        evidence_status=_evidence_status(execution, review),
+        evidence_status=_evidence_status(assignment, execution, review),
+        terminal_verdict=truth.terminal_verdict,
     )
 
 
@@ -138,17 +142,20 @@ def _review(store: AriadneStore, ticket: BuildTicket) -> ReviewReport | None:
     return sorted(reports, key=lambda item: item.created_at)[-1] if reports else None
 
 
-def _evidence_status(execution: ExecutionResult | None, review: ReviewReport | None) -> str:
-    if execution is None:
-        return "missing"
-    if execution.blocked:
-        return "blocked"
-    if execution.exit_code != 0 or (execution.test_exit_code not in {None, 0}):
-        return "failed"
-    if review and review.verdict.value == "pass":
-        if execution.backend_name in REAL_BACKENDS and not execution.dry_run:
+def _evidence_status(assignment, execution: ExecutionResult | None, review: ReviewReport | None) -> str:  # noqa: ANN001
+    truth = reduce_work_truth(assignment=assignment, execution=execution, review=review)
+    if truth.terminal_verdict == "blocked_before_execution":
+        return "blocked_before_execution"
+    if truth.terminal_verdict == "executed_failed":
+        return "executed_failed"
+    if truth.terminal_verdict == "review_blocked":
+        return "review_blocked"
+    if truth.terminal_verdict == "succeeded":
+        if execution and execution.backend_name in REAL_BACKENDS and not execution.dry_run:
             return "real_pass"
         return "offline_pass"
+    if execution is None:
+        return "missing"
     return "partial"
 
 
@@ -164,6 +171,7 @@ def _latest_real_run(store: AriadneStore, items: list[DeliveryItemDTO]) -> Lates
     execution = sorted(executions, key=lambda item: item.ended_at)[-1]
     ticket = store.load_ticket(execution.ticket_id)
     review = _review(store, ticket)
+    truth = reduce_work_truth(execution=execution, review=review)
     return LatestRealRunDTO(
         ticket_key=ticket.key,
         assignment_id=execution.assignment_id or ticket.metadata.get("latest_assignment_id"),
@@ -174,7 +182,9 @@ def _latest_real_run(store: AriadneStore, items: list[DeliveryItemDTO]) -> Lates
         review_verdict=review.verdict.value if review else None,
         dry_run=execution.dry_run,
         blocked=execution.blocked,
-        changed_files=execution.changed_files,
+        terminal_verdict=truth.terminal_verdict,
+        changed_files=list(truth.agent_changed_files),
+        preflight_dirty_files=list(truth.preflight_dirty_files),
         handoff_file=execution.handoff_file,
         diff_artifact_path=_artifact_path(store, execution.diff_artifact_id),
         execution_log_artifact_path=_artifact_path(store, execution.execution_log_artifact_id),
@@ -196,13 +206,17 @@ def _gates(store: AriadneStore, items: list[DeliveryItemDTO], latest: LatestReal
     source_ready = any(store.list_source_artifacts())
     preview_applied = any(preview.applied_at for preview in store.list_backlog_previews())
     assignment_ready = any(item.assignment_id for item in items)
+    assignment_blocked = next(
+        (item for item in items if item.evidence_status == "blocked_before_execution" and item.assignment_status in {"blocked", "failed"}),
+        None,
+    )
     real_closed = bool(
         latest
-        and not latest.blocked
-        and latest.exit_code == 0
-        and latest.test_exit_code in {None, 0}
-        and latest.review_verdict == "pass"
+        and latest.terminal_verdict == "succeeded"
     )
+    real_execution_detail = "真实 Codex/Claude 执行证据缺失。"
+    if latest and latest.terminal_verdict != "succeeded":
+        real_execution_detail = f"真实执行未闭环：{latest.terminal_verdict}。"
     return [
         DeliveryGateDTO(
             id="sources",
@@ -219,14 +233,19 @@ def _gates(store: AriadneStore, items: list[DeliveryItemDTO], latest: LatestReal
         DeliveryGateDTO(
             id="assignment",
             label="任务分配",
-            status="done" if assignment_ready else "blocked",
-            detail="" if assignment_ready else "还没有 assignment。",
+            status="blocked" if assignment_blocked else "done" if assignment_ready else "blocked",
+            detail=(
+                f"{assignment_blocked.ticket_key} assignment {assignment_blocked.assignment_status}。"
+                if assignment_blocked
+                else "" if assignment_ready else "还没有 assignment。"
+            ),
+            ref_id=assignment_blocked.assignment_id if assignment_blocked else None,
         ),
         DeliveryGateDTO(
             id="real_execution",
             label="真实 Codex/Claude 执行",
-            status="done" if latest else "blocked",
-            detail="" if latest else "真实 Codex/Claude 执行证据缺失。",
+            status="done" if real_closed else "blocked",
+            detail="" if real_closed else real_execution_detail,
             ref_id=latest.execution_result_id if latest else None,
         ),
         DeliveryGateDTO(
@@ -242,7 +261,7 @@ def _gates(store: AriadneStore, items: list[DeliveryItemDTO], latest: LatestReal
 def _status(gates: list[DeliveryGateDTO], latest: LatestRealRunDTO | None, items: list[DeliveryItemDTO]) -> str:
     if latest and not latest.blocked and latest.exit_code == 0 and latest.test_exit_code in {None, 0} and latest.review_verdict == "pass":
         return "real_closed"
-    if any(item.evidence_status == "blocked" for item in items):
+    if any(item.evidence_status in {"blocked_before_execution", "executed_failed", "review_blocked", "blocked"} for item in items):
         return "blocked"
     if any(gate.status == "blocked" for gate in gates):
         return "in_progress"
