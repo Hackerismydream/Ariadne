@@ -17,5 +17,10 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --python ${{ matrix.python-version }} --extra dev
+      - name: Expose python3.11 command for subprocess-based tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/ariadne-bin"
+          ln -sf "$PWD/.venv/bin/python" "$RUNNER_TEMP/ariadne-bin/python3.11"
+          echo "$RUNNER_TEMP/ariadne-bin" >> "$GITHUB_PATH"
       - run: uv run --python ${{ matrix.python-version }} ruff check .
       - run: uv run --python ${{ matrix.python-version }} pytest -q
