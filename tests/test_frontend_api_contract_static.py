@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 API_TYPES = ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "types.ts"
+API_CLIENT = ROOT / "frontend" / "ariadne-workbench" / "src" / "shared" / "api" / "client.ts"
 APP = ROOT / "frontend" / "ariadne-workbench" / "src" / "App.tsx"
 ROUTES = ROOT / "frontend" / "ariadne-workbench" / "src" / "app" / "routes.ts"
 SIDEBAR = ROOT / "frontend" / "ariadne-workbench" / "src" / "app" / "shell" / "Sidebar.tsx"
@@ -110,10 +111,13 @@ def test_frontend_assignment_events_show_recent_progress() -> None:
 
 def test_frontend_uses_latest_assignment_for_ticket_actions() -> None:
     text = ISSUE_DETAIL.read_text(encoding="utf-8")
+    client = API_CLIENT.read_text(encoding="utf-8")
 
     assert "assignIssue(issueKey" in text
     assert "runIssueNow(issueKey" in text
-    assert "rerunIssue(issueKey" in text
+    assert "retryAssignment(assignment.id" in text
+    assert "assignment.retry_allowed" in text
+    assert "/api/assignments/${encodeURIComponent(assignmentId)}/retry" in client
     assert "addIssueComment(issueKey" in text
 
 
@@ -151,7 +155,9 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert "external_execution_authorized" not in run_block
     assert "confirm_execution" not in run_block
     assert "Codex/Claude allowed" in runs_page
-    assert "startDaemon({ external_execution_authorized: true })" in runs_page
+    assert "startScopedDaemon" in runs_page
+    assert "allowed_assignment_id:" in runs_page
+    assert 'scope_mode: assignment ? "assignment" : "project"' in runs_page
     assert "external_execution_authorized: true" in control
     assert "target_project_id:" in control
     assert "allowed_backends:" in control

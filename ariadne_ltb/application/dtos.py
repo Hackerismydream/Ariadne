@@ -215,8 +215,11 @@ class AssignmentDTO(AriadneDTO):
     runtime_scope: str | None = None
     target_project_id: str | None = None
     parent_assignment_id: str | None = None
+    attempt: int = 1
     retry_reason: str | None = None
     retry_policy: str | None = None
+    retry_allowed: bool = False
+    retry_blocked_reason: str | None = None
     created_at: str
     started_at: str | None = None
     ended_at: str | None = None
@@ -585,9 +588,16 @@ class IssuePatchInput(AriadneDTO):
 class InboxListItemDTO(AriadneDTO):
     id: str
     issue_key: str | None = None
+    source_type: str | None = None
+    source_id: str | None = None
+    linked_assignment_id: str | None = None
+    canonical_blocker_id: str | None = None
     failure_reason: str
     severity: str
     action_type: str
+    allowed_actions: list[str] = Field(default_factory=list)
+    primary_action: str | None = None
+    recovery_class: str | None = None
     created_at: str
     status: str
     resolution_note: str | None = None
@@ -858,7 +868,7 @@ class AssignTicketOutput(AriadneDTO):
 
 
 class RunAssignmentInput(AriadneDTO):
-    confirmation_token: str
+    confirmation_token: str = ""
     timeout_seconds: int | None = Field(default=None, ge=1, le=1800)
     idempotency_key: str | None = None
 

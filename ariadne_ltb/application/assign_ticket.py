@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from ariadne_ltb.application.assignment_control import current_runnable_assignment
 from ariadne_ltb.application.assignment_routing import prepare_direct_agent_assignment
 from ariadne_ltb.application.confirmation_tokens import ConfirmationTokenService
 from ariadne_ltb.application.dtos import AssignTicketInput, AssignTicketOutput
@@ -49,6 +50,32 @@ class AssignTicketService:
         except ValueError as exc:
             raise ValidationAppError(str(exc)) from exc
         target_repo_path = TargetProjectRegistry(self.store).resolve_path(payload.target_project_id)
+        duplicate = (
+            current_runnable_assignment(
+                self.store,
+                ticket_id=ticket.id,
+                backend_name=payload.backend_name,
+            )
+            if source == "http"
+            else None
+        )
+        if duplicate is not None:
+            duplicate = self._with_target_metadata(duplicate, payload.target_project_id, target_repo_path)
+            self.idempotency.set(
+                payload.idempotency_key,
+                {
+                    "assignment_id": duplicate.id,
+                    "route_decision_artifact_path": duplicate.metadata.get("route_decision_artifact_path"),
+                },
+                "assign_ticket",
+            )
+            return AssignTicketOutput(
+                ticket=ticket_summary(self.store, duplicate.ticket_id),
+                assignment=assignment_dto(duplicate),
+                confirmation_token=None,
+                route_decision_artifact_path=duplicate.metadata.get("route_decision_artifact_path"),
+                idempotent_replay=False,
+            )
         if payload.assignee_kind == "build_team":
             try:
                 team = self.store.resolve_build_team(payload.assignee_id)

@@ -20,6 +20,7 @@ from ariadne_ltb.application.dtos import (
 )
 from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.errors import ApplicationError
+from ariadne_ltb.application.errors import ConflictError
 from ariadne_ltb.application.evidence_projection import EvidenceProjectionService
 from ariadne_ltb.application.inbox_actions import InboxActionService
 from ariadne_ltb.application.issue_factory import IssueFactoryService
@@ -48,6 +49,7 @@ from ariadne_ltb.application.workbench_projection import WorkbenchProjectionServ
 from ariadne_ltb.application.workbench_runtimes import WorkbenchRuntimesService
 from ariadne_ltb.application.workbench_task_snapshot import WorkbenchTaskSnapshotService
 from ariadne_ltb.interfaces.http.dependencies import get_store
+from ariadne_ltb.retry import create_retry_assignment
 from ariadne_ltb.storage import AriadneStore
 
 router = APIRouter()
@@ -397,6 +399,41 @@ def run_assignment_now(
     if idempotency_key and not payload.idempotency_key:
         payload = payload.model_copy(update={"idempotency_key": idempotency_key})
     return DaemonControlService(store).run_now(assignment_id, payload).model_dump(mode="json")
+
+
+@router.post("/api/assignments/{assignment_id}/retry")
+def retry_assignment(
+    assignment_id: str,
+    payload: InboxActionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    assignment = store.load_assignment(assignment_id)
+    if payload.force:
+        raise ConflictError(
+            "Force retry is not allowed from the browser assignment API.",
+            {"assignment_id": assignment_id},
+        )
+    try:
+        retry = create_retry_assignment(
+            store,
+            assignment,
+            reason=payload.reason or f"retry requested for assignment {assignment_id}",
+            force=False,
+        )
+    except ValueError as exc:
+        raise ConflictError(
+            "Assignment is not safe to retry from this state.",
+            {
+                "assignment_id": assignment_id,
+                "failure_reason": assignment.failure_reason.value if assignment.failure_reason else None,
+                "reason": str(exc),
+            },
+        ) from exc
+    return {
+        "assignment": assignment_dto(retry).model_dump(mode="json"),
+        "message": f"Retry assignment created: {retry.id}.",
+        "parent_assignment_id": assignment.id,
+    }
 
 
 @router.get("/api/assignments/{assignment_id}/events")

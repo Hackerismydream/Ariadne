@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ariadne_ltb.application.assignment_control import canonicalize_duplicate_runnable_assignments
 from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets, current_version_target_project_id
 from ariadne_ltb.application.dtos import AssignmentListResponse, RuntimeListItemDTO, RuntimeListResponse
@@ -16,6 +17,7 @@ class WorkbenchRuntimesService:
         self.store = store
 
     def list_runtimes(self) -> RuntimeListResponse:
+        canonicalize_duplicate_runnable_assignments(self.store)
         daemon = DaemonControlService(self.store).status()
         active = current_active_assignment(self.store, daemon)
         current_ticket_ids = self._current_ticket_ids()
@@ -53,6 +55,7 @@ class WorkbenchRuntimesService:
         )
 
     def list_assignments(self) -> AssignmentListResponse:
+        canonicalize_duplicate_runnable_assignments(self.store)
         current_ticket_ids = self._current_ticket_ids()
         return AssignmentListResponse(
             assignments=[

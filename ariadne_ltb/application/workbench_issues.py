@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from ariadne_ltb.application.assignment_control import canonicalize_duplicate_runnable_assignments
 from ariadne_ltb.application.comments import CommentService
 from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets
 from ariadne_ltb.application.daemon_control import DaemonControlService
@@ -37,6 +38,7 @@ class WorkbenchIssuesService:
         self.store = store
 
     def list(self) -> IssueListResponse:
+        canonicalize_duplicate_runnable_assignments(self.store)
         target_project_id, target_version = self._current_version_scope()
         context = self._list_context()
         issues = [
@@ -47,6 +49,7 @@ class WorkbenchIssuesService:
 
     def detail(self, issue_id_or_key: str) -> IssueDetailResponse:
         ticket = self._resolve_ticket(issue_id_or_key)
+        canonicalize_duplicate_runnable_assignments(self.store, ticket_id=ticket.id)
         _target_project_id, target_version = self._current_version_scope()
         item = self._issue_item(ticket, target_version=target_version)
         assignments = self.store.list_assignments_for_ticket(ticket.id)
@@ -114,6 +117,16 @@ class WorkbenchIssuesService:
         assignment = self._latest_assignment(self._resolve_ticket(issue_id_or_key))
         if assignment is None:
             raise NotFoundError("issue has no assignment to rerun", {"issue": issue_id_or_key})
+        if assignment.status.is_terminal:
+            raise ValidationAppError(
+                "rerun_requires_assignment_id",
+                {
+                    "issue": issue_id_or_key,
+                    "assignment_id": assignment.id,
+                    "status": assignment.status.value,
+                    "message": "Retry a specific failed assignment row instead of rerunning the issue latest pointer.",
+                },
+            )
         return RunAssignmentService(self.store).run(assignment.id, payload)
 
     def run_now(self, issue_id_or_key: str, payload: RunAssignmentInput) -> DaemonControlOutput:
