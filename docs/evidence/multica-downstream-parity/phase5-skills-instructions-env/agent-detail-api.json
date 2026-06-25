@@ -1,0 +1,51 @@
+{
+    "schema_version": "ariadne.team.agent_detail.v1",
+    "source": "agent_definition_store",
+    "agent": {
+        "id": "agent_4b050c358500",
+        "name": "Phase 3 Codex 1782402810345",
+        "role": "coding_agent",
+        "backend_name": "codex",
+        "runtime_compatibility": "codex",
+        "active_assignment_count": 0,
+        "blocked_count": 0,
+        "description": "Browser-created real AgentDefinition for Phase 3 task queue verification.",
+        "avatar_seed": "phase 3 codex 1782402810345",
+        "status": "active",
+        "runtime_profile": {
+            "profile_id": "agent_4b050c358500:runtime",
+            "agent_id": "agent_4b050c358500",
+            "backend": "codex",
+            "model": null,
+            "working_directory": null,
+            "environment_keys": [
+                "CODEX_HOME",
+                "DEEPSEEK_API_KEY"
+            ],
+            "reasoning_level": null,
+            "service_tier": null
+        },
+        "visibility": {
+            "agent_id": "agent_4b050c358500",
+            "visible": true,
+            "team_ids": []
+        },
+        "skill_ids": [
+            "skill_9179aec0c6a9"
+        ],
+        "instructions_present": true,
+        "updated_at": "2026-06-25T16:09:12Z",
+        "configuration": {
+            "enabled": true,
+            "capabilities": [
+                "skill_9179aec0c6a9"
+            ],
+            "max_concurrent_assignments": 1
+        },
+        "instructions": "Phase 5 evidence: use attached skills and preserve environment key boundaries.",
+        "environment_keys": [
+            "CODEX_HOME",
+            "DEEPSEEK_API_KEY"
+        ]
+    }
+}

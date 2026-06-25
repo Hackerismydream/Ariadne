@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_claim
 from ariadne_ltb.application.handoff_packets import create_handoff_packet
-from ariadne_ltb.models import AgentProfile, BuildDecision, BuildTicket, RouteDecision, TicketAssignment, stable_id
+from ariadne_ltb.models import AgentDefinition, AgentProfile, BuildDecision, BuildTicket, RouteDecision, TicketAssignment, stable_id
 from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import target_test_command
 
@@ -20,6 +20,8 @@ def prepare_direct_agent_assignment(
 ) -> TicketAssignment:
     target_repo = str(Path(target_repo_path).resolve())
     packet = store.load_build_packet(ticket.build_packet_id) if ticket.build_packet_id else None
+    agent_definition = _load_agent_definition(store, agent.id)
+    skill_refs = list(agent_definition.skill_ids if agent_definition else agent.capabilities)
     route_decision = RouteDecision(
         id=stable_id("route", ticket.id, assignment.id, assignment.backend_name or agent.backend_name or ""),
         ticket_id=ticket.id,
@@ -34,6 +36,7 @@ def prepare_direct_agent_assignment(
         target_repo_path=target_repo,
         build_decision=packet.build_decision if packet else BuildDecision.CODE_TASK,
         reason=f"Direct assignment routed to {agent.name}.",
+        skill_refs=skill_refs,
     )
     store.save_route_decision(route_decision)
     affected_modules = ticket.metadata.get("affected_modules") or (packet.affected_modules if packet else [])
@@ -85,3 +88,10 @@ def prepare_direct_agent_assignment(
         handoff_packet_id=handoff_packet.id,
         authorization_id=stable_id("runtime_authorization", assignment.id, route_decision.id),
     )
+
+
+def _load_agent_definition(store: AriadneStore, agent_id: str) -> AgentDefinition | None:
+    try:
+        return store.load_agent_definition(agent_id)
+    except FileNotFoundError:
+        return None

@@ -288,6 +288,7 @@ function AgentDetailPage({
   const [runs, setRuns] = useState<ApiAgentRunItem[]>([]);
   const [skills, setSkills] = useState<ApiBuildSkill[]>([]);
   const [environmentKeys, setEnvironmentKeys] = useState<string[]>([]);
+  const [environmentDraft, setEnvironmentDraft] = useState("");
   const [instructions, setInstructions] = useState("");
   const [tab, setTab] = useState<"activity" | "tasks" | "instructions" | "skills" | "environment" | "runs">("activity");
   const [message, setMessage] = useState("");
@@ -311,6 +312,7 @@ function AgentDetailPage({
       setSkills(skillResponse.skills);
       setInstructions(instructionResponse.instructions);
       setEnvironmentKeys(environmentResponse.environment_keys);
+      setEnvironmentDraft(environmentResponse.environment_keys.join("\n"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load agent.");
     }
@@ -326,11 +328,35 @@ function AgentDetailPage({
     }
   }
 
+  async function saveSkillIds(skillIds: string[]) {
+    try {
+      const response = await updateTeamAgent(agentId, { skill_ids: skillIds });
+      setAgent(response.agent);
+      setMessage("Skills saved.");
+      await refreshAgent();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Save failed.");
+    }
+  }
+
+  async function saveEnvironmentKeys() {
+    const keys = environmentDraft
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    try {
+      const response = await updateTeamAgent(agentId, { environment_keys: [...new Set(keys)] });
+      setAgent(response.agent);
+      setMessage("Environment keys saved.");
+      await refreshAgent();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Save failed.");
+    }
+  }
+
   useEffect(() => {
     void refreshAgent();
   }, [agentId]);
-
-  const attachedSkillIds = useMemo(() => new Set(agent?.skill_ids ?? []), [agent]);
 
   return (
     <section className="page full-bleed team-page">
@@ -380,19 +406,22 @@ function AgentDetailPage({
               </div>
             ) : null}
             {tab === "skills" ? (
-              <div className="card-list">
-                {skills.map((skill) => <SkillCard key={skill.id} skill={skill} />)}
-                {!skills.length ? (
-                  <p className="empty-column">
-                    {allSkills.length ? `Attached skills: ${[...attachedSkillIds].join(", ") || emptyLabel}` : emptyLabel}
-                  </p>
-                ) : null}
-              </div>
+              <SkillsTab
+                agent={agent}
+                allSkills={allSkills}
+                attachedSkills={skills}
+                onSave={(skillIds) => void saveSkillIds(skillIds)}
+              />
             ) : null}
             {tab === "environment" ? (
-              <div className="tag-row">
-                {environmentKeys.map((key) => <span key={key}>{key}</span>)}
-                {!environmentKeys.length ? <span>{emptyLabel}</span> : null}
+              <div className="agent-config-editor">
+                <p>Key names only. Ariadne never stores or displays secret values here.</p>
+                <textarea value={environmentDraft} onChange={(event) => setEnvironmentDraft(event.target.value)} />
+                <div className="tag-row">
+                  {environmentKeys.map((key) => <span key={key}>{key}</span>)}
+                  {!environmentKeys.length ? <span>{emptyLabel}</span> : null}
+                </div>
+                <button type="button" onClick={() => void saveEnvironmentKeys()}><Save size={15} /> Save Environment Keys</button>
               </div>
             ) : null}
             {tab === "runs" ? <RunsTab items={runs} /> : null}
@@ -538,7 +567,46 @@ function RunsTab({ items }: { items: ApiAgentRunItem[] }) {
   );
 }
 
-function SkillCard({ skill }: { skill: ApiBuildSkill }) {
+function SkillsTab({
+  agent,
+  allSkills,
+  attachedSkills,
+  onSave,
+}: {
+  agent: ApiAgentDetail;
+  allSkills: ApiBuildSkill[];
+  attachedSkills: ApiBuildSkill[];
+  onSave: (skillIds: string[]) => void;
+}) {
+  const attachedSkillIds = new Set(agent.skill_ids);
+  const availableSkills = allSkills.filter((skill) => !attachedSkillIds.has(skill.id));
+  function addSkill(skillId: string) {
+    onSave([...new Set([...agent.skill_ids, skillId])]);
+  }
+  function removeSkill(skillId: string) {
+    onSave(agent.skill_ids.filter((id) => id !== skillId));
+  }
+  return (
+    <div className="agent-skills-manager">
+      <section>
+        <h3>Attached Skills</h3>
+        <div className="card-list">
+          {attachedSkills.map((skill) => <SkillCard key={skill.id} skill={skill} onRemove={() => removeSkill(skill.id)} />)}
+          {!attachedSkills.length ? <p className="empty-column">{emptyLabel}</p> : null}
+        </div>
+      </section>
+      <section>
+        <h3>Available Skills</h3>
+        <div className="card-list">
+          {availableSkills.map((skill) => <SkillCard key={skill.id} skill={skill} onAdd={() => addSkill(skill.id)} />)}
+          {!availableSkills.length ? <p className="empty-column">{allSkills.length ? "All skills are attached." : emptyLabel}</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SkillCard({ skill, onAdd, onRemove }: { skill: ApiBuildSkill; onAdd?: () => void; onRemove?: () => void }) {
   return (
     <article className="control-card">
       <header>
@@ -546,6 +614,8 @@ function SkillCard({ skill }: { skill: ApiBuildSkill }) {
         <span>{skill.id}</span>
       </header>
       <p>{skill.description}</p>
+      {onAdd ? <button type="button" onClick={onAdd}>Attach Skill</button> : null}
+      {onRemove ? <button type="button" onClick={onRemove}>Remove Skill</button> : null}
     </article>
   );
 }

@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
+from ariadne_ltb.application.assign_ticket import AssignTicketService
+from ariadne_ltb.application.dtos import AssignTicketInput
+from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.interfaces.http.app import create_app
 from ariadne_ltb.models import (
     AgentDefinition,
@@ -171,3 +176,39 @@ def test_agent_tasks_project_assignment_lifecycle_and_blocker_inbox(tmp_path) ->
     assert blocked_task["status"] == "blocked"
     assert blocked_task["blocker_reason"] == "external execution disabled"
     assert blocked_task["blocker_id"]
+
+
+def test_agent_skill_instruction_env_bindings_flow_into_route_and_handoff(tmp_path) -> None:
+    store = AriadneStore(tmp_path)
+    agent = _agent()
+    store.save_agent_definition(agent)
+    ticket = _ticket()
+    store.save_ticket(ticket)
+    target = tmp_path / "target"
+    target.mkdir()
+    project = TargetProjectRegistry(store).register(target, "Target")
+
+    assigned = AssignTicketService(store).assign(
+        ticket.key,
+        AssignTicketInput(
+            assignee_id=agent.agent_id,
+            assignee_kind="agent",
+            backend_name="codex",
+            runtime_profile="production",
+            target_project_id=project.id,
+            idempotency_key="agent-binding-route",
+        ),
+        source="test",
+    )
+
+    assignment = store.load_assignment(assigned.assignment.id)
+    route = store.load_route_decision(str(assignment.metadata["route_decision_id"]))
+    handoff = store.load_handoff_packet(str(assignment.metadata["handoff_packet_id"]))
+    markdown = Path(handoff.markdown_path).read_text(encoding="utf-8")
+    assert route.skill_refs == ["ariadne-review-diff"]
+    assert "## Selected Skills" in markdown
+    assert "`ariadne-review-diff`" in markdown
+    assert "## Agent Instructions" in markdown
+    assert "Always cite evidence." in markdown
+    assert "## Environment Keys" in markdown
+    assert "`CODEX_HOME`" in markdown

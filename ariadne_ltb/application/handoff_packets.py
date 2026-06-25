@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 
-from ariadne_ltb.models import BuildTicket, HandoffPacket, RouteDecision, stable_id
+from ariadne_ltb.models import AgentDefinition, BuildTicket, HandoffPacket, RouteDecision, stable_id
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -27,6 +27,7 @@ def create_handoff_packet(
         tasks = [str(item) for item in build_packet.tasks]
     test_command = str(ticket.metadata.get("test_command") or _target_test_command(store, target_project_id))
     markdown = _render_markdown(
+        store,
         ticket,
         route_decision,
         target_repo_path,
@@ -68,6 +69,7 @@ def _target_test_command(store: AriadneStore, target_project_id: str) -> str:
 
 
 def _render_markdown(
+    store: AriadneStore,
     ticket: BuildTicket,
     route_decision: RouteDecision,
     target_repo_path: str,
@@ -78,6 +80,9 @@ def _render_markdown(
     test_command: str,
 ) -> str:
     task = ticket.description or ticket.summary or ticket.title
+    agent_definition = _load_agent_definition(store, route_decision.selected_agent_id)
+    agent_instructions = agent_definition.instructions.strip() if agent_definition else ""
+    environment_keys = agent_definition.runtime_profile.environment_keys if agent_definition and agent_definition.runtime_profile else []
     lines = [
         f"# {ticket.key}: {ticket.title}",
         "",
@@ -88,6 +93,18 @@ def _render_markdown(
         f"- Backend: `{route_decision.backend_name}`",
         f"- Planner: `{route_decision.planner_name}`",
         f"- Agent runtime: `{route_decision.agent_runtime}`",
+        f"- Selected agent: `{route_decision.selected_agent_name or route_decision.selected_agent_id or 'not recorded'}`",
+        "",
+        "## Selected Skills",
+        *[f"- `{item}`" for item in route_decision.skill_refs],
+        *(["- Not recorded."] if not route_decision.skill_refs else []),
+        "",
+        "## Agent Instructions",
+        agent_instructions or "Not recorded.",
+        "",
+        "## Environment Keys",
+        *[f"- `{item}`" for item in environment_keys],
+        *(["- Not recorded."] if not environment_keys else []),
         "",
         "## Task",
         task,
@@ -113,3 +130,12 @@ def _render_markdown(
         "- Do not copy source code from reference repositories.",
     ]
     return "\n".join(lines).strip() + "\n"
+
+
+def _load_agent_definition(store: AriadneStore, agent_id: str | None) -> AgentDefinition | None:
+    if not agent_id:
+        return None
+    try:
+        return store.load_agent_definition(agent_id)
+    except FileNotFoundError:
+        return None
