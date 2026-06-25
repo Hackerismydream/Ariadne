@@ -1,0 +1,50 @@
+{
+  "schema_version": "ariadne.issue-detail.v1",
+  "issue_key": "M0TR-003",
+  "evidence_sections": [
+    {
+      "category": "source",
+      "label": "Source Evidence",
+      "count": 19
+    },
+    {
+      "category": "handoff",
+      "label": "Handoff Evidence",
+      "count": 4
+    },
+    {
+      "category": "route",
+      "label": "Route Decision",
+      "count": 3
+    },
+    {
+      "category": "execution",
+      "label": "Execution Artifacts",
+      "count": 3
+    },
+    {
+      "category": "review",
+      "label": "Review Artifacts",
+      "count": 1
+    },
+    {
+      "category": "memory",
+      "label": "Memory Artifacts",
+      "count": 1
+    },
+    {
+      "category": "next_ticket",
+      "label": "Next Tickets",
+      "count": 5
+    }
+  ],
+  "acceptance_criteria": [
+    "The implementation is reachable from the Web Workbench product path.",
+    "The behavior writes inspectable run evidence.",
+    "Tests cover the behavior without external credentials."
+  ],
+  "affected_modules": [
+    "mini_code_agent/protocol.py",
+    "tests/test_protocol.py"
+  ]
+}

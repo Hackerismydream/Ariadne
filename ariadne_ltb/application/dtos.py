@@ -542,6 +542,36 @@ class IssueExecutionResultSummaryDTO(AriadneDTO):
     ended_at: str | None = None
 
 
+class IssueEvidenceItemDTO(AriadneDTO):
+    id: str
+    category: str
+    label: str
+    ref_type: str
+    ref_id: str | None = None
+    path_or_url: str | None = None
+    validity: str
+    reason: str = ""
+    summary: str = ""
+    excerpt: str = ""
+    assignment_id: str | None = None
+    execution_result_id: str | None = None
+    created_at: str | None = None
+
+
+class IssueEvidenceSectionDTO(AriadneDTO):
+    category: str
+    label: str
+    items: list[IssueEvidenceItemDTO] = Field(default_factory=list)
+
+
+class IssueEvidenceDetailResponse(AriadneDTO):
+    schema_version: Literal["ariadne.issue-evidence.v1"] = "ariadne.issue-evidence.v1"
+    issue_key: str
+    evidence: IssueEvidenceItemDTO
+    content_excerpt: str = ""
+    source: str = "build_ticket_projection"
+
+
 class IssueTimelineEventDTO(AriadneDTO):
     id: str
     event_type: str
@@ -553,6 +583,8 @@ class IssueTimelineEventDTO(AriadneDTO):
 
 class IssueDetailDTO(IssueListItemDTO):
     body: str
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    affected_modules: list[str] = Field(default_factory=list)
     comments: list[CommentDTO] = Field(default_factory=list)
     timeline: list[IssueTimelineEventDTO] = Field(default_factory=list)
     assignments: list[AssignmentDTO] = Field(default_factory=list)
@@ -564,6 +596,7 @@ class IssueDetailDTO(IssueListItemDTO):
     test_summary: str | None = None
     review_summary: str | None = None
     next_issue_links: list[str] = Field(default_factory=list)
+    evidence_sections: list[IssueEvidenceSectionDTO] = Field(default_factory=list)
 
 
 class IssueListResponse(AriadneDTO):
