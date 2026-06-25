@@ -1,0 +1,58 @@
+{
+  "url": "http://127.0.0.1:8766/#issues/M0TR-003",
+  "before": {
+    "title": "Define tool protocol and model action schema",
+    "sections": [
+      "Source Evidence",
+      "Handoff Evidence",
+      "Route Decision",
+      "Execution Artifacts",
+      "Review Artifacts",
+      "Memory Artifacts",
+      "Next Tickets"
+    ],
+    "rows": 36,
+    "validity": [
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Produced by run",
+      "Empty",
+      "Not run",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available",
+      "Available"
+    ]
+  },
+  "after": {
+    "viewerTitle": "Source: Define tool protocol and model action schema",
+    "viewerText": "Reference code-agent projects converge on typed action and observation contracts."
+  }
+}

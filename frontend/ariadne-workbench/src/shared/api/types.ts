@@ -127,6 +127,36 @@ export type ApiIssueExecutionResultSummary = {
   ended_at: string;
 };
 
+export type ApiIssueEvidenceItem = {
+  id: string;
+  category: string;
+  label: string;
+  ref_type: string;
+  ref_id?: string | null;
+  path_or_url?: string | null;
+  validity: string;
+  reason: string;
+  summary: string;
+  excerpt: string;
+  assignment_id?: string | null;
+  execution_result_id?: string | null;
+  created_at?: string | null;
+};
+
+export type ApiIssueEvidenceSection = {
+  category: string;
+  label: string;
+  items: ApiIssueEvidenceItem[];
+};
+
+export type ApiIssueEvidenceDetailResponse = {
+  schema_version: "ariadne.issue-evidence.v1";
+  issue_key: string;
+  evidence: ApiIssueEvidenceItem;
+  content_excerpt: string;
+  source: string;
+};
+
 export type ApiIssueTimelineEvent = {
   id: string;
   event_type: string;
@@ -169,6 +199,8 @@ export type ApiIssueListItem = {
 
 export type ApiIssueDetail = ApiIssueListItem & {
   body: string;
+  acceptance_criteria: string[];
+  affected_modules: string[];
   comments: ApiIssueComment[];
   timeline: ApiIssueTimelineEvent[];
   assignments: ApiAssignmentSummary[];
@@ -180,6 +212,7 @@ export type ApiIssueDetail = ApiIssueListItem & {
   test_summary?: string | null;
   review_summary?: string | null;
   next_issue_links: string[];
+  evidence_sections: ApiIssueEvidenceSection[];
 };
 
 export type ApiIssueListResponse = {

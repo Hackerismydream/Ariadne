@@ -2891,6 +2891,109 @@ button:disabled {
   font-size: 12px;
 }
 
+.evidence-center h2 {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.evidence-section {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.evidence-list {
+  display: grid;
+  gap: 8px;
+}
+
+.evidence-row,
+.evidence-viewer {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.evidence-row header,
+.evidence-row footer,
+.evidence-viewer header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.evidence-row p,
+.evidence-viewer p {
+  color: #475569;
+  margin: 0;
+}
+
+.evidence-row pre,
+.evidence-viewer pre {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.evidence-row code {
+  color: #64748b;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.evidence-row button {
+  margin-left: auto;
+}
+
+.evidence-reason {
+  color: #991b1b;
+}
+
+.validity-badge {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #475569;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+
+.validity-badge.available,
+.validity-badge.produced_by_run {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.validity-badge.missing,
+.validity-badge.empty,
+.validity-badge.not_run,
+.validity-badge.dirty_before_run,
+.validity-badge.stale {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
 .verdict-badge {
   display: inline-flex;
   width: fit-content;
@@ -2969,6 +3072,13 @@ button:disabled {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.compact-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
 }
 
 .phase3-timeline span,

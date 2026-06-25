@@ -1,0 +1,20 @@
+{
+  "schema_version": "ariadne.issue-evidence.v1",
+  "issue_key": "M0TR-003",
+  "evidence": {
+    "id": "issue_evidence_00e08a99c3a5",
+    "category": "source",
+    "label": "Source: Define tool protocol and model action schema",
+    "ref_type": "source_document",
+    "ref_id": "source_1777dae5ce01",
+    "path_or_url": "https://minimal-agent.com/",
+    "validity": "available",
+    "reason": "",
+    "summary": "Reference code-agent projects converge on typed action and observation contracts.",
+    "excerpt": "Reference code-agent projects converge on typed action and observation contracts.",
+    "assignment_id": null,
+    "execution_result_id": null,
+    "created_at": "2026-06-22T14:15:02Z"
+  },
+  "content_excerpt": "Reference code-agent projects converge on typed action and observation contracts."
+}

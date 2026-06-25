@@ -28,6 +28,7 @@ from ariadne_ltb.application.mappers import assignment_dto, comment_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.assign_ticket import AssignTicketService
+from ariadne_ltb.application.workbench_artifacts import IssueEvidenceProjectionService
 from ariadne_ltb.application.work_truth import reduce_work_truth
 from ariadne_ltb.models import AssignmentStatus, BuildTicket, ExecutionResult, ReviewReport, TicketAssignment, TicketStatus, utc_now
 from ariadne_ltb.storage import AriadneStore
@@ -59,9 +60,17 @@ class WorkbenchIssuesService:
         route_assignment = self._latest_assignment(ticket)
         route_decision = self._route_decision(route_assignment)
         handoff = self._handoff(ticket, route_assignment, latest_execution)
+        evidence_sections = IssueEvidenceProjectionService(self.store).sections(
+            ticket,
+            assignments,
+            executions,
+            review,
+        )
         issue = IssueDetailDTO(
             **item.model_dump(mode="python"),
             body=ticket.description,
+            acceptance_criteria=self._acceptance_criteria(ticket),
+            affected_modules=self._affected_modules(ticket),
             comments=[comment_dto(comment) for comment in self.store.list_comments(ticket.id)],
             timeline=self._timeline(ticket),
             assignments=[assignment_dto(assignment) for assignment in assignments],
@@ -73,6 +82,7 @@ class WorkbenchIssuesService:
             test_summary=self._test_summary(latest_execution),
             review_summary=self._review_summary(review),
             next_issue_links=self._next_issue_links(ticket),
+            evidence_sections=evidence_sections,
         )
         return IssueDetailResponse(issue=issue)
 
@@ -393,6 +403,28 @@ class WorkbenchIssuesService:
         for value in ticket.metadata.get("source_artifact_ids", []) or []:
             links.append(str(value))
         return sorted(set(links))
+
+    def _acceptance_criteria(self, ticket: BuildTicket) -> list[str]:
+        values = ticket.metadata.get("acceptance_criteria")
+        if isinstance(values, list):
+            return [str(value) for value in values if value]
+        if ticket.build_packet_id:
+            try:
+                return list(self.store.load_build_packet(ticket.build_packet_id).acceptance_criteria)
+            except FileNotFoundError:
+                return []
+        return []
+
+    def _affected_modules(self, ticket: BuildTicket) -> list[str]:
+        values = ticket.metadata.get("affected_modules")
+        if isinstance(values, list):
+            return [str(value) for value in values if value]
+        if ticket.build_packet_id:
+            try:
+                return list(self.store.load_build_packet(ticket.build_packet_id).affected_modules)
+            except FileNotFoundError:
+                return []
+        return []
 
     def _evidence_count(self, ticket: BuildTicket) -> int:
         return (

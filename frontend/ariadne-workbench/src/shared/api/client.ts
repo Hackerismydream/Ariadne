@@ -4,6 +4,7 @@ import type {
   ApiBuildTeamsResponse,
   ApiIssueAssignResponse,
   ApiIssueDetailResponse,
+  ApiIssueEvidenceDetailResponse,
   ApiIssueListResponse,
   ApiIssueRunResponse,
   ApiInboxListResponse,
@@ -54,6 +55,12 @@ export function getIssues() {
 
 export function getIssue(issueIdOrKey: string) {
   return requestJson<ApiIssueDetailResponse>(`/api/issues/${encodeURIComponent(issueIdOrKey)}`);
+}
+
+export function getIssueEvidence(issueIdOrKey: string, evidenceId: string) {
+  return requestJson<ApiIssueEvidenceDetailResponse>(
+    `/api/issues/${encodeURIComponent(issueIdOrKey)}/evidence/${encodeURIComponent(evidenceId)}`,
+  );
 }
 
 export function assignIssue(

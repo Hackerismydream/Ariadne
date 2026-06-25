@@ -1,7 +1,7 @@
-import { ArrowLeft, MessageSquare, Play, RotateCcw, UserPlus } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, Play, RotateCcw, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, retryAssignment, runIssueNow } from "../../shared/api/client";
-import type { ApiAssignmentSummary, ApiIssueDetail, AssignmentEvent } from "../../shared/api/types";
+import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, getIssueEvidence, retryAssignment, runIssueNow } from "../../shared/api/client";
+import type { ApiAssignmentSummary, ApiIssueDetail, ApiIssueEvidenceDetailResponse, ApiIssueEvidenceItem, AssignmentEvent } from "../../shared/api/types";
 import type { ProjectResource, RuntimeInfo } from "../../types";
 
 function idempotencyKey(prefix: string) {
@@ -38,6 +38,19 @@ function statusLabel(status: string | null | undefined) {
   return labels[status ?? ""] ?? status ?? "Unknown";
 }
 
+function validityLabel(validity: string) {
+  const labels: Record<string, string> = {
+    available: "Available",
+    dirty_before_run: "Dirty before run",
+    empty: "Empty",
+    missing: "Missing",
+    not_run: "Not run",
+    produced_by_run: "Produced by run",
+    stale: "Stale",
+  };
+  return labels[validity] ?? validity;
+}
+
 function activeAssignment(assignments: ApiAssignmentSummary[]) {
   return assignments.find((assignment) => ["claimed", "running"].includes(assignment.status)) ?? null;
 }
@@ -67,6 +80,8 @@ export function IssueDetail({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
   const [eventsMessage, setEventsMessage] = useState("");
+  const [selectedEvidence, setSelectedEvidence] = useState<ApiIssueEvidenceDetailResponse | null>(null);
+  const [evidenceMessage, setEvidenceMessage] = useState("");
   const activeRuntime = useMemo(
     () => runtimes.find((runtime) => runtime.backend === selectedRuntime && runtime.canAssign)
       ?? runtimes.find((runtime) => runtime.canAssign)
@@ -181,6 +196,17 @@ export function IssueDetail({
     return "Comment added.";
   }
 
+  async function openEvidence(item: ApiIssueEvidenceItem) {
+    setEvidenceMessage(`Opening ${item.label}...`);
+    try {
+      const response = await getIssueEvidence(issueKey, item.id);
+      setSelectedEvidence(response);
+      setEvidenceMessage("");
+    } catch (error) {
+      setEvidenceMessage(errorMessage(error));
+    }
+  }
+
   if (loading && !issue) {
     return (
       <section className="page issue-detail-page">
@@ -243,6 +269,44 @@ export function IssueDetail({
 
       <div className="issue-detail-grid">
         <main className="issue-detail-main">
+          <section className="panel evidence-center" data-testid="issue-evidence-center" id="evidence-center">
+            <h2><FileText size={16} /> Evidence Center</h2>
+            {issue.evidence_sections.length ? issue.evidence_sections.map((section) => (
+              <div className="evidence-section" key={section.category}>
+                <h3>{section.label}</h3>
+                <div className="evidence-list">
+                  {section.items.map((item) => (
+                    <article className="evidence-row" key={item.id}>
+                      <header>
+                        <strong>{item.label}</strong>
+                        <span className={`validity-badge ${item.validity}`}>{validityLabel(item.validity)}</span>
+                      </header>
+                      <p>{item.summary || item.reason || "No summary recorded."}</p>
+                      {item.excerpt ? <pre>{item.excerpt}</pre> : null}
+                      <footer>
+                        <small>{item.ref_type}{item.ref_id ? ` · ${item.ref_id}` : ""}</small>
+                        {item.path_or_url ? <code>{item.path_or_url}</code> : null}
+                        <button type="button" onClick={() => void openEvidence(item)}>Open evidence</button>
+                      </footer>
+                      {item.reason ? <small className="evidence-reason">{item.reason}</small> : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )) : <p className="empty-column">No evidence has been projected for this issue yet.</p>}
+            {evidenceMessage ? <p className="action-message">{evidenceMessage}</p> : null}
+            {selectedEvidence ? (
+              <article className="evidence-viewer" data-testid="issue-evidence-viewer">
+                <header>
+                  <strong>{selectedEvidence.evidence.label}</strong>
+                  <span className={`validity-badge ${selectedEvidence.evidence.validity}`}>{validityLabel(selectedEvidence.evidence.validity)}</span>
+                </header>
+                <p>{selectedEvidence.evidence.reason || selectedEvidence.evidence.summary}</p>
+                <pre>{selectedEvidence.content_excerpt || selectedEvidence.evidence.excerpt || "No readable content recorded."}</pre>
+              </article>
+            ) : null}
+          </section>
+
           <section className="panel">
             <h2>Execution Results</h2>
             {issue.execution_results.length ? issue.execution_results.map((result) => (
@@ -265,8 +329,8 @@ export function IssueDetail({
                   </div>
                 ) : null}
                 <div className="artifact-link-row">
-                  {result.diff_artifact_path ? <a href={`#artifact:${encodeURIComponent(result.diff_artifact_path)}`}>Diff artifact: {result.diff_artifact_path}</a> : <span>No diff artifact recorded</span>}
-                  {result.execution_log_artifact_path ? <a href={`#artifact:${encodeURIComponent(result.execution_log_artifact_path)}`}>Execution log: {result.execution_log_artifact_path}</a> : null}
+                  {result.diff_artifact_path ? <span>Diff artifact: {result.diff_artifact_path}</span> : <span>No diff artifact recorded</span>}
+                  {result.execution_log_artifact_path ? <span>Execution log: {result.execution_log_artifact_path}</span> : null}
                 </div>
               </article>
             )) : <p className="empty-column">No execution results yet.</p>}
@@ -340,6 +404,17 @@ export function IssueDetail({
             <p>{display(issue.diff_summary)}</p>
             <p>{display(issue.test_summary)}</p>
             <p>{display(issue.review_summary)}</p>
+          </section>
+          <section className="panel">
+            <h2>Acceptance / Modules</h2>
+            {issue.acceptance_criteria.length ? (
+              <ul className="compact-list">
+                {issue.acceptance_criteria.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            ) : <p className="empty-column">No acceptance criteria recorded.</p>}
+            <div className="module-row">
+              {issue.affected_modules.length ? issue.affected_modules.map((item) => <code key={item}>{item}</code>) : <span>No affected modules recorded</span>}
+            </div>
           </section>
           <section className="panel">
             <h2>Links</h2>

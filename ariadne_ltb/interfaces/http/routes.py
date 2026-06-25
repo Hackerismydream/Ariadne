@@ -41,6 +41,7 @@ from ariadne_ltb.application.source_analysis import SourceAnalysisService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.web_sources import WebSourceService
 from ariadne_ltb.application.workbench_agents import WorkbenchAgentsService
+from ariadne_ltb.application.workbench_artifacts import IssueEvidenceProjectionService
 from ariadne_ltb.application.workbench_inbox import WorkbenchInboxService
 from ariadne_ltb.application.workbench_issue_detail import WorkbenchIssueDetailService
 from ariadne_ltb.application.workbench_issues import WorkbenchIssuesService
@@ -106,6 +107,15 @@ def create_issue_comment(
 @router.get("/api/issues/{issue_id_or_key}/timeline")
 def issue_timeline(issue_id_or_key: str, store: AriadneStore = Depends(get_store)) -> dict:
     return WorkbenchIssuesService(store).timeline(issue_id_or_key).model_dump(mode="json")
+
+
+@router.get("/api/issues/{issue_id_or_key}/evidence/{evidence_id}")
+def issue_evidence_detail(
+    issue_id_or_key: str,
+    evidence_id: str,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    return IssueEvidenceProjectionService(store).detail(issue_id_or_key, evidence_id).model_dump(mode="json")
 
 
 @router.post("/api/issues/{issue_id_or_key}/assign")
