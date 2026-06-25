@@ -26,6 +26,7 @@ from ariadne_ltb.application.errors import NotFoundError
 from ariadne_ltb.application.mappers import build_skill_dto
 from ariadne_ltb.application.mappers import assignment_dto
 from ariadne_ltb.application.run_events import RunEventService
+from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.models import AssignmentStatus
 from ariadne_ltb.models import AgentDefinition, AgentRuntimeProfile, AgentVisibility, stable_id, utc_now
 from ariadne_ltb.skills import discover_build_skills
@@ -163,12 +164,14 @@ class WorkbenchAgentsService:
 
     def tasks(self, agent_id: str) -> AgentTasksResponse:
         self._load_agent(agent_id)
+        inbox_by_assignment = {
+            item.source_id: item
+            for item in refresh_inbox(self.store)
+            if item.source_type == "assignment"
+        }
         return AgentTasksResponse(
             tasks=[
-                AgentTaskItemDTO(
-                    assignment=assignment_dto(assignment),
-                    current=assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING},
-                )
+                self._task_item(assignment, inbox_by_assignment.get(assignment.id))
                 for assignment in sorted(self._agent_assignments(agent_id), key=lambda item: item.created_at, reverse=True)
             ]
         )
@@ -250,6 +253,26 @@ class WorkbenchAgentsService:
     def _agent_assignments(self, agent_id: str):
         return [assignment for assignment in self.store.list_assignments() if assignment.agent_id == agent_id]
 
+    def _task_item(self, assignment, inbox_item) -> AgentTaskItemDTO:
+        status = _task_status(assignment.status)
+        blocker_reason = assignment.blocker or (assignment.failure_reason.value if assignment.failure_reason else None)
+        return AgentTaskItemDTO(
+            assignment=assignment_dto(assignment),
+            task_id=assignment.id,
+            ticket_id=assignment.ticket_id,
+            ticket_key=assignment.ticket_key,
+            agent_id=assignment.agent_id,
+            status=status,
+            attempt_number=assignment.attempt,
+            retry_count=max(0, assignment.attempt - 1),
+            blocker_id=inbox_item.id if inbox_item else None,
+            blocker_reason=blocker_reason,
+            claimed_at=assignment.claimed_at,
+            started_at=assignment.started_at,
+            completed_at=assignment.ended_at,
+            current=status in {"claimed", "running"},
+        )
+
     def _agent_list_item(self, agent: AgentDefinition, assignments) -> AgentListItemDTO:
         agent_assignments = [assignment for assignment in assignments if assignment.agent_id == agent.agent_id]
         runtime_profile = self._runtime_profile_dto(agent)
@@ -311,3 +334,27 @@ class WorkbenchAgentsService:
             visible=agent.visibility.visible,
             team_ids=agent.visibility.team_ids,
         )
+
+
+def _task_status(status: AssignmentStatus) -> str:
+    if status in {
+        AssignmentStatus.QUEUED,
+        AssignmentStatus.ROUTED,
+        AssignmentStatus.HANDOFF_READY,
+        AssignmentStatus.AWAITING_USER_APPROVAL,
+        AssignmentStatus.READY_TO_CLAIM,
+    }:
+        return "queued"
+    if status is AssignmentStatus.CLAIMED:
+        return "claimed"
+    if status is AssignmentStatus.RUNNING:
+        return "running"
+    if status is AssignmentStatus.BLOCKED:
+        return "blocked"
+    if status is AssignmentStatus.DONE:
+        return "done"
+    if status is AssignmentStatus.FAILED:
+        return "failed"
+    if status is AssignmentStatus.CANCELLED:
+        return "cancelled"
+    return status.value

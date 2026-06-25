@@ -579,6 +579,18 @@ export type ApiAgentActivityItem = {
 
 export type ApiAgentTaskItem = {
   assignment: ApiAssignmentSummary;
+  task_id: string;
+  ticket_id: string;
+  ticket_key: string;
+  agent_id: string;
+  status: string;
+  attempt_number: number;
+  retry_count: number;
+  blocker_id?: string | null;
+  blocker_reason?: string | null;
+  claimed_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   current: boolean;
 };
 

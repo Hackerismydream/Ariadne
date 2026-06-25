@@ -11,6 +11,7 @@ from ariadne_ltb.models import (
     AgentRuntimeProfile,
     AgentVisibility,
     BuildTicket,
+    FailureReason,
     RuntimeEvent,
     TicketStatus,
     stable_id,
@@ -137,3 +138,31 @@ def test_agent_detail_fact_tabs_project_existing_store(tmp_path) -> None:
     assert client.get(f"/api/team/agents/{agent.agent_id}/runs").json()["runs"][0]["id"] == run.id
     activity = client.get(f"/api/team/agents/{agent.agent_id}/activity").json()["activity"]
     assert any(item["event_type"] == "started" for item in activity)
+
+
+def test_agent_tasks_project_assignment_lifecycle_and_blocker_inbox(tmp_path) -> None:
+    store = AriadneStore(tmp_path)
+    agent = _agent()
+    store.save_agent_definition(agent)
+    ticket = _ticket()
+    store.save_ticket(ticket)
+    assignment = store.create_assignment(ticket, agent.to_agent_profile(), backend_name="codex")
+    client = TestClient(create_app(tmp_path))
+
+    queued_task = client.get(f"/api/team/agents/{agent.agent_id}/tasks").json()["tasks"][0]
+    assert queued_task["task_id"] == assignment.id
+    assert queued_task["ticket_key"] == ticket.key
+    assert queued_task["agent_id"] == agent.agent_id
+    assert queued_task["status"] == "queued"
+    assert queued_task["attempt_number"] == 1
+    assert queued_task["retry_count"] == 0
+    assert queued_task["current"] is False
+    assert queued_task["blocker_id"] is None
+
+    blocked = assignment.mark_blocked("external execution disabled", FailureReason.EXTERNAL_EXECUTION_BLOCKED)
+    store.save_assignment(blocked)
+
+    blocked_task = client.get(f"/api/team/agents/{agent.agent_id}/tasks").json()["tasks"][0]
+    assert blocked_task["status"] == "blocked"
+    assert blocked_task["blocker_reason"] == "external execution disabled"
+    assert blocked_task["blocker_id"]

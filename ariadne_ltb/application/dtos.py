@@ -486,6 +486,18 @@ class AgentActivityItemDTO(AriadneDTO):
 
 class AgentTaskItemDTO(AriadneDTO):
     assignment: AssignmentDTO
+    task_id: str
+    ticket_id: str
+    ticket_key: str
+    agent_id: str
+    status: str
+    attempt_number: int = 1
+    retry_count: int = 0
+    blocker_id: str | None = None
+    blocker_reason: str | None = None
+    claimed_at: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
     current: bool = False
 
 

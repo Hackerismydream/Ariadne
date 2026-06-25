@@ -430,15 +430,24 @@ function TasksTab({ items }: { items: ApiAgentTaskItem[] }) {
   return (
     <div className="card-list">
       {items.map((item) => (
-        <article className="control-card" key={item.assignment.id}>
+        <article className="control-card" key={item.task_id}>
           <header>
-            <strong>{item.assignment.ticket_key}</strong>
-            <span>{item.assignment.status}</span>
+            <strong>{item.ticket_key}</strong>
+            <span>{item.status}</span>
           </header>
           <p>{item.assignment.agent_name} · {item.assignment.backend_name ?? "backend not recorded"}</p>
           <div className="tag-row">
-            <span>{item.assignment.id}</span>
+            <span>{item.task_id}</span>
+            <span>Attempt {item.attempt_number}</span>
+            <span>Retry {item.retry_count}</span>
             {item.current ? <span>Current</span> : null}
+            {item.blocker_id ? <button type="button" onClick={() => { globalThis.location.hash = "#inbox"; }}>Inbox {item.blocker_id}</button> : null}
+          </div>
+          {item.blocker_reason ? <p>{item.blocker_reason}</p> : null}
+          <div className="tag-row">
+            {item.claimed_at ? <span>Claimed {item.claimed_at}</span> : null}
+            {item.started_at ? <span>Started {item.started_at}</span> : null}
+            {item.completed_at ? <span>Completed {item.completed_at}</span> : null}
           </div>
         </article>
       ))}

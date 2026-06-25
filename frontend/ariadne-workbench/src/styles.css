@@ -2908,6 +2908,18 @@ button.team-agent-row:hover {
   min-width: 220px;
 }
 
+.compact-selector {
+  align-items: center;
+  color: #475569;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.compact-selector select {
+  min-width: 220px;
+}
+
 .issue-detail-grid {
   display: grid;
   gap: 16px;

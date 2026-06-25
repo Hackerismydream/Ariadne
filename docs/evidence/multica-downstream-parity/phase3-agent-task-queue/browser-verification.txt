@@ -1,0 +1,85 @@
+A
+Ariadne
+搜索...
+⌘ K
+新建 issue
+C
+
+Workbench
+
+Issues
+Sources
+Plan Changes
+Team
+Runs
+Inbox
+3
+Diagnostics
+?
+CURRENT VERSION CONTEXT
+M0TR-003 target repository
+
+用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+
+PROJECT
+M0TR-003 target repository
+/Users/martinlos/code/ariadne-dogfood/mini-code-agent
+TARGET VERSION
+Build Mini Code Agent v0.1
+当前阻塞
+GOAL
+Build Mini Code Agent v0.1
+用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+SOURCES READINESS
+11/63
+ready for issue factory
+ISSUE DELTA STATUS
+preview_only
+10 current issues
+ACTIVE RUN
+Blocked · M0TR-003 assignment blocked。
+API connected
+BLOCKED COUNT
+5
+M0TR-003 assignment blocked。
+LATEST EVIDENCE
+M0TR-003 · codex · blocked_before_execution · tests n/a · review 已阻塞
+execution_7a3913677d7e
+NEXT ACTION
+处理当前阻塞
+M0TR-003 assignment blocked。
+Phase 3 Codex 1782402810345
+Active
+
+Browser-created real AgentDefinition for Phase 3 task queue verification.
+
+Back to Team
+ Refresh
+ Profile
+Backend
+codex
+Model
+Not recorded
+Working directory
+Not recorded
+Visibility
+Visible
+Assignments
+0
+Blocked
+0
+activity
+tasks
+instructions
+skills
+environment
+runs
+M0TR-001
+queued
+
+Phase 3 Codex 1782402810345 · codex
+
+assignment_12ecf14fc6cb
+Attempt 1
+Retry 0
+对话

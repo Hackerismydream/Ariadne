@@ -1,7 +1,7 @@
 import { ArrowLeft, FileText, MessageSquare, Play, RotateCcw, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, getIssueEvidence, retryAssignment, runIssueNow } from "../../shared/api/client";
-import type { ApiAssignmentSummary, ApiIssueDetail, ApiIssueEvidenceDetailResponse, ApiIssueEvidenceItem, AssignmentEvent } from "../../shared/api/types";
+import { addIssueComment, assignIssue, getAssignmentEvents, getIssue, getIssueEvidence, getTeamAgents, retryAssignment, runIssueNow } from "../../shared/api/client";
+import type { ApiAssignmentSummary, ApiIssueDetail, ApiIssueEvidenceDetailResponse, ApiIssueEvidenceItem, ApiTeamAgent, AssignmentEvent } from "../../shared/api/types";
 import type { ProjectResource, RuntimeInfo } from "../../types";
 
 function idempotencyKey(prefix: string) {
@@ -55,6 +55,10 @@ function activeAssignment(assignments: ApiAssignmentSummary[]) {
   return assignments.find((assignment) => ["claimed", "running"].includes(assignment.status)) ?? null;
 }
 
+function assignableBackend(value: string | null | undefined): "codex" | "claude-code" | null {
+  return value === "codex" || value === "claude-code" ? value : null;
+}
+
 export function IssueDetail({
   issueKey,
   readOnly,
@@ -79,6 +83,8 @@ export function IssueDetail({
   const [confirmationToken, setConfirmationToken] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [assignmentEvents, setAssignmentEvents] = useState<AssignmentEvent[]>([]);
+  const [agents, setAgents] = useState<ApiTeamAgent[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
   const [eventsMessage, setEventsMessage] = useState("");
   const [selectedEvidence, setSelectedEvidence] = useState<ApiIssueEvidenceDetailResponse | null>(null);
   const [evidenceMessage, setEvidenceMessage] = useState("");
@@ -89,6 +95,7 @@ export function IssueDetail({
     [runtimes, selectedRuntime],
   );
   const active = issue ? activeAssignment(issue.assignments) : null;
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? null;
 
   async function refreshIssue() {
     setLoading(true);
@@ -105,6 +112,19 @@ export function IssueDetail({
   useEffect(() => {
     void refreshIssue();
   }, [issueKey]);
+
+  useEffect(() => {
+    async function loadAgents() {
+      try {
+        const response = await getTeamAgents();
+        setAgents(response.agents);
+        setSelectedAgentId((current) => current || response.agents[0]?.id || "");
+      } catch {
+        setAgents([]);
+      }
+    }
+    void loadAgents();
+  }, []);
 
   useEffect(() => {
     if (!active?.id) {
@@ -157,11 +177,13 @@ export function IssueDetail({
 
   async function assignCurrentIssue() {
     if (!targetProject?.id) throw new Error("No target project is registered for the current version.");
-    if (!activeRuntime?.backend) throw new Error("No assignable runtime is available.");
+    if (!selectedAgent) throw new Error("No real AgentDefinition is available. Create an agent in Team first.");
+    const backend = assignableBackend(selectedAgent.backend_name) ?? assignableBackend(activeRuntime?.backend);
+    if (!backend) throw new Error("Selected agent has no runtime backend.");
     const response = await assignIssue(issueKey, {
-      assignee_id: activeRuntime.backend === "claude-code" ? "claude-code" : "codex",
+      assignee_id: selectedAgent.id,
       assignee_kind: "agent",
-      backend_name: activeRuntime.backend === "claude-code" ? "claude-code" : "codex",
+      backend_name: backend,
       runtime_profile: "production",
       target_project_id: targetProject.id,
       idempotency_key: idempotencyKey("phase3-assign"),
@@ -241,7 +263,18 @@ export function IssueDetail({
       </header>
 
       <section className="issue-action-bar">
-        <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Assign", assignCurrentIssue)}>
+        <label className="compact-selector">
+          Agent
+          <select disabled={!agents.length || readOnly || busyAction !== null} value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
+            {!agents.length ? <option value="">No real agents</option> : null}
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name} · {agent.backend_name ?? "no backend"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button disabled={readOnly || busyAction !== null || !selectedAgent} type="button" onClick={() => void runAction("Assign", assignCurrentIssue)}>
           <UserPlus size={15} /> Assign
         </button>
         <button disabled={readOnly || busyAction !== null} type="button" onClick={() => void runAction("Run Now", runCurrentIssue)}>
