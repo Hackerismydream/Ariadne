@@ -1,0 +1,13 @@
+{
+    "repair_actions": [
+        {
+            "id": "repair_action_5e5ee56e6513",
+            "source_inbox_item_id": "inbox_60aa9b4e6dc8",
+            "target_agent_id": "agent_4b050c358500",
+            "repair_type": "fix",
+            "new_assignment_id": "assignment_e8cc969fc650",
+            "repair_ticket_id": "ticket_e4e6af1a63bf",
+            "created_at": "2026-06-25T16:31:42Z"
+        }
+    ]
+}

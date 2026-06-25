@@ -643,6 +643,8 @@ export type ApiInboxListItem = {
   source_type?: string | null;
   source_id?: string | null;
   linked_assignment_id?: string | null;
+  agent_id?: string | null;
+  agent_name?: string | null;
   canonical_blocker_id?: string | null;
   failure_reason: string;
   severity: string;

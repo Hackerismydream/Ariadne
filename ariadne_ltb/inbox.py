@@ -389,6 +389,8 @@ def _from_assignment(store: AriadneStore, assignment: TicketAssignment, ticket_k
         source_id=assignment.id,
         ticket_id=assignment.ticket_id,
         ticket_key=ticket_key,
+        agent_id=assignment.agent_id,
+        agent_name=assignment.agent_name,
         title=f"{ticket_key or assignment.ticket_id}: assignment {assignment.status.value}",
         summary=summary,
         severity=_severity(reason),
@@ -408,6 +410,8 @@ def _from_agent_run(store: AriadneStore, run: AgentRun, ticket_key: str | None) 
         source_id=run.id,
         ticket_id=run.ticket_id,
         ticket_key=ticket_key,
+        agent_id=str(run.metadata.get("agent_id") or "") or None,
+        agent_name=run.agent_name,
         title=f"{ticket_key or run.ticket_id}: {run.agent_name} {run.status.value}",
         summary=summary[:1000],
         severity=_severity(reason),
@@ -419,6 +423,7 @@ def _from_agent_run(store: AriadneStore, run: AgentRun, ticket_key: str | None) 
 
 def _from_execution(store: AriadneStore, execution: ExecutionResult, ticket_key: str | None) -> InboxItem:
     reason = execution.failure_reason or FailureReason.UNKNOWN
+    assignment = store.find_latest_assignment_for_ticket(execution.ticket_id)
     summary = (
         execution.block_reason
         or execution.provider_failure_evidence
@@ -432,6 +437,8 @@ def _from_execution(store: AriadneStore, execution: ExecutionResult, ticket_key:
         source_id=execution.id,
         ticket_id=execution.ticket_id,
         ticket_key=ticket_key,
+        agent_id=assignment.agent_id if assignment else None,
+        agent_name=assignment.agent_name if assignment else None,
         title=f"{ticket_key or execution.ticket_id}: execution issue",
         summary=summary[:1000],
         severity=_severity(reason),
@@ -595,6 +602,8 @@ def _preserve_existing_status(store: AriadneStore, items: list[InboxItem]) -> li
                     update={
                         "status": existing.status,
                         "resolution_note": existing.resolution_note,
+                        "agent_id": item.agent_id or existing.agent_id,
+                        "agent_name": item.agent_name or existing.agent_name,
                         "created_at": existing.created_at,
                         "updated_at": existing.updated_at,
                     }

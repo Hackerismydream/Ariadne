@@ -572,6 +572,8 @@ class InboxItemDTO(AriadneDTO):
     source_id: str
     ticket_id: str | None = None
     ticket_key: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
     title: str
     summary: str
     severity: str
@@ -808,6 +810,8 @@ class InboxListItemDTO(AriadneDTO):
     source_type: str | None = None
     source_id: str | None = None
     linked_assignment_id: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
     canonical_blocker_id: str | None = None
     failure_reason: str
     severity: str

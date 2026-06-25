@@ -6,8 +6,10 @@ from fastapi.testclient import TestClient
 
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.dtos import AssignTicketInput
+from ariadne_ltb.application.inbox_actions import InboxActionService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.interfaces.http.app import create_app
+from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.models import (
     AgentDefinition,
     AgentRun,
@@ -260,3 +262,51 @@ def test_build_team_route_uses_real_agent_definition_fields(tmp_path) -> None:
     assert route.selected_skills == ["ariadne-review-diff"]
     assert route.skill_refs == ["fallback-skill"]
     assert routed.assignment.agent_id == agent.agent_id
+
+
+def test_inbox_repair_creates_repair_assignment_for_same_agent(tmp_path) -> None:
+    store = AriadneStore(tmp_path)
+    agent = _agent()
+    store.save_agent_definition(agent)
+    ticket = _ticket()
+    store.save_ticket(ticket)
+    target = tmp_path / "target"
+    target.mkdir()
+    project = TargetProjectRegistry(store).register(target, "Target")
+    assigned = AssignTicketService(store).assign(
+        ticket.key,
+        AssignTicketInput(
+            assignee_id=agent.agent_id,
+            assignee_kind="agent",
+            backend_name="codex",
+            runtime_profile="production",
+            target_project_id=project.id,
+            idempotency_key="phase7-source-assignment",
+        ),
+        source="test",
+    )
+    source_assignment = store.load_assignment(assigned.assignment.id)
+    store.save_assignment(
+        source_assignment.mark_blocked(
+            "agent could not repair generated code",
+            FailureReason.AGENT_ERROR,
+        )
+    )
+    item = next(item for item in refresh_inbox(store) if item.source_id == source_assignment.id)
+
+    result = InboxActionService(store).create_repair_ticket(item.id)
+
+    assert result.ticket is not None
+    assert result.assignment is not None
+    assert result.assignment.agent_id == agent.agent_id
+    assert result.assignment.parent_assignment_id == source_assignment.id
+    assert result.assignment.metadata["source_inbox_item_id"] == item.id
+    repair_actions = store.list_repair_actions()
+    assert repair_actions[0].source_inbox_item_id == item.id
+    assert repair_actions[0].target_agent_id == agent.agent_id
+    assert repair_actions[0].new_assignment_id == result.assignment.id
+    tasks = TestClient(create_app(tmp_path)).get(f"/api/team/agents/{agent.agent_id}/tasks").json()["tasks"]
+    repair_task = next(task for task in tasks if task["task_id"] == result.assignment.id)
+    assert repair_task["ticket_key"] == result.ticket.key
+    assert repair_task["agent_id"] == agent.agent_id
+    assert repair_task["status"] == "queued"

@@ -31,6 +31,8 @@ class WorkbenchInboxService:
             source_type=item.source_type,
             source_id=item.source_id,
             linked_assignment_id=item.source_id if item.source_type == "assignment" else None,
+            agent_id=item.agent_id,
+            agent_name=item.agent_name,
             canonical_blocker_id=item.id,
             failure_reason=item.failure_reason.value if item.failure_reason else "none",
             severity=item.severity.value,

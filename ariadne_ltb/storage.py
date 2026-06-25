@@ -43,6 +43,7 @@ from ariadne_ltb.models import (
     MemoryRecord,
     ProjectResource,
     ProjectSpace,
+    RepairAction,
     ReleaseEvidencePacket,
     ReviewReport,
     RuntimeEvent,
@@ -106,6 +107,7 @@ class AriadneStore:
         self.backlog_updates_path = self.backlog_dir / "updates.jsonl"
         self.inbox_dir = self.base / "inbox"
         self.inbox_items_path = self.inbox_dir / "items.json"
+        self.repair_actions_path = self.inbox_dir / "repair_actions.json"
         self.evidence_dir = self.base / "evidence"
         self.backend_smoke_evidence_dir = self.evidence_dir / "backend_smoke"
         self.release_evidence_packet_path = self.evidence_dir / "release_evidence_packet.json"
@@ -1121,6 +1123,25 @@ class AriadneStore:
             raise FileNotFoundError(msg)
         self.save_inbox_items(updated_items)
         return updated_item
+
+    def save_repair_action(self, action: RepairAction) -> RepairAction:
+        actions = [existing for existing in self.list_repair_actions() if existing.id != action.id]
+        actions.append(action)
+        self.repair_actions_path.write_text(
+            json.dumps(
+                {"repair_actions": [item.model_dump(mode="json", exclude_none=False) for item in actions]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return action
+
+    def list_repair_actions(self) -> list[RepairAction]:
+        if not self.repair_actions_path.exists():
+            return []
+        data = json.loads(self.repair_actions_path.read_text(encoding="utf-8"))
+        return [RepairAction.model_validate(item) for item in data.get("repair_actions", [])]
 
     def save_project_resources(self, resources: list[ProjectResource]) -> Path:
         path = self.project_dir / "resources.json"

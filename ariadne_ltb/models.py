@@ -1439,6 +1439,8 @@ class InboxItem(AriadneModel):
     source_id: str
     ticket_id: str | None = None
     ticket_key: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
     title: str
     summary: str
     severity: InboxSeverity = InboxSeverity.MEDIUM
@@ -1453,6 +1455,16 @@ class InboxItem(AriadneModel):
     current_state: str | None = None
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
+
+
+class RepairAction(AriadneModel):
+    id: str
+    source_inbox_item_id: str
+    target_agent_id: str
+    repair_type: Literal["retry", "fix", "reassign"]
+    new_assignment_id: str
+    repair_ticket_id: str | None = None
+    created_at: str = Field(default_factory=utc_now)
 
 
 class BuildSkill(AriadneModel):
