@@ -22,6 +22,8 @@ def prepare_direct_agent_assignment(
     packet = store.load_build_packet(ticket.build_packet_id) if ticket.build_packet_id else None
     agent_definition = _load_agent_definition(store, agent.id)
     skill_refs = list(agent_definition.skill_ids if agent_definition else agent.capabilities)
+    runtime_profile_id = agent_definition.runtime_profile_id if agent_definition else None
+    agent_reason = f"Direct assignment selected real AgentDefinition `{agent.name}`."
     route_decision = RouteDecision(
         id=stable_id("route", ticket.id, assignment.id, assignment.backend_name or agent.backend_name or ""),
         ticket_id=ticket.id,
@@ -33,6 +35,10 @@ def prepare_direct_agent_assignment(
         selected_agent_id=agent.id,
         selected_agent_name=agent.name,
         selected_agent_role=agent.role,
+        agent_id=agent.id,
+        agent_reason=agent_reason,
+        selected_skills=skill_refs,
+        runtime_profile_id=runtime_profile_id,
         target_repo_path=target_repo,
         build_decision=packet.build_decision if packet else BuildDecision.CODE_TASK,
         reason=f"Direct assignment routed to {agent.name}.",

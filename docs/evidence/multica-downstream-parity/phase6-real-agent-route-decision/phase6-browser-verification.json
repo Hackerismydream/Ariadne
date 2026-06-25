@@ -1,0 +1,18 @@
+{
+  "issue_key": "M0TR-004",
+  "issue_status": "waiting_approval",
+  "assignment_id": "assignment_55fdcd30a8f4",
+  "assignment_agent_id": "agent_4b050c358500",
+  "assignment_agent_name": "Phase 3 Codex 1782402810345",
+  "route_id": "route_7a794e77e699",
+  "route_agent_id": "agent_4b050c358500",
+  "route_selected_agent_id": "agent_4b050c358500",
+  "route_agent_reason": "Direct assignment selected real AgentDefinition `Phase 3 Codex 1782402810345`.",
+  "route_runtime_profile_id": "agent_4b050c358500:runtime",
+  "route_selected_skills": [
+    "skill_9179aec0c6a9"
+  ],
+  "handoff_packet_id": "handoff_packet_03cc5770200d",
+  "handoff_path": "/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/M0TR-004-handoff_packet_03cc5770200d.md",
+  "agent_task_count": 3
+}

@@ -1209,6 +1209,10 @@ class RouteDecision(AriadneModel):
     selected_agent_id: str | None = None
     selected_agent_name: str | None = None
     selected_agent_role: str = "Execution"
+    agent_id: str | None = None
+    agent_reason: str = ""
+    selected_skills: list[str] = Field(default_factory=list)
+    runtime_profile_id: str | None = None
     target_repo_path: str
     build_decision: BuildDecision
     reason: str

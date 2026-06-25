@@ -15,6 +15,7 @@ from ariadne_ltb.models import (
     AgentRunStatus,
     AgentRuntimeProfile,
     AgentVisibility,
+    BuildTeam,
     BuildTicket,
     FailureReason,
     RuntimeEvent,
@@ -22,6 +23,7 @@ from ariadne_ltb.models import (
     stable_id,
 )
 from ariadne_ltb.storage import AriadneStore
+from ariadne_ltb.team import route_ticket_to_build_team
 
 
 def _ticket() -> BuildTicket:
@@ -205,10 +207,56 @@ def test_agent_skill_instruction_env_bindings_flow_into_route_and_handoff(tmp_pa
     route = store.load_route_decision(str(assignment.metadata["route_decision_id"]))
     handoff = store.load_handoff_packet(str(assignment.metadata["handoff_packet_id"]))
     markdown = Path(handoff.markdown_path).read_text(encoding="utf-8")
+    assert route.agent_id == agent.agent_id
+    assert route.agent_reason == "Direct assignment selected real AgentDefinition `Codex Implementer`."
+    assert route.runtime_profile_id == agent.runtime_profile_id
+    assert route.selected_skills == ["ariadne-review-diff"]
+    assert route.selected_agent_id == agent.agent_id
     assert route.skill_refs == ["ariadne-review-diff"]
     assert "## Selected Skills" in markdown
     assert "`ariadne-review-diff`" in markdown
+    assert "- Agent id: `agent-codex`" in markdown
+    assert "- Runtime profile: `agent-codex:runtime`" in markdown
+    assert "- Agent reason: Direct assignment selected real AgentDefinition `Codex Implementer`." in markdown
     assert "## Agent Instructions" in markdown
     assert "Always cite evidence." in markdown
     assert "## Environment Keys" in markdown
     assert "`CODEX_HOME`" in markdown
+
+
+def test_build_team_route_uses_real_agent_definition_fields(tmp_path) -> None:
+    store = AriadneStore(tmp_path)
+    agent = _agent()
+    store.save_agent_definition(agent)
+    ticket = _ticket()
+    store.save_ticket(ticket)
+    target = tmp_path / "target"
+    target.mkdir()
+    team = BuildTeam(
+        id="team-real-agent",
+        name="Real Agent Team",
+        lead_agent_id=agent.agent_id,
+        implementer_agent_id=agent.agent_id,
+        reviewer_agent_id=agent.agent_id,
+        memory_agent_id=agent.agent_id,
+        default_backend_name="codex",
+        skill_refs=["fallback-skill"],
+    )
+
+    routed = route_ticket_to_build_team(
+        store,
+        ticket,
+        team,
+        backend_name="codex",
+        target_repo_path=str(target),
+        target_project_id="target-project",
+    )
+
+    route = routed.route_decision
+    assert route.agent_id == agent.agent_id
+    assert route.selected_agent_id == agent.agent_id
+    assert route.agent_reason == "Build team `Real Agent Team` selected real AgentDefinition `Codex Implementer` for AGT-001."
+    assert route.runtime_profile_id == agent.runtime_profile_id
+    assert route.selected_skills == ["ariadne-review-diff"]
+    assert route.skill_refs == ["fallback-skill"]
+    assert routed.assignment.agent_id == agent.agent_id

@@ -80,9 +80,10 @@ def _render_markdown(
     test_command: str,
 ) -> str:
     task = ticket.description or ticket.summary or ticket.title
-    agent_definition = _load_agent_definition(store, route_decision.selected_agent_id)
+    agent_definition = _load_agent_definition(store, route_decision.agent_id or route_decision.selected_agent_id)
     agent_instructions = agent_definition.instructions.strip() if agent_definition else ""
     environment_keys = agent_definition.runtime_profile.environment_keys if agent_definition and agent_definition.runtime_profile else []
+    selected_skills = route_decision.selected_skills or route_decision.skill_refs
     lines = [
         f"# {ticket.key}: {ticket.title}",
         "",
@@ -93,11 +94,14 @@ def _render_markdown(
         f"- Backend: `{route_decision.backend_name}`",
         f"- Planner: `{route_decision.planner_name}`",
         f"- Agent runtime: `{route_decision.agent_runtime}`",
-        f"- Selected agent: `{route_decision.selected_agent_name or route_decision.selected_agent_id or 'not recorded'}`",
+        f"- Selected agent: `{route_decision.selected_agent_name or route_decision.agent_id or route_decision.selected_agent_id or 'not recorded'}`",
+        f"- Agent id: `{route_decision.agent_id or route_decision.selected_agent_id or 'not recorded'}`",
+        f"- Runtime profile: `{route_decision.runtime_profile_id or 'not recorded'}`",
+        f"- Agent reason: {route_decision.agent_reason or route_decision.reason}",
         "",
         "## Selected Skills",
-        *[f"- `{item}`" for item in route_decision.skill_refs],
-        *(["- Not recorded."] if not route_decision.skill_refs else []),
+        *[f"- `{item}`" for item in selected_skills],
+        *(["- Not recorded."] if not selected_skills else []),
         "",
         "## Agent Instructions",
         agent_instructions or "Not recorded.",

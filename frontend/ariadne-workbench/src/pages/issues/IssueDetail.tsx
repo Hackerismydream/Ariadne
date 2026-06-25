@@ -269,7 +269,7 @@ export function IssueDetail({
             {!agents.length ? <option value="">No real agents</option> : null}
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
-                {agent.name} · {agent.backend_name ?? "no backend"}
+                {agent.name} · {agent.backend_name ?? "no backend"} · {(agent.skill_ids ?? []).length} skills
               </option>
             ))}
           </select>
