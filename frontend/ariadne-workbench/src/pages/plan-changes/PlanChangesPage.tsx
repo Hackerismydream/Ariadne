@@ -52,6 +52,17 @@ function operationLabel(kind: string) {
   return labels[kind] ?? kind;
 }
 
+function textField(value: unknown, fallback = "Not recorded") {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function provenanceLabel(change: BacklogChange) {
+  const mode = textField(change.compilerProvenance?.compiler_mode, "unknown compiler");
+  const status = textField(change.compilerProvenance?.graph_status, "unknown status");
+  const runtime = textField(change.compilerProvenance?.runtime_mode, "unknown runtime");
+  return `${mode} · ${status} · ${runtime}`;
+}
+
 function ColumnHeader({ title, meta }: { title: string; meta?: string }) {
   return (
     <header className="column-header">
@@ -114,6 +125,27 @@ function DeltaDetail({ change }: { change?: BacklogChange }) {
         <p>{change.goalReason || change.reason || "No reason recorded."}</p>
       </section>
       <section>
+        <h3>Compiler provenance</h3>
+        <p>{provenanceLabel(change)}</p>
+        {change.compilerProvenance?.fallback_reason ? <code>{String(change.compilerProvenance.fallback_reason)}</code> : null}
+      </section>
+      <section>
+        <h3>Target codebase snapshot</h3>
+        <p>{change.codebaseSnapshotStatus ?? "missing"}</p>
+        {change.codebaseSnapshotArtifactId ? <code>{change.codebaseSnapshotArtifactId}</code> : null}
+        {change.codebaseSnapshotReason ? <small>{change.codebaseSnapshotReason}</small> : null}
+      </section>
+      <section>
+        <h3>Source claim trace</h3>
+        {change.sourceClaimTrace?.length ? change.sourceClaimTrace.slice(0, 4).map((item) => (
+          <div className="evidence-row" key={String(item.evidence_id ?? item.locator ?? item.claim)}>
+            <code>{String(item.locator ?? "source")}</code>
+            <p>{String(item.claim ?? "No claim recorded.")}</p>
+            <small>confidence {String(item.confidence ?? "unknown")}</small>
+          </div>
+        )) : <p className="empty-column">No source claim trace recorded.</p>}
+      </section>
+      <section>
         <h3>Source artifacts</h3>
         <div className="evidence-list">
           {change.sourceArtifactIds?.length ? change.sourceArtifactIds.map((item) => <code key={item}>{item}</code>) : <span>No source artifacts recorded.</span>}
@@ -127,6 +159,7 @@ function DeltaDetail({ change }: { change?: BacklogChange }) {
       </section>
       <section>
         <h3>Acceptance criteria</h3>
+        {change.acceptanceCriteriaRationale ? <p>{change.acceptanceCriteriaRationale}</p> : null}
         {change.acceptanceCriteria?.length ? (
           <ul className="risk-list">
             {change.acceptanceCriteria.map((item) => <li key={item}>{item}</li>)}
@@ -135,6 +168,7 @@ function DeltaDetail({ change }: { change?: BacklogChange }) {
       </section>
       <section>
         <h3>Affected modules</h3>
+        {change.affectedModuleRationale ? <p>{change.affectedModuleRationale}</p> : null}
         <div className="module-row">
           {change.affectedModules?.length ? change.affectedModules.map((item) => <span key={item}>{item}</span>) : <span>No affected modules recorded.</span>}
         </div>

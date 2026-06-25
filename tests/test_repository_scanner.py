@@ -19,4 +19,8 @@ def test_repository_scanner_reads_python_and_node_signals(tmp_path) -> None:
     assert "agent/cli.py" in scan.entrypoints
     assert "tests/test_cli.py" in scan.test_paths
     assert "README.md" in scan.selected_files
+    assert scan.architecture_insights
+    assert scan.test_strategy
+    assert scan.safety_model
+    assert "Suggested test command: python3.11 -m pytest" in scan.test_strategy
     assert infer_test_commands(scan.manifests, scan.test_paths) == ["python3.11 -m pytest"]

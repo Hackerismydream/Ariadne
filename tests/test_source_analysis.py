@@ -51,6 +51,28 @@ def test_markdown_source_analysis_writes_knowledge_card(tmp_path) -> None:
     assert evidence
     assert evidence[0].artifact_id == artifacts[0].id
     assert evidence[0].id in artifacts[0].evidence_ids
+    saved_source = store.load_source_document(source.id)
+    assert saved_source.metadata["quality_status"] == "usable"
+    assert saved_source.metadata["claim_count"] >= 1
+
+
+def test_raw_html_source_analysis_marks_low_quality(tmp_path) -> None:
+    store = AriadneStore(tmp_path)
+    source = _create_source_document(
+        store,
+        source_type=SourceType.BLOG,
+        title="Raw shell page",
+        path_or_url="https://example.test/app",
+        content="<!doctype html><html><head><script>window.x=1</script></head><body><div>Hi</div></body></html>",
+        metadata={"source_role": "requirement_source"},
+    )
+
+    result = SourceAnalysisService(store).analyze_source(source.id)
+
+    assert result.status == "blocked"
+    saved_source = store.load_source_document(source.id)
+    assert saved_source.metadata["quality_status"] == "blocked"
+    assert "html_extraction_too_short" in saved_source.metadata["quality_limitations"]
 
 
 def test_github_repo_analysis_writes_repository_understanding(tmp_path) -> None:
@@ -92,3 +114,8 @@ def test_github_repo_analysis_writes_repository_understanding(tmp_path) -> None:
     assert payload["entrypoints"]
     assert payload["tests"]["paths"] == ["tests/test_cli.py"]
     assert payload["behavior_patterns"]
+    assert payload["architecture_insights"]
+    assert payload["test_strategy"]
+    assert payload["safety_model"]
+    assert "limitations" in payload
+    assert len(evidence) >= 3

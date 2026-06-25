@@ -365,6 +365,10 @@ export type ApiSourceDocument = {
   evidence_snippets: string[];
   artifact_ids: string[];
   license_risk: string;
+  origin_bucket: string;
+  quality_status: string;
+  quality_limitations: string[];
+  claim_count: number;
 };
 
 export type ApiSourceArtifact = {
@@ -797,6 +801,13 @@ export type ApiBacklogOperation = {
   source_artifact_ids: string[];
   build_context_id?: string | null;
   target_project_id?: string | null;
+  compiler_provenance: Record<string, unknown>;
+  codebase_snapshot_artifact_id?: string | null;
+  codebase_snapshot_status: string;
+  codebase_snapshot_reason?: string | null;
+  source_claim_trace: Array<Record<string, unknown>>;
+  affected_module_rationale: string;
+  acceptance_criteria_rationale: string;
   goal_reason?: string | null;
   change_intent?: string;
   target_version_label?: string | null;
@@ -823,6 +834,9 @@ export type ApiBacklogPreview = {
   base_ticket_fingerprint?: string | null;
   target_project_id?: string | null;
   target_version_label?: string | null;
+  compiler_provenance?: Record<string, unknown>;
+  codebase_snapshot_status?: string;
+  codebase_snapshot_reason?: string | null;
   stale?: boolean;
   stale_reason?: string;
   build_context_manifest_id?: string | null;

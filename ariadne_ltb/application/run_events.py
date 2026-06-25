@@ -80,7 +80,7 @@ class RunEventService:
             AssignmentEventDTO(
                 id=f"assignment:{assignment.id}",
                 source="assignment",
-                cursor=f"assignment:{assignment.created_at}:{assignment.id}",
+                cursor=_event_cursor(assignment.created_at, "assignment", assignment.id),
                 timestamp=assignment.created_at,
                 assignment_id=assignment.id,
                 ticket_id=ticket.id,
@@ -99,7 +99,7 @@ class RunEventService:
                 AssignmentEventDTO(
                     id=runtime_event.id,
                     source="runtime_event",
-                    cursor=f"runtime_event:{runtime_event.timestamp}:{runtime_event.id}",
+                    cursor=_event_cursor(runtime_event.timestamp, "runtime_event", runtime_event.id),
                     timestamp=runtime_event.timestamp,
                     assignment_id=assignment.id,
                     ticket_id=ticket.id,
@@ -118,7 +118,7 @@ class RunEventService:
                 AssignmentEventDTO(
                     id=comment.id,
                     source="comment",
-                    cursor=f"comment:{comment.created_at}:{comment.id}",
+                    cursor=_event_cursor(comment.created_at, "comment", comment.id),
                     timestamp=comment.created_at,
                     assignment_id=assignment.id,
                     ticket_id=ticket.id,
@@ -142,7 +142,7 @@ class RunEventService:
                     AssignmentEventDTO(
                         id=f"{message.run_id}:{message.seq}",
                         source="run_message",
-                        cursor=f"run_message:{message.seq}:{message.run_id}",
+                        cursor=_event_cursor(message.timestamp, "run_message", f"{message.seq}:{message.run_id}"),
                         timestamp=message.timestamp,
                         assignment_id=assignment.id,
                         ticket_id=ticket.id,
@@ -164,7 +164,7 @@ class RunEventService:
                 AssignmentEventDTO(
                     id=f"artifact:{artifact.id}",
                     source="artifact",
-                    cursor=f"artifact:{artifact.created_at}:{artifact.id}",
+                    cursor=_event_cursor(str(artifact.created_at), "artifact", artifact.id),
                     timestamp=artifact.created_at,
                     assignment_id=assignment.id,
                     ticket_id=ticket.id,
@@ -213,3 +213,7 @@ class RunEventService:
                 continue
             signature.append((str(path), stat.st_mtime_ns, stat.st_size))
         return tuple(signature)
+
+
+def _event_cursor(timestamp: str, source: str, ref: str) -> str:
+    return f"{timestamp}:{source}:{ref}"

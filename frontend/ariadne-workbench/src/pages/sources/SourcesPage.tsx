@@ -38,6 +38,22 @@ function statusLabel(status: string) {
   return labels[status] ?? sourceAnalysisLabel(status);
 }
 
+function originLabel(origin?: string) {
+  const labels: Record<string, string> = {
+    external: "External inputs",
+    target_codebase: "Target codebase",
+    feedback: "Run / review feedback",
+    internal_synthetic: "Internal derived sources",
+  };
+  return labels[origin ?? "external"] ?? "External inputs";
+}
+
+function sourceQualityLabel(source: SourceDocument) {
+  const status = source.qualityStatus ?? "unknown";
+  const claims = source.claimCount ?? 0;
+  return `${status}${claims ? ` · ${claims} claims` : ""}`;
+}
+
 function firstProjectInput(data: WorkbenchData) {
   return data.projectInputs?.[0] ?? null;
 }
@@ -70,6 +86,14 @@ export function SourcesPage({
   const detail = selectedDetail?.source.id === selectedSource?.id ? selectedDetail : dataDetail;
   const readyInputs = projectInputs.filter((input) => input.lifecycle.readyForIssueFactory);
   const selectedEvents = selectedSource ? data.sourceEvents.filter((event) => event.sourceId === selectedSource.id) : [];
+  const groupedSources = useMemo(() => {
+    const groups = new Map<string, SourceDocument[]>();
+    for (const source of data.sources) {
+      const bucket = source.originBucket ?? "external";
+      groups.set(bucket, [...(groups.get(bucket) ?? []), source]);
+    }
+    return Array.from(groups.entries());
+  }, [data.sources]);
 
   useEffect(() => {
     if (!data.sources.some((source) => source.id === selectedSourceId)) {
@@ -215,25 +239,31 @@ export function SourcesPage({
             <h2>Source lifecycle</h2>
             <span>{readyInputs.length} ready</span>
           </header>
-          <div className="source-list">
-            {data.sources.map((source) => {
-              const input = projectInputs.find((candidate) => candidate.source.id === source.id);
-              const lifecycle = input?.lifecycle;
-              return (
-                <button
-                  className={`source-row ${source.id === selectedSource?.id ? "selected" : ""}`}
-                  data-source-id={source.id}
-                  key={source.id}
-                  type="button"
-                  onClick={() => void selectSource(source.id)}
-                >
-                  <span className={`source-type ${source.sourceType}`}>{sourceTypeLabel(source.sourceType)}</span>
-                  <strong>{source.title}</strong>
-                  <em className={`source-status ${source.analysisStatus ?? source.status}`}>{statusLabel(lifecycle?.status ?? source.analysisStatus ?? source.status)}</em>
-                  <small>{lifecycle?.detail || source.ingestedAt}</small>
-                </button>
-              );
-            })}
+          <div className="source-list grouped-source-list">
+            {groupedSources.map(([origin, sources]) => (
+              <section className="source-origin-group" key={origin}>
+                <h3>{originLabel(origin)} ({sources.length})</h3>
+                {sources.map((source) => {
+                  const input = projectInputs.find((candidate) => candidate.source.id === source.id);
+                  const lifecycle = input?.lifecycle;
+                  return (
+                    <button
+                      className={`source-row ${source.id === selectedSource?.id ? "selected" : ""}`}
+                      data-source-id={source.id}
+                      key={source.id}
+                      type="button"
+                      onClick={() => void selectSource(source.id)}
+                    >
+                      <span className={`source-type ${source.sourceType}`}>{sourceTypeLabel(source.sourceType)}</span>
+                      <strong>{source.title}</strong>
+                      <em className={`source-status ${source.analysisStatus ?? source.status}`}>{statusLabel(lifecycle?.status ?? source.analysisStatus ?? source.status)}</em>
+                      <small>{lifecycle?.detail || source.ingestedAt}</small>
+                      <small>{sourceQualityLabel(source)}</small>
+                    </button>
+                  );
+                })}
+              </section>
+            ))}
           </div>
         </section>
 
@@ -261,6 +291,12 @@ export function SourcesPage({
                   <strong>{detail?.lifecycle.label ?? statusLabel(selectedSource.analysisStatus ?? selectedSource.status)}</strong>
                   <p>{detail?.lifecycle.detail ?? "Lifecycle details are not available in this snapshot."}</p>
                   <span>{detail?.lifecycle.readyForIssueFactory ? "Ready for issue factory" : "Not ready for issue factory"}</span>
+                  <span>{originLabel(selectedSource.originBucket)} · {sourceQualityLabel(selectedSource)}</span>
+                  {selectedSource.qualityLimitations?.length ? (
+                    <ul className="risk-list">
+                      {selectedSource.qualityLimitations.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  ) : null}
                   {detail?.lifecycle.blocker ? <code>{detail.lifecycle.blocker}</code> : null}
                 </div>
               </section>
@@ -286,6 +322,13 @@ export function SourcesPage({
                       <span>{artifact.kind}</span>
                       <p>{artifact.summary}</p>
                       <small>{artifact.evidenceCount} evidence items</small>
+                      {Object.keys(artifact.keyFields).length ? (
+                        <div className="artifact-key-fields">
+                          {Object.entries(artifact.keyFields).map(([key, value]) => (
+                            <p key={key}><strong>{key}</strong>: {Array.isArray(value) ? value.join("; ") : String(value)}</p>
+                          ))}
+                        </div>
+                      ) : null}
                     </article>
                   ))}
                   {!detail?.artifacts.length ? <p className="empty-column">No typed artifacts yet.</p> : null}

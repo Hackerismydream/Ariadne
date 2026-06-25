@@ -1,0 +1,2099 @@
+{
+  "id": "backlog_preview_5fb74851ac9a",
+  "trigger_type": "manual_goal",
+  "trigger_ref": "goal_f9f569ff7633",
+  "rationale": "Generated an issue set from the active builder goal, selected external knowledge, and current local project context.",
+  "operations": [
+    {
+      "id": "backlog_op_9cd1e859f3bc",
+      "operation_type": "update_ticket",
+      "reason": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+      "ticket_id": "ticket_ca91950a67f4",
+      "ticket_key": "M0TR-001",
+      "title": "Bootstrap Python package and CLI",
+      "description": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_04f7c7f374e1",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8"
+      ],
+      "affected_modules": [
+        "pyproject.toml",
+        "mini_code_agent/__main__.py",
+        "mini_code_agent/cli.py",
+        "tests/test_cli.py",
+        ".mini-code-agent/"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_04f7c7f374e1",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository architecture suggests issue decomposition boundaries",
+          "locator": "repository architecture scan",
+          "confidence": 0.74,
+          "quote_or_summary": "Executable entrypoints detected: \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\", \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \"openai != 1.100.0,!=1.100."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_483cc8b4eec3",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository structure informs target project issue generation",
+          "locator": "README.md",
+          "confidence": 0.8,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: pyproject.toml, mini_code_agent/__main__.py, mini_code_agent/cli.py, tests/test_cli.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-001",
+      "before_snapshot": {},
+      "after_summary": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+      "confidence": 0.75,
+      "decision_reason": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-001",
+        "after_summary": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+        "confidence": 0.75,
+        "decision_reason": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "pyproject.toml",
+          "mini_code_agent/__main__.py",
+          "mini_code_agent/cli.py",
+          "tests/test_cli.py",
+          ".mini-code-agent/"
+        ],
+        "evidence_refs": [
+          "source_evidence_04f7c7f374e1",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_483cc8b4eec3",
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Keep an executable test path for every agent iteration.; \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\"; \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5; \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446; Documentation = \"https://mini-swe-agent.com/latest/\"; Repository = \"https://github.com/SWE-agent/mini-swe-agent\"; mini = \"minisweagent.run.mini:app\"; mini-e= \"minisweagent.run.utilities.mini_extra:main\"; mini-extra = \"m",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_04f7c7f374e1",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository architecture suggests issue decomposition boundaries",
+            "locator": "repository architecture scan",
+            "confidence": 0.74,
+            "quote_or_summary": "Executable entrypoints detected: \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\", \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \"openai != 1.100.0,!=1.100."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_483cc8b4eec3",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository structure informs target project issue generation",
+            "locator": "README.md",
+            "confidence": 0.8,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: pyproject.toml, mini_code_agent/__main__.py, mini_code_agent/cli.py, tests/test_cli.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_cb93363b230f",
+      "operation_type": "update_ticket",
+      "reason": "The target agent needs a real upstream model client and local configuration path.",
+      "ticket_id": "ticket_f31888277cd3",
+      "ticket_key": "M0TR-002",
+      "title": "Add DeepSeek-backed LLM client configuration",
+      "description": "The target agent needs a real upstream model client and local configuration path.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_7e685db6aeb5",
+        "source_evidence_483cc8b4eec3"
+      ],
+      "affected_modules": [
+        "mini_code_agent/llm.py",
+        "mini_code_agent/config.py",
+        "tests/test_llm_config.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_7e685db6aeb5",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository safety signals inform implementation constraints",
+          "locator": "repository safety scan",
+          "confidence": 0.68,
+          "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+        },
+        {
+          "evidence_id": "source_evidence_483cc8b4eec3",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository structure informs target project issue generation",
+          "locator": "README.md",
+          "confidence": 0.8,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/llm.py, mini_code_agent/config.py, tests/test_llm_config.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "The target agent needs a real upstream model client and local configuration path.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-002",
+      "before_snapshot": {},
+      "after_summary": "The target agent needs a real upstream model client and local configuration path.",
+      "confidence": 0.75,
+      "decision_reason": "The target agent needs a real upstream model client and local configuration path.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-002",
+        "after_summary": "The target agent needs a real upstream model client and local configuration path.",
+        "confidence": 0.75,
+        "decision_reason": "The target agent needs a real upstream model client and local configuration path.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/llm.py",
+          "mini_code_agent/config.py",
+          "tests/test_llm_config.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_7e685db6aeb5",
+          "source_evidence_483cc8b4eec3"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "The target agent needs a real upstream model client and local configuration path.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_7e685db6aeb5",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository safety signals inform implementation constraints",
+            "locator": "repository safety scan",
+            "confidence": 0.68,
+            "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+          },
+          {
+            "evidence_id": "source_evidence_483cc8b4eec3",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository structure informs target project issue generation",
+            "locator": "README.md",
+            "confidence": 0.8,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/llm.py, mini_code_agent/config.py, tests/test_llm_config.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_6e332438ee19",
+      "operation_type": "update_ticket",
+      "reason": "Reference code-agent projects converge on typed action and observation contracts.",
+      "ticket_id": "ticket_7ce56b0eebb6",
+      "ticket_key": "M0TR-003",
+      "title": "Define tool protocol and model action schema",
+      "description": "Reference code-agent projects converge on typed action and observation contracts.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_7e685db6aeb5"
+      ],
+      "affected_modules": [
+        "mini_code_agent/protocol.py",
+        "tests/test_protocol.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_7e685db6aeb5",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository safety signals inform implementation constraints",
+          "locator": "repository safety scan",
+          "confidence": 0.68,
+          "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/protocol.py, tests/test_protocol.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "Reference code-agent projects converge on typed action and observation contracts.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-003",
+      "before_snapshot": {},
+      "after_summary": "Reference code-agent projects converge on typed action and observation contracts.",
+      "confidence": 0.75,
+      "decision_reason": "Reference code-agent projects converge on typed action and observation contracts.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-003",
+        "after_summary": "Reference code-agent projects converge on typed action and observation contracts.",
+        "confidence": 0.75,
+        "decision_reason": "Reference code-agent projects converge on typed action and observation contracts.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/protocol.py",
+          "tests/test_protocol.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_7e685db6aeb5"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "Reference code-agent projects converge on typed action and observation contracts.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_7e685db6aeb5",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository safety signals inform implementation constraints",
+            "locator": "repository safety scan",
+            "confidence": 0.68,
+            "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/protocol.py, tests/test_protocol.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_b0c427250305",
+      "operation_type": "update_ticket",
+      "reason": "Coding agents need shell access bounded by an explicit local safety policy.",
+      "ticket_id": "ticket_7389cb2a6b46",
+      "ticket_key": "M0TR-004",
+      "title": "Implement shell command tool with allowlist",
+      "description": "Coding agents need shell access bounded by an explicit local safety policy.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_7e685db6aeb5",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_87f8f4a27b96"
+      ],
+      "affected_modules": [
+        "mini_code_agent/tools/shell.py",
+        "tests/test_shell_tool.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_7e685db6aeb5",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository safety signals inform implementation constraints",
+          "locator": "repository safety scan",
+          "confidence": 0.68,
+          "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/tools/shell.py, tests/test_shell_tool.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "Coding agents need shell access bounded by an explicit local safety policy.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-004",
+      "before_snapshot": {},
+      "after_summary": "Coding agents need shell access bounded by an explicit local safety policy.",
+      "confidence": 0.75,
+      "decision_reason": "Coding agents need shell access bounded by an explicit local safety policy.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-004",
+        "after_summary": "Coding agents need shell access bounded by an explicit local safety policy.",
+        "confidence": 0.75,
+        "decision_reason": "Coding agents need shell access bounded by an explicit local safety policy.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/tools/shell.py",
+          "tests/test_shell_tool.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_7e685db6aeb5",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_87f8f4a27b96"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "Coding agents need shell access bounded by an explicit local safety policy.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_7e685db6aeb5",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository safety signals inform implementation constraints",
+            "locator": "repository safety scan",
+            "confidence": 0.68,
+            "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/tools/shell.py, tests/test_shell_tool.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_9d9b3e549aff",
+      "operation_type": "update_ticket",
+      "reason": "A useful code agent needs file operations without uncontrolled writes.",
+      "ticket_id": "ticket_5fd947053f71",
+      "ticket_key": "M0TR-005",
+      "title": "Implement file read and patch tools with review-before-write safety",
+      "description": "A useful code agent needs file operations without uncontrolled writes.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_7e685db6aeb5"
+      ],
+      "affected_modules": [
+        "mini_code_agent/tools/files.py",
+        "tests/test_file_tools.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_7e685db6aeb5",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository safety signals inform implementation constraints",
+          "locator": "repository safety scan",
+          "confidence": 0.68,
+          "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/tools/files.py, tests/test_file_tools.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "A useful code agent needs file operations without uncontrolled writes.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-005",
+      "before_snapshot": {},
+      "after_summary": "A useful code agent needs file operations without uncontrolled writes.",
+      "confidence": 0.75,
+      "decision_reason": "A useful code agent needs file operations without uncontrolled writes.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-005",
+        "after_summary": "A useful code agent needs file operations without uncontrolled writes.",
+        "confidence": 0.75,
+        "decision_reason": "A useful code agent needs file operations without uncontrolled writes.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/tools/files.py",
+          "tests/test_file_tools.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_7e685db6aeb5"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "A useful code agent needs file operations without uncontrolled writes.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_7e685db6aeb5",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository safety signals inform implementation constraints",
+            "locator": "repository safety scan",
+            "confidence": 0.68,
+            "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/tools/files.py, tests/test_file_tools.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_cc41afe69116",
+      "operation_type": "update_ticket",
+      "reason": "The core agent behavior is the action/observation loop extracted from references.",
+      "ticket_id": "ticket_8497ff2a3787",
+      "ticket_key": "M0TR-006",
+      "title": "Implement agent loop: prompt -> action -> observation -> repeat",
+      "description": "The core agent behavior is the action/observation loop extracted from references.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_7e685db6aeb5"
+      ],
+      "affected_modules": [
+        "mini_code_agent/agent_loop.py",
+        "tests/test_agent_loop.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_7e685db6aeb5",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository safety signals inform implementation constraints",
+          "locator": "repository safety scan",
+          "confidence": 0.68,
+          "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/agent_loop.py, tests/test_agent_loop.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "The core agent behavior is the action/observation loop extracted from references.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-006",
+      "before_snapshot": {},
+      "after_summary": "The core agent behavior is the action/observation loop extracted from references.",
+      "confidence": 0.75,
+      "decision_reason": "The core agent behavior is the action/observation loop extracted from references.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-006",
+        "after_summary": "The core agent behavior is the action/observation loop extracted from references.",
+        "confidence": 0.75,
+        "decision_reason": "The core agent behavior is the action/observation loop extracted from references.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/agent_loop.py",
+          "tests/test_agent_loop.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_7e685db6aeb5"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "The core agent behavior is the action/observation loop extracted from references.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_7e685db6aeb5",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository safety signals inform implementation constraints",
+            "locator": "repository safety scan",
+            "confidence": 0.68,
+            "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/agent_loop.py, tests/test_agent_loop.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_cf7d1d51ea41",
+      "operation_type": "update_ticket",
+      "reason": "AI Builders need inspectable trajectories to debug agent behavior.",
+      "ticket_id": "ticket_be7fd513b3f7",
+      "ticket_key": "M0TR-007",
+      "title": "Persist session trace and run summary",
+      "description": "AI Builders need inspectable trajectories to debug agent behavior.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "medium",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_483cc8b4eec3"
+      ],
+      "affected_modules": [
+        "mini_code_agent/trace.py",
+        "tests/test_trace.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_483cc8b4eec3",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository structure informs target project issue generation",
+          "locator": "README.md",
+          "confidence": 0.8,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/trace.py, tests/test_trace.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "AI Builders need inspectable trajectories to debug agent behavior.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-007",
+      "before_snapshot": {},
+      "after_summary": "AI Builders need inspectable trajectories to debug agent behavior.",
+      "confidence": 0.75,
+      "decision_reason": "AI Builders need inspectable trajectories to debug agent behavior.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-007",
+        "after_summary": "AI Builders need inspectable trajectories to debug agent behavior.",
+        "confidence": 0.75,
+        "decision_reason": "AI Builders need inspectable trajectories to debug agent behavior.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/trace.py",
+          "tests/test_trace.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_483cc8b4eec3"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "AI Builders need inspectable trajectories to debug agent behavior.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_483cc8b4eec3",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository structure informs target project issue generation",
+            "locator": "README.md",
+            "confidence": 0.8,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/trace.py, tests/test_trace.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_150da767cdb4",
+      "operation_type": "update_ticket",
+      "reason": "A code agent run is not reviewable unless it records diff and tests.",
+      "ticket_id": "ticket_06cebf22e269",
+      "ticket_key": "M0TR-008",
+      "title": "Capture git diff and test result",
+      "description": "A code agent run is not reviewable unless it records diff and tests.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "high",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_483cc8b4eec3"
+      ],
+      "affected_modules": [
+        "mini_code_agent/evidence.py",
+        "tests/test_evidence.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_483cc8b4eec3",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository structure informs target project issue generation",
+          "locator": "README.md",
+          "confidence": 0.8,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/evidence.py, tests/test_evidence.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "A code agent run is not reviewable unless it records diff and tests.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-008",
+      "before_snapshot": {},
+      "after_summary": "A code agent run is not reviewable unless it records diff and tests.",
+      "confidence": 0.75,
+      "decision_reason": "A code agent run is not reviewable unless it records diff and tests.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-008",
+        "after_summary": "A code agent run is not reviewable unless it records diff and tests.",
+        "confidence": 0.75,
+        "decision_reason": "A code agent run is not reviewable unless it records diff and tests.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/evidence.py",
+          "tests/test_evidence.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_483cc8b4eec3"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "A code agent run is not reviewable unless it records diff and tests.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_483cc8b4eec3",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository structure informs target project issue generation",
+            "locator": "README.md",
+            "confidence": 0.8,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/evidence.py, tests/test_evidence.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_1b239451dcee",
+      "operation_type": "update_ticket",
+      "reason": "A conservative reviewer pass is needed before a run is usable.",
+      "ticket_id": "ticket_bca215e0eae2",
+      "ticket_key": "M0TR-009",
+      "title": "Add minimal reviewer checks for task completion",
+      "description": "A conservative reviewer pass is needed before a run is usable.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "medium",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_483cc8b4eec3"
+      ],
+      "affected_modules": [
+        "mini_code_agent/reviewer.py",
+        "tests/test_reviewer.py"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        },
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_d3b315cb8cc6",
+          "source_document_id": "source_a4a41f22fe18",
+          "claim": "target codebase snapshot informs issue factory",
+          "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+          "confidence": 0.8,
+          "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+        },
+        {
+          "evidence_id": "source_evidence_483cc8b4eec3",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository structure informs target project issue generation",
+          "locator": "README.md",
+          "confidence": 0.8,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/reviewer.py, tests/test_reviewer.py.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "A conservative reviewer pass is needed before a run is usable.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-009",
+      "before_snapshot": {},
+      "after_summary": "A conservative reviewer pass is needed before a run is usable.",
+      "confidence": 0.75,
+      "decision_reason": "A conservative reviewer pass is needed before a run is usable.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-009",
+        "after_summary": "A conservative reviewer pass is needed before a run is usable.",
+        "confidence": 0.75,
+        "decision_reason": "A conservative reviewer pass is needed before a run is usable.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "mini_code_agent/reviewer.py",
+          "tests/test_reviewer.py"
+        ],
+        "evidence_refs": [
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8",
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_d3b315cb8cc6",
+          "source_evidence_483cc8b4eec3"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "A conservative reviewer pass is needed before a run is usable.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          },
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_d3b315cb8cc6",
+            "source_document_id": "source_a4a41f22fe18",
+            "claim": "target codebase snapshot informs issue factory",
+            "locator": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+            "confidence": 0.8,
+            "quote_or_summary": "Target codebase has 5 top-level entries and 1 test files."
+          },
+          {
+            "evidence_id": "source_evidence_483cc8b4eec3",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository structure informs target project issue generation",
+            "locator": "README.md",
+            "confidence": 0.8,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: mini_code_agent/reviewer.py, tests/test_reviewer.py.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    },
+    {
+      "id": "backlog_op_1c043b3d4769",
+      "operation_type": "update_ticket",
+      "reason": "The first version needs a runnable local quickstart.",
+      "ticket_id": "ticket_b5dc80cc93fb",
+      "ticket_key": "M0TR-010",
+      "title": "Write README quickstart and usage examples",
+      "description": "The first version needs a runnable local quickstart.",
+      "source_type": "github_repo",
+      "source_ref": "https://github.com/SWE-agent/mini-SWE-agent",
+      "priority": "medium",
+      "status": "planning",
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "evidence_refs": [
+        "source_evidence_87f8f4a27b96",
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_7e685db6aeb5",
+        "source_evidence_6d26d5ca1589",
+        "source_evidence_ec4cd0653fe8"
+      ],
+      "affected_modules": [
+        "README.md",
+        "docs/quickstart.md"
+      ],
+      "acceptance_criteria": [
+        "The implementation is reachable from the Web Workbench product path.",
+        "The behavior writes inspectable run evidence.",
+        "Tests cover the behavior without external credentials."
+      ],
+      "source_artifact_ids": [
+        "source_artifact_9b39d241b8a7",
+        "source_artifact_d021e4f22927",
+        "source_artifact_f848dca72645"
+      ],
+      "build_context_id": "build_context_0dee2c05a4d4",
+      "target_project_id": "resource_56a27abf28d0",
+      "compiler_provenance": {
+        "compiler_mode": "old_compiler_fallback",
+        "graph_status": "fallback",
+        "runtime_mode": "deepseek",
+        "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+        "source_insight_ids": [],
+        "synthesis_theme_ids": [],
+        "quality_issues": []
+      },
+      "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+      "codebase_snapshot_status": "present",
+      "codebase_snapshot_reason": null,
+      "source_claim_trace": [
+        {
+          "evidence_id": "source_evidence_87f8f4a27b96",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository README explains reusable project intent",
+          "locator": "README.md",
+          "confidence": 0.78,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_483cc8b4eec3",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository structure informs target project issue generation",
+          "locator": "README.md",
+          "confidence": 0.8,
+          "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+        },
+        {
+          "evidence_id": "source_evidence_7e685db6aeb5",
+          "source_document_id": "source_eec392053126",
+          "claim": "repository safety signals inform implementation constraints",
+          "locator": "repository safety scan",
+          "confidence": 0.68,
+          "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+        },
+        {
+          "evidence_id": "source_evidence_6d26d5ca1589",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source describes verification or test expectations",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+          "confidence": 0.78,
+          "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+        },
+        {
+          "evidence_id": "source_evidence_ec4cd0653fe8",
+          "source_document_id": "source_0ea2d7fdc324",
+          "claim": "source provides project guidance for issue generation",
+          "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+          "confidence": 0.78,
+          "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+        }
+      ],
+      "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: README.md, docs/quickstart.md.",
+      "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+      "goal_reason": "The first version needs a runnable local quickstart.",
+      "change_intent": "update",
+      "target_version_label": "v0.1",
+      "existing_ticket_key": "M0TR-010",
+      "before_snapshot": {},
+      "after_summary": "The first version needs a runnable local quickstart.",
+      "confidence": 0.75,
+      "decision_reason": "The first version needs a runnable local quickstart.",
+      "included": true,
+      "metadata": {
+        "change_intent": "update",
+        "target_version_label": "v0.1",
+        "existing_ticket_key": "M0TR-010",
+        "after_summary": "The first version needs a runnable local quickstart.",
+        "confidence": 0.75,
+        "decision_reason": "The first version needs a runnable local quickstart.",
+        "included": true,
+        "acceptance_criteria": [
+          "The implementation is reachable from the Web Workbench product path.",
+          "The behavior writes inspectable run evidence.",
+          "Tests cover the behavior without external credentials."
+        ],
+        "affected_modules": [
+          "README.md",
+          "docs/quickstart.md"
+        ],
+        "evidence_refs": [
+          "source_evidence_87f8f4a27b96",
+          "source_evidence_483cc8b4eec3",
+          "source_evidence_7e685db6aeb5",
+          "source_evidence_6d26d5ca1589",
+          "source_evidence_ec4cd0653fe8"
+        ],
+        "source_document_ids": [
+          "source_0ea2d7fdc324",
+          "source_a4a41f22fe18",
+          "source_eec392053126"
+        ],
+        "source_artifact_ids": [
+          "source_artifact_9b39d241b8a7",
+          "source_artifact_d021e4f22927",
+          "source_artifact_f848dca72645"
+        ],
+        "build_context_id": "build_context_0dee2c05a4d4",
+        "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+        "compiler_provenance": {
+          "compiler_mode": "old_compiler_fallback",
+          "graph_status": "fallback",
+          "runtime_mode": "deepseek",
+          "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+          "source_insight_ids": [],
+          "synthesis_theme_ids": [],
+          "quality_issues": []
+        },
+        "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+        "codebase_snapshot_status": "present",
+        "codebase_snapshot_reason": null,
+        "target_project_id": "resource_56a27abf28d0",
+        "goal_reason": "The first version needs a runnable local quickstart.",
+        "source_claim_trace": [
+          {
+            "evidence_id": "source_evidence_87f8f4a27b96",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository README explains reusable project intent",
+            "locator": "README.md",
+            "confidence": 0.78,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_483cc8b4eec3",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository structure informs target project issue generation",
+            "locator": "README.md",
+            "confidence": 0.8,
+            "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+          },
+          {
+            "evidence_id": "source_evidence_7e685db6aeb5",
+            "source_document_id": "source_eec392053126",
+            "claim": "repository safety signals inform implementation constraints",
+            "locator": "repository safety scan",
+            "confidence": 0.68,
+            "quote_or_summary": "No explicit safety model was detected; generated issues should add local execution boundaries."
+          },
+          {
+            "evidence_id": "source_evidence_6d26d5ca1589",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source describes verification or test expectations",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1",
+            "confidence": 0.78,
+            "quote_or_summary": "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder"
+          },
+          {
+            "evidence_id": "source_evidence_ec4cd0653fe8",
+            "source_document_id": "source_0ea2d7fdc324",
+            "claim": "source provides project guidance for issue generation",
+            "locator": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2",
+            "confidence": 0.78,
+            "quote_or_summary": "A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints"
+          }
+        ],
+        "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: README.md, docs/quickstart.md.",
+        "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.",
+        "risks": [
+          "Keep the issue small enough for one Codex or Claude Code pass."
+        ],
+        "assumptions": [
+          "The target project is managed from Ariadne as a local project folder."
+        ]
+      }
+    }
+  ],
+  "conflict_count": 0,
+  "evidence_refs": [
+    "goal_f9f569ff7633",
+    "source_evidence_04f7c7f374e1",
+    "source_evidence_483cc8b4eec3",
+    "source_evidence_6d26d5ca1589",
+    "source_evidence_72b1ad21bb21",
+    "source_evidence_7e685db6aeb5",
+    "source_evidence_87f8f4a27b96",
+    "source_evidence_d3b315cb8cc6",
+    "source_evidence_ec4cd0653fe8"
+  ],
+  "created_at": "2026-06-25T04:51:34Z",
+  "applied_at": null,
+  "applied_update_id": null,
+  "base_ticket_fingerprint": "28bab418c363e2605225a8e16ec11c32ef755650a845d4f5c6debcabfb66429d",
+  "context_fingerprint": "af9e0b4357043ad1f82e2ea0a1b6e27cbfc3a4e88565349e8192eee6c505f59f",
+  "source_document_ids": [
+    "source_0ea2d7fdc324",
+    "source_a4a41f22fe18",
+    "source_eec392053126"
+  ],
+  "source_artifact_ids": [
+    "source_artifact_9b39d241b8a7",
+    "source_artifact_d021e4f22927",
+    "source_artifact_f848dca72645"
+  ],
+  "target_project_id": "resource_56a27abf28d0",
+  "compiler_provenance": {
+    "compiler_mode": "old_compiler_fallback",
+    "graph_status": "fallback",
+    "runtime_mode": "deepseek",
+    "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+    "source_insight_ids": [],
+    "synthesis_theme_ids": [],
+    "quality_issues": []
+  },
+  "codebase_snapshot_artifact_id": "source_artifact_9b39d241b8a7",
+  "codebase_snapshot_status": "present",
+  "codebase_snapshot_reason": null,
+  "target_version_label": "v0.1",
+  "stale": false,
+  "stale_reason": ""
+}

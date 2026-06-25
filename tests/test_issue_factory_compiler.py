@@ -124,6 +124,154 @@ def test_issue_factory_uses_artifact_payload_not_only_title(tmp_path: Path) -> N
     assert "mini_code_agent/agent_loop.py" in loop_issue.metadata["affected_modules"]
 
 
+def test_issue_factory_records_provenance_and_auto_target_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("ariadne_ltb.knowledge.has_deepseek_key", lambda: False)
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "mini-code-agent"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, capture_output=True)
+    (target / "README.md").write_text("# mini-code-agent\n\nTarget repo for a local coding agent.", encoding="utf-8")
+    (target / "pyproject.toml").write_text("[project]\nname='mini-code-agent'\n", encoding="utf-8")
+    (target / "tests").mkdir()
+    (target / "tests" / "test_smoke.py").write_text("def test_smoke(): assert True\n", encoding="utf-8")
+    project_id = "target_mini_code_agent"
+    store.save_project_resources(
+        [
+            store_project_resource(
+                project_id=project_id,
+                path=target,
+                label="Mini Code Agent",
+                issue_prefix="MCA",
+                test_command="python3.11 -m pytest",
+            )
+        ]
+    )
+    goal = ProjectGoalService(store).create(
+        CreateProjectGoalInput(
+            title="Build Mini Code Agent",
+            north_star="Build a Python mini code agent MVP for local AI Builders.",
+            target_project_id=project_id,
+        )
+    )
+    source_ids = [
+        _create_source(
+            store,
+            SourceType.NOTE,
+            "minimal-agent blog",
+            "https://minimal-agent.com/",
+            "Minimal agents loop through query model, parse action, execute action, observe, repeat.",
+            {"source_role": "requirement_source"},
+        ),
+        _create_reference_repo(store, tmp_path / "mini-swe-agent", "mini-SWE-agent"),
+    ]
+    analyzer = SourceAnalysisService(store)
+    for source_id in source_ids:
+        analyzer.analyze_source(source_id)
+
+    preview = IssueFactoryService(store).preview(
+        IssueFactoryPreviewInput(goal_id=goal.id, source_ids=source_ids, target_project_id=project_id)
+    )
+
+    first = preview.operations[0]
+    assert first.metadata["compiler_provenance"]["compiler_mode"] == "old_compiler_fallback"
+    assert first.metadata["compiler_provenance"]["fallback_reason"] == "missing_deepseek_key"
+    assert first.metadata["codebase_snapshot_status"] == "present"
+    assert first.metadata["codebase_snapshot_artifact_id"]
+    assert first.metadata["source_claim_trace"]
+    assert first.metadata["affected_module_rationale"]
+    assert first.metadata["acceptance_criteria_rationale"]
+
+
+def test_issue_factory_refreshes_target_snapshot_when_repo_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ariadne_ltb.knowledge.has_deepseek_key", lambda: False)
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "target"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "ariadne@example.test"], cwd=target, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Ariadne"], cwd=target, check=True, capture_output=True)
+    (target / "README.md").write_text("# target\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=target, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=target, check=True, capture_output=True)
+    project_id = "target_project"
+    store.save_project_resources(
+        [
+            store_project_resource(
+                project_id=project_id,
+                path=target,
+                label="Target",
+                issue_prefix="TGT",
+                test_command="python3.11 -m pytest",
+            )
+        ]
+    )
+    goal = ProjectGoalService(store).create(
+        CreateProjectGoalInput(
+            title="Build Target",
+            north_star="Use sources to create issues.",
+            target_project_id=project_id,
+        )
+    )
+    source_id = _create_source(
+        store,
+        SourceType.NOTE,
+        "builder note",
+        "memory://builder-note",
+        "Build a CLI with tests and reviewable run evidence.",
+        {"source_role": "requirement_source"},
+    )
+    SourceAnalysisService(store).analyze_source(source_id)
+    service = IssueFactoryService(store)
+    first_preview = service.preview(
+        IssueFactoryPreviewInput(goal_id=goal.id, source_ids=[source_id], target_project_id=project_id)
+    )
+    first_artifact_id = first_preview.operations[0].metadata["codebase_snapshot_artifact_id"]
+    first_manifest_id = first_preview.operations[0].metadata["build_context_id"]
+    first_payload = store.load_source_artifact_payload(first_artifact_id)
+    assert "src/new_module.py" not in first_payload["selected_files"]
+
+    (target / "src").mkdir()
+    (target / "src" / "new_module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "src/new_module.py"], cwd=target, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "add module"], cwd=target, check=True, capture_output=True)
+
+    second_preview = service.preview(
+        IssueFactoryPreviewInput(goal_id=goal.id, source_ids=[source_id], target_project_id=project_id)
+    )
+    second_artifact_id = second_preview.operations[0].metadata["codebase_snapshot_artifact_id"]
+    second_manifest_id = second_preview.operations[0].metadata["build_context_id"]
+    second_payload = store.load_source_artifact_payload(second_artifact_id)
+
+    assert second_preview.id != first_preview.id
+    assert second_manifest_id != first_manifest_id
+    assert "src/new_module.py" in second_payload["selected_files"]
+
+    target_source = next(source for source in store.list_source_documents() if source.source_type is SourceType.TARGET_CODEBASE)
+    (target / "src" / "browser_path.py").write_text("BROWSER = True\n", encoding="utf-8")
+    subprocess.run(["git", "add", "src/browser_path.py"], cwd=target, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "add browser path"], cwd=target, check=True, capture_output=True)
+
+    browser_style_preview = service.preview(
+        IssueFactoryPreviewInput(
+            goal_id=goal.id,
+            source_ids=[source_id, target_source.id],
+            target_project_id=project_id,
+        )
+    )
+    browser_artifact_id = browser_style_preview.operations[0].metadata["codebase_snapshot_artifact_id"]
+    browser_payload = store.load_source_artifact_payload(browser_artifact_id)
+    browser_artifact_ids = browser_style_preview.operations[0].metadata["source_artifact_ids"]
+
+    assert browser_style_preview.id != second_preview.id
+    assert "src/browser_path.py" in browser_payload["selected_files"]
+    assert browser_artifact_id in browser_artifact_ids
+    assert first_artifact_id not in browser_artifact_ids
+    assert second_artifact_id not in browser_artifact_ids
+
+
 def test_issue_factory_updates_existing_target_issue_scope(tmp_path: Path) -> None:
     store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
     service = IssueFactoryService(store)

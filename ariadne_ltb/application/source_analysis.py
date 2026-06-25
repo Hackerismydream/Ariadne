@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from hashlib import sha256
+from html.parser import HTMLParser
+import json
 from pathlib import Path
 from typing import Protocol
 
@@ -69,15 +71,20 @@ class SourceAnalysisService:
             return SourceAnalysisResult(source.id, "blocked", [], [], str(exc))
 
     def _analyze_text_source(self, source: SourceDocument) -> SourceAnalysisResult:
-        content = self._source_content(source)
+        raw_content = self._source_content(source)
+        content, quality = _extract_text_and_quality(raw_content, fallback=source.summary or source.title)
         summary = " ".join(content.split())[:800] or source.summary or source.title
-        evidence = self._save_evidence(
-            source,
-            artifact_id=None,
-            locator=source.path_or_url,
-            quote_or_summary=summary[:240],
-            claim="text source provides project guidance",
-        )
+        evidence_items = [
+            self._save_evidence(
+                source,
+                artifact_id=None,
+                locator=f"{source.path_or_url}#claim-{index}",
+                quote_or_summary=claim["quote"],
+                claim=claim["claim"],
+                confidence=claim["confidence"],
+            )
+            for index, claim in enumerate(_text_claims(summary, source.path_or_url), start=1)
+        ]
         artifact = self._save_artifact(
             source,
             "knowledge_card",
@@ -85,15 +92,42 @@ class SourceAnalysisService:
                 "title": source.title,
                 "summary": summary,
                 "source_role": source.metadata.get("source_role", "background_knowledge"),
-                "key_claims": [evidence.claim],
-                "risks": [],
+                "key_claims": [item.claim for item in evidence_items],
+                "risks": quality["limitations"],
                 "applicability": "Use as project guidance when generating issues.",
+                "quality_status": quality["status"],
+                "quality_limitations": quality["limitations"],
+                "extraction_method": quality["method"],
             },
-            [evidence.id],
+            [item.id for item in evidence_items],
         )
-        self._link_evidence_to_artifact(evidence, artifact.id)
-        self._mark_analyzed(source, [artifact.id], "unknown")
-        return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [evidence.id])
+        for evidence in evidence_items:
+            self._link_evidence_to_artifact(evidence, artifact.id)
+        status = "blocked" if quality["status"] == "blocked" else "analyzed"
+        if status == "blocked":
+            self._update_source_metadata(
+                source,
+                {
+                    "analysis_status": "blocked",
+                    "analysis_error": "low_quality_extraction",
+                    "artifact_ids": [artifact.id],
+                    "quality_status": quality["status"],
+                    "quality_limitations": quality["limitations"],
+                    "claim_count": len(evidence_items),
+                },
+            )
+        else:
+            self._mark_analyzed(
+                source,
+                [artifact.id],
+                "unknown",
+                {
+                    "quality_status": quality["status"],
+                    "quality_limitations": quality["limitations"],
+                    "claim_count": len(evidence_items),
+                },
+            )
+        return SourceAnalysisResult(source.id, status, [artifact.id], [item.id for item in evidence_items])
 
     def _analyze_github_repository(self, source: SourceDocument) -> SourceAnalysisResult:
         cache_root = self.store.root / ".ariadne" / "sources" / "git"
@@ -184,13 +218,7 @@ class SourceAnalysisService:
         license_text, license_path = _read_license(repo_path)
         license_name, license_risk = _classify_license(license_text)
         resolved_commit = commit_sha or _git_commit(repo_path)
-        evidence = self._save_evidence(
-            source,
-            artifact_id=None,
-            locator="README.md" if (repo_path / "README.md").exists() else str(repo_path),
-            quote_or_summary=scan.summary[:240],
-            claim="repository structure informs target project issue generation",
-        )
+        evidence_items = self._repo_evidence(source, repo_path, scan)
         payload = {
             "repo_summary": scan.summary,
             "identity": {
@@ -220,12 +248,17 @@ class SourceAnalysisService:
                 "commands": infer_test_commands(scan.manifests, scan.test_paths),
             },
             "behavior_patterns": _behavior_patterns(scan.summary, scan.entrypoints, scan.test_paths),
+            "architecture_insights": scan.architecture_insights,
+            "test_strategy": scan.test_strategy,
+            "safety_model": scan.safety_model,
+            "limitations": scan.limitations,
             "reuse_notes": ["Reuse architecture ideas and task decomposition, not source code."],
             "avoid_notes": ["Do not copy implementation files directly from the reference project."],
             "scan_warnings": scan.warnings,
         }
-        artifact = self._save_artifact(source, "repository_understanding", payload, [evidence.id])
-        self._link_evidence_to_artifact(evidence, artifact.id)
+        artifact = self._save_artifact(source, "repository_understanding", payload, [item.id for item in evidence_items])
+        for evidence in evidence_items:
+            self._link_evidence_to_artifact(evidence, artifact.id)
         self._mark_analyzed(
             source,
             [artifact.id],
@@ -234,35 +267,53 @@ class SourceAnalysisService:
                 "commit_sha": resolved_commit,
                 "source_url": remote_url or source.path_or_url,
                 "scan_warnings": scan.warnings,
+                "quality_status": "usable" if not scan.limitations else "partial",
+                "quality_limitations": scan.limitations,
+                "claim_count": len(evidence_items),
             },
         )
-        return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [evidence.id])
+        return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [item.id for item in evidence_items])
 
     def _analyze_target_codebase(self, source: SourceDocument) -> SourceAnalysisResult:
         repo_path = Path(source.path_or_url).expanduser()
-        top_level = _top_level(repo_path)
-        test_paths = _test_paths(repo_path)
+        scan = scan_repository(repo_path)
         evidence = self._save_evidence(
             source,
             artifact_id=None,
             locator=str(repo_path),
-            quote_or_summary=f"Target codebase has {len(top_level)} top-level entries.",
+            quote_or_summary=f"Target codebase has {len(scan.top_level)} top-level entries and {len(scan.test_paths)} test files.",
             claim="target codebase snapshot informs issue factory",
         )
+        payload = {
+                "target_path": str(repo_path),
+                "top_level": scan.top_level,
+                "test_paths": scan.test_paths,
+                "test_commands": infer_test_commands(scan.manifests, scan.test_paths),
+                "selected_files": scan.selected_files,
+                "architecture_insights": scan.architecture_insights,
+                "test_strategy": scan.test_strategy,
+                "safety_model": scan.safety_model,
+                "limitations": scan.limitations,
+                "commit_sha": _git_commit(repo_path),
+            }
         artifact = self._save_artifact(
             source,
             "codebase_snapshot",
-            {
-                "target_path": str(repo_path),
-                "top_level": top_level,
-                "test_paths": test_paths,
-                "test_commands": ["python3.11 -m pytest"] if test_paths else [],
-                "commit_sha": _git_commit(repo_path),
-            },
+            payload,
             [evidence.id],
+            identity_seed=sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest(),
         )
         self._link_evidence_to_artifact(evidence, artifact.id)
-        self._mark_analyzed(source, [artifact.id], "unknown")
+        self._mark_analyzed(
+            source,
+            [artifact.id],
+            "unknown",
+            {
+                "quality_status": "usable" if not scan.limitations else "partial",
+                "quality_limitations": scan.limitations,
+                "claim_count": 1,
+            },
+        )
         return SourceAnalysisResult(source.id, "analyzed", [artifact.id], [evidence.id])
 
     def _source_content(self, source: SourceDocument) -> str:
@@ -284,6 +335,7 @@ class SourceAnalysisService:
         locator: str,
         quote_or_summary: str,
         claim: str,
+        confidence: float = 0.8,
     ) -> SourceEvidence:
         evidence = SourceEvidence(
             id=stable_id("source_evidence", source.id, locator, quote_or_summary, claim),
@@ -292,7 +344,7 @@ class SourceAnalysisService:
             locator=locator,
             quote_or_summary=quote_or_summary,
             claim=claim,
-            confidence=0.8,
+            confidence=confidence,
             content_hash=sha256(f"{locator}\n{quote_or_summary}\n{claim}".encode("utf-8")).hexdigest(),
         )
         self.store.save_source_evidence(evidence)
@@ -304,9 +356,10 @@ class SourceAnalysisService:
         artifact_type: str,
         payload: dict[str, object],
         evidence_ids: list[str],
+        identity_seed: str | None = None,
     ) -> SourceArtifact:
         artifact = SourceArtifact(
-            id=stable_id("source_artifact", source.id, artifact_type, source.content_hash),
+            id=stable_id("source_artifact", source.id, artifact_type, source.content_hash, identity_seed or ""),
             source_document_id=source.id,
             artifact_type=artifact_type,  # type: ignore[arg-type]
             payload_hash="",
@@ -330,6 +383,11 @@ class SourceAnalysisService:
             "fetched_at": utc_now(),
             "content_hash": source.content_hash,
         } | (snapshot_extra or {})
+        top_level_quality = {
+            key: value
+            for key, value in (snapshot_extra or {}).items()
+            if key in {"quality_status", "quality_limitations", "claim_count"}
+        }
         self._update_source_metadata(
             source,
             {
@@ -337,13 +395,60 @@ class SourceAnalysisService:
                 "artifact_ids": artifact_ids,
                 "license_risk": license_risk,
                 "snapshot": snapshot,
-            },
+            } | top_level_quality,
         )
 
     def _update_source_metadata(self, source: SourceDocument, metadata: dict[str, object]) -> None:
         self.store.save_source_document(
             source.model_copy(deep=True, update={"metadata": source.metadata | metadata})
         )
+
+    def _repo_evidence(self, source: SourceDocument, repo_path: Path, scan) -> list[SourceEvidence]:  # noqa: ANN001
+        locator = "README.md" if (repo_path / "README.md").exists() else str(repo_path)
+        evidence: list[SourceEvidence] = [
+            self._save_evidence(
+                source,
+                artifact_id=None,
+                locator=locator,
+                quote_or_summary=scan.summary[:240],
+                claim="repository README explains reusable project intent",
+                confidence=0.78,
+            )
+        ]
+        if scan.architecture_insights:
+            evidence.append(
+                self._save_evidence(
+                    source,
+                    artifact_id=None,
+                    locator="repository architecture scan",
+                    quote_or_summary=" ".join(scan.architecture_insights[:2])[:240],
+                    claim="repository architecture suggests issue decomposition boundaries",
+                    confidence=0.74,
+                )
+            )
+        if scan.test_strategy:
+            evidence.append(
+                self._save_evidence(
+                    source,
+                    artifact_id=None,
+                    locator="repository test scan",
+                    quote_or_summary=" ".join(scan.test_strategy[:2])[:240],
+                    claim="repository test strategy informs acceptance criteria",
+                    confidence=0.72,
+                )
+            )
+        if scan.safety_model:
+            evidence.append(
+                self._save_evidence(
+                    source,
+                    artifact_id=None,
+                    locator="repository safety scan",
+                    quote_or_summary=" ".join(scan.safety_model[:2])[:240],
+                    claim="repository safety signals inform implementation constraints",
+                    confidence=0.68,
+                )
+            )
+        return evidence
 
 
 def _read_first_existing(root: Path, names: list[str]) -> str:
@@ -352,6 +457,90 @@ def _read_first_existing(root: Path, names: list[str]) -> str:
         if path.exists() and path.is_file():
             return path.read_text(encoding="utf-8", errors="replace")
     return ""
+
+
+class _VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._skip_depth = 0
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        if tag.lower() in {"script", "style", "noscript", "svg"}:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"script", "style", "noscript", "svg"} and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth:
+            return
+        text = " ".join(data.split())
+        if text:
+            self.parts.append(text)
+
+
+def _extract_text_and_quality(raw: str, *, fallback: str) -> tuple[str, dict[str, object]]:
+    stripped = raw.strip()
+    if not stripped:
+        return fallback, {"status": "partial", "method": "fallback_summary", "limitations": ["source_content_empty"]}
+    looks_html = _looks_like_html(stripped)
+    if looks_html:
+        parser = _VisibleTextParser()
+        parser.feed(stripped)
+        text = " ".join(parser.parts)
+        limitations = []
+        if len(text) < 120:
+            limitations.append("html_extraction_too_short")
+        if text and len(text) < len(stripped) * 0.05:
+            limitations.append("html_text_density_low")
+        status = "blocked" if not text or "html_extraction_too_short" in limitations else "partial" if limitations else "usable"
+        return text or fallback, {"status": status, "method": "html_text_extraction", "limitations": limitations}
+    text = " ".join(stripped.split())
+    limitations = ["text_extraction_too_short"] if len(text) < 60 else []
+    return text or fallback, {
+        "status": "partial" if limitations else "usable",
+        "method": "plain_text",
+        "limitations": limitations,
+    }
+
+
+def _looks_like_html(text: str) -> bool:
+    lowered = text[:500].lower()
+    return "<!doctype html" in lowered or "<html" in lowered or ("<body" in lowered and "</" in lowered)
+
+
+def _text_claims(summary: str, locator: str) -> list[dict[str, object]]:
+    sentences = [
+        item.strip(" -\t")
+        for chunk in summary.replace("\n", ". ").split(".")
+        for item in [chunk.strip()]
+        if len(item.strip()) >= 30
+    ]
+    if not sentences:
+        sentences = [summary[:240] or locator]
+    claims: list[dict[str, object]] = []
+    for sentence in sentences[:5]:
+        claims.append(
+            {
+                "quote": sentence[:240],
+                "claim": _claim_from_sentence(sentence),
+                "confidence": 0.72 if len(sentence) < 80 else 0.78,
+            }
+        )
+    return claims
+
+
+def _claim_from_sentence(sentence: str) -> str:
+    lowered = sentence.lower()
+    if "test" in lowered:
+        return "source describes verification or test expectations"
+    if "agent" in lowered or "loop" in lowered or "tool" in lowered:
+        return "source describes agent behavior relevant to issue generation"
+    if "safety" in lowered or "permission" in lowered or "sandbox" in lowered:
+        return "source describes safety constraints for implementation"
+    return "source provides project guidance for issue generation"
 
 
 def _read_license(root: Path) -> tuple[str, str | None]:

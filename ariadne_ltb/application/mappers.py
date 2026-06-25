@@ -308,6 +308,13 @@ def source_document_dto(store: AriadneStore, source: SourceDocument) -> SourceDo
         evidence_snippets=[str(item) for item in evidence] if isinstance(evidence, list) else [],
         artifact_ids=[str(item) for item in artifact_ids] if isinstance(artifact_ids, list) else [],
         license_risk=str(source.metadata.get("license_risk") or "unknown"),
+        origin_bucket=str(source.metadata.get("origin_bucket") or _origin_bucket(source)),
+        quality_status=str(source.metadata.get("quality_status") or "unknown"),
+        quality_limitations=[
+            str(item) for item in source.metadata.get("quality_limitations", [])
+            if str(item).strip()
+        ] if isinstance(source.metadata.get("quality_limitations"), list) else [],
+        claim_count=int(source.metadata.get("claim_count") or 0),
     )
 
 
@@ -343,6 +350,17 @@ def _default_source_role(source_type: str) -> str:
     if source_type == "target_codebase":
         return "target_codebase"
     return "background_knowledge"
+
+
+def _origin_bucket(source: SourceDocument) -> str:
+    if source.source_type.value == "target_codebase":
+        return "target_codebase"
+    entrypoint = str(source.metadata.get("entrypoint") or "")
+    if entrypoint.startswith("web_issue_factory") or source.path_or_url.startswith("ariadne://"):
+        return "internal_synthetic"
+    if source.source_type.value in {"review", "execution_result"}:
+        return "feedback"
+    return "external"
 
 
 def agent_profile_dto(store: AriadneStore, profile: AgentProfile) -> AgentProfileDTO:
@@ -425,6 +443,13 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
         source_artifact_ids=[str(item) for item in operation.metadata.get("source_artifact_ids", [])],
         build_context_id=operation.metadata.get("build_context_id"),
         target_project_id=operation.metadata.get("target_project_id"),
+        compiler_provenance=operation.metadata.get("compiler_provenance", {}),
+        codebase_snapshot_artifact_id=operation.metadata.get("codebase_snapshot_artifact_id"),
+        codebase_snapshot_status=str(operation.metadata.get("codebase_snapshot_status") or "missing"),
+        codebase_snapshot_reason=operation.metadata.get("codebase_snapshot_reason"),
+        source_claim_trace=list(operation.metadata.get("source_claim_trace", [])),
+        affected_module_rationale=str(operation.metadata.get("affected_module_rationale") or ""),
+        acceptance_criteria_rationale=str(operation.metadata.get("acceptance_criteria_rationale") or ""),
         goal_reason=operation.metadata.get("goal_reason"),
         change_intent=str(operation.metadata.get("change_intent") or "add"),
         target_version_label=operation.metadata.get("target_version_label"),
@@ -441,6 +466,13 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
             in {
                 "build_context_id",
                 "context_fingerprint",
+                "compiler_provenance",
+                "codebase_snapshot_artifact_id",
+                "codebase_snapshot_status",
+                "codebase_snapshot_reason",
+                "source_claim_trace",
+                "affected_module_rationale",
+                "acceptance_criteria_rationale",
                 "source_document_ids",
                 "source_artifact_ids",
                 "evidence_refs",
@@ -482,5 +514,9 @@ def backlog_preview_dto(preview: BacklogPreview) -> BacklogPreviewDTO:
         source_document_ids=[str(item) for item in first_metadata.get("source_document_ids", [])],
         source_artifact_ids=[str(item) for item in first_metadata.get("source_artifact_ids", [])],
         target_project_id=first_metadata.get("target_project_id"),
+        compiler_provenance=first_metadata.get("compiler_provenance", {}),
+        codebase_snapshot_artifact_id=first_metadata.get("codebase_snapshot_artifact_id"),
+        codebase_snapshot_status=str(first_metadata.get("codebase_snapshot_status") or "missing"),
+        codebase_snapshot_reason=first_metadata.get("codebase_snapshot_reason"),
         target_version_label=first_metadata.get("target_version_label"),
     )

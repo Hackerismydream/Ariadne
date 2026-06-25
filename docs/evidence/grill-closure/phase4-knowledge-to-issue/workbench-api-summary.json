@@ -1,0 +1,88 @@
+{
+  "latest_preview_id": "backlog_preview_5fb74851ac9a",
+  "compiler_provenance": {
+    "compiler_mode": "old_compiler_fallback",
+    "graph_status": "fallback",
+    "runtime_mode": "deepseek",
+    "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+    "source_insight_ids": [],
+    "synthesis_theme_ids": [],
+    "quality_issues": []
+  },
+  "codebase_snapshot_status": "present",
+  "operation_count": 10,
+  "first_operation_claim_trace": [
+    {
+      "evidence_id": "source_evidence_04f7c7f374e1",
+      "source_document_id": "source_eec392053126",
+      "claim": "repository architecture suggests issue decomposition boundaries",
+      "locator": "repository architecture scan",
+      "confidence": 0.74,
+      "quote_or_summary": "Executable entrypoints detected: \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\", \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \"openai != 1.100.0,!=1.100."
+    },
+    {
+      "evidence_id": "source_evidence_87f8f4a27b96",
+      "source_document_id": "source_eec392053126",
+      "claim": "repository README explains reusable project intent",
+      "locator": "README.md",
+      "confidence": 0.78,
+      "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+    },
+    {
+      "evidence_id": "source_evidence_483cc8b4eec3",
+      "source_document_id": "source_eec392053126",
+      "claim": "repository structure informs target project issue generation",
+      "locator": "README.md",
+      "confidence": 0.8,
+      "quote_or_summary": "<div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini"
+    }
+  ],
+  "sources": {
+    "source_0ea2d7fdc324": {
+      "id": "source_0ea2d7fdc324",
+      "source_type": "blog",
+      "source_role": "requirement_source",
+      "title": "Phase 4 source: minimal agent loop",
+      "path_or_url": "https://minimal-agent.com/#ariadne-phase4-knowledge-to-issue",
+      "summary": "Minimal agent loop and evidence requirements for AI builders.",
+      "status": "analyzed",
+      "analysis_status": "analyzed",
+      "linked_ticket_count": 0,
+      "created_at": "2026-06-25T04:49:36Z",
+      "evidence_snippets": [
+        "Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder. A useful AI bui"
+      ],
+      "artifact_ids": [
+        "source_artifact_f848dca72645"
+      ],
+      "license_risk": "unknown",
+      "origin_bucket": "external",
+      "quality_status": "usable",
+      "quality_limitations": [],
+      "claim_count": 2
+    },
+    "source_eec392053126": {
+      "id": "source_eec392053126",
+      "source_type": "github_repo",
+      "source_role": "reference_project",
+      "title": "SWE-agent mini-SWE-agent 仓库",
+      "path_or_url": "https://github.com/SWE-agent/mini-SWE-agent",
+      "summary": "mini-SWE-agent 是小型 code-agent loop 的参考：issue 输入、执行轨迹、patch、test 和失败反馈需要被记录。",
+      "status": "analyzed",
+      "analysis_status": "analyzed",
+      "linked_ticket_count": 0,
+      "created_at": "2026-06-18T13:45:41Z",
+      "evidence_snippets": [
+        "mini-SWE-agent 是小型 code-agent loop 的参考：issue 输入、执行轨迹、patch、test 和失败反馈需要被记录。"
+      ],
+      "artifact_ids": [
+        "source_artifact_d021e4f22927"
+      ],
+      "license_risk": "green",
+      "origin_bucket": "external",
+      "quality_status": "usable",
+      "quality_limitations": [],
+      "claim_count": 4
+    }
+  }
+}

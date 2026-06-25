@@ -87,15 +87,17 @@ class IssueFactoryService:
         north_star: str,
         context: IssueFactoryContext,
     ) -> list[BacklogOperation]:
-        from ariadne_ltb.knowledge import compile_issues
+        from ariadne_ltb.knowledge import compile_issues_with_provenance
 
-        tasks = compile_issues(
+        compile_result = compile_issues_with_provenance(
             self.store,
             project_id=context.manifest.target_project_id,
             title=title,
             north_star=north_star,
             context=context,
         )
+        tasks = compile_result.specs
+        compiler_provenance = compile_result.provenance.model_dump()
         operations: list[BacklogOperation] = []
         existing_tickets = self.store.list_tickets()
         existing_keys = {ticket.key for ticket in existing_tickets}
@@ -112,7 +114,7 @@ class IssueFactoryService:
         source_artifact_ids = context.manifest.source_artifact_ids
         source_document_ids = context.manifest.source_document_ids
         for task in tasks:
-            evidence_refs = task.evidence_refs or context.manifest.evidence_ids or [primary_source.id]
+            evidence_refs = _select_evidence_refs(task, context)
             source_doc = _source_for_task(primary_source, task, context, evidence_refs)
             existing_ticket = existing_by_title.get(task.title.strip().lower())
             if existing_ticket:
@@ -164,8 +166,15 @@ class IssueFactoryService:
                         "source_artifact_ids": source_artifact_ids,
                         "build_context_id": context.manifest.id,
                         "context_fingerprint": context.manifest.context_fingerprint,
+                        "compiler_provenance": compiler_provenance,
+                        "codebase_snapshot_artifact_id": context.manifest.codebase_snapshot_artifact_id,
+                        "codebase_snapshot_status": context.manifest.codebase_snapshot_status,
+                        "codebase_snapshot_reason": context.manifest.codebase_snapshot_reason,
                         "target_project_id": context.manifest.target_project_id,
                         "goal_reason": task.reason,
+                        "source_claim_trace": _source_claim_trace(evidence_refs, context),
+                        "affected_module_rationale": _affected_module_rationale(task, context),
+                        "acceptance_criteria_rationale": _acceptance_criteria_rationale(task, context),
                         "risks": task.risks,
                         "assumptions": task.assumptions,
                     },
@@ -174,6 +183,81 @@ class IssueFactoryService:
             if not existing_ticket:
                 next_index += 1
         return operations
+
+
+def _select_evidence_refs(task: CompiledIssueSpec, context: IssueFactoryContext) -> list[str]:
+    if not context.evidence:
+        return task.evidence_refs or context.manifest.evidence_ids
+    requested = [item for item in task.evidence_refs if item in {evidence.id for evidence in context.evidence}]
+    if requested and len(requested) <= 5:
+        return requested
+    haystack = " ".join([task.title, task.reason, *task.affected_modules, *task.acceptance_criteria]).lower()
+    scored: list[tuple[int, str]] = []
+    for evidence in context.evidence:
+        text = " ".join([evidence.claim, evidence.quote_or_summary, evidence.locator]).lower()
+        score = sum(1 for token in _meaningful_tokens(haystack) if token in text)
+        if evidence.id in requested:
+            score += 3
+        scored.append((score, evidence.id))
+    selected = [evidence_id for score, evidence_id in sorted(scored, reverse=True) if score > 0][:5]
+    if selected:
+        return selected
+    return [item.id for item in context.evidence[:3]]
+
+
+def _meaningful_tokens(text: str) -> set[str]:
+    stop = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "that",
+        "this",
+        "into",
+        "code",
+        "task",
+        "issue",
+        "agent",
+    }
+    return {
+        token.strip(".,:;()[]{}").lower()
+        for token in text.replace("/", " ").replace("_", " ").replace("-", " ").split()
+        if len(token.strip(".,:;()[]{}")) >= 4 and token.lower() not in stop
+    }
+
+
+def _source_claim_trace(evidence_refs: list[str], context: IssueFactoryContext) -> list[dict[str, object]]:
+    evidence_by_id = {item.id: item for item in context.evidence}
+    return [
+        {
+            "evidence_id": evidence.id,
+            "source_document_id": evidence.source_document_id,
+            "claim": evidence.claim,
+            "locator": evidence.locator,
+            "confidence": evidence.confidence,
+            "quote_or_summary": evidence.quote_or_summary,
+        }
+        for evidence_id in evidence_refs
+        for evidence in [evidence_by_id.get(evidence_id)]
+        if evidence is not None
+    ]
+
+
+def _affected_module_rationale(task: CompiledIssueSpec, context: IssueFactoryContext) -> str:
+    snapshot = context.manifest.codebase_snapshot_status
+    modules = ", ".join(task.affected_modules[:4]) or "target modules"
+    if snapshot == "present":
+        return f"Modules selected from task scope and current target codebase snapshot: {modules}."
+    return f"Modules selected from source evidence because target codebase snapshot is {snapshot}: {modules}."
+
+
+def _acceptance_criteria_rationale(task: CompiledIssueSpec, context: IssueFactoryContext) -> str:
+    evidence_count = len(_source_claim_trace(_select_evidence_refs(task, context), context))
+    return (
+        f"Acceptance criteria are derived from {evidence_count} source claim(s), "
+        f"the project goal, and snapshot status {context.manifest.codebase_snapshot_status}."
+    )
 
 
 def _next_ticket_index(existing_keys: set[str], prefix: str) -> int:
@@ -347,6 +431,7 @@ def _source_for_task(
         summary=task.reason,
         metadata={
             "entrypoint": "web_issue_factory",
+            "origin_bucket": "internal_synthetic",
             "parent_source_id": primary.id,
             "target_project_id": context.manifest.target_project_id,
             "build_context_id": context.manifest.id,
@@ -366,5 +451,9 @@ def _synthetic_source(title: str, north_star: str) -> SourceDocument:
         path_or_url="ariadne://goal",
         content_hash=sha256(content.encode("utf-8")).hexdigest(),
         summary=north_star,
-        metadata={"entrypoint": "web_issue_factory", "evidence_snippets": [north_star]},
+        metadata={
+            "entrypoint": "web_issue_factory",
+            "origin_bucket": "internal_synthetic",
+            "evidence_snippets": [north_star],
+        },
     )
