@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, Header, WebSocket, WebSocketDisconnect
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.comments import CommentService
 from ariadne_ltb.application.dtos import (
+    AgentCreateInput,
+    AgentUpdateInput,
     AssignTicketInput,
     CreateCommentInput,
     CreateProjectGoalInput,
@@ -177,6 +179,51 @@ def get_project(project_id: str, store: AriadneStore = Depends(get_store)) -> di
 @router.get("/api/team/agents")
 def list_team_agents(store: AriadneStore = Depends(get_store)) -> dict:
     return WorkbenchAgentsService(store).list_agents().model_dump(mode="json")
+
+
+@router.post("/api/team/agents")
+def create_team_agent(payload: AgentCreateInput, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).create_agent(payload).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}")
+def get_team_agent(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).get_agent(agent_id).model_dump(mode="json")
+
+
+@router.patch("/api/team/agents/{agent_id}")
+def update_team_agent(agent_id: str, payload: AgentUpdateInput, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).update_agent(agent_id, payload).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}/activity")
+def get_team_agent_activity(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).activity(agent_id).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}/tasks")
+def get_team_agent_tasks(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).tasks(agent_id).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}/runs")
+def get_team_agent_runs(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).runs(agent_id).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}/skills")
+def get_team_agent_skills(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).skills(agent_id).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}/instructions")
+def get_team_agent_instructions(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).instructions(agent_id).model_dump(mode="json")
+
+
+@router.get("/api/team/agents/{agent_id}/environment")
+def get_team_agent_environment(agent_id: str, store: AriadneStore = Depends(get_store)) -> dict:
+    return WorkbenchAgentsService(store).environment(agent_id).model_dump(mode="json")
 
 
 @router.get("/api/team/build-teams")

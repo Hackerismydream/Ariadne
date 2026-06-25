@@ -54,7 +54,7 @@ export function WorkbenchSidebar({
           {group.items.map((item) => {
             const Icon = item.icon;
             const enabled = ["project", "sources", "tasks", "ready", "team", "runs", "inbox", "diagnostics"].includes(item.key);
-            const active = item.key === page && (!item.hash || currentHash === item.hash || item.hash === pageHash(page));
+            const active = item.key === page && (!item.hash || currentHash === item.hash || currentHash.startsWith(`${item.hash}/`) || item.hash === pageHash(page));
             return (
               <button
                 className={`nav-item ${active ? "active" : ""}`}

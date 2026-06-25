@@ -47,6 +47,38 @@ flowchart TB
   Next --> Ticket
 ```
 
+## AgentDefinition
+
+`AgentDefinition` is the user-visible teammate object.
+
+It is persisted as local JSON under:
+
+```text
+.ariadne/agents/<agent_id>.json
+```
+
+It carries the fields a user expects from a Multica-style agent surface:
+
+- name and description;
+- avatar seed;
+- status (`active`, `paused`, `archived`);
+- persistent instructions;
+- skill bindings;
+- visibility metadata;
+- runtime profile.
+
+`AgentRuntimeProfile` stores the local execution target for the agent, including
+backend (`codex` or `claude-code`), optional model, working directory, and
+environment key names. It stores key names only, not secret values.
+
+`AgentVisibility` stores local visibility/team metadata. Ariadne remains
+single-user and local-first; this is product semantics, not multi-tenant auth.
+
+`AgentProfile` is retained only as an internal compatibility shape for older
+assignment and test code. Workbench product pages must project real
+`AgentDefinition` records and must not auto-materialize fake `profiles.json`
+rows.
+
 ## Optional Goal Metadata
 
 A goal is directional input. It can explain why a set of tickets exists, but it

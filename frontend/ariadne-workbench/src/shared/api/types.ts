@@ -505,11 +505,97 @@ export type ApiTeamAgent = {
   runtime_compatibility: string;
   active_assignment_count: number;
   blocked_count: number;
+  description: string;
+  avatar_seed: string;
+  status: string;
+  runtime_profile?: ApiAgentRuntimeProfile | null;
+  visibility?: ApiAgentVisibility | null;
+  skill_ids: string[];
+  instructions_present: boolean;
+  updated_at: string;
   configuration: {
     enabled?: boolean;
     capabilities?: string[];
+    max_concurrent_assignments?: number;
     [key: string]: unknown;
   };
+};
+
+export type ApiAgentRuntimeProfile = {
+  profile_id: string;
+  agent_id: string;
+  backend: string;
+  model?: string | null;
+  working_directory?: string | null;
+  environment_keys: string[];
+  reasoning_level?: string | null;
+  service_tier?: string | null;
+};
+
+export type ApiAgentVisibility = {
+  agent_id: string;
+  visible: boolean;
+  team_ids: string[];
+};
+
+export type ApiAgentDetail = ApiTeamAgent & {
+  instructions: string;
+  environment_keys: string[];
+};
+
+export type CreateAgentRequest = {
+  name: string;
+  description?: string;
+  backend: "codex" | "claude-code";
+  model?: string | null;
+  working_directory?: string | null;
+  environment_keys?: string[];
+  reasoning_level?: string | null;
+  service_tier?: string | null;
+  instructions?: string;
+  skill_ids?: string[];
+  visible?: boolean;
+  team_ids?: string[];
+  max_concurrent_assignments?: number;
+};
+
+export type UpdateAgentRequest = Partial<CreateAgentRequest> & {
+  status?: "active" | "paused" | "archived";
+};
+
+export type ApiAgentActivityItem = {
+  id: string;
+  timestamp: string;
+  source: string;
+  event_type: string;
+  stage: string;
+  summary: string;
+  ticket_id?: string | null;
+  ticket_key?: string | null;
+  assignment_id?: string | null;
+  run_id?: string | null;
+  ref_id?: string | null;
+};
+
+export type ApiAgentTaskItem = {
+  assignment: ApiAssignmentSummary;
+  current: boolean;
+};
+
+export type ApiAgentRunItem = {
+  id: string;
+  ticket_id: string;
+  ticket_key?: string | null;
+  agent_name: string;
+  agent_role: string;
+  status: string;
+  lifecycle_state: string;
+  backend_name?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  failure_reason?: string | null;
+  error?: string | null;
+  assignment_id?: string | null;
 };
 
 export type ApiBuildTeam = {
@@ -561,6 +647,49 @@ export type ApiTeamAgentsResponse = {
   schema_version: string;
   source: string;
   agents: ApiTeamAgent[];
+};
+
+export type ApiAgentDetailResponse = {
+  schema_version: string;
+  source: string;
+  agent: ApiAgentDetail;
+};
+
+export type ApiAgentActivityResponse = {
+  schema_version: string;
+  source: string;
+  activity: ApiAgentActivityItem[];
+};
+
+export type ApiAgentTasksResponse = {
+  schema_version: string;
+  source: string;
+  tasks: ApiAgentTaskItem[];
+};
+
+export type ApiAgentRunsResponse = {
+  schema_version: string;
+  source: string;
+  runs: ApiAgentRunItem[];
+};
+
+export type ApiAgentSkillsResponse = {
+  schema_version: string;
+  source: string;
+  skill_ids: string[];
+  skills: ApiBuildSkill[];
+};
+
+export type ApiAgentInstructionsResponse = {
+  schema_version: string;
+  source: string;
+  instructions: string;
+};
+
+export type ApiAgentEnvironmentResponse = {
+  schema_version: string;
+  source: string;
+  environment_keys: string[];
 };
 
 export type ApiBuildTeamsResponse = {

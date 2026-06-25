@@ -58,8 +58,8 @@ def test_default_agent_profiles_and_cli_list(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["--root", str(tmp_path), "agent", "list"])
 
     assert result.exit_code == 0, result.output
-    assert "fake-codex" in result.output
-    assert "claude-code" in result.output
+    assert result.output == ""
+    assert not (tmp_path / ".ariadne" / "agents" / "profiles.json").exists()
 
 
 def test_default_build_team_and_cli_show(tmp_path: Path) -> None:

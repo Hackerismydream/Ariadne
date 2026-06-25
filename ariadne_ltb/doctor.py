@@ -45,7 +45,7 @@ def secret_status_lines(root: Path | str = ".") -> list[str]:
 
 def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
     code_root = Path(__file__).resolve().parents[1]
-    profiles = store.ensure_default_agent_profiles()
+    agent_definitions = store.list_agent_definitions()
     capabilities = collect_runtime_capabilities()
     store_invariants = check_store_invariants(store)
     example_sources_ok = (code_root / "examples" / "sources").exists()
@@ -59,7 +59,7 @@ def v1_readiness_lines(store: AriadneStore, repo_root: Path) -> list[str]:
         for pattern in [".env", ".env.*", "*.secret", ".secrets", "secrets/", ".ariadne/"]
     )
     return [
-        f"agent profiles: {'ok' if profiles else 'missing'}",
+        f"agent definitions: {'ok' if agent_definitions else 'missing'}",
         f"backend capability: {'ok' if capabilities else 'missing'}",
         f"example sources: {'ok' if example_sources_ok else 'missing'}",
         f"ticket count: {len(store.list_tickets())}",

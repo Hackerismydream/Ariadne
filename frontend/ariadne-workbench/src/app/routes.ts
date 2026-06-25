@@ -3,6 +3,7 @@ export type PageKey = "delivery" | "project" | "sources" | "tasks" | "ready" | "
 export type HashRoute = {
   page?: PageKey;
   ticketRef?: string;
+  agentRef?: string;
   redirectHash?: string;
 };
 
@@ -11,6 +12,8 @@ export function parseHashRoute(hash = globalThis.location?.hash ?? ""): HashRout
   if (!value) return {};
   const issueMatch = value.match(/^issues\/([^/?#]+)$/i) ?? value.match(/^(?:issue|ticket)=([^&]+)/i);
   if (issueMatch) return { page: "ready", ticketRef: decodeURIComponent(issueMatch[1]) };
+  const agentMatch = value.match(/^(?:team\/agents|agents)\/([^/?#]+)$/i);
+  if (agentMatch) return { page: "team", agentRef: decodeURIComponent(agentMatch[1]) };
   const legacyMap: Record<string, PageKey> = {
     goal: "project",
     knowledge: "sources",

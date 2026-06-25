@@ -541,6 +541,53 @@ class AgentProfile(AriadneModel):
     created_at: str = Field(default_factory=utc_now)
 
 
+class AgentRuntimeProfile(AriadneModel):
+    profile_id: str
+    agent_id: str
+    backend: Literal["codex", "claude-code"] = PRODUCT_DEFAULT_BACKEND
+    model: str | None = None
+    working_directory: str | None = None
+    environment_keys: list[str] = Field(default_factory=list)
+    reasoning_level: str | None = None
+    service_tier: str | None = None
+
+
+class AgentVisibility(AriadneModel):
+    agent_id: str
+    visible: bool = True
+    team_ids: list[str] = Field(default_factory=list)
+
+
+class AgentDefinition(AriadneModel):
+    agent_id: str
+    name: str
+    description: str = ""
+    avatar_seed: str = ""
+    runtime_profile_id: str | None = None
+    runtime_profile: AgentRuntimeProfile | None = None
+    visibility: AgentVisibility | None = None
+    status: Literal["active", "paused", "archived"] = "active"
+    role: str = "coding_agent"
+    instructions: str = ""
+    skill_ids: list[str] = Field(default_factory=list)
+    max_concurrent_assignments: int = 1
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+
+    def to_agent_profile(self) -> AgentProfile:
+        backend = self.runtime_profile.backend if self.runtime_profile else None
+        return AgentProfile(
+            id=self.agent_id,
+            name=self.name,
+            role=self.role,
+            backend_name=backend,
+            description=self.description,
+            capabilities=self.skill_ids,
+            enabled=self.status == "active",
+            created_at=self.created_at,
+        )
+
+
 class BuildTeam(AriadneModel):
     id: str
     name: str

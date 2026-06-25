@@ -15,9 +15,12 @@ from pydantic import BaseModel, ValidationError
 
 from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.models import (
+    AgentDefinition,
+    AgentRuntimeProfile,
     AgentRun,
     AgentHandoff,
     AgentProfile,
+    AgentVisibility,
     Artifact,
     ArtifactType,
     AssignmentStatus,
@@ -69,7 +72,6 @@ class AriadneStore:
         self.base = self.root / ".ariadne"
         self.project_space_path = self.base / "project_space.json"
         self.agents_dir = self.base / "agents"
-        self.agent_profiles_path = self.agents_dir / "profiles.json"
         self.build_teams_path = self.agents_dir / "teams.json"
         self.assignments_dir = self.base / "assignments"
         self.assignment_claim_lock_path = self.assignments_dir / ".claim.lock"
@@ -183,39 +185,42 @@ class AriadneStore:
     def load_project_space(self) -> ProjectSpace:
         return self._read_model(self.project_space_path, ProjectSpace)
 
+    def save_agent_definition(self, agent: AgentDefinition) -> Path:
+        path = self.agents_dir / f"{agent.agent_id}.json"
+        self._write_model(path, agent)
+        return path
+
+    def load_agent_definition(self, agent_id: str) -> AgentDefinition:
+        return self._read_model(self.agents_dir / f"{agent_id}.json", AgentDefinition)
+
+    def list_agent_definitions(self, include_archived: bool = False) -> list[AgentDefinition]:
+        agents: list[AgentDefinition] = []
+        for path in sorted(self.agents_dir.glob("*.json")):
+            if path.name == "teams.json":
+                continue
+            try:
+                agent = self._read_model(path, AgentDefinition)
+            except (ValidationError, OSError):
+                continue
+            if include_archived or agent.status != "archived":
+                agents.append(agent)
+        return sorted(agents, key=lambda agent: (agent.name.lower(), agent.agent_id))
+
     def save_agent_profiles(self, profiles: list[AgentProfile]) -> None:
-        self.agent_profiles_path.write_text(
-            json.dumps(
-                {"profiles": [profile.model_dump(mode="json") for profile in profiles]},
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        for profile in profiles:
+            agent = _agent_definition_from_profile(profile)
+            self.save_agent_definition(agent)
 
     def load_agent_profiles(self) -> list[AgentProfile]:
-        if not self.agent_profiles_path.exists():
-            return []
-        data = json.loads(self.agent_profiles_path.read_text(encoding="utf-8"))
-        return [AgentProfile.model_validate(item) for item in data.get("profiles", [])]
+        return [agent.to_agent_profile() for agent in self.list_agent_definitions()]
 
     def ensure_default_agent_profiles(self) -> list[AgentProfile]:
-        profiles = self.load_agent_profiles()
-        existing = {profile.id: profile for profile in profiles}
-        defaults = _default_agent_profiles()
-        changed = False
-        for profile in defaults:
-            if profile.id not in existing:
-                existing[profile.id] = profile
-                changed = True
-        merged = sorted(existing.values(), key=lambda profile: profile.id)
-        if changed or not profiles:
-            self.save_agent_profiles(merged)
-        return merged
+        return _default_agent_profiles()
 
     def resolve_agent_profile(self, agent_id_or_name: str) -> AgentProfile:
         normalized = agent_id_or_name.lower()
-        for profile in self.ensure_default_agent_profiles():
+        product_profiles = [agent.to_agent_profile() for agent in self.list_agent_definitions()]
+        for profile in product_profiles + self.ensure_default_agent_profiles():
             if profile.id.lower() == normalized or profile.name.lower() == normalized:
                 if not profile.enabled:
                     msg = f"agent profile is disabled: {agent_id_or_name}"
@@ -1304,6 +1309,33 @@ def _default_agent_profiles() -> list[AgentProfile]:
             capabilities=["memory", "feishu_preview", "next_tickets"],
         ),
     ]
+
+
+def _agent_definition_from_profile(profile: AgentProfile) -> AgentDefinition:
+    runtime_profile = None
+    runtime_profile_id = None
+    if profile.backend_name in {"codex", "claude-code"}:
+        runtime_profile_id = f"{profile.id}:runtime"
+        runtime_profile = AgentRuntimeProfile(
+            profile_id=runtime_profile_id,
+            agent_id=profile.id,
+            backend=profile.backend_name,  # type: ignore[arg-type]
+        )
+    return AgentDefinition(
+        agent_id=profile.id,
+        name=profile.name,
+        description=profile.description,
+        avatar_seed=profile.id,
+        runtime_profile_id=runtime_profile_id,
+        runtime_profile=runtime_profile,
+        visibility=AgentVisibility(agent_id=profile.id, visible=True),
+        status="active" if profile.enabled else "paused",
+        role=profile.role,
+        instructions="",
+        skill_ids=profile.capabilities,
+        created_at=profile.created_at,
+        updated_at=profile.created_at,
+    )
 
 
 def _default_build_teams() -> list[BuildTeam]:

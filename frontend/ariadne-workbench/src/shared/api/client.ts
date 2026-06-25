@@ -7,6 +7,13 @@ import type {
   ApiIssueEvidenceDetailResponse,
   ApiIssueListResponse,
   ApiIssueRunResponse,
+  ApiAgentActivityResponse,
+  ApiAgentDetailResponse,
+  ApiAgentEnvironmentResponse,
+  ApiAgentInstructionsResponse,
+  ApiAgentRunsResponse,
+  ApiAgentSkillsResponse,
+  ApiAgentTasksResponse,
   ApiInboxListResponse,
   ApiRunsAssignmentsResponse,
   ApiRunsRuntimesResponse,
@@ -18,6 +25,7 @@ import type {
   ApiTeamSkillsResponse,
   ApiWorkbench,
   AssignTicketRequest,
+  CreateAgentRequest,
   CreateProjectGoalRequest,
   CreateSourceRequest,
   InboxActionRequest,
@@ -26,6 +34,7 @@ import type {
   RegisterTargetProjectRequest,
   DaemonStartRequest,
   RunAssignmentRequest,
+  UpdateAgentRequest,
 } from "./types";
 import { AriadneApiError } from "./errors";
 
@@ -104,6 +113,48 @@ export function getRuntimeStatus() {
 
 export function getTeamAgents() {
   return requestJson<ApiTeamAgentsResponse>("/api/team/agents");
+}
+
+export function createTeamAgent(payload: CreateAgentRequest) {
+  return requestJson<ApiAgentDetailResponse>("/api/team/agents", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getTeamAgent(agentId: string) {
+  return requestJson<ApiAgentDetailResponse>(`/api/team/agents/${encodeURIComponent(agentId)}`);
+}
+
+export function updateTeamAgent(agentId: string, payload: UpdateAgentRequest) {
+  return requestJson<ApiAgentDetailResponse>(`/api/team/agents/${encodeURIComponent(agentId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getTeamAgentActivity(agentId: string) {
+  return requestJson<ApiAgentActivityResponse>(`/api/team/agents/${encodeURIComponent(agentId)}/activity`);
+}
+
+export function getTeamAgentTasks(agentId: string) {
+  return requestJson<ApiAgentTasksResponse>(`/api/team/agents/${encodeURIComponent(agentId)}/tasks`);
+}
+
+export function getTeamAgentRuns(agentId: string) {
+  return requestJson<ApiAgentRunsResponse>(`/api/team/agents/${encodeURIComponent(agentId)}/runs`);
+}
+
+export function getTeamAgentSkills(agentId: string) {
+  return requestJson<ApiAgentSkillsResponse>(`/api/team/agents/${encodeURIComponent(agentId)}/skills`);
+}
+
+export function getTeamAgentInstructions(agentId: string) {
+  return requestJson<ApiAgentInstructionsResponse>(`/api/team/agents/${encodeURIComponent(agentId)}/instructions`);
+}
+
+export function getTeamAgentEnvironment(agentId: string) {
+  return requestJson<ApiAgentEnvironmentResponse>(`/api/team/agents/${encodeURIComponent(agentId)}/environment`);
 }
 
 export function getTeamBuildTeams() {

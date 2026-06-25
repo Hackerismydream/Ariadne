@@ -2382,6 +2382,19 @@ button:disabled {
   grid-template-columns: minmax(180px, 1.3fr) 110px 130px 120px 100px 90px minmax(180px, 1.2fr);
 }
 
+button.team-agent-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.team-agent-row:hover {
+  background: var(--muted);
+}
+
 .runs-runtime-row {
   grid-template-columns: minmax(180px, 1.2fr) 110px 100px 120px 100px 70px minmax(220px, 1.5fr);
 }
@@ -2399,6 +2412,48 @@ button:disabled {
 .card-list {
   display: grid;
   gap: 10px;
+}
+
+.full-width-field {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.full-width-field textarea,
+.full-width-field input {
+  width: 100%;
+  min-height: 82px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.segmented-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.segmented-tabs button,
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 7px 10px;
+}
+
+.segmented-tabs button.active,
+.chip.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .control-card {
