@@ -303,13 +303,17 @@ export type SourceDocument = {
   sourceType: "blog" | "paper" | "github_readme" | "github_repo" | "repo_note" | "codebase_scan" | "review_feedback" | "execution_result" | "manual_note" | "local_markdown" | "local_folder" | "target_codebase";
   sourceRole?: string;
   title: string;
-  status: "new" | "pending" | "analyzed" | "extracted" | "linked" | "applied" | "archived" | "failed" | "blocked";
+  status: "new" | "pending" | "analyzed" | "partial" | "extracted" | "linked" | "applied" | "archived" | "failed" | "blocked";
   analysisStatus?: string;
   ingestedAt: string;
   pathOrUrl: string;
   linkedTicketCount: number;
   artifactIds?: string[];
   licenseRisk?: string;
+  originBucket?: string;
+  qualityStatus?: string;
+  qualityLimitations?: string[];
+  claimCount?: number;
 };
 
 export type SourceArtifact = {
@@ -443,6 +447,13 @@ export type BacklogChange = {
   sourceArtifactIds?: string[];
   buildContextId?: string | null;
   targetProjectId?: string | null;
+  compilerProvenance?: Record<string, unknown>;
+  codebaseSnapshotArtifactId?: string | null;
+  codebaseSnapshotStatus?: string;
+  codebaseSnapshotReason?: string | null;
+  sourceClaimTrace?: Array<Record<string, unknown>>;
+  affectedModuleRationale?: string;
+  acceptanceCriteriaRationale?: string;
   goalReason?: string | null;
   changeIntent?: string;
   targetVersionLabel?: string | null;

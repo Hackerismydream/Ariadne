@@ -25,6 +25,10 @@ class RepositoryScan:
     test_paths: list[str]
     entrypoints: list[str]
     selected_files: list[str]
+    architecture_insights: list[str] = field(default_factory=list)
+    test_strategy: list[str] = field(default_factory=list)
+    safety_model: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -54,7 +58,19 @@ def scan_repository(root: Path, *, max_files: int = 3000, max_selected_files: in
     selected = _select_files(rel_files, manifests, test_paths, entrypoints, max_selected_files)
     summary = _read_readme(root) or f"Repository with {len(rel_files)} readable files."
     warnings = ["scan_file_limit_hit"] if file_limit_hit else []
-    return RepositoryScan(summary, top_level, manifests, test_paths, entrypoints, selected, warnings)
+    return RepositoryScan(
+        summary=summary,
+        top_level=top_level,
+        manifests=manifests,
+        test_paths=test_paths,
+        entrypoints=entrypoints,
+        selected_files=selected,
+        architecture_insights=_architecture_insights(summary, top_level, manifests, entrypoints),
+        test_strategy=_test_strategy(manifests, test_paths),
+        safety_model=_safety_model(summary, rel_files),
+        limitations=_limitations(summary, manifests, test_paths, entrypoints, file_limit_hit),
+        warnings=warnings,
+    )
 
 
 def infer_test_commands(manifests: list[str], test_paths: list[str]) -> list[str]:
@@ -114,3 +130,76 @@ def _select_files(
             if item in rel_files and item not in ordered:
                 ordered.append(item)
     return ordered[:limit]
+
+
+def _architecture_insights(
+    summary: str,
+    top_level: list[str],
+    manifests: list[str],
+    entrypoints: list[str],
+) -> list[str]:
+    insights: list[str] = []
+    lowered = " ".join([summary, *top_level, *entrypoints]).lower()
+    if entrypoints:
+        insights.append(f"Executable entrypoints detected: {', '.join(entrypoints[:4])}.")
+    if any(item in top_level for item in {"src", "app", "packages"}):
+        insights.append("Repository separates product code into a source/app package boundary.")
+    if any(item in top_level for item in {"tests", "test"}):
+        insights.append("Repository keeps tests as a first-class top-level module.")
+    if "agent" in lowered or "runtime" in lowered or "tool" in lowered:
+        insights.append("Repository language suggests an agent/runtime/tool boundary worth reflecting in issues.")
+    if "pyproject.toml" in manifests:
+        insights.append("Python package metadata is present, so CLI/package setup can be inferred.")
+    if "package.json" in manifests:
+        insights.append("Node package metadata is present, so scripts and frontend/tooling signals can be inferred.")
+    return insights or ["No strong architecture boundary was detected beyond the file inventory."]
+
+
+def _test_strategy(manifests: list[str], test_paths: list[str]) -> list[str]:
+    commands = infer_test_commands(manifests, test_paths)
+    if test_paths:
+        return [
+            f"Detected {len(test_paths)} test file(s).",
+            *(f"Suggested test command: {command}" for command in commands[:2]),
+        ]
+    return ["No test files were detected; generated issues should include a test strategy."]
+
+
+def _safety_model(summary: str, rel_files: list[str]) -> list[str]:
+    lowered = " ".join([summary, *rel_files[:200]]).lower()
+    signals: list[str] = []
+    for token, label in [
+        ("sandbox", "sandboxing"),
+        ("allowlist", "allowlist"),
+        ("permission", "permission checks"),
+        ("diff", "diff review"),
+        ("review", "review checkpoints"),
+        (".env", "environment secret handling"),
+        ("secret", "secret handling"),
+    ]:
+        if token in lowered:
+            signals.append(label)
+    if signals:
+        return [f"Safety-relevant signals detected: {', '.join(sorted(set(signals)))}."]
+    return ["No explicit safety model was detected; generated issues should add local execution boundaries."]
+
+
+def _limitations(
+    summary: str,
+    manifests: list[str],
+    test_paths: list[str],
+    entrypoints: list[str],
+    file_limit_hit: bool,
+) -> list[str]:
+    limitations: list[str] = []
+    if file_limit_hit:
+        limitations.append("Repository scan hit the file limit; selected files are incomplete.")
+    if not manifests:
+        limitations.append("No package manifest was detected.")
+    if not entrypoints:
+        limitations.append("No executable entrypoint was detected.")
+    if not test_paths:
+        limitations.append("No tests were detected.")
+    if len(summary.strip()) < 80:
+        limitations.append("README summary is too short for deep product inference.")
+    return limitations

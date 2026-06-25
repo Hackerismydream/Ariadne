@@ -40,7 +40,8 @@ def build_project_inputs(store: AriadneStore) -> list[ProjectInputDetailDTO]:
 
 def _lifecycle(source: SourceDocument, artifacts: list[SourceArtifact], impacted_ticket_keys: list[str]) -> SourceLifecycleDTO:
     status = str(source.metadata.get("analysis_status") or "pending")
-    ready = status in {"analyzed", "partial"} and bool(artifacts)
+    quality_status = str(source.metadata.get("quality_status") or "unknown")
+    ready = status in {"analyzed", "partial"} and quality_status != "blocked" and bool(artifacts)
     blocker = str(source.metadata.get("analysis_error") or source.metadata.get("block_reason") or "") or None
     if status in {"blocked", "failed"}:
         detail = blocker or "输入分析失败，需要重新分析或修改来源。"
@@ -85,7 +86,7 @@ def _next_actions(status: str, ready: bool, impacted_ticket_keys: list[str]) -> 
             SourceNextActionDTO(
                 id="generate_issue_delta",
                 label="生成任务建议",
-                target_route="#tasks",
+                target_route="#plan-changes",
                 api_action="issue_factory_preview",
             )
         ]
@@ -109,10 +110,22 @@ def _typed_artifact(
     if isinstance(identity, dict):
         key_fields["commit_sha"] = identity.get("commit_sha")
         key_fields["repo_url"] = identity.get("repo_url")
-    for key in ("manifests", "entrypoints", "avoid_notes"):
+    for key in (
+        "manifests",
+        "entrypoints",
+        "avoid_notes",
+        "architecture_insights",
+        "test_strategy",
+        "safety_model",
+        "limitations",
+        "quality_limitations",
+    ):
         value = payload.get(key)
         if isinstance(value, list):
             key_fields[key] = value[:5]
+    quality_status = payload.get("quality_status")
+    if isinstance(quality_status, str):
+        key_fields["quality_status"] = quality_status
     tests = payload.get("tests")
     if isinstance(tests, dict):
         key_fields["tests"] = tests

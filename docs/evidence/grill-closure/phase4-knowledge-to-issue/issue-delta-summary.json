@@ -1,0 +1,32 @@
+{
+  "preview_id": "backlog_preview_5fb74851ac9a",
+  "operation_count": 10,
+  "target_project_id": "resource_56a27abf28d0",
+  "codebase_snapshot_status": "present",
+  "compiler_provenance": {
+    "compiler_mode": "old_compiler_fallback",
+    "graph_status": "fallback",
+    "runtime_mode": "deepseek",
+    "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+    "source_insight_ids": [],
+    "synthesis_theme_ids": [],
+    "quality_issues": []
+  },
+  "first_operation": {
+    "ticket_key": "M0TR-001",
+    "title": "Bootstrap Python package and CLI",
+    "codebase_snapshot_status": "present",
+    "compiler_provenance": {
+      "compiler_mode": "old_compiler_fallback",
+      "graph_status": "fallback",
+      "runtime_mode": "deepseek",
+      "fallback_reason": "LLMClientError:DeepSeek response did not contain valid JSON: Expecting value: line 1 column 1 (char 0)",
+      "source_insight_ids": [],
+      "synthesis_theme_ids": [],
+      "quality_issues": []
+    },
+    "source_claim_trace_count": 5,
+    "affected_module_rationale": "Modules selected from task scope and current target codebase snapshot: pyproject.toml, mini_code_agent/__main__.py, mini_code_agent/cli.py, tests/test_cli.py.",
+    "acceptance_criteria_rationale": "Acceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present."
+  }
+}

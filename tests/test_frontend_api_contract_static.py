@@ -217,16 +217,50 @@ def test_frontend_product_path_defaults_to_current_issues_context() -> None:
     assert 'key: "team"' in sidebar
     assert 'key: "runs"' in sidebar
     assert 'key: "inbox"' in sidebar
-    assert 'initialRoute.page ?? "ready"' in text
     assert 'redirectHash: "#issues"' in routes
+    assert 'initialRoute.page ?? "ready"' in text
     assert "CurrentVersionStrip" in text
     assert "Current Version Context" in current_strip
-    for label in ["Issues", "Sources", "Plan Changes", "Team", "Runs", "Inbox", "Diagnostics"]:
-        assert label in sidebar
     assert "ProjectVersionDelivery" in (ROOT / "frontend" / "ariadne-workbench" / "src" / "types.ts").read_text(
         encoding="utf-8"
     )
     assert "currentVersionDelivery" in text
+    for label in ["Issues", "Sources", "Plan Changes", "Team", "Runs", "Inbox", "Diagnostics"]:
+        assert label in sidebar
+
+
+def test_frontend_exposes_knowledge_to_issue_provenance_contract() -> None:
+    api_types = API_TYPES.read_text(encoding="utf-8")
+    data = DATA.read_text(encoding="utf-8")
+    sources_page = SOURCES_PAGE.read_text(encoding="utf-8")
+    plan_page = PLAN_CHANGES_PAGE.read_text(encoding="utf-8")
+
+    for field in [
+        "compiler_provenance",
+        "codebase_snapshot_status",
+        "source_claim_trace",
+        "affected_module_rationale",
+        "acceptance_criteria_rationale",
+        "quality_status",
+        "origin_bucket",
+        "claim_count",
+    ]:
+        assert field in api_types
+    for adapter_field in [
+        "compilerProvenance",
+        "codebaseSnapshotStatus",
+        "sourceClaimTrace",
+        "affectedModuleRationale",
+        "acceptanceCriteriaRationale",
+        "qualityStatus",
+        "originBucket",
+        "claimCount",
+    ]:
+        assert adapter_field in data
+    for label in ["Compiler provenance", "Target codebase snapshot", "Source claim trace"]:
+        assert label in plan_page
+    for label in ["External inputs", "Target codebase", "Internal derived sources"]:
+        assert label in sources_page
 
 
 def test_frontend_phase4_pages_consume_page_scoped_api_contracts() -> None:

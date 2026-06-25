@@ -519,6 +519,8 @@ class BuildContextManifest(AriadneModel):
     source_artifact_ids: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     codebase_snapshot_artifact_id: str | None = None
+    codebase_snapshot_status: str = "missing"
+    codebase_snapshot_reason: str | None = None
     base_ticket_fingerprint: str
     context_fingerprint: str
     created_at: str = Field(default_factory=utc_now)

@@ -276,6 +276,10 @@ class SourceDocumentDTO(AriadneDTO):
     evidence_snippets: list[str] = Field(default_factory=list)
     artifact_ids: list[str] = Field(default_factory=list)
     license_risk: str = "unknown"
+    origin_bucket: str = "external"
+    quality_status: str = "unknown"
+    quality_limitations: list[str] = Field(default_factory=list)
+    claim_count: int = 0
 
 
 class SourceArtifactDTO(AriadneDTO):
@@ -442,6 +446,13 @@ class BacklogOperationDTO(AriadneDTO):
     source_artifact_ids: list[str] = Field(default_factory=list)
     build_context_id: str | None = None
     target_project_id: str | None = None
+    compiler_provenance: dict[str, Any] = Field(default_factory=dict)
+    codebase_snapshot_artifact_id: str | None = None
+    codebase_snapshot_status: str = "missing"
+    codebase_snapshot_reason: str | None = None
+    source_claim_trace: list[dict[str, Any]] = Field(default_factory=list)
+    affected_module_rationale: str = ""
+    acceptance_criteria_rationale: str = ""
     goal_reason: str | None = None
     change_intent: str = "add"
     target_version_label: str | None = None
@@ -470,6 +481,10 @@ class BacklogPreviewDTO(AriadneDTO):
     source_document_ids: list[str] = Field(default_factory=list)
     source_artifact_ids: list[str] = Field(default_factory=list)
     target_project_id: str | None = None
+    compiler_provenance: dict[str, Any] = Field(default_factory=dict)
+    codebase_snapshot_artifact_id: str | None = None
+    codebase_snapshot_status: str = "missing"
+    codebase_snapshot_reason: str | None = None
     target_version_label: str | None = None
     stale: bool = False
     stale_reason: str = ""

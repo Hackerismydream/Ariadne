@@ -657,12 +657,17 @@ function adaptSource(source: ApiSourceDocument): WorkbenchData["sources"][number
     linkedTicketCount: source.linked_ticket_count,
     artifactIds: source.artifact_ids,
     licenseRisk: source.license_risk,
+    originBucket: source.origin_bucket,
+    qualityStatus: source.quality_status,
+    qualityLimitations: source.quality_limitations,
+    claimCount: source.claim_count,
   };
 }
 
 function adaptSourceStatus(status: string, analysisStatus: string): WorkbenchData["sources"][number]["status"] {
   if (status === "linked" || status === "applied" || status === "archived" || status === "failed") return status;
   if (analysisStatus === "analyzed") return "analyzed";
+  if (analysisStatus === "partial") return "partial";
   if (analysisStatus === "blocked") return "blocked";
   if (analysisStatus === "pending") return "pending";
   return "new";
@@ -729,6 +734,13 @@ function adaptBacklogOperation(preview: ApiBacklogPreview, operation: ApiBacklog
     sourceArtifactIds: operation.source_artifact_ids,
     buildContextId: operation.build_context_id,
     targetProjectId: operation.target_project_id,
+    compilerProvenance: operation.compiler_provenance,
+    codebaseSnapshotArtifactId: operation.codebase_snapshot_artifact_id,
+    codebaseSnapshotStatus: operation.codebase_snapshot_status,
+    codebaseSnapshotReason: operation.codebase_snapshot_reason,
+    sourceClaimTrace: operation.source_claim_trace,
+    affectedModuleRationale: operation.affected_module_rationale,
+    acceptanceCriteriaRationale: operation.acceptance_criteria_rationale,
     goalReason: operation.goal_reason,
     changeIntent: operation.change_intent,
     targetVersionLabel: operation.target_version_label,
@@ -797,6 +809,9 @@ function adaptBacklogMutationPreview(preview?: ApiBacklogPreview): WorkbenchData
 
 function adaptSourceType(sourceType: string): WorkbenchData["sources"][number]["sourceType"] {
   if (sourceType === "github_repo") return "github_repo";
+  if (sourceType === "target_codebase") return "target_codebase";
+  if (sourceType === "local_markdown") return "local_markdown";
+  if (sourceType === "local_folder") return "local_folder";
   if (sourceType === "note") return "manual_note";
   if (sourceType === "review") return "review_feedback";
   if (sourceType === "paper" || sourceType === "blog") return sourceType;
