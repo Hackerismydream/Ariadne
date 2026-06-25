@@ -1,0 +1,45 @@
+{
+    "schema_version": "ariadne.team.agent_activity.v1",
+    "source": "journal_assignments_runs",
+    "activity": [
+        {
+            "id": "event_94e875323960",
+            "timestamp": "2026-06-25T15:54:16Z",
+            "source": "runtime_event",
+            "event_type": "queued",
+            "stage": "assignment",
+            "summary": "assignment: queued",
+            "ticket_id": "ticket_ca91950a67f4",
+            "ticket_key": "M0TR-001",
+            "assignment_id": "assignment_12ecf14fc6cb",
+            "run_id": null,
+            "ref_id": "assignment_12ecf14fc6cb"
+        },
+        {
+            "id": "comment_92a7bafcae36",
+            "timestamp": "2026-06-25T15:54:16Z",
+            "source": "comment",
+            "event_type": "assignment",
+            "stage": "comment",
+            "summary": "Assignment created: M0TR-001 -> Phase 3 Codex 1782402810345.",
+            "ticket_id": "ticket_ca91950a67f4",
+            "ticket_key": "M0TR-001",
+            "assignment_id": "assignment_12ecf14fc6cb",
+            "run_id": null,
+            "ref_id": "assignment_12ecf14fc6cb"
+        },
+        {
+            "id": "assignment:assignment_12ecf14fc6cb",
+            "timestamp": "2026-06-25T15:54:16Z",
+            "source": "assignment",
+            "event_type": "ready_to_claim",
+            "stage": "assignment",
+            "summary": "Assignment ready_to_claim: Phase 3 Codex 1782402810345",
+            "ticket_id": "ticket_ca91950a67f4",
+            "ticket_key": "M0TR-001",
+            "assignment_id": "assignment_12ecf14fc6cb",
+            "run_id": null,
+            "ref_id": "assignment_12ecf14fc6cb"
+        }
+    ]
+}

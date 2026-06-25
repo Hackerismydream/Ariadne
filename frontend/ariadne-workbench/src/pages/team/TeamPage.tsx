@@ -368,7 +368,7 @@ function AgentDetailPage({
                 </button>
               ))}
             </div>
-            {tab === "activity" ? <ActivityTab items={activity} /> : null}
+            {tab === "activity" ? <ActivityTab items={activity} tasks={tasks} runs={runs} /> : null}
             {tab === "tasks" ? <TasksTab items={tasks} /> : null}
             {tab === "instructions" ? (
               <div>
@@ -405,11 +405,71 @@ function AgentDetailPage({
   );
 }
 
-function ActivityTab({ items }: { items: ApiAgentActivityItem[] }) {
+function ActivityTab({
+  items,
+  tasks,
+  runs,
+}: {
+  items: ApiAgentActivityItem[];
+  tasks: ApiAgentTaskItem[];
+  runs: ApiAgentRunItem[];
+}) {
+  const currentTasks = tasks.filter((item) => item.current || ["queued", "claimed", "running"].includes(item.status));
+  const recentTasks = tasks.filter((item) => ["done", "blocked", "failed", "cancelled"].includes(item.status)).slice(0, 5);
+  const terminalRuns = runs.filter((item) => item.lifecycle_state === "terminal" || ["succeeded", "failed", "blocked", "cancelled"].includes(item.status));
+  const failedRuns = terminalRuns.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+  const successPct = terminalRuns.length ? Math.round(((terminalRuns.length - failedRuns.length) / terminalRuns.length) * 100) : null;
+
   return (
-    <div className="card-list">
+    <div className="agent-activity-layout">
+      <section className="control-card">
+        <header>
+          <strong>Now</strong>
+          <span>{currentTasks.length ? `${currentTasks.length} active` : "idle"}</span>
+        </header>
+        {currentTasks.length ? currentTasks.map((task) => (
+          <div className="activity-task-row" key={task.task_id}>
+            <strong>{task.ticket_key}</strong>
+            <span>{task.status}</span>
+            <small>{task.task_id}</small>
+          </div>
+        )) : <p>{emptyLabel}</p>}
+      </section>
+
+      <section className="control-card">
+        <header>
+          <strong>Last 30 days</strong>
+          <span>{terminalRuns.length} runs</span>
+        </header>
+        {terminalRuns.length ? (
+          <div className="activity-metrics">
+            <strong>{successPct}% success</strong>
+            <span>{failedRuns.length} failed or blocked</span>
+          </div>
+        ) : <p>{emptyLabel}</p>}
+      </section>
+
+      <section className="control-card">
+        <header>
+          <strong>Recent work</strong>
+          <span>{recentTasks.length}</span>
+        </header>
+        {recentTasks.length ? recentTasks.map((task) => (
+          <div className="activity-task-row" key={task.task_id}>
+            <strong>{task.ticket_key}</strong>
+            <span>{task.status}</span>
+            {task.completed_at ? <small>{task.completed_at}</small> : null}
+          </div>
+        )) : <p>{emptyLabel}</p>}
+      </section>
+
+      <section className="control-card wide-activity-card">
+        <header>
+          <strong>Activity stream</strong>
+          <span>{items.length}</span>
+        </header>
       {items.map((item) => (
-        <article className="control-card" key={item.id}>
+        <article className="activity-event-card" key={item.id}>
           <header>
             <strong>{item.stage}: {item.event_type}</strong>
             <span>{item.timestamp}</span>
@@ -422,6 +482,7 @@ function ActivityTab({ items }: { items: ApiAgentActivityItem[] }) {
         </article>
       ))}
       {!items.length ? <p className="empty-column">{emptyLabel}</p> : null}
+      </section>
     </div>
   );
 }

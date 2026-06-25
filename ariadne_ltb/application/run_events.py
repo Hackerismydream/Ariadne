@@ -32,6 +32,20 @@ class RunEventService:
         assignment, events = self._assignment_events(assignment_id, since=since)
         return AssignmentEventsDTO(assignment=assignment_dto(assignment), events=events)
 
+    def agent_assignment_events(self, agent_id: str, since: str | None = None) -> list[AssignmentEventDTO]:
+        events: list[AssignmentEventDTO] = []
+        for assignment in self.store.list_assignments():
+            if assignment.agent_id != agent_id:
+                continue
+            events.extend(self._assignment_events(assignment.id, since=since)[1])
+        return sorted(events, key=lambda item: (item.timestamp, item.cursor), reverse=True)
+
+    def ticket_assignment_events(self, ticket_id: str, since: str | None = None) -> list[AssignmentEventDTO]:
+        events: list[AssignmentEventDTO] = []
+        for assignment in self.store.list_assignments_for_ticket(ticket_id):
+            events.extend(self._assignment_events(assignment.id, since=since)[1])
+        return sorted(events, key=lambda item: (item.timestamp, item.cursor))
+
     def assignment_event_stream_batch(
         self,
         assignment_id: str,

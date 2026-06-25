@@ -2516,6 +2516,45 @@ button.team-agent-row:hover {
   font-size: 11px;
 }
 
+.agent-activity-layout {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wide-activity-card {
+  grid-column: 1 / -1;
+}
+
+.activity-task-row,
+.activity-event-card {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 4px;
+  padding-top: 9px;
+}
+
+.activity-task-row strong,
+.activity-event-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-task-row span,
+.activity-task-row small {
+  color: var(--muted-foreground);
+}
+
+.activity-metrics {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-metrics span {
+  color: var(--muted-foreground);
+}
+
 .runs-daemon-strip {
   max-width: none;
   padding: 0 20px;

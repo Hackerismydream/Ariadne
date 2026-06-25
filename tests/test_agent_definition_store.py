@@ -136,8 +136,13 @@ def test_agent_detail_fact_tabs_project_existing_store(tmp_path) -> None:
     assert client.get(f"/api/team/agents/{agent.agent_id}/environment").json()["environment_keys"] == ["CODEX_HOME"]
     assert client.get(f"/api/team/agents/{agent.agent_id}/tasks").json()["tasks"][0]["assignment"]["id"] == assignment.id
     assert client.get(f"/api/team/agents/{agent.agent_id}/runs").json()["runs"][0]["id"] == run.id
+    runtime_event_id = stable_id("event", assignment.id, "started")
     activity = client.get(f"/api/team/agents/{agent.agent_id}/activity").json()["activity"]
     assert any(item["event_type"] == "started" for item in activity)
+    issue_timeline = client.get(f"/api/issues/{ticket.key}").json()["issue"]["timeline"]
+    assert any(item["id"] == runtime_event_id for item in activity)
+    assert any(item["id"] == f"assignment-event:{runtime_event_id}" for item in issue_timeline)
+    assert any(item["ref_id"] == assignment.id for item in issue_timeline)
 
 
 def test_agent_tasks_project_assignment_lifecycle_and_blocker_inbox(tmp_path) -> None:

@@ -143,23 +143,21 @@ class WorkbenchAgentsService:
 
     def activity(self, agent_id: str) -> AgentActivityResponse:
         self._load_agent(agent_id)
-        items: list[AgentActivityItemDTO] = []
-        for assignment in self._agent_assignments(agent_id):
-            for event in RunEventService(self.store).assignment_events(assignment.id).events:
-                items.append(
-                    AgentActivityItemDTO(
-                        id=event.id,
-                        timestamp=event.timestamp,
-                        source=event.source,
-                        event_type=event.event_type,
-                        stage=event.stage,
-                        summary=event.summary,
-                        ticket_id=event.ticket_id,
-                        ticket_key=event.ticket_key,
-                        assignment_id=event.assignment_id,
-                        ref_id=event.ref_id,
-                    )
-                )
+        items = [
+            AgentActivityItemDTO(
+                id=event.id,
+                timestamp=event.timestamp,
+                source=event.source,
+                event_type=event.event_type,
+                stage=event.stage,
+                summary=event.summary,
+                ticket_id=event.ticket_id,
+                ticket_key=event.ticket_key,
+                assignment_id=event.assignment_id,
+                ref_id=event.ref_id,
+            )
+            for event in RunEventService(self.store).agent_assignment_events(agent_id)
+        ]
         return AgentActivityResponse(activity=sorted(items, key=lambda item: item.timestamp, reverse=True))
 
     def tasks(self, agent_id: str) -> AgentTasksResponse:
