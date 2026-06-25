@@ -1,0 +1,953 @@
+- complementary:
+  - button "A Ariadne":
+    - generic: A
+    - generic: Ariadne
+  - button "搜索... ⌘ K":
+    - generic: 搜索...
+    - generic: ⌘ K
+  - button "新建 issue C":
+    - generic: 新建 issue
+    - generic: C
+  - navigation:
+    - paragraph: Workbench
+    - button "Issues":
+      - generic: Issues
+    - button "Sources":
+      - generic: Sources
+    - button "Plan Changes":
+      - generic: Plan Changes
+    - button "Team":
+      - generic: Team
+    - button "Runs":
+      - generic: Runs
+    - button "Inbox 4":
+      - generic: Inbox
+      - emphasis: "4"
+    - button "Diagnostics":
+      - generic: Diagnostics
+  - button "?"
+- main:
+  - region "Current Version Context":
+    - generic: Current Version Context
+    - strong: M0TR-003 target repository
+    - paragraph: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Project
+    - strong: M0TR-003 target repository
+    - generic: /Users/martinlos/code/ariadne-dogfood/mini-code-agent
+    - generic: Target Version
+    - strong: Build Mini Code Agent v0.1
+    - generic: 当前阻塞
+    - generic: Goal
+    - strong: Build Mini Code Agent v0.1
+    - generic: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Sources readiness
+    - strong: 11/64
+    - generic: ready for issue factory
+    - generic: Issue Delta status
+    - strong: 已应用
+    - generic: 10 current issues
+    - generic: Active Run
+    - strong: Blocked · M0TR-003 assignment blocked。
+    - generic: API connected
+    - generic: Blocked count
+    - strong: "6"
+    - generic: M0TR-003 assignment blocked。
+    - generic: Latest Evidence
+    - strong: M0TR-003 · codex · blocked_before_execution · tests n/a · review 已阻塞
+    - generic: execution_7a3913677d7e
+    - button "Next Action 处理当前阻塞 M0TR-003 assignment blocked。":
+      - generic: Next Action
+      - strong: 处理当前阻塞
+      - generic: M0TR-003 assignment blocked。
+  - button "Back to board":
+    - text: Back to board
+  - text: M0TR-002
+  - heading "Add DeepSeek-backed LLM client configuration" [level=1]
+  - paragraph: The target agent needs a real upstream model client and local configuration path.
+  - complementary: Blockedhigh
+  - text: Agent
+  - combobox "Agent":
+    - option "Phase 3 Codex 1782402810345 · codex · 1 skills" [selected]
+  - button "Assign":
+    - text: Assign
+  - button "Run Now":
+    - text: Run Now
+  - textbox "Add issue comment":
+    - /placeholder: Add a comment...
+  - button "Comment" [disabled]:
+    - text: Comment
+  - strong: Blocked
+  - paragraph: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+  - button "Open Inbox"
+  - main:
+    - heading "Evidence Center" [level=2]:
+      - text: Evidence Center
+    - heading "Source Evidence" [level=3]
+    - article:
+      - strong: "Source: Add DeepSeek-backed LLM client configuration"
+      - generic: Available
+      - paragraph: The target agent needs a real upstream model client and local configuration path.
+      - generic: The target agent needs a real upstream model client and local configuration path.
+      - generic: source_document · source_3a22fa2ae0af
+      - code: https://minimal-agent.com/
+      - button "Open evidence"
+    - article:
+      - strong: "knowledge_card: minimal-agent.com"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"applicability\": \"Use as project guidance when generating issues.\", \"key_claims\": [ \"text source provides project guidance\" ], \"risks\": [], \"source_role\": \"requirement_source\", \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…"
+      - generic: source_artifact · source_artifact_04537ea5c2cc
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_04537ea5c2cc.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "knowledge_card: minimal-agent 博客"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"applicability\": \"Use as project guidance when generating issues.\", \"key_claims\": [ \"text source provides project guidance\" ], \"risks\": [], \"source_role\": \"background_knowledge\", \"summary\": \"真实 code agent 产品需要把 trajectory、动作、观察、测试和 review 作为一等证据，而不是只展示 planner 文本。\", \"title\": \"minimal-agent 博客\" }"
+      - generic: source_artifact · source_artifact_26aba347c1fd
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_26aba347c1fd.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "knowledge_card: minimal-agent.com"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"applicability\": \"Use as project guidance when generating issues.\", \"key_claims\": [ \"text source provides project guidance\" ], \"risks\": [], \"source_role\": \"requirement_source\", \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…"
+      - generic: source_artifact · source_artifact_59554d57fb1a
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_59554d57fb1a.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "knowledge_card: minimal-agent.com"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"applicability\": \"Use as project guidance when generating issues.\", \"key_claims\": [ \"text source provides project guidance\" ], \"risks\": [], \"source_role\": \"requirement_source\", \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…"
+      - generic: source_artifact · source_artifact_aecb87bb35ac
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_aecb87bb35ac.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "repository_understanding: MiniCode 仓库"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"avoid_notes\": [ \"Do not copy implementation files directly from the reference project.\" ], \"behavior_patterns\": [ \"Expose a small CLI as the primary builder interface.\", \"Keep an executable test path for every agent iteration.\" ], \"entrypoints\": [ \"src/index.ts\", \"src/tools/index.ts\", \"src/tui/index.ts\" ], \"identity\": { \"commit_sha\": \"f5b18eee2d9c2aaedfa282954c433598a3c00c75\", \"frameworks\": [], \"name\": \"checkout\", \"package_manager\": \"npm\", \"primary_language\": \"javascript\", \"remote_url\": \"https://github.com/LiuMengxuan04/MiniCode\" }, \"license\": { \"confidence\": \"high\", \"detected\": \"MIT\", \"license_file_path\": \"LICENSE\" }, \"license_risk\": \"green\", \"manifests\": [ \"package.json\" ], \"repo_map\": { \"core_modules\": [ \".gitignore\", \".gitmodules\", \"ARCHITECTURE.md\", \"ARCHITECTU…"
+      - generic: source_artifact · source_artifact_b6b939aa42fe
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_b6b939aa42fe.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "repository_understanding: SWE-agent mini-SWE-agent 仓库"
+      - generic: Available
+      - paragraph: 4 evidence refs.
+      - generic: "{ \"architecture_insights\": [ \"Executable entrypoints detected: \\\"Bug Tracker\\\" = \\\"https://github.com/SWE-agent/mini-swe-agent/issues\\\", \\\"litellm >= 1.75.5, != 1.82.7, != 1.82.8\\\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \\\"openai != 1.100.0,!=1.100.1\\\", # https://github.com/SWE-agent/mini-swe-agent/issues/446, Documentation = \\\"https://mini-swe-agent.com/latest/\\\".\", \"Repository separates product code into a source/app package boundary.\", \"Repository keeps tests as a first-class top-level module.\", \"Repository language suggests an agent/runtime/tool boundary worth reflecting in issues.\", \"Python package metadata is present, so CLI/package setup can be inferred.\" ], \"avoid_notes\": [ \"Do not copy implementation files directly from the reference project.\" ], \"behavior_patterns\": [ \"Expose a small CLI as the primary builder…"
+      - generic: source_artifact · source_artifact_d021e4f22927
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_d021e4f22927.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "knowledge_card: Add minimal reviewer checks for task completion"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"applicability\": \"Use as project guidance when generating issues.\", \"key_claims\": [ \"text source provides project guidance\" ], \"risks\": [], \"source_role\": \"background_knowledge\", \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palet…"
+      - generic: source_artifact · source_artifact_db83e688b859
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_db83e688b859.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "knowledge_card: minimal-agent.com"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"applicability\": \"Use as project guidance when generating issues.\", \"key_claims\": [ \"text source provides project guidance\" ], \"risks\": [], \"source_role\": \"requirement_source\", \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…"
+      - generic: source_artifact · source_artifact_e62eb8beab43
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_e62eb8beab43.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: "repository_understanding: e10nMa2k/cc-mini"
+      - generic: Available
+      - paragraph: 1 evidence refs.
+      - generic: "{ \"avoid_notes\": [ \"Do not copy implementation files directly from the reference project.\" ], \"behavior_patterns\": [ \"Expose a small CLI as the primary builder interface.\", \"Persist session or trajectory data for review.\", \"Keep an executable test path for every agent iteration.\" ], \"entrypoints\": [ \"cc-mini = \\\"tui.app:main\\\"\" ], \"identity\": { \"commit_sha\": \"73c5bc563093b650ea8754bf9101a7507d8328a8\", \"frameworks\": [], \"name\": \"checkout\", \"package_manager\": \"python\", \"primary_language\": \"python\", \"remote_url\": \"https://github.com/e10nMa2k/cc-mini\" }, \"license\": { \"confidence\": \"low\", \"detected\": \"unknown\", \"license_file_path\": null }, \"license_risk\": \"yellow\", \"manifests\": [ \"pyproject.toml\" ], \"repo_map\": { \"core_modules\": [ \".gitignore\", \"README.md\", \"assets\", \"install.s…"
+      - generic: source_artifact · source_artifact_ecb39c056d7f
+      - code: /Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_ecb39c056d7f.payload.json
+      - button "Open evidence"
+    - article:
+      - strong: Claim from SWE-agent mini-SWE-agent 仓库
+      - generic: Available
+      - paragraph: repository architecture suggests issue decomposition boundaries (0.74)
+      - generic: "repository architecture scan Claim: repository architecture suggests issue decomposition boundaries Evidence: Executable entrypoints detected: \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\", \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \"openai != 1.100.0,!=1.100."
+      - generic: source_evidence · source_evidence_04f7c7f374e1
+      - code: https://github.com/SWE-agent/mini-SWE-agent
+      - button "Open evidence"
+    - article:
+      - strong: Claim from minimal-agent.com
+      - generic: Available
+      - paragraph: text source provides project guidance (0.80)
+      - generic: "https://minimal-agent.com/?ariadne_phase5=1782137304681 Claim: text source provides project guidance Evidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta"
+      - generic: source_evidence · source_evidence_08f634101190
+      - code: https://minimal-agent.com/?ariadne_phase5=1782137304681
+      - button "Open evidence"
+    - article:
+      - strong: Claim from minimal-agent.com
+      - generic: Available
+      - paragraph: text source provides project guidance (0.80)
+      - generic: "https://minimal-agent.com/?ariadne_phase5=1782137177613 Claim: text source provides project guidance Evidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta"
+      - generic: source_evidence · source_evidence_189fb0414205
+      - code: https://minimal-agent.com/?ariadne_phase5=1782137177613
+      - button "Open evidence"
+    - article:
+      - strong: Claim from e10nMa2k/cc-mini
+      - generic: Available
+      - paragraph: repository structure informs target project issue generation (0.80)
+      - generic: "README.md Claim: repository structure informs target project issue generation Evidence: <div align=\"center\"> # cc-mini **Ultra-light Harness scaffolding for AI agents** **Agentic** &nbsp;·&nbsp; **Built to Extend** &nbsp;·&nbsp; **From Claude Code** <br> The entire core is `~1000 lines of Python` </div> --- ### **NEW: B"
+      - generic: source_evidence · source_evidence_407f170c61fb
+      - code: https://github.com/e10nMa2k/cc-mini
+      - button "Open evidence"
+    - article:
+      - strong: Claim from SWE-agent mini-SWE-agent 仓库
+      - generic: Available
+      - paragraph: repository structure informs target project issue generation (0.80)
+      - generic: "README.md Claim: repository structure informs target project issue generation Evidence: <div align=\"center\"> <a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a> </div> # The mini"
+      - generic: source_evidence · source_evidence_483cc8b4eec3
+      - code: https://github.com/SWE-agent/mini-SWE-agent
+      - button "Open evidence"
+    - article:
+      - strong: Claim from Add minimal reviewer checks for task completion
+      - generic: Available
+      - paragraph: text source provides project guidance (0.80)
+      - generic: "https://minimal-agent.com/ Claim: text source provides project guidance Evidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta"
+      - generic: source_evidence · source_evidence_49bbbf060425
+      - code: https://minimal-agent.com/
+      - button "Open evidence"
+    - article:
+      - strong: Claim from SWE-agent mini-SWE-agent 仓库
+      - generic: Available
+      - paragraph: repository test strategy informs acceptance criteria (0.72)
+      - generic: "repository test scan Claim: repository test strategy informs acceptance criteria Evidence: Detected 57 test file(s). Suggested test command: python3.11 -m pytest"
+      - generic: source_evidence · source_evidence_72b1ad21bb21
+      - code: https://github.com/SWE-agent/mini-SWE-agent
+      - button "Open evidence"
+    - article:
+      - strong: Claim from SWE-agent mini-SWE-agent 仓库
+      - generic: Available
+      - paragraph: repository safety signals inform implementation constraints (0.68)
+      - generic: "repository safety scan Claim: repository safety signals inform implementation constraints Evidence: No explicit safety model was detected; generated issues should add local execution boundaries."
+      - generic: source_evidence · source_evidence_7e685db6aeb5
+      - code: https://github.com/SWE-agent/mini-SWE-agent
+      - button "Open evidence"
+    - article:
+      - strong: Claim from minimal-agent 博客
+      - generic: Available
+      - paragraph: text source provides project guidance (0.80)
+      - generic: "https://minimal-agent.com/ Claim: text source provides project guidance Evidence: 真实 code agent 产品需要把 trajectory、动作、观察、测试和 review 作为一等证据，而不是只展示 planner 文本。"
+      - generic: source_evidence · source_evidence_85eabe737a64
+      - code: https://minimal-agent.com/
+      - button "Open evidence"
+    - article:
+      - strong: Claim from SWE-agent mini-SWE-agent 仓库
+      - generic: Available
+      - paragraph: repository README explains reusable project intent (0.78)
+      - generic: "README.md Claim: repository README explains reusable project intent Evidence: <div align=\"center\"> <a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a> </div> # The mini"
+      - generic: source_evidence · source_evidence_87f8f4a27b96
+      - code: https://github.com/SWE-agent/mini-SWE-agent
+      - button "Open evidence"
+    - article:
+      - strong: Claim from minimal-agent.com
+      - generic: Available
+      - paragraph: text source provides project guidance (0.80)
+      - generic: "https://minimal-agent.com/?ariadne_phase5=1782137694960 Claim: text source provides project guidance Evidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta"
+      - generic: source_evidence · source_evidence_c091afd8c290
+      - code: https://minimal-agent.com/?ariadne_phase5=1782137694960
+      - button "Open evidence"
+    - article:
+      - strong: Claim from MiniCode 仓库
+      - generic: Available
+      - paragraph: repository structure informs target project issue generation (0.80)
+      - generic: "README.md Claim: repository structure informs target project issue generation Evidence: # MiniCode <p align=\"center\"> <img src=\"./docs/logo.svg\" alt=\"MiniCode Logo\" width=\"180\" /> </p> <h2 align=\"center\">MiniCode</h2> <p align=\"center\"> <img src=\"https://img.shields.io/badge/Editor-Minicode-D97757?style=for-the-badge\" a"
+      - generic: source_evidence · source_evidence_c1d4b49015ef
+      - code: https://github.com/LiuMengxuan04/MiniCode
+      - button "Open evidence"
+    - article:
+      - strong: Claim from minimal-agent.com
+      - generic: Available
+      - paragraph: text source provides project guidance (0.80)
+      - generic: "https://minimal-agent.com/?ariadne_phase5=1782137639236 Claim: text source provides project guidance Evidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta"
+      - generic: source_evidence · source_evidence_fbb7d9874eec
+      - code: https://minimal-agent.com/?ariadne_phase5=1782137639236
+      - button "Open evidence"
+    - heading "Handoff Evidence" [level=3]
+    - article:
+      - strong: Handoff packet M0TR-002
+      - generic: Available
+      - paragraph: 9 evidence refs, 3 acceptance criteria.
+      - generic: "# M0TR-002: Add DeepSeek-backed LLM client configuration ## Target Repository /Users/martinlos/code/ariadne-dogfood/mini-code-agent ## Route - Backend: `codex` - Planner: `llm` - Agent runtime: `llm` - Selected agent: `Phase 3 Codex 1782402810345` ## Selected Skills - `skill_9179aec0c6a9` ## Agent Instructions Phase 5 evidence: use attached skills and preserve environment key boundaries. ## Environment Keys - `CODEX_HOME` - `DEEPSEEK_API_KEY` ## Task The target agent needs a real upstream model client and local configuration path. ## Planner Tasks - Add DeepSeek-backed LLM client configuration ## Allowed Paths - `mini_code_agent/llm.py` - `mini_code_agent/config.py` - `tests/test_llm_config.py` ## Acceptance Criteria - The implementation is reachable from the Web Workbench product path. - The behavior writes inspectable run evidence. - Tests cover the behavior without external…"
+      - generic: handoff_packet · handoff_packet_13a0352f0ebf
+      - code: /Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/M0TR-002-handoff_packet_13a0352f0ebf.md
+      - button "Open evidence"
+    - article:
+      - strong: Execution handoff for codex
+      - generic: Available
+      - paragraph: Prompt file used by codex.
+      - generic: "# M0TR-002: Add DeepSeek-backed LLM client configuration ## Target Repository /Users/martinlos/code/ariadne-dogfood/mini-code-agent ## Route - Backend: `codex` - Planner: `llm` - Agent runtime: `llm` - Selected agent: `Phase 3 Codex 1782402810345` ## Selected Skills - `skill_9179aec0c6a9` ## Agent Instructions Phase 5 evidence: use attached skills and preserve environment key boundaries. ## Environment Keys - `CODEX_HOME` - `DEEPSEEK_API_KEY` ## Task The target agent needs a real upstream model client and local configuration path. ## Planner Tasks - Add DeepSeek-backed LLM client configuration ## Allowed Paths - `mini_code_agent/llm.py` - `mini_code_agent/config.py` - `tests/test_llm_config.py` ## Acceptance Criteria - The implementation is reachable from the Web Workbench product path. - The behavior writes inspectable run evidence. - Tests cover the behavior without external…"
+      - generic: handoff_file · execution_ad2a60e49e38
+      - code: /Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/M0TR-002-handoff_packet_13a0352f0ebf.md
+      - button "Open evidence"
+    - heading "Route Decision" [level=3]
+    - article:
+      - strong: "Route decision: codex"
+      - generic: Available
+      - paragraph: "Phase 3 Codex 1782402810345 -> codex; allowed skills: skill_9179aec0c6a9"
+      - generic: "{ \"id\": \"route_f97713a18048\", \"ticket_id\": \"ticket_f31888277cd3\", \"ticket_key\": \"M0TR-002\", \"planner_name\": \"llm\", \"agent_runtime\": \"llm\", \"backlog_planner_name\": \"llm\", \"backend_name\": \"codex\", \"build_team_id\": null, \"build_team_name\": null, \"team_role_agent_ids\": {}, \"selected_agent_id\": \"agent_4b050c358500\", \"selected_agent_name\": \"Phase 3 Codex 1782402810345\", \"selected_agent_role\": \"coding_agent\", \"target_repo_path\": \"/Users/martinlos/code/ariadne-dogfood/mini-code-agent\", \"build_decision\": \"code_task\", \"reason\": \"Direct assignment routed to Phase 3 Codex 1782402810345.\", \"external_execution_enabled\": false, \"confirm_execution\": false, \"permission_profile_id\": null, \"skill_refs\": [ \"skill_9179aec0c6a9\" ], \"resource_refs\": [], \"created_at\": \"2026-06-25T16:10:23Z\", \"route_artifact_id\": null }"
+      - generic: route_decision · route_f97713a18048
+      - code: /Users/martinlos/code/Ariadne/.ariadne/routes/route_f97713a18048.json
+      - button "Open evidence"
+    - heading "Execution Artifacts" [level=3]
+    - article:
+      - strong: Execution stdout/stderr/exit code capture
+      - generic: Produced by run
+      - paragraph: Execution stdout/stderr/exit code capture
+      - generic: "{ \"id\": \"execution_ad2a60e49e38\", \"ticket_id\": \"ticket_f31888277cd3\", \"backend_name\": \"codex\", \"target_repo_path\": \"/Users/martinlos/code/ariadne-dogfood/mini-code-agent\", \"target_worktree_path\": null, \"dry_run\": false, \"blocked\": true, \"block_reason\": \"External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.\", \"failure_reason\": \"external_execution_blocked\", \"command\": \"codex exec --cd /Users/martinlos/code/ariadne-dogfood/mini-code-agent - < /Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/M0TR-002-handoff_packet_13a0352f0ebf.md\", \"exit_code\": 2, \"stdout\": \"\", \"stderr\": \"External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.\", \"started_at\": \"2026-06-25T17:12:03Z\", \"ended_at\": \"2026-06-25T17:12:03Z\", \"git_head_before\": \"5b47b14aa00568fbf1c997ddbfdb039499853604\", \"git_head_after\": \"5b47b14aa00568fbf1c997ddbfdb0394…"
+      - generic: artifact:execution_log · artifact_cc6f301d2164
+      - code: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/execution_log.json
+      - button "Open evidence"
+    - article:
+      - strong: Target project git diff
+      - generic: Empty
+      - paragraph: Target project git diff
+      - generic: artifact:git_diff · artifact_107cbc80c3e0
+      - code: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/git_diff.patch
+      - button "Open evidence"
+      - generic: The referenced artifact file is empty.
+    - article:
+      - strong: Test output
+      - generic: Not run
+      - paragraph: "/opt/homebrew/bin/pytest: exit None"
+      - generic: test_output · execution_ad2a60e49e38
+      - button "Open evidence"
+      - generic: Test command was planned but no test exit code was recorded.
+    - heading "Review Artifacts" [level=3]
+    - article:
+      - strong: "Review report: blocked"
+      - generic: Available
+      - paragraph: 1 failed checks, 0 warnings.
+      - generic: "{ \"id\": \"review_fca849bcfaf9\", \"ticket_id\": \"ticket_f31888277cd3\", \"verdict\": \"blocked\", \"reviewer_mode\": \"deterministic\", \"risk_score\": 1.0, \"acceptance_criteria_coverage\": { \"The implementation is reachable from the Web Workbench product path.\": false, \"The behavior writes inspectable run evidence.\": false, \"Tests cover the behavior without external credentials.\": false }, \"evidence_refs\": [ \"ticket_f31888277cd3\", \"packet_170d7acffcc8\", \"evidence_ebc225d5ffe8\", \"execution_ad2a60e49e38\" ], \"next_ticket_suggestions\": [ \"Resolve blocker evidence and rerun the ticket.\" ], \"passed_checks\": [ \"Build Packet evidence exists\", \"Acceptance criteria exist\", \"Project relevance exists\", \"Source trust boundary recorded\", \"All Agent Runs have terminal status\" ], \"failed_checks\": [ \"Execution backend blocked before co…"
+      - generic: review_report · review_fca849bcfaf9
+      - code: /Users/martinlos/code/Ariadne/.ariadne/reviews/review_fca849bcfaf9.json
+      - button "Open evidence"
+    - heading "Memory Artifacts" [level=3]
+    - article:
+      - strong: Memory record
+      - generic: Available
+      - paragraph: "Backend codex was blocked before coding: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.. No target files were attributed to this run; tests were not run. Passed 5 checks; failed 1 checks."
+      - generic: "M0TR-002: executed `codex` for code_task; review verdict `blocked`. Backend codex was blocked before coding: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.. No target files were attributed to this run; tests were not run. Passed 5 checks; failed 1 checks. Review generated target project diff. Convert remaining experiment/doc tickets into future Build Tickets. Keep real Feishu writes disabled until credentials and confirmation are present."
+      - generic: memory_record · memory_7fa74a1ac241
+      - code: /Users/martinlos/code/Ariadne/.ariadne/memory/tickets/ticket_f31888277cd3.json
+      - button "Open evidence"
+    - heading "Next Tickets" [level=3]
+    - article:
+      - strong: "ARI-084: Repair execution failure for M0TR-002"
+      - generic: Available
+      - paragraph: planning · high
+      - generic: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: build_ticket · ticket_f9373b17f4b1
+      - button "Open evidence"
+    - article:
+      - strong: "ARI-085: Fix review issue for M0TR-002: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: Available
+      - paragraph: planning · high
+      - generic: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: build_ticket · ticket_f12b48d1ce4d
+      - button "Open evidence"
+    - article:
+      - strong: Next tickets artifact
+      - generic: Available
+      - paragraph: Generated next-ticket artifact.
+      - generic: "{ \"source_ticket_id\": \"ticket_f31888277cd3\", \"source_ticket_key\": \"M0TR-002\", \"review_verdict\": \"blocked\", \"generated_at\": \"2026-06-25T17:12:04Z\", \"next_tickets\": [ { \"title\": \"Fix M0TR-002 run blockers\", \"reason\": \"Execution backend blocked before coding\", \"source\": \"failed_check\", \"priority\": \"high\", \"suggested_build_decision\": \"code_task\", \"acceptance_criteria\": [ \"Blocked or failing execution checks pass.\", \"Reviewer verdict changes to pass or needs_human_review with explicit rationale.\" ], \"affected_modules\": [ \"mini_code_agent/llm.py\", \"mini_code_agent/config.py\", \"tests/test_llm_config.py\" ] }, { \"title\": \"Promote Feishu preview plan into gated docs plus tasks\", \"reason\": \"M0TR-002 produced a Feishu preview plan and real write remains gated.\", \"sou…"
+      - generic: next_tickets_artifact · /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json
+      - code: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json
+      - button "Open evidence"
+    - heading "Execution Results" [level=2]
+    - article:
+      - strong: codex
+      - generic: Blocked before execution
+      - generic: exit 2
+      - generic: tests Not recorded
+      - generic: No changed files recorded
+      - generic: "Diff artifact: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/git_diff.patch"
+      - generic: "Execution log: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/execution_log.json"
+    - heading "Assignment Progress" [level=2]
+    - paragraph: No active assignment is currently claimed or running.
+    - heading "Timeline" [level=2]
+    - list:
+      - generic: 2026-06-22T14:15:10Z
+      - strong: Backlog
+      - emphasis: backlog_preview_applied
+      - paragraph: "Applied preview operation: The target agent needs a real upstream model client and local configuration path."
+      - generic: 2026-06-22T14:15:10Z
+      - strong: Backlog
+      - emphasis: backlog_updated
+      - paragraph: "Backlog update recorded: Applied backlog preview backlog_preview_8aa11cc0eca5."
+      - generic: 2026-06-25T16:10:23Z
+      - strong: Ariadne
+      - emphasis: status_changed
+      - paragraph: Assigned to Phase 3 Codex 1782402810345.
+      - generic: 2026-06-25T16:10:23Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: assignment:blocked
+      - paragraph: "Assignment blocked: Phase 3 Codex 1782402810345"
+      - generic: 2026-06-25T16:10:23Z
+      - strong: Ariadne
+      - emphasis: comment:assignment
+      - paragraph: "Assignment created: M0TR-002 -> Phase 3 Codex 1782402810345."
+      - generic: 2026-06-25T16:10:23Z
+      - strong: Ariadne
+      - emphasis: runtime_event:queued
+      - paragraph: "assignment: queued"
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Build Lead
+      - emphasis: status_changed
+      - paragraph: Status changed from waiting_approval to planning.
+      - generic: 2026-06-25T17:11:16Z
+      - strong: LLM Build Lead
+      - emphasis: llm_agent_started
+      - paragraph: "DeepSeek LLM role `build_lead` started."
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: "Phase 3 Codex 1782402810345: claimed M0TR-002."
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Ariadne
+      - emphasis: comment:progress
+      - paragraph: Run requested from Workbench for M0TR-002; waiting for a local daemon runtime to claim it.
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Build Lead
+      - emphasis: comment:handoff
+      - paragraph: "Build Lead -> Planner: Need Build Packet and coding handoff."
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:claimed
+      - paragraph: "claim: claimed"
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Build Lead
+      - emphasis: runtime_event:completed
+      - paragraph: "handoff: completed"
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:started
+      - paragraph: "execution: started"
+      - generic: 2026-06-25T17:11:16Z
+      - strong: Ariadne
+      - emphasis: runtime_event:requested
+      - paragraph: "dispatch: requested"
+      - generic: 2026-06-25T17:11:34Z
+      - strong: LLM Build Lead
+      - emphasis: llm_agent_finished
+      - paragraph: "DeepSeek LLM role `build_lead` completed."
+      - generic: 2026-06-25T17:11:34Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: DeepSeek Build Lead role completed.
+      - generic: 2026-06-25T17:11:34Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "llm_build_lead: succeeded"
+      - generic: 2026-06-25T17:11:49Z
+      - strong: Planner
+      - emphasis: agent_run_started
+      - paragraph: llm planner started.
+      - generic: 2026-06-25T17:11:49Z
+      - strong: Planner
+      - emphasis: status_changed
+      - paragraph: Status changed from planning to ready_for_execution.
+      - generic: 2026-06-25T17:11:49Z
+      - strong: LLM Knowledge
+      - emphasis: llm_agent_started
+      - paragraph: "DeepSeek LLM role `knowledge` started."
+      - generic: 2026-06-25T17:11:49Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: Planner generated Build Packet and handoff.
+      - generic: 2026-06-25T17:11:49Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "planning: succeeded"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: LLM Knowledge
+      - emphasis: llm_agent_finished
+      - paragraph: "DeepSeek LLM role `knowledge` completed."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Build Lead
+      - emphasis: route_decision
+      - paragraph: "Selected backend `codex` for `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: agent_run_started
+      - paragraph: Execution started.
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: execution_started
+      - paragraph: codex execution started.
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: artifact:written
+      - paragraph: "git_diff: Target project git diff"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: artifact:written
+      - paragraph: "changed_files: Changed file list"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: artifact:written
+      - paragraph: "test_output: Target project test output"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: artifact:written
+      - paragraph: "execution_log: Execution stdout/stderr/exit code capture"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: "Build Lead selected `codex`."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: DeepSeek Knowledge role completed.
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Planner
+      - emphasis: comment:handoff
+      - paragraph: "Planner -> Execution: Build Packet and coding handoff are ready."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: run_message:status
+      - paragraph: Execution started for M0TR-002.
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: run_message:artifact
+      - paragraph: "Wrote execution_log: Execution stdout/stderr/exit code capture."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: run_message:artifact
+      - paragraph: "Wrote git_diff: Target project git diff."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: run_message:artifact
+      - paragraph: "Wrote changed_files: Changed file list."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: run_message:artifact
+      - paragraph: "Wrote test_output: Target project test output."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Execution
+      - emphasis: run_message:result
+      - paragraph: "Execution blocked: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "llm_knowledge: succeeded"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Planner
+      - emphasis: runtime_event:completed
+      - paragraph: "handoff: completed"
+      - generic: 2026-06-25T17:12:03Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "route: succeeded"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Execution
+      - emphasis: execution_finished
+      - paragraph: "Execution blocked: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Execution
+      - emphasis: status_changed
+      - paragraph: Status changed from ready_for_execution to reviewing.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Backlog
+      - emphasis: status_changed
+      - paragraph: "Defer M0TR-002 after failed execution execution_ad2a60e49e38: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Backlog
+      - emphasis: backlog_updated
+      - paragraph: "Backlog update recorded: Applied backlog preview backlog_preview_dfbe3258af23."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: agent_run_started
+      - paragraph: Reviewer started.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: review_started
+      - paragraph: Reviewer started conservative result check.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: review_finished
+      - paragraph: "Reviewer verdict: blocked."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: status_changed
+      - paragraph: Status changed from blocked to blocked.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: agent_run_started
+      - paragraph: Memory / Feishu started.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: memory_written
+      - paragraph: Wrote local memory and Feishu preview plan.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "feishu_write_plan: Feishu preview write plan"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "next_tickets: Generated next Build Ticket suggestions"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "memory_record: Local memory write-back record"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: artifact:written
+      - paragraph: "review_report: Reviewer verdict: blocked"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:review
+      - paragraph: "Reviewer verdict: blocked."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: Applied execution feedback backlog preview.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:memory
+      - paragraph: Memory wrote decision log and Feishu preview plan.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: comment:handoff
+      - paragraph: "Reviewer -> Memory: Reviewer verdict=blocked."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: "Execution blocked: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Execution
+      - emphasis: comment:handoff
+      - paragraph: "Execution -> Reviewer: Execution produced result, diff, and tests."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:status
+      - paragraph: Memory / Feishu started for M0TR-002.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: run_message:status
+      - paragraph: Reviewer started for M0TR-002.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:artifact
+      - paragraph: Wrote local memory record.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: run_message:artifact
+      - paragraph: Wrote review report with verdict blocked.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:artifact
+      - paragraph: Wrote Feishu preview plan.
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: run_message:result
+      - paragraph: "Reviewer verdict: blocked."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Execution
+      - emphasis: run_message:result
+      - paragraph: "Execution blocked: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "review: succeeded"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "backlog_preview: succeeded"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Reviewer
+      - emphasis: runtime_event:completed
+      - paragraph: "handoff: completed"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:blocked
+      - paragraph: "execution: blocked"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "memory: succeeded"
+      - generic: 2026-06-25T17:12:04Z
+      - strong: Execution
+      - emphasis: runtime_event:completed
+      - paragraph: "handoff: completed"
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: llm_backlog_planner_finished
+      - paragraph: LLM backlog planner blocked; deterministic backlog suggestions remain in use.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: next_tickets_generated
+      - paragraph: Generated follow-up Build Ticket suggestions.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: status_changed
+      - paragraph: Status changed from blocked to blocked.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Backlog
+      - emphasis: backlog_preview_noop
+      - paragraph: Memory write-back did not expose a new planner memory gap.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Backlog
+      - emphasis: backlog_updated
+      - paragraph: "Backlog update recorded: Applied backlog preview backlog_preview_deff797885fc."
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Backlog
+      - emphasis: backlog_preview_noop
+      - paragraph: Execution produced no changed-file observation requiring a new ticket.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Backlog
+      - emphasis: backlog_updated
+      - paragraph: "Backlog update recorded: Applied backlog preview backlog_preview_1b85be575dd2."
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Backlog
+      - emphasis: status_changed
+      - paragraph: Defer M0TR-002 because review review_fca849bcfaf9 did not pass.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Backlog
+      - emphasis: backlog_updated
+      - paragraph: "Backlog update recorded: Applied backlog preview backlog_preview_effbdecf98cd."
+      - generic: 2026-06-25T17:12:34Z
+      - strong: LLM Memory
+      - emphasis: llm_agent_started
+      - paragraph: "DeepSeek LLM role `memory` started."
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "next_tickets: LLM backlog planner blocked or failed"
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: Recorded 4 feedback-driven backlog update(s) from applied previews.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: Generated next Build Ticket suggestions.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory
+      - emphasis: comment:handoff
+      - paragraph: "Memory -> Build Lead: Memory and next tickets are written."
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:error
+      - paragraph: "LLM backlog planner blocked: LLM backlog planner failed: 1 validation error for LLMBacklogPayload next_tickets.0.source Value error, source must be one of ['changed_file', 'failed_check', 'memory', 'review'] [type=value_error, input_value='failed_check|review', input_type=str] For further information visit https://errors.pydantic.dev/2.12/v/value_error"
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:artifact
+      - paragraph: Generated next Build Ticket suggestions.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:result
+      - paragraph: Recorded feedback-driven backlog updates.
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "backlog_update: succeeded"
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Memory
+      - emphasis: runtime_event:completed
+      - paragraph: "handoff: completed"
+      - generic: 2026-06-25T17:12:34Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "next_tickets: succeeded"
+      - generic: 2026-06-25T17:12:42Z
+      - strong: LLM Memory
+      - emphasis: llm_agent_finished
+      - paragraph: "DeepSeek LLM role `memory` completed."
+      - generic: 2026-06-25T17:12:42Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: DeepSeek Memory role completed.
+      - generic: 2026-06-25T17:12:42Z
+      - strong: Memory / Feishu
+      - emphasis: run_message:result
+      - paragraph: Wrote local memory, Feishu preview plan, next ticket suggestions, and backlog updates.
+      - generic: 2026-06-25T17:12:42Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "llm_memory: succeeded"
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Build Board
+      - emphasis: board_exported
+      - paragraph: Exported board to /Users/martinlos/code/Ariadne/.ariadne/board/index.md.
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Build Lead
+      - emphasis: orchestrator_result_written
+      - paragraph: Wrote structured ticket run result manifest.
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Build Lead
+      - emphasis: landing_evidence_written
+      - paragraph: Wrote ticket landing evidence packet.
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: assignment_blocked
+      - paragraph: "assignment_699c4079b8ca: external_execution_blocked - External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "landing_evidence: Ticket landing evidence summary"
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "landing_evidence: Ticket landing evidence packet"
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Memory / Feishu
+      - emphasis: artifact:written
+      - paragraph: "orchestrator_result: Structured ticket run result manifest"
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:blocker
+      - paragraph: "Phase 3 Codex 1782402810345: blocked - External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1. (failure_reason=external_execution_blocked; retry=human_review_required)."
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: comment:progress
+      - paragraph: Board path recorded at /Users/martinlos/code/Ariadne/.ariadne/board/index.md.
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:blocked
+      - paragraph: "execution: blocked"
+      - generic: 2026-06-25T17:12:48Z
+      - strong: Phase 3 Codex 1782402810345
+      - emphasis: runtime_event:succeeded
+      - paragraph: "board: succeeded"
+    - heading "Comments" [level=2]
+    - article:
+      - strong: Ariadne
+      - generic: 2026-06-25T16:10:23Z
+      - paragraph: "Assignment created: M0TR-002 -> Phase 3 Codex 1782402810345."
+    - article:
+      - strong: Ariadne
+      - generic: 2026-06-25T17:11:16Z
+      - paragraph: Run requested from Workbench for M0TR-002; waiting for a local daemon runtime to claim it.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:11:16Z
+      - paragraph: "Phase 3 Codex 1782402810345: claimed M0TR-002."
+    - article:
+      - strong: Build Lead
+      - generic: 2026-06-25T17:11:16Z
+      - paragraph: "Build Lead -> Planner: Need Build Packet and coding handoff."
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:11:34Z
+      - paragraph: DeepSeek Build Lead role completed.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:11:49Z
+      - paragraph: Planner generated Build Packet and handoff.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:03Z
+      - paragraph: DeepSeek Knowledge role completed.
+    - article:
+      - strong: Planner
+      - generic: 2026-06-25T17:12:03Z
+      - paragraph: "Planner -> Execution: Build Packet and coding handoff are ready."
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:03Z
+      - paragraph: "Build Lead selected `codex`."
+    - article:
+      - strong: Execution
+      - generic: 2026-06-25T17:12:04Z
+      - paragraph: "Execution -> Reviewer: Execution produced result, diff, and tests."
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:04Z
+      - paragraph: "Execution blocked: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:04Z
+      - paragraph: Applied execution feedback backlog preview.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:04Z
+      - paragraph: "Reviewer verdict: blocked."
+    - article:
+      - strong: Reviewer
+      - generic: 2026-06-25T17:12:04Z
+      - paragraph: "Reviewer -> Memory: Reviewer verdict=blocked."
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:04Z
+      - paragraph: Memory wrote decision log and Feishu preview plan.
+    - article:
+      - strong: Memory
+      - generic: 2026-06-25T17:12:34Z
+      - paragraph: "Memory -> Build Lead: Memory and next tickets are written."
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:34Z
+      - paragraph: Generated next Build Ticket suggestions.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:34Z
+      - paragraph: Recorded 4 feedback-driven backlog update(s) from applied previews.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:42Z
+      - paragraph: DeepSeek Memory role completed.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:48Z
+      - paragraph: Board path recorded at /Users/martinlos/code/Ariadne/.ariadne/board/index.md.
+    - article:
+      - strong: Phase 3 Codex 1782402810345
+      - generic: 2026-06-25T17:12:48Z
+      - paragraph: "Phase 3 Codex 1782402810345: blocked - External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1. (failure_reason=external_execution_blocked; retry=human_review_required)."
+  - complementary:
+    - heading "Summary" [level=2]
+    - generic: Assignee
+    - strong: Phase 3 Codex 1782402810345
+    - generic: Runtime
+    - strong: codex
+    - generic: Last run
+    - strong: blocked_before_execution
+    - generic: Review
+    - strong: blocked
+    - generic: Evidence
+    - strong: "24"
+    - generic: Blocked
+    - strong: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+    - heading "Handoff / Route" [level=2]
+    - code: "{ \"id\": \"handoff_packet_13a0352f0ebf\", \"payload_ref\": \"artifact_6277ad409b43\", \"handoff_file\": \"/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/M0TR-002-handoff_packet_13a0352f0ebf.md\", \"assignment_id\": \"assignment_699c4079b8ca\" }"
+    - heading "Diff / Tests / Review" [level=2]
+    - paragraph: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/git_diff.patch
+    - paragraph: "/opt/homebrew/bin/pytest: exit None"
+    - paragraph: "blocked: 1 failed checks, 0 warnings"
+    - heading "Acceptance / Modules" [level=2]
+    - list:
+      - listitem: The implementation is reachable from the Web Workbench product path.
+      - listitem: The behavior writes inspectable run evidence.
+      - listitem: Tests cover the behavior without external credentials.
+    - code: mini_code_agent/llm.py
+    - code: mini_code_agent/config.py
+    - code: tests/test_llm_config.py
+    - heading "Links" [level=2]
+    - code: https://minimal-agent.com/
+    - code: source_3a22fa2ae0af
+    - code: source_artifact_04537ea5c2cc
+    - code: source_artifact_26aba347c1fd
+    - code: source_artifact_59554d57fb1a
+    - code: source_artifact_aecb87bb35ac
+    - code: source_artifact_b6b939aa42fe
+    - code: source_artifact_d021e4f22927
+    - code: source_artifact_db83e688b859
+    - code: source_artifact_e62eb8beab43
+    - code: source_artifact_ecb39c056d7f
+    - button "ARI-084"
+    - button "ARI-085"
+    - heading "Assignments" [level=2]
+    - strong: Phase 3 Codex 1782402810345
+    - generic: codex
+    - generic: Blocked
+    - generic: Attempt 1
+    - code: assignment_699c4079b8ca
+    - generic: external_execution_blocked is not safe for automatic retry
+- button "对话":
+  - generic: 对话

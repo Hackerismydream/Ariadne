@@ -1,0 +1,108 @@
+{
+  "id": "landing_evidence_017ca9a43762",
+  "ticket_id": "ticket_f31888277cd3",
+  "ticket_key": "M0TR-002",
+  "ticket_title": "Add DeepSeek-backed LLM client configuration",
+  "ticket_status": "blocked",
+  "backend_name": "codex",
+  "planner_name": "llm",
+  "agent_runtime": "llm",
+  "backlog_planner_name": "llm",
+  "branch": "main",
+  "target_repo_path": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+  "worktree_path": null,
+  "execution_result_id": "execution_ad2a60e49e38",
+  "review_report_id": "review_fca849bcfaf9",
+  "review_verdict": "blocked",
+  "changed_files": [],
+  "git_diff_summary": {
+    "files_changed": 0,
+    "additions": 0,
+    "deletions": 0,
+    "raw_diff_embedded": false
+  },
+  "test_results": [
+    {
+      "command": "/opt/homebrew/bin/pytest",
+      "exit_code": null,
+      "status": "not_run",
+      "output_artifact_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/test_output.json"
+    }
+  ],
+  "memory_path": "/Users/martinlos/code/Ariadne/.ariadne/memory/tickets/ticket_f31888277cd3.md",
+  "board_path": "/Users/martinlos/code/Ariadne/.ariadne/board/index.md",
+  "next_tickets_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json",
+  "feishu_plan_path": "/Users/martinlos/code/Ariadne/.ariadne/feishu_plans/feishu_7fa74a1ac241.json",
+  "orchestrator_result_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/orchestrator_result.json",
+  "gate_inputs": {
+    "external_execution_enabled": false,
+    "confirm_execution_required": true,
+    "blocked": true,
+    "execution_blocked": true,
+    "block_reason": "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.",
+    "failure_reason": "external_execution_blocked",
+    "execution_exit_code": 2,
+    "test_exit_code": null,
+    "execution_failed": true,
+    "review_verdict": "blocked"
+  },
+  "linked_artifacts": [
+    {
+      "kind": "execution_log",
+      "artifact_id": "artifact_cc6f301d2164",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/execution_log.json",
+      "summary": "Execution stdout/stderr/exit code capture"
+    },
+    {
+      "kind": "git_diff",
+      "artifact_id": "artifact_107cbc80c3e0",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/git_diff.patch",
+      "summary": "Target project git diff"
+    },
+    {
+      "kind": "changed_files",
+      "artifact_id": "artifact_c1ef3ad1f6fe",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/changed_files.json",
+      "summary": "Changed file list"
+    },
+    {
+      "kind": "test_output",
+      "artifact_id": "artifact_c64a4128c1d0",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/test_output.json",
+      "summary": "Target project test output"
+    },
+    {
+      "kind": "review_report",
+      "artifact_id": "artifact_89269d608049",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/review_report.json",
+      "summary": "Reviewer verdict: blocked"
+    },
+    {
+      "kind": "memory_record",
+      "artifact_id": "artifact_7e2ba47b6c96",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/memory_record.json",
+      "summary": "Local memory write-back record"
+    },
+    {
+      "kind": "next_tickets",
+      "artifact_id": "artifact_6277ad409b43",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json",
+      "summary": "Generated next Build Ticket suggestions"
+    },
+    {
+      "kind": "feishu_plan",
+      "artifact_id": "artifact_1a2e1b2b8642",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/feishu_write_plan.json",
+      "summary": "Feishu preview write plan"
+    },
+    {
+      "kind": "orchestrator_result",
+      "artifact_id": "artifact_b42a2d7ff807",
+      "path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/orchestrator_result.json",
+      "summary": "Structured ticket run result manifest"
+    }
+  ],
+  "partial": true,
+  "missing_fields": [],
+  "created_at": "2026-06-25T17:12:48Z"
+}

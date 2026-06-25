@@ -5,10 +5,11 @@
 ## 元数据
 
 - **创建时间:** 2026-06-25
-- **状态:** active
+- **状态:** completed_with_blocker_evidence
 - **前置计划:** `2026-06-22-multica-grade-agent-team-workbench-rebuild-plan.md`
 - **验收标准:** 浏览器真实创建 / 分配 / claim / run / blocker / repair / evidence 回流
 - **最终交付:** `docs/evidence/multica-downstream-parity/closure-result.json`
+- **完成记录:** Phase 8 closure evidence 已落盘到 `docs/evidence/multica-downstream-parity/`。Canonical run 是 `M0TR-002` / `assignment_699c4079b8ca` / `execution_ad2a60e49e38`。真实 Codex 外部执行因 `ARIADNE_ENABLE_EXTERNAL_EXECUTION` 未开启被安全门禁阻塞，记录为 `BLOCKED_WITH_EVIDENCE`；blocked result 没有归因 `changed_files` 或 `git_diff`；没有使用 `fake-codex` 或 `demo full` 作为验收。
 
 ## 整体链路
 

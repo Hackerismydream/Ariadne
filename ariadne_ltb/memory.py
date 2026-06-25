@@ -79,6 +79,7 @@ def write_memory_record(
     execution: ExecutionResult,
     review: ReviewReport,
 ) -> tuple[MemoryRecord, Path]:
+    build_summary = _execution_summary(execution)
     memory = MemoryRecord(
         id=stable_id("memory", ticket.id, review.id),
         ticket_id=ticket.id,
@@ -87,10 +88,7 @@ def write_memory_record(
             f"{ticket.key}: executed `{execution.backend_name}` for {packet.build_decision.value}; "
             f"review verdict `{review.verdict.value}`."
         ),
-        build_summary=(
-            f"Backend {execution.backend_name} changed {', '.join(execution.changed_files) or 'no files'} "
-            f"with exit code {execution.exit_code} and test exit code {execution.test_exit_code}."
-        ),
+        build_summary=build_summary,
         review_summary=f"Passed {len(review.passed_checks)} checks; failed {len(review.failed_checks)} checks.",
         source_refs=[ticket.source_ref],
         artifact_refs=ticket.artifact_ids,
@@ -120,7 +118,7 @@ def write_memory_record(
     weekly.write_text(
         "# Ariadne Weekly Summary\n\n"
         f"- Completed: {ticket.key} with review verdict `{review.verdict.value}`.\n"
-        f"- Changed files: {', '.join(execution.changed_files)}\n",
+        f"- Execution summary: {build_summary}\n",
         encoding="utf-8",
     )
     ticket_md = memory_dir / "tickets" / f"{ticket.id}.md"
@@ -141,6 +139,8 @@ def generate_feishu_plan(
     execution: ExecutionResult,
     review: ReviewReport,
 ) -> tuple[FeishuWritePlan, Path]:
+    run_summary = _execution_summary(execution)
+    changed_files = ", ".join(execution.changed_files) if not execution.blocked else "No files changed; execution blocked before coding."
     plan = FeishuWritePlan(
         id=stable_id("feishu", ticket.id, review.id),
         ticket_id=ticket.id,
@@ -151,7 +151,7 @@ def generate_feishu_plan(
                 "body_markdown": (
                     f"# {ticket.title}\n\n"
                     f"Review verdict: `{review.verdict.value}`\n\n"
-                    f"Changed files: {', '.join(execution.changed_files)}\n\n"
+                    f"Changed files: {changed_files}\n\n"
                     f"Decision: {packet.build_decision.value}\n"
                 ),
             }
@@ -163,10 +163,7 @@ def generate_feishu_plan(
             f"{ticket.key}: Feishu write is currently preview-only. Required credentials for real write: "
             "FEISHU_APP_ID, FEISHU_APP_SECRET, FEISHU_FOLDER_TOKEN, FEISHU_ENABLE_WRITE=1."
         ),
-        run_summary=(
-            f"Backend {execution.backend_name}; exit {execution.exit_code}; "
-            f"tests {execution.test_exit_code}; verdict {review.verdict.value}."
-        ),
+        run_summary=f"{run_summary} Verdict: {review.verdict.value}.",
         next_actions=[
             "Keep this plan as preview unless `--confirm-write` and credentials are provided.",
             "Create follow-up implementation tickets for remaining source inputs.",
@@ -176,6 +173,19 @@ def generate_feishu_plan(
     path = store.feishu_plans_dir / f"{plan.id}.json"
     path.write_text(json.dumps(plan.model_dump(), indent=2) + "\n", encoding="utf-8")
     return plan, path
+
+
+def _execution_summary(execution: ExecutionResult) -> str:
+    if execution.blocked:
+        reason = execution.block_reason or (execution.failure_reason.value if execution.failure_reason else "blocked")
+        return (
+            f"Backend {execution.backend_name} was blocked before coding: {reason}. "
+            f"No target files were attributed to this run; tests were not run."
+        )
+    return (
+        f"Backend {execution.backend_name} changed {', '.join(execution.changed_files) or 'no files'} "
+        f"with exit code {execution.exit_code} and test exit code {execution.test_exit_code}."
+    )
 
 
 def _bullets(items: list[str]) -> str:

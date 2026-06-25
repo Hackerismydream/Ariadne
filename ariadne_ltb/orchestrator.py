@@ -15,7 +15,7 @@ from ariadne_ltb.backlog import (
 )
 from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.execution import backend_for_name
-from ariadne_ltb.git_utils import changed_files, git_branch, git_diff, git_head, git_status
+from ariadne_ltb.git_utils import git_branch, git_head, git_status
 from ariadne_ltb.handoffs import record_handoff
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.local_safety import DirectoryLock, validate_target_repo_path
@@ -1261,6 +1261,7 @@ def _blocked_execution(
 ) -> ExecutionResult:
     repo = Path(context.target_repo_path)
     started = utc_now()
+    status = git_status(repo)
     return ExecutionResult(
         id=stable_id("execution", context.ticket_id, backend_name, failure_reason.value, reason),
         ticket_id=context.ticket_id,
@@ -1278,10 +1279,10 @@ def _blocked_execution(
         ended_at=utc_now(),
         git_head_before=git_head(repo),
         git_head_after=git_head(repo),
-        git_status_before=git_status(repo),
-        git_status_after=git_status(repo),
-        changed_files=changed_files(repo),
-        git_diff=git_diff(repo),
+        git_status_before=status,
+        git_status_after=status,
+        changed_files=[],
+        git_diff="",
         test_command=context.test_command,
         test_exit_code=None,
         warnings=[reason],

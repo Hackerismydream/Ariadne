@@ -1,0 +1,25 @@
+{
+  "id": "feishu_7fa74a1ac241",
+  "ticket_id": "ticket_f31888277cd3",
+  "dry_run": true,
+  "proposed_docs": [
+    {
+      "title": "M0TR-002 Learning-to-Build Result",
+      "body_markdown": "# Add DeepSeek-backed LLM client configuration\n\nReview verdict: `blocked`\n\nChanged files: No files changed; execution blocked before coding.\n\nDecision: code_task\n"
+    }
+  ],
+  "proposed_tasks": [
+    {
+      "title": "Review Ariadne v1.0 board evidence",
+      "priority": "medium",
+      "due": "unscheduled"
+    }
+  ],
+  "decision_log_entry": "M0TR-002: Feishu write is currently preview-only. Required credentials for real write: FEISHU_APP_ID, FEISHU_APP_SECRET, FEISHU_FOLDER_TOKEN, FEISHU_ENABLE_WRITE=1.",
+  "run_summary": "Backend codex was blocked before coding: External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1.. No target files were attributed to this run; tests were not run. Verdict: blocked.",
+  "next_actions": [
+    "Keep this plan as preview unless `--confirm-write` and credentials are provided.",
+    "Create follow-up implementation tickets for remaining source inputs."
+  ],
+  "created_at": "2026-06-25T17:12:04Z"
+}

@@ -1,0 +1,39 @@
+{
+  "source_ticket_id": "ticket_f31888277cd3",
+  "source_ticket_key": "M0TR-002",
+  "review_verdict": "blocked",
+  "generated_at": "2026-06-25T17:12:04Z",
+  "next_tickets": [
+    {
+      "title": "Fix M0TR-002 run blockers",
+      "reason": "Execution backend blocked before coding",
+      "source": "failed_check",
+      "priority": "high",
+      "suggested_build_decision": "code_task",
+      "acceptance_criteria": [
+        "Blocked or failing execution checks pass.",
+        "Reviewer verdict changes to pass or needs_human_review with explicit rationale."
+      ],
+      "affected_modules": [
+        "mini_code_agent/llm.py",
+        "mini_code_agent/config.py",
+        "tests/test_llm_config.py"
+      ]
+    },
+    {
+      "title": "Promote Feishu preview plan into gated docs plus tasks",
+      "reason": "M0TR-002 produced a Feishu preview plan and real write remains gated.",
+      "source": "source_type",
+      "priority": "low",
+      "suggested_build_decision": "experiment",
+      "acceptance_criteria": [
+        "Preview plan separates document body and task payloads.",
+        "Real write path stays gated by FEISHU_ENABLE_WRITE and --confirm-write."
+      ],
+      "affected_modules": [
+        "ariadne_ltb/feishu.py",
+        "ariadne_ltb/memory.py"
+      ]
+    }
+  ]
+}

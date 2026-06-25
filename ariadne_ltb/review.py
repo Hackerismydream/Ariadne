@@ -73,36 +73,37 @@ def review_execution(
         fixes.append("Run an execution backend.")
     else:
         if execution.blocked:
-            failed.append("Execution backend was not blocked")
+            failed.append("Execution backend blocked before coding")
             fixes.append(execution.block_reason or "Resolve backend block reason.")
             failure_reasons.append(execution.failure_reason or FailureReason.AGENT_ERROR)
-        elif execution.exit_code == 0:
-            passed.append("Execution exit code is 0")
         else:
-            failed.append("Execution exit code is 0")
-            fixes.append("Fix execution backend failure.")
-            failure_reasons.append(execution.failure_reason or FailureReason.AGENT_ERROR)
-        if execution.test_exit_code == 0:
-            passed.append("Target project tests passed")
-        else:
-            failed.append("Target project tests passed")
-            fixes.append("Fix failing target project tests.")
-            failure_reasons.append(FailureReason.TEST_FAILED)
-        if execution.changed_files:
-            passed.append("Changed files captured")
-        else:
-            failed.append("Changed files captured")
-        scope_validation = validate_changed_files(packet.affected_modules, execution.changed_files)
-        if execution.changed_files and scope_validation.valid:
-            passed.append("Changed files are within allowed scope")
-        else:
-            failed.append("Changed files are within allowed scope")
-            fixes.append(scope_validation.reason or "Restrict execution changes to allowed target paths.")
-            failure_reasons.append(scope_validation.failure_reason or FailureReason.SCOPE_VIOLATION)
-        if execution.git_diff:
-            passed.append("Git diff captured")
-        else:
-            warnings.append("Git diff is empty or unavailable.")
+            if execution.exit_code == 0:
+                passed.append("Execution exit code is 0")
+            else:
+                failed.append("Execution exit code is 0")
+                fixes.append("Fix execution backend failure.")
+                failure_reasons.append(execution.failure_reason or FailureReason.AGENT_ERROR)
+            if execution.test_exit_code == 0:
+                passed.append("Target project tests passed")
+            else:
+                failed.append("Target project tests passed")
+                fixes.append("Fix failing target project tests.")
+                failure_reasons.append(FailureReason.TEST_FAILED)
+            if execution.changed_files:
+                passed.append("Changed files captured")
+            else:
+                failed.append("Changed files captured")
+            scope_validation = validate_changed_files(packet.affected_modules, execution.changed_files)
+            if execution.changed_files and scope_validation.valid:
+                passed.append("Changed files are within allowed scope")
+            else:
+                failed.append("Changed files are within allowed scope")
+                fixes.append(scope_validation.reason or "Restrict execution changes to allowed target paths.")
+                failure_reasons.append(scope_validation.failure_reason or FailureReason.SCOPE_VIOLATION)
+            if execution.git_diff:
+                passed.append("Git diff captured")
+            else:
+                warnings.append("Git diff is empty or unavailable.")
 
     non_terminal = [
         run_id for run_id in ticket.agent_run_ids if not store.load_run(run_id).is_terminal

@@ -1,0 +1,39 @@
+{
+  "id": "review_fca849bcfaf9",
+  "ticket_id": "ticket_f31888277cd3",
+  "verdict": "blocked",
+  "reviewer_mode": "deterministic",
+  "risk_score": 1.0,
+  "acceptance_criteria_coverage": {
+    "The implementation is reachable from the Web Workbench product path.": false,
+    "The behavior writes inspectable run evidence.": false,
+    "Tests cover the behavior without external credentials.": false
+  },
+  "evidence_refs": [
+    "ticket_f31888277cd3",
+    "packet_170d7acffcc8",
+    "evidence_ebc225d5ffe8",
+    "execution_ad2a60e49e38"
+  ],
+  "next_ticket_suggestions": [
+    "Resolve blocker evidence and rerun the ticket."
+  ],
+  "passed_checks": [
+    "Build Packet evidence exists",
+    "Acceptance criteria exist",
+    "Project relevance exists",
+    "Source trust boundary recorded",
+    "All Agent Runs have terminal status"
+  ],
+  "failed_checks": [
+    "Execution backend blocked before coding"
+  ],
+  "warnings": [],
+  "required_fixes": [
+    "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+  ],
+  "failure_reasons": [
+    "external_execution_blocked"
+  ],
+  "created_at": "2026-06-25T17:12:04Z"
+}

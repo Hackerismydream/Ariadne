@@ -11,6 +11,8 @@ from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND
 from ariadne_ltb.models import AssignmentStatus
 from ariadne_ltb.storage import AriadneStore
 
+INTERNAL_RUNTIME_BACKENDS = {OFFLINE_TEST_BACKEND, "dry-run"}
+
 
 class WorkbenchRuntimesService:
     def __init__(self, store: AriadneStore) -> None:
@@ -50,7 +52,7 @@ class WorkbenchRuntimesService:
                     disabled_reasons=capability.disabled_reasons,
                 )
                 for capability in RuntimeStatusService(self.store).snapshot(include_internal=False)
-                if capability.backend_name != OFFLINE_TEST_BACKEND
+                if capability.backend_name not in INTERNAL_RUNTIME_BACKENDS
             ]
         )
 
@@ -61,7 +63,7 @@ class WorkbenchRuntimesService:
             assignments=[
                 assignment_dto(assignment)
                 for assignment in self.store.list_assignments()
-                if assignment.backend_name != OFFLINE_TEST_BACKEND and assignment.ticket_id in current_ticket_ids
+                if assignment.backend_name not in INTERNAL_RUNTIME_BACKENDS and assignment.ticket_id in current_ticket_ids
             ]
         )
 

@@ -1,0 +1,178 @@
+- complementary:
+  - button "A Ariadne":
+    - generic: A
+    - generic: Ariadne
+  - button "搜索... ⌘ K":
+    - generic: 搜索...
+    - generic: ⌘ K
+  - button "新建 issue C":
+    - generic: 新建 issue
+    - generic: C
+  - navigation:
+    - paragraph: Workbench
+    - button "Issues":
+      - generic: Issues
+    - button "Sources":
+      - generic: Sources
+    - button "Plan Changes":
+      - generic: Plan Changes
+    - button "Team":
+      - generic: Team
+    - button "Runs":
+      - generic: Runs
+    - button "Inbox 4":
+      - generic: Inbox
+      - emphasis: "4"
+    - button "Diagnostics":
+      - generic: Diagnostics
+  - button "?"
+- main:
+  - region "Current Version Context":
+    - generic: Current Version Context
+    - strong: M0TR-003 target repository
+    - paragraph: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Project
+    - strong: M0TR-003 target repository
+    - generic: /Users/martinlos/code/ariadne-dogfood/mini-code-agent
+    - generic: Target Version
+    - strong: Build Mini Code Agent v0.1
+    - generic: 当前阻塞
+    - generic: Goal
+    - strong: Build Mini Code Agent v0.1
+    - generic: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Sources readiness
+    - strong: 11/64
+    - generic: ready for issue factory
+    - generic: Issue Delta status
+    - strong: 已应用
+    - generic: 10 current issues
+    - generic: Active Run
+    - strong: Blocked · M0TR-003 assignment blocked。
+    - generic: API connected
+    - generic: Blocked count
+    - strong: "6"
+    - generic: M0TR-003 assignment blocked。
+    - generic: Latest Evidence
+    - strong: M0TR-003 · codex · blocked_before_execution · tests n/a · review 已阻塞
+    - generic: execution_7a3913677d7e
+    - button "Next Action 处理当前阻塞 M0TR-003 assignment blocked。":
+      - generic: Next Action
+      - strong: 处理当前阻塞
+      - generic: M0TR-003 assignment blocked。
+  - heading "Runs" [level=1]
+  - generic: "6"
+  - paragraph: Runtime capability, assignment queue, and local daemon controls.
+  - button "Refresh":
+    - text: Refresh
+  - button "Start Daemon · M0TR-003":
+    - text: Start Daemon · M0TR-003
+  - button "Stop Daemon":
+    - text: Stop Daemon
+  - generic: Status
+  - strong: Stopped
+  - generic: Background
+  - strong: Stopped
+  - generic: Authorized
+  - strong: Not authorized
+  - generic: Current issue
+  - strong: Stale heartbeat
+  - generic: Heartbeat
+  - strong: 2026-06-25T17:12:48Z
+  - generic: Claimable
+  - strong: "2"
+  - generic: Running
+  - strong: "0"
+  - generic: Blocked
+  - strong: "37"
+  - heading "Active Assignment Progress" [level=2]
+  - paragraph: No active assignment is currently claimed or running.
+  - heading "Runtimes" [level=2]
+  - generic: Runtime
+  - generic: State
+  - generic: Available
+  - generic: Assign / Run
+  - generic: External
+  - generic: Queue
+  - generic: Disabled reasons
+  - strong:
+    - text: CodexBackend
+    - generic: codex
+  - generic: Stopped
+  - generic: Available
+  - generic: assign / run
+  - generic: Gated
+  - generic: "1"
+  - generic: ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset
+  - strong:
+    - text: ClaudeCodeBackend
+    - generic: claude-code
+  - generic: Stopped
+  - generic: Available
+  - generic: assign / run
+  - generic: Gated
+  - generic: "1"
+  - generic: ARIADNE_ENABLE_EXTERNAL_EXECUTION is unset
+  - heading "Assignments" [level=2]
+  - generic: Issue
+  - generic: Agent
+  - generic: Backend
+  - generic: Status
+  - generic: Attempt
+  - generic: Created
+  - generic: Blocked / failure
+  - strong:
+    - text: M0TR-001
+    - generic: assignment_12ecf14fc6cb
+  - generic: Phase 3 Codex 1782402810345
+  - generic: codex
+  - generic: Blocked
+  - generic: "1"
+  - generic: 2026-06-25T15:54:16Z
+  - generic: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+  - strong:
+    - text: M0TR-003
+    - generic: assignment_5135cad3b8ca
+  - generic: Codex
+  - generic: codex
+  - generic: Blocked
+  - generic: "1"
+  - generic: 2026-06-24T11:19:14Z
+  - generic: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+  - strong:
+    - text: M0TR-003
+    - generic: assignment_5310ecb48da3
+  - generic: Codex
+  - generic: codex
+  - generic: ready_to_claim
+  - generic: "1"
+  - generic: 2026-06-24T11:18:22Z
+  - generic: None
+  - strong:
+    - text: M0TR-004
+    - generic: assignment_55fdcd30a8f4
+  - generic: Phase 3 Codex 1782402810345
+  - generic: codex
+  - generic: Blocked
+  - generic: "1"
+  - generic: 2026-06-25T16:21:09Z
+  - generic: "Phase 7 evidence: agent repair required after failed execution."
+  - strong:
+    - text: M0TR-003
+    - generic: assignment_69424251401c
+  - generic: Codex
+  - generic: codex
+  - generic: cancelled
+  - generic: "1"
+  - generic: 2026-06-24T11:17:47Z
+  - generic: Duplicate runnable assignment superseded by assignment_5310ecb48da3.
+  - strong:
+    - text: M0TR-002
+    - generic: assignment_699c4079b8ca
+  - generic: Phase 3 Codex 1782402810345
+  - generic: codex
+  - generic: Blocked
+  - generic: "1"
+  - generic: 2026-06-25T16:10:23Z
+  - generic: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+- button "对话":
+  - generic: 对话
