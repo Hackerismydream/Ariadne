@@ -794,6 +794,12 @@ export type ApiProjectVersionDelivery = {
   target_state: string;
   summary: string;
   generated_at: string;
+  product_closure_status: string;
+  product_closure_mode: string;
+  product_closure_summary: string;
+  product_closure_reason: string;
+  product_closure_packet_path?: string | null;
+  product_closure_required_command: string;
   progress_counts: Record<string, number>;
   gates: ApiDeliveryGate[];
   delivery_items: ApiDeliveryItem[];

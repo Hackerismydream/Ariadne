@@ -84,17 +84,82 @@ def test_project_version_delivery_marks_real_codex_closure(tmp_path: Path) -> No
             }
         )
     )
+    _seed_real_closure_packet(store.root, target)
 
     delivery = build_current_version_delivery(store)
 
     assert delivery is not None
     assert delivery.status == "real_closed"
+    assert delivery.product_closure_status == "REAL_CLOSED"
     assert delivery.latest_real_run is not None
     assert delivery.latest_real_run.backend_name == "codex"
     assert delivery.latest_real_run.dry_run is False
     assert delivery.latest_real_run.changed_files == ["mini_code_agent/cli.py"]
     assert {gate.id: gate.status for gate in delivery.gates}["real_execution"] == "done"
     assert {gate.id: gate.status for gate in delivery.gates}["review"] == "done"
+    assert {gate.id: gate.status for gate in delivery.gates}["product_closure"] == "done"
+
+
+def test_project_version_delivery_does_not_real_close_cli_only_success(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path / "store")
+    target = tmp_path / "target"
+    target.mkdir()
+    subprocess.run(["git", "init"], cwd=target, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    project = TargetProjectRegistry(store).register(
+        target,
+        "Mini Code Agent",
+        target_project_id="target-mini-code-agent",
+        test_command="python3.11 -m pytest",
+        issue_prefix="MCA",
+    )
+    ticket = _ticket(project.id, status=TicketStatus.DONE)
+    store.save_ticket(ticket)
+    assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(assignment.mark_done())
+    execution = ExecutionResult(
+        id="exec-cli-only-codex",
+        ticket_id=ticket.id,
+        assignment_id=assignment.id,
+        backend_name="codex",
+        target_repo_path=str(target),
+        dry_run=False,
+        blocked=False,
+        command="codex exec --cd target --prompt-file handoff.md",
+        exit_code=0,
+        changed_files=["mini_code_agent/cli.py"],
+        test_command="python3.11 -m pytest",
+        test_exit_code=0,
+        handoff_file=".ariadne/handoffs/MCA-001.md",
+    )
+    store.save_execution_result(execution)
+    review = ReviewReport(id="review-cli-only-codex", ticket_id=ticket.id, verdict=ReviewVerdict.PASS)
+    store.save_review_report(review)
+    store.save_ticket(
+        ticket.model_copy(
+            update={
+                "metadata": ticket.metadata
+                | {
+                    "latest_assignment_id": assignment.id,
+                    "execution_result_id": execution.id,
+                    "review_report_id": review.id,
+                    "target_project_id": project.id,
+                }
+            }
+        )
+    )
+
+    delivery = build_current_version_delivery(store)
+
+    assert delivery is not None
+    assert delivery.status == "ready_for_review"
+    assert delivery.product_closure_status == "NOT_CLOSED"
+    assert delivery.latest_real_run is not None
+    assert delivery.latest_real_run.backend_name == "codex"
+    gates = {gate.id: gate for gate in delivery.gates}
+    assert gates["real_execution"].status == "done"
+    assert gates["review"].status == "done"
+    assert gates["product_closure"].status == "blocked"
+    assert "closure-result" in delivery.summary
 
 
 def test_project_version_delivery_does_not_close_blocked_real_codex_run(tmp_path: Path) -> None:
@@ -320,6 +385,27 @@ def test_project_inputs_environment_and_agent_workflow_read_models(tmp_path: Pat
     assert workflows
     assert any(step.ticket_key == "MCA-001" and step.agent_name in {"Build Lead", "Runtime", "Codex"} for step in workflows)
     assert isinstance(activities, list)
+
+
+def _seed_real_closure_packet(root: Path, target: Path) -> Path:
+    result_dir = root / ".ariadne" / "dogfood" / "browser-real-closed"
+    result_dir.mkdir(parents=True, exist_ok=True)
+    packet_path = result_dir / "closure-result.json"
+    packet_path.write_text(
+        (
+            '{\n'
+            '  "schema_version": "ariadne.browser_dogfood_closure.v1",\n'
+            '  "status": "REAL_CLOSED",\n'
+            '  "mode": "real",\n'
+            f'  "target_path": "{target}",\n'
+            '  "workbench_url": "http://127.0.0.1:8766/#issues/MCA-001",\n'
+            '  "execution_evidence_text": "后端 codex\\n执行结果 passed\\n退出码 0\\n测试退出码 0\\nDiff changed files\\n评审 pass\\nMemory updated\\nNext Tickets generated",\n'
+            '  "recorded_at": "2026-06-26T00:00:00Z"\n'
+            '}\n'
+        ),
+        encoding="utf-8",
+    )
+    return packet_path
 
 
 def _source(store: AriadneStore) -> SourceDocument:

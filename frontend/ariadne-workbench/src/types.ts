@@ -160,6 +160,13 @@ export type ReleaseEvidenceSummary = {
   id?: string;
   productionAcceptanceStatus?: string;
   productReadinessStatus?: string;
+  productClosureStatus?: string;
+  productClosureMode?: string;
+  productClosureSummary?: string;
+  productClosureReason?: string;
+  productClosurePacketPath?: string | null;
+  productClosureRequiredCommand?: string;
+  productClosureAcceptancePath?: string;
   runGateStatus?: string;
   productReadinessChecks?: Record<string, string>;
   readinessNextActions?: string[];
@@ -596,6 +603,12 @@ export type ProjectVersionDelivery = {
   targetState: string;
   summary: string;
   generatedAt: string;
+  productClosureStatus: string;
+  productClosureMode: string;
+  productClosureSummary: string;
+  productClosureReason: string;
+  productClosurePacketPath?: string | null;
+  productClosureRequiredCommand: string;
   progressCounts: Record<string, number>;
   gates: DeliveryGate[];
   deliveryItems: DeliveryItem[];

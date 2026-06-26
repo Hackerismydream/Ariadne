@@ -52,6 +52,12 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert Path(packet.evidence_refs["product_readiness"]).exists()
     assert packet.product_readiness_status in {"ready", "action_required", "blocked"}
     assert packet.production_acceptance_status in {"ready", "action_required", "blocked"}
+    assert packet.product_closure_status in {
+        "REAL_CLOSED",
+        "BLOCKED_WITH_EVIDENCE",
+        "OFFLINE_REGRESSION",
+        "NOT_CLOSED",
+    }
     assert packet.run_gate_status in {"ready", "action_required", "blocked"}
     assert "real_codex_execution_evidence" in packet.product_readiness_checks
     assert "real_llm_agent_evidence" in packet.product_readiness_checks
@@ -73,6 +79,12 @@ def test_release_evidence_packet_records_current_store_and_board(tmp_path: Path)
     assert persisted["evidence_refs"]["backend_smoke_evidence"].endswith("backend_smoke")
     assert persisted["evidence_refs"]["landing_gate_reports"].endswith("artifact_index")
     assert persisted["production_acceptance_status"] in {"ready", "action_required", "blocked"}
+    assert persisted["product_closure_status"] in {
+        "REAL_CLOSED",
+        "BLOCKED_WITH_EVIDENCE",
+        "OFFLINE_REGRESSION",
+        "NOT_CLOSED",
+    }
     assert persisted["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_github_write_evidence" in persisted["product_readiness_checks"]
     assert "real_llm_agent_evidence" in persisted["product_readiness_checks"]
@@ -100,6 +112,12 @@ def test_evidence_packet_cli_writes_machine_readable_json(tmp_path: Path) -> Non
     assert "integration_doctor" in payload["evidence_refs"]
     assert "product_readiness" in payload["evidence_refs"]
     assert payload["production_acceptance_status"] in {"ready", "action_required", "blocked"}
+    assert payload["product_closure_status"] in {
+        "REAL_CLOSED",
+        "BLOCKED_WITH_EVIDENCE",
+        "OFFLINE_REGRESSION",
+        "NOT_CLOSED",
+    }
     assert payload["run_gate_status"] in {"ready", "action_required", "blocked"}
     assert "real_codex_execution_evidence" in payload["product_readiness_checks"]
     assert "real_llm_agent_evidence" in payload["product_readiness_checks"]
@@ -123,10 +141,11 @@ def test_evidence_packet_require_acceptance_ready_blocks_fake_only_store(tmp_pat
     )
 
     assert result.exit_code == 2, result.output
-    assert "production acceptance: blocked" in result.output
+    assert "production evidence readiness: blocked" in result.output
+    assert "product closure: OFFLINE_REGRESSION" in result.output
     assert "stale: no" in result.output
     assert "next actions:" in result.output
-    assert "requirement failed: production acceptance is blocked, expected ready" in result.output
+    assert "requirement failed: production evidence readiness is blocked, expected ready" in result.output
     assert (tmp_path / ".ariadne" / "evidence" / "release_evidence_packet.json").exists()
 
 
@@ -274,7 +293,8 @@ def test_evidence_packet_requirement_flags_separate_acceptance_and_run_gates(
         ["--root", str(tmp_path), "evidence", "packet", "--require-acceptance-ready"],
     )
     assert acceptance_required.exit_code == 0, acceptance_required.output
-    assert "production acceptance: ready" in acceptance_required.output
+    assert "production evidence readiness: ready" in acceptance_required.output
+    assert "product closure: NOT_CLOSED" in acceptance_required.output
     assert "run gates: action_required" in acceptance_required.output
 
     gates_required = CliRunner().invoke(
@@ -282,7 +302,8 @@ def test_evidence_packet_requirement_flags_separate_acceptance_and_run_gates(
         ["--root", str(tmp_path), "evidence", "packet", "--require-run-gates-ready"],
     )
     assert gates_required.exit_code == 2, gates_required.output
-    assert "production acceptance: ready" in gates_required.output
+    assert "production evidence readiness: ready" in gates_required.output
+    assert "product closure: NOT_CLOSED" in gates_required.output
     assert "requirement failed: run gates are action_required, expected ready" in (
         gates_required.output
     )

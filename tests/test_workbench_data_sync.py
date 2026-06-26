@@ -81,6 +81,12 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
             inbox_item_count=2,
             product_readiness_status="action_required",
             production_acceptance_status="ready",
+            product_closure_status="OFFLINE_REGRESSION",
+            product_closure_mode="offline_regression",
+            product_closure_summary="Offline regression evidence exists, but it is not product closure.",
+            product_closure_reason="fake-codex execution is fixture validation only.",
+            product_closure_required_command="ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real",
+            product_closure_acceptance_path="browser_project_version_delivery",
             run_gate_status="action_required",
             product_readiness_checks={
                 "real_llm_agent_evidence": "ready",
@@ -197,6 +203,9 @@ def test_workbench_data_sync_includes_ticket_production_evidence(tmp_path: Path)
     assert data["backlogChanges"][0]["operationType"] == "add_ticket"
     assert data["backlogChanges"][0]["ticketKey"] == "ARI-999"
     assert data["releaseEvidence"]["id"] == "release_evidence_sync"
+    assert data["releaseEvidence"]["productClosureStatus"] == "OFFLINE_REGRESSION"
+    assert data["releaseEvidence"]["productClosureMode"] == "offline_regression"
+    assert data["releaseEvidence"]["productClosureAcceptancePath"] == "browser_project_version_delivery"
     assert data["releaseEvidence"]["ticketCount"] == 4
     assert data["releaseEvidence"]["executionResultCount"] == 12
     assert data["releaseEvidence"]["productReadinessChecks"]["real_llm_agent_evidence"] == "ready"
