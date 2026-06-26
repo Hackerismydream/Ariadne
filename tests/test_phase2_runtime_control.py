@@ -5,7 +5,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from ariadne_ltb.application.assign_ticket import AssignTicketService
-from ariadne_ltb.application.dtos import AssignTicketInput, RunAssignmentInput
+from ariadne_ltb.application.dtos import AssignTicketInput, CreateProjectVersionInput, RunAssignmentInput
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.workbench_issues import WorkbenchIssuesService
@@ -104,6 +105,17 @@ def test_terminal_assignment_run_request_is_noop_without_fake_progress(tmp_path:
 def test_inbox_list_projects_allowed_actions_and_blocks_invalid_action(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = ingest_sources(store, [SOURCE_FIXTURES[0]])[0]
+    target_project_id = _register_demo_target(store, tmp_path)
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
+            target_project_id=target_project_id,
+            version_label="v0.1",
+            goal_title="Demo Target v0.1",
+            goal_north_star="Surface scoped blocker actions in Inbox.",
+        )
+    )
+    store.save_ticket(ticket.model_copy(update={"metadata": ticket.metadata | {"target_project_id": target_project_id}}))
+    ticket = store.load_ticket(ticket.id)
     assignment = store.create_assignment(ticket, store.resolve_agent_profile("fake-codex"))
     store.save_assignment(
         assignment.mark_blocked(

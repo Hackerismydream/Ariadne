@@ -24,13 +24,14 @@ function statusLabel(status: string) {
 }
 
 function getActiveTargetProject(data: WorkbenchData) {
+  const versionTargetId = data.currentProjectVersion?.targetProjectId;
   const deliveryTargetId = data.currentVersionDelivery?.targetProjectId;
   const goalTargetId = data.goal.targetProjectId;
-  return data.projectResources?.find((resource) => resource.id === deliveryTargetId && resource.available)
+  return data.projectResources?.find((resource) => resource.id === versionTargetId && resource.available)
+    ?? data.currentProjectVersion?.targetProject
+    ?? data.projectResources?.find((resource) => resource.id === deliveryTargetId && resource.available)
     ?? data.projectResources?.find((resource) => resource.id === goalTargetId && resource.available)
     ?? data.environment?.activeTargetProject
-    ?? data.projectResources?.find((resource) => resource.available)
-    ?? data.projectResources?.[0]
     ?? null;
 }
 
@@ -38,11 +39,12 @@ function getCurrentVersionTickets(data: WorkbenchData) {
   const deliveryKeys = new Set((data.currentVersionDelivery?.deliveryItems ?? []).map((item) => item.ticketKey));
   const deliveryTickets = data.tickets.filter((ticket) => deliveryKeys.has(ticket.key));
   if (deliveryTickets.length) return deliveryTickets;
-  const targetProjectId = data.currentVersionDelivery?.targetProjectId
+  const targetProjectId = data.currentProjectVersion?.targetProjectId
+    ?? data.currentVersionDelivery?.targetProjectId
     ?? data.goal.targetProjectId
     ?? getActiveTargetProject(data)?.id;
   const targetTickets = data.tickets.filter((ticket) => targetProjectId && ticket.targetProjectId === targetProjectId);
-  return targetTickets.length ? targetTickets : data.tickets;
+  return targetTickets;
 }
 
 function getCurrentVersionWorkflows(data: WorkbenchData) {
@@ -51,7 +53,9 @@ function getCurrentVersionWorkflows(data: WorkbenchData) {
 }
 
 function projectDisplayName(data: WorkbenchData) {
-  return data.currentVersionDelivery?.targetProjectLabel
+  return data.currentProjectVersion?.targetProjectLabel
+    ?? data.currentProjectVersion?.targetProject?.label
+    ?? data.currentVersionDelivery?.targetProjectLabel
     ?? getActiveTargetProject(data)?.label
     ?? data.goal.title
     ?? "当前项目";
@@ -70,6 +74,9 @@ function nextDeliveryAction(data: WorkbenchData) {
   const inputs = data.projectInputs ?? [];
   const readyInputs = inputs.filter((input) => input.lifecycle.readyForIssueFactory).length;
   const currentTickets = getCurrentVersionTickets(data);
+  if (!data.currentProjectVersion) {
+    return { label: "创建或选择 Project Version", detail: "先绑定 target repo、v0.1 和版本目标。", page: "project" as PageKey };
+  }
   if (delivery?.status === "real_closed" && delivery.latestRealRun?.reviewVerdict === "pass") {
     return { label: "查看版本证据", detail: `${delivery.latestRealRun.ticketKey} 已由 ${delivery.latestRealRun.backendName} 完成真实执行。`, page: "ready" as PageKey };
   }
@@ -134,7 +141,7 @@ export function CurrentVersionStrip({
   const issueDeltaStatus = data.backlogMutationPreview.status
     ? statusLabel(data.backlogMutationPreview.status)
     : userFacingStatus(delivery?.status);
-  const goalText = data.goal.northStar || data.goal.title;
+  const goalText = data.currentProjectVersion?.goalNorthStar || data.goal.northStar || data.goal.title;
 
   return (
     <section className="current-version-context" data-testid="current-version-context" aria-label="Current Version Context">
@@ -145,8 +152,8 @@ export function CurrentVersionStrip({
       </div>
       <div className="context-grid">
         <ContextItem label="Project" value={targetProject?.label ?? delivery?.targetProjectLabel ?? projectDisplayName(data)} detail={targetProject?.localPath ?? "Target project not registered"} />
-        <ContextItem label="Target Version" value={delivery?.versionLabel ?? "v0.1"} detail={userFacingStatus(delivery?.status)} />
-        <ContextItem label="Goal" value={data.goal.title} detail={goalText} />
+        <ContextItem label="Target Version" value={data.currentProjectVersion?.versionLabel ?? delivery?.versionLabel ?? "not selected"} detail={userFacingStatus(delivery?.status)} />
+        <ContextItem label="Goal" value={data.currentProjectVersion?.goalTitle ?? data.goal.title} detail={goalText} />
         <ContextItem label="Sources readiness" value={`${readyInputs}/${inputTotal}`} detail={inputTotal ? "ready for issue factory" : "no project inputs"} />
         <ContextItem label="Issue Delta status" value={issueDeltaStatus} detail={`${currentTickets.length} current issues`} />
         <ContextItem label="Active Run" value={activeRun} detail={dataSource === "api" ? "API connected" : "read-only/disconnected"} />

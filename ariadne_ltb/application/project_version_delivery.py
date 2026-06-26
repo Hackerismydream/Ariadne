@@ -9,9 +9,9 @@ from ariadne_ltb.application.dtos import (
     ProjectVersionDeliveryDTO,
 )
 from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets
-from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.work_truth import reduce_work_truth
-from ariadne_ltb.models import BuildTicket, ExecutionResult, ProjectResource, ReviewReport, utc_now
+from ariadne_ltb.models import BuildTicket, ExecutionResult, ReviewReport, utc_now
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -19,17 +19,12 @@ REAL_BACKENDS = {"codex", "claude", "claude-code"}
 
 
 def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliveryDTO | None:
-    tickets = store.list_tickets()
-    goals = ProjectGoalService(store).list()
-    resources = store.load_project_resources()
-    if not tickets and not goals and not resources:
+    current_version = ProjectVersionService(store).current()
+    if current_version is None:
         return None
-    goal = _active_goal(goals)
-    target_project_id = _active_target_project_id(goal, tickets, resources)
-    target = _target_resource(resources, target_project_id)
-    delivery_tickets = current_version_mainline_tickets(store, target_project_id) or [
-        ticket for ticket in tickets if _belongs_to_target(ticket, target_project_id)
-    ] or tickets
+    target_project_id = current_version.target_project_id
+    target = current_version.target_project
+    delivery_tickets = current_version_mainline_tickets(store, target_project_id)
     items = [_delivery_item(store, ticket) for ticket in sorted(delivery_tickets, key=lambda item: item.key)]
     latest_real_run = _latest_real_run(store, items)
     gates = _gates(store, items, latest_real_run)
@@ -37,13 +32,13 @@ def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliver
     blockers = [gate.detail for gate in gates if gate.status == "blocked" and gate.detail]
     return ProjectVersionDeliveryDTO(
         id=f"delivery:{target_project_id or 'default'}",
-        version_label=_version_label(goal, target),
+        version_label=current_version.version_label,
         status=status,
-        goal_id=goal.id if goal else None,
+        goal_id=current_version.goal_id,
         target_project_id=target_project_id,
         target_project_label=target.label if target else None,
         current_state=_current_state(status, items, latest_real_run),
-        target_state=goal.target_state if goal and goal.target_state else "目标项目形成一个可运行版本。",
+        target_state="目标项目形成一个可运行版本。",
         summary=_summary(status, items, latest_real_run),
         generated_at=utc_now(),
         progress_counts=dict(Counter(item.evidence_status for item in items)),
@@ -54,33 +49,6 @@ def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliver
         next_actions=_next_actions(status, gates),
         evidence_refs=[item.execution_result_id for item in items if item.execution_result_id],
     )
-
-
-def _active_goal(goals):  # noqa: ANN001
-    if not goals:
-        return None
-    return max(enumerate(goals), key=lambda item: (item[1].created_at, -item[0]))[1]
-
-
-def _active_target_project_id(goal, tickets: list[BuildTicket], resources: list[ProjectResource]) -> str | None:  # noqa: ANN001
-    if goal and goal.target_project_id:
-        return goal.target_project_id
-    ids = [str(ticket.metadata.get("target_project_id")) for ticket in tickets if ticket.metadata.get("target_project_id")]
-    if ids:
-        return Counter(ids).most_common(1)[0][0]
-    return resources[-1].id if resources else None
-
-
-def _target_resource(resources: list[ProjectResource], target_project_id: str | None) -> ProjectResource | None:
-    if target_project_id is None:
-        return resources[-1] if resources else None
-    return next((resource for resource in resources if resource.id == target_project_id), None)
-
-
-def _belongs_to_target(ticket: BuildTicket, target_project_id: str | None) -> bool:
-    if target_project_id is None:
-        return True
-    return ticket.metadata.get("target_project_id") == target_project_id
 
 
 def _delivery_item(store: AriadneStore, ticket: BuildTicket) -> DeliveryItemDTO:
@@ -276,10 +244,6 @@ def _current_state(status: str, items: list[DeliveryItemDTO], latest: LatestReal
     return f"当前有 {len(items)} 个交付任务，状态为 {status}。"
 
 
-def _target_state(goal) -> str:  # noqa: ANN001
-    return goal.target_state if goal and goal.target_state else "目标项目推进到一个可运行版本。"
-
-
 def _summary(status: str, items: list[DeliveryItemDTO], latest: LatestRealRunDTO | None) -> str:
     if status == "real_closed" and latest:
         return f"真实闭环证据来自 {latest.backend_name} execution {latest.execution_result_id}。"
@@ -293,12 +257,3 @@ def _next_actions(status: str, gates: list[DeliveryGateDTO]) -> list[str]:
     if blocked:
         return [f"补齐：{blocked.label}"]
     return ["选择一个主线任务并启动 scoped daemon"]
-
-
-def _version_label(goal, target: ProjectResource | None) -> str:  # noqa: ANN001
-    if goal and goal.title:
-        return goal.title
-    if target:
-        label = target.resource_ref.get("target_version") or target.resource_ref.get("version") or "v0.1"
-        return f"{target.label} {label}"
-    return "当前版本"

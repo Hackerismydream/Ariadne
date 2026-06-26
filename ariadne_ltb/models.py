@@ -1195,6 +1195,19 @@ class ProjectResource(AriadneModel):
         )
 
 
+class ProjectVersion(AriadneModel):
+    id: str
+    target_project_id: str
+    version_label: str
+    goal_id: str
+    goal_title: str
+    goal_north_star: str
+    status: str = "active"
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+    selected_at: str | None = None
+
+
 class RouteDecision(AriadneModel):
     id: str
     ticket_id: str

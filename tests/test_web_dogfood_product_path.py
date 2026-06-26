@@ -14,28 +14,25 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
     minicode_repo = _reference_repo(tmp_path / "minicode", "MiniCode")
     client = TestClient(create_app(tmp_path))
 
-    project_response = client.post(
-        "/api/target-projects",
-        json={"path": str(target), "label": "Mini Code Agent"},
-    )
-    assert project_response.status_code == 200, project_response.text
-    project_id = project_response.json()["target_project"]["id"]
-
-    goal_response = client.post(
-        "/api/goals",
+    version_response = client.post(
+        "/api/project-versions",
         json={
-            "title": "Build Mini Code Agent",
-            "north_star": (
+            "target_repo_path": str(target),
+            "target_repo_label": "Mini Code Agent",
+            "version_label": "v0.1",
+            "goal_title": "Build Mini Code Agent",
+            "goal_north_star": (
                 "A folder is a builder project: external knowledge updates issues, "
                 "then Codex or Claude executes approved tickets."
             ),
-            "current_state": "Ariadne has a web workbench shell.",
             "target_state": "The web workbench can drive the full builder loop.",
-            "target_project_id": project_id,
+            "issue_prefix": "MCA",
         },
     )
-    assert goal_response.status_code == 200, goal_response.text
-    goal_id = goal_response.json()["goal"]["id"]
+    assert version_response.status_code == 200, version_response.text
+    project_version = version_response.json()["project_version"]
+    project_id = project_version["target_project_id"]
+    goal_id = project_version["goal_id"]
 
     sources = [
         {
@@ -116,7 +113,8 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
     workbench = client.get("/api/workbench")
     assert workbench.status_code == 200, workbench.text
     payload = workbench.json()
-    assert payload["goals"][0]["id"] == goal_id
+    assert payload["current_project_version"]["goal_id"] == goal_id
+    assert payload["current_project_version"]["version_label"] == "v0.1"
     assert len(payload["sources"]) >= 3
     assert payload["source_artifacts"]
     assert payload["source_evidence"]

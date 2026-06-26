@@ -5,11 +5,11 @@ from hashlib import sha256
 from pathlib import Path
 
 from ariadne_ltb.application.agent_workflow_projection import build_agent_workflows
-from ariadne_ltb.application.dtos import CreateProjectGoalInput
+from ariadne_ltb.application.dtos import CreateProjectVersionInput
 from ariadne_ltb.application.issue_projection import build_issue_projection
 from ariadne_ltb.application.project_inputs import build_project_inputs
-from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.project_version_delivery import build_current_version_delivery
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.workbench_environment import build_workbench_environment
 from ariadne_ltb.models import (
@@ -39,6 +39,7 @@ def test_project_version_delivery_marks_real_codex_closure(tmp_path: Path) -> No
         test_command="python3.11 -m pytest",
         issue_prefix="MCA",
     )
+    _select_project_version(store, project.id)
     source = _source(store)
     from ariadne_ltb.application.source_analysis import SourceAnalysisService
 
@@ -107,6 +108,7 @@ def test_project_version_delivery_does_not_close_blocked_real_codex_run(tmp_path
         target_project_id="target-mini-code-agent",
         issue_prefix="MCA",
     )
+    _select_project_version(store, project.id)
     ticket = _ticket(project.id)
     store.save_ticket(ticket)
     assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
@@ -158,6 +160,7 @@ def test_project_version_delivery_marks_blocked_assignment_without_execution(tmp
     target = tmp_path / "target"
     target.mkdir()
     project = TargetProjectRegistry(store).register(target, "Mini Code Agent", target_project_id="target")
+    _select_project_version(store, project.id)
     ticket = _ticket(project.id)
     store.save_ticket(ticket)
     assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
@@ -179,6 +182,7 @@ def test_project_version_delivery_separates_dirty_base_from_agent_changes(tmp_pa
     target = tmp_path / "target"
     target.mkdir()
     project = TargetProjectRegistry(store).register(target, "Mini Code Agent", target_project_id="target")
+    _select_project_version(store, project.id)
     ticket = _ticket(project.id)
     store.save_ticket(ticket)
     assignment = store.create_assignment(ticket, store.resolve_agent_profile("codex"), backend_name="codex")
@@ -209,7 +213,7 @@ def test_project_version_delivery_separates_dirty_base_from_agent_changes(tmp_pa
     assert item.preflight_dirty_files == ["README.md", "scratch.py"]
 
 
-def test_project_version_delivery_uses_latest_goal_target_project(tmp_path: Path) -> None:
+def test_project_version_delivery_uses_selected_project_version_target_project(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path / "store")
     older_target = tmp_path / "older"
     newer_target = tmp_path / "newer"
@@ -227,27 +231,20 @@ def test_project_version_delivery_uses_latest_goal_target_project(tmp_path: Path
         target_project_id="target-newer",
         issue_prefix="MCA",
     )
-    goal_service = ProjectGoalService(store)
-    goal_service.create(
-        CreateProjectGoalInput(
-            title="Older goal",
-            north_star="Do not show this project as current.",
-            current_state="old",
-            target_state="old target",
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
             target_project_id=older_project.id,
-            knowledge_inputs=[],
-            feedback_signals=[],
+            version_label="v0.1",
+            goal_title="Older goal",
+            goal_north_star="Do not show this project as current.",
         )
     )
-    goal_service.create(
-        CreateProjectGoalInput(
-            title="Build Mini Code Agent v0.1",
-            north_star="Show this project as current.",
-            current_state="new",
-            target_state="new target",
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
             target_project_id=newer_project.id,
-            knowledge_inputs=[],
-            feedback_signals=[],
+            version_label="v0.1",
+            goal_title="Build Mini Code Agent v0.1",
+            goal_north_star="Show this project as current.",
         )
     )
     store.save_ticket(_ticket(older_project.id, key="OLD-001", title="Old task"))
@@ -297,6 +294,7 @@ def test_project_inputs_environment_and_agent_workflow_read_models(tmp_path: Pat
     target = tmp_path / "target"
     target.mkdir()
     project = TargetProjectRegistry(store).register(target, "Mini Code Agent", target_project_id="target")
+    _select_project_version(store, project.id)
     source = _source(store)
     from ariadne_ltb.application.source_analysis import SourceAnalysisService
 
@@ -320,6 +318,17 @@ def test_project_inputs_environment_and_agent_workflow_read_models(tmp_path: Pat
     assert workflows
     assert any(step.ticket_key == "MCA-001" and step.agent_name in {"Build Lead", "Runtime", "Codex"} for step in workflows)
     assert isinstance(activities, list)
+
+
+def _select_project_version(store: AriadneStore, target_project_id: str, *, version_label: str = "v0.1") -> None:
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
+            target_project_id=target_project_id,
+            version_label=version_label,
+            goal_title=f"Mini Code Agent {version_label}",
+            goal_north_star="Deliver the selected target project version.",
+        )
+    )
 
 
 def _source(store: AriadneStore) -> SourceDocument:

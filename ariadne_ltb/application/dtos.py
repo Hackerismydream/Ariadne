@@ -25,6 +25,21 @@ class TargetProjectDTO(AriadneDTO):
     boundary_role: str = "target_repo"
 
 
+class ProjectVersionDTO(AriadneDTO):
+    id: str
+    target_project_id: str
+    target_project_label: str | None = None
+    target_project: TargetProjectDTO | None = None
+    version_label: str
+    goal_id: str
+    goal_title: str
+    goal_north_star: str
+    status: str
+    created_at: str
+    updated_at: str
+    selected_at: str | None = None
+
+
 class EnvironmentBlockerDTO(AriadneDTO):
     code: str
     message: str
@@ -970,6 +985,8 @@ class QueuePreviewDTO(AriadneDTO):
 class WorkbenchDTO(AriadneDTO):
     schema_version: Literal["ariadne.workbench.v1"] = "ariadne.workbench.v1"
     goals: list[ProjectGoalDTO] = Field(default_factory=list)
+    project_versions: list[ProjectVersionDTO] = Field(default_factory=list)
+    current_project_version: ProjectVersionDTO | None = None
     sources: list[SourceDocumentDTO] = Field(default_factory=list)
     source_artifacts: list[SourceArtifactDTO] = Field(default_factory=list)
     source_evidence: list[SourceEvidenceDTO] = Field(default_factory=list)
@@ -999,6 +1016,24 @@ class RegisterTargetProjectInput(AriadneDTO):
     init_git: bool = False
     test_command: str | None = None
     issue_prefix: str | None = None
+
+
+class CreateProjectVersionInput(AriadneDTO):
+    target_project_id: str | None = None
+    target_repo_path: str | None = None
+    target_repo_label: str | None = None
+    create_if_missing: bool = False
+    init_git: bool = False
+    test_command: str | None = None
+    issue_prefix: str | None = None
+    version_label: str = Field(default="v0.1", min_length=1, max_length=80)
+    goal_title: str = Field(min_length=1, max_length=200)
+    goal_north_star: str = Field(min_length=1, max_length=2000)
+    target_state: str = Field(default="", max_length=2000)
+
+
+class SelectProjectVersionInput(AriadneDTO):
+    version_id: str
 
 
 class CreateProjectGoalInput(AriadneDTO):

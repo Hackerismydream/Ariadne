@@ -42,6 +42,7 @@ from ariadne_ltb.models import (
     InboxStatus,
     MemoryRecord,
     ProjectResource,
+    ProjectVersion,
     ProjectSpace,
     RepairAction,
     ReleaseEvidencePacket,
@@ -95,6 +96,7 @@ class AriadneStore:
         self.execution_results_dir = self.base / "execution_results"
         self.memory_dir = self.base / "memory"
         self.project_dir = self.base / "project"
+        self.project_versions_path = self.project_dir / "versions.json"
         self.source_artifacts_dir = self.project_dir / "source_artifacts"
         self.source_evidence_path = self.project_dir / "source_evidence.jsonl"
         self.build_contexts_dir = self.project_dir / "build_contexts"
@@ -1074,14 +1076,14 @@ class AriadneStore:
         )
 
     def save_inbox_items(self, items: list[InboxItem]) -> Path:
-        self.inbox_items_path.write_text(
-            json.dumps(
-                {"items": [item.model_dump(mode="json", exclude_none=False) for item in items]},
-                indent=2,
-            )
+        self.inbox_items_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = self.inbox_items_path.with_name(f".{self.inbox_items_path.name}.{uuid4().hex}.tmp")
+        temporary_path.write_text(
+            json.dumps({"items": [item.model_dump(mode="json", exclude_none=False) for item in items]}, indent=2)
             + "\n",
             encoding="utf-8",
         )
+        temporary_path.replace(self.inbox_items_path)
         return self.inbox_items_path
 
     def list_inbox_items(self) -> list[InboxItem]:
@@ -1167,6 +1169,32 @@ class AriadneStore:
             return []
         data = json.loads(path.read_text(encoding="utf-8"))
         return [ProjectResource.model_validate(item) for item in data.get("resources", [])]
+
+    def save_project_versions(self, versions: list[ProjectVersion]) -> Path:
+        self.project_versions_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = self.project_versions_path.with_name(f".{self.project_versions_path.name}.{uuid4().hex}.tmp")
+        temporary_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "ariadne.project_versions.v1",
+                    "versions": [
+                        version.model_dump(mode="json", exclude_none=False)
+                        for version in versions
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        temporary_path.replace(self.project_versions_path)
+        return self.project_versions_path
+
+    def load_project_versions(self) -> list[ProjectVersion]:
+        if not self.project_versions_path.exists():
+            return []
+        data = json.loads(self.project_versions_path.read_text(encoding="utf-8"))
+        return [ProjectVersion.model_validate(item) for item in data.get("versions", [])]
 
     def save_runtime_capabilities(self, capabilities: list[RuntimeCapability]) -> Path:
         path = self.runtimes_dir / "capability_snapshot.json"

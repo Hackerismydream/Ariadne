@@ -13,6 +13,8 @@ export const emptyWorkbenchData: WorkbenchData = {
     currentState: "No persisted Workbench state is available in the browser.",
     targetState: "Connect to Ariadne's local API and load data from .ariadne.",
   },
+  projectVersions: [],
+  currentProjectVersion: null,
   tickets: [],
   sources: [],
   sourceArtifacts: [],
@@ -99,6 +101,8 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
   const backlogChanges = latestPreview ? adaptBacklogPreviewChanges(latestPreview) : [];
   return {
     goal: adaptGoal(apiData),
+    projectVersions: (apiData.project_versions ?? []).map(adaptProjectVersion),
+    currentProjectVersion: apiData.current_project_version ? adaptProjectVersion(apiData.current_project_version) : null,
     tickets: apiData.tickets.map((ticket) => adaptTicket(ticket, apiData)),
     sources,
     knowledgeCards,
@@ -166,20 +170,7 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       } : null,
     },
     runtimes: apiData.runtime_capabilities.map(adaptRuntime),
-    projectResources: apiData.target_projects.map((project) => ({
-      id: project.id,
-      label: project.label,
-      resourceType: "local_directory",
-      available: project.available,
-      disabledReason: project.disabled_reason,
-      localPath: project.local_path ?? (typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined),
-      pathExists: project.path_exists,
-      isGitRepo: project.is_git_repo,
-      gitBranch: project.git_branch,
-      gitDirty: project.git_dirty,
-      testCommand: project.test_command ?? (typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined),
-      issuePrefix: project.issue_prefix ?? (typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined),
-    })),
+    projectResources: apiData.target_projects.map(adaptTargetProject),
     sourceArtifacts: apiData.source_artifacts.map((artifact) => ({
       id: artifact.id,
       sourceDocumentId: artifact.source_document_id,
@@ -326,20 +317,7 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       ariadneRoot: apiData.environment.ariadne_root,
       ariadneStorePath: apiData.environment.ariadne_store_path,
       activeTargetProjectId: apiData.environment.active_target_project_id,
-      activeTargetProject: apiData.environment.active_target_project ? {
-        id: apiData.environment.active_target_project.id,
-        label: apiData.environment.active_target_project.label,
-        resourceType: "local_directory",
-        available: apiData.environment.active_target_project.available,
-        disabledReason: apiData.environment.active_target_project.disabled_reason,
-        localPath: apiData.environment.active_target_project.local_path ?? undefined,
-        pathExists: apiData.environment.active_target_project.path_exists,
-        isGitRepo: apiData.environment.active_target_project.is_git_repo,
-        gitBranch: apiData.environment.active_target_project.git_branch,
-        gitDirty: apiData.environment.active_target_project.git_dirty,
-        testCommand: apiData.environment.active_target_project.test_command ?? undefined,
-        issuePrefix: apiData.environment.active_target_project.issue_prefix ?? undefined,
-      } : null,
+      activeTargetProject: apiData.environment.active_target_project ? adaptTargetProject(apiData.environment.active_target_project) : null,
       productionBackendsAvailable: apiData.environment.production_backends_available,
       selectedBackendRecommendation: apiData.environment.selected_backend_recommendation,
       blockers: apiData.environment.blockers.map((blocker) => ({
@@ -387,6 +365,40 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       blockedReason: step.blocked_reason,
     })),
     agentActivities: (apiData.agent_activities ?? []).map(adaptAgentActivity),
+  };
+}
+
+function adaptTargetProject(project: ApiWorkbench["target_projects"][number]) {
+  return {
+    id: project.id,
+    label: project.label,
+    resourceType: "local_directory",
+    available: project.available,
+    disabledReason: project.disabled_reason,
+    localPath: project.local_path ?? (typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined),
+    pathExists: project.path_exists,
+    isGitRepo: project.is_git_repo,
+    gitBranch: project.git_branch,
+    gitDirty: project.git_dirty,
+    testCommand: project.test_command ?? (typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined),
+    issuePrefix: project.issue_prefix ?? (typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined),
+  };
+}
+
+function adaptProjectVersion(version: NonNullable<ApiWorkbench["current_project_version"]>) {
+  return {
+    id: version.id,
+    targetProjectId: version.target_project_id,
+    targetProjectLabel: version.target_project_label,
+    targetProject: version.target_project ? adaptTargetProject(version.target_project) : null,
+    versionLabel: version.version_label,
+    goalId: version.goal_id,
+    goalTitle: version.goal_title,
+    goalNorthStar: version.goal_north_star,
+    status: version.status,
+    createdAt: version.created_at,
+    updatedAt: version.updated_at,
+    selectedAt: version.selected_at,
   };
 }
 
@@ -616,6 +628,19 @@ function adaptRuntime(runtime: ApiWorkbench["runtime_capabilities"][number]): Ru
 }
 
 function adaptGoal(apiData: ApiWorkbench): WorkbenchData["goal"] {
+  if (apiData.current_project_version) {
+    return {
+      id: apiData.current_project_version.goal_id,
+      title: apiData.current_project_version.goal_title,
+      northStar: apiData.current_project_version.goal_north_star,
+      targetProjectId: apiData.current_project_version.target_project_id,
+      status: "active",
+      knowledgeInputs: [],
+      feedbackSignals: ["Current Project Version input"],
+      currentState: "Workbench has a selected Project Version.",
+      targetState: `${apiData.current_project_version.target_project_label ?? "Target project"} ${apiData.current_project_version.version_label}`,
+    };
+  }
   const sortedGoals = [...apiData.goals].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const goal = sortedGoals.length ? sortedGoals[sortedGoals.length - 1] : undefined;
   if (!goal) {
