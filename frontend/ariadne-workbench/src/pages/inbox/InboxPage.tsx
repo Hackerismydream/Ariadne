@@ -119,6 +119,7 @@ export function InboxPage() {
               <span>{item.created_at}</span>
             </div>
             <div className="inbox-meta">
+              <span>Agent: {display(item.agent_name, item.agent_id ?? "Not recorded")}</span>
               <span>Blocker {item.canonical_blocker_id ?? item.id}</span>
               <span>Allowed: {(item.allowed_actions ?? []).join(", ") || "none"}</span>
             </div>

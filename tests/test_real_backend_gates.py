@@ -6,7 +6,17 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.cli import app
 from ariadne_ltb.execution import ClaudeCodeBackend, CodexBackend, ExecutionContext
-from ariadne_ltb.models import FailureReason
+from ariadne_ltb.models import (
+    BuildPacket,
+    BuildDecision,
+    BuildTicket,
+    Evidence,
+    FailureReason,
+    ReviewReport,
+    ReviewVerdict,
+)
+from ariadne_ltb.memory import generate_feishu_plan, write_memory_record
+from ariadne_ltb.storage import AriadneStore
 from ariadne_ltb.target_project import ensure_demo_target_project
 
 
@@ -92,6 +102,68 @@ def test_codex_backend_blocks_when_persisted_handoff_file_is_missing(tmp_path: P
     assert result.blocked
     assert result.failure_reason is FailureReason.INVALID_RESOURCE
     assert "Persisted handoff file is missing" in (result.block_reason or "")
+
+
+def test_codex_gate_block_does_not_attribute_dirty_repo_files(monkeypatch, tmp_path: Path) -> None:
+    target = ensure_demo_target_project(tmp_path)
+    (target / "demo_todo" / "cli.py").write_text("# pre-existing dirty file\n", encoding="utf-8")
+    monkeypatch.delenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", raising=False)
+
+    result = CodexBackend().execute(_context(target))
+
+    assert result.blocked
+    assert result.failure_reason is FailureReason.EXTERNAL_EXECUTION_BLOCKED
+    assert result.changed_files == []
+    assert result.git_diff == ""
+    assert result.git_status_before == result.git_status_after
+
+
+def test_blocked_memory_and_feishu_plan_do_not_claim_changed_files(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = BuildTicket(
+        id="ticket_blocked",
+        key="ARI-BLOCKED",
+        title="Blocked execution",
+        description="Blocked execution",
+        source_type="test",
+        source_ref="source.md",
+    )
+    packet = BuildPacket(
+        id="packet_blocked",
+        ticket_id=ticket.id,
+        source_summary="source",
+        insight="insight",
+        evidence=[
+            Evidence(
+                id="evidence_blocked",
+                source_ref="source.md",
+                quote_or_summary="External execution gate should block without file attribution.",
+                location="source.md",
+            )
+        ],
+        project_relevance="relevant",
+        build_decision=BuildDecision.CODE_TASK,
+        tasks=["Resolve blocker"],
+        acceptance_criteria=["Execution blocker is recorded.", "No fake changed files are attributed."],
+        affected_modules=["ariadne_ltb/execution.py"],
+    )
+    execution = CodexBackend().execute(_context(ensure_demo_target_project(tmp_path / "target")))
+    review = ReviewReport(
+        id="review_blocked",
+        ticket_id=ticket.id,
+        verdict=ReviewVerdict.BLOCKED,
+        failed_checks=["Execution backend was not blocked"],
+        required_fixes=["Authorize external execution."],
+    )
+
+    memory, memory_path = write_memory_record(store, ticket, packet, execution, review)
+    plan, _ = generate_feishu_plan(store, ticket, packet, execution, review)
+
+    assert "blocked before coding" in memory.build_summary
+    assert "changed demo_todo" not in memory.build_summary
+    assert "No target files were attributed to this run" in memory_path.read_text(encoding="utf-8")
+    body = plan.proposed_docs[0]["body_markdown"]
+    assert "No files changed; execution blocked before coding." in body
 
 
 def test_claude_backend_template_supports_model_effort_and_json(monkeypatch, tmp_path: Path) -> None:

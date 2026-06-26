@@ -47,6 +47,7 @@ def _blocked_result(
     dry_run: bool = False,
     failure_reason: FailureReason = FailureReason.AGENT_ERROR,
 ) -> ExecutionResult:
+    status = git_status(repo)
     return ExecutionResult(
         id=stable_id("execution", context.ticket_id, backend_name, reason),
         ticket_id=context.ticket_id,
@@ -65,10 +66,10 @@ def _blocked_result(
         ended_at=utc_now(),
         git_head_before=git_head(repo),
         git_head_after=git_head(repo),
-        git_status_before=git_status(repo),
-        git_status_after=git_status(repo),
-        changed_files=changed_files(repo),
-        git_diff=git_diff(repo),
+        git_status_before=status,
+        git_status_after=status,
+        changed_files=[],
+        git_diff="",
         test_command=context.test_command,
         test_exit_code=None,
         warnings=[reason],

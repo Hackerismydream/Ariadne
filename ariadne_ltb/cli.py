@@ -552,11 +552,12 @@ def _ticket_change_counts(update: BacklogUpdate) -> str:
 def agent_list() -> None:
     """List local Ariadne Agent teammates."""
     store = AriadneStore(state.root)
-    for profile in store.ensure_default_agent_profiles():
-        capabilities = ",".join(profile.capabilities)
+    for agent in store.list_agent_definitions():
+        capabilities = ",".join(agent.skill_ids)
+        backend = agent.runtime_profile.backend if agent.runtime_profile else ""
         typer.echo(
-            f"{profile.id}\t{profile.name}\t{profile.role}\t"
-            f"{profile.backend_name or ''}\t{profile.enabled}\t{capabilities}"
+            f"{agent.agent_id}\t{agent.name}\t{agent.role}\t"
+            f"{backend}\t{agent.status == 'active'}\t{capabilities}"
         )
 
 

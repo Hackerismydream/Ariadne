@@ -1,0 +1,625 @@
+A
+Ariadne
+搜索...
+⌘ K
+新建 issue
+C
+
+Workbench
+
+Issues
+Sources
+Plan Changes
+Team
+Runs
+Inbox
+3
+Diagnostics
+?
+CURRENT VERSION CONTEXT
+M0TR-003 target repository
+
+用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+
+PROJECT
+M0TR-003 target repository
+/Users/martinlos/code/ariadne-dogfood/mini-code-agent
+TARGET VERSION
+Build Mini Code Agent v0.1
+当前阻塞
+GOAL
+Build Mini Code Agent v0.1
+用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+SOURCES READINESS
+11/63
+ready for issue factory
+ISSUE DELTA STATUS
+preview_only
+10 current issues
+ACTIVE RUN
+Blocked · M0TR-003 assignment blocked。
+API connected
+BLOCKED COUNT
+5
+M0TR-003 assignment blocked。
+LATEST EVIDENCE
+M0TR-003 · codex · blocked_before_execution · tests n/a · review 已阻塞
+execution_7a3913677d7e
+NEXT ACTION
+处理当前阻塞
+M0TR-003 assignment blocked。
+ Back to board
+M0TR-001
+Bootstrap Python package and CLI
+
+Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Persist session or trajectory data for review.; Keep an executable test path for every agent iteration.; cc-mini = "tui.app:main"; tests/__init__.py; tests/test_ask_user.py; tests/test_buddy_companion.py; tests/test_buddy_mood.py; tests/test_buddy_storage.py; tests/test_config.py; tests/test_context.py; tests/test_coordinator.py; tests/test_cost_tracker.py; tests/test_engine.py; tests/test_llm.py; tests/test_main.py; tests/test_permissions.py; tests/test_plan.py; tests/test_sandbox_checker.py; tests/test_sandbox_command_matcher.py; tests/te
+
+waiting_approvalhigh
+Agent
+Phase 3 Codex 1782402810345 · codex
+Assign
+Run Now
+Comment
+Evidence Center
+Source Evidence
+Source: Bootstrap Python package and CLI
+AVAILABLE
+
+Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Persist session or trajectory data for review.; Keep an executable test path for every agent iteration.; cc-mini = "tui.app:main"; tests/__init__.py; tests/test_ask_user.py; tests/test_buddy_companion.py; tests/test_buddy_mood.py; tests/test_buddy_storage.py; tests/test_config.py; tests/test_context.py; tests/test_coordinator.py; tests/test_cost_tracker.py; tests/test_engine.py; tests/test_llm.py; tests/test_main.py; tests/test_permissions.py; tests/test_plan.py; tests/test_sandbox_checker.py; tests/test_sandbox_command_matcher.py; tests/te
+
+Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Persist session or trajectory data for review.; Keep an executable test path for every agent iteration.; cc-mini = "tui.app:main"; tests/__init__.py; tests/test_ask_user.py; tests/test_buddy_companion.py; tests/test_buddy_mood.py; tests/test_buddy_storage.py; tests/test_config.py; tests/test_context.py; tests/test_coordinator.py; tests/test_cost_tracker.py; tests/test_engine.py; tests/test_llm.py; tests/test_main.py; tests/test_permissions.py; tests/test_plan.py; tests/test_sandbox_checker.py; tests/test_sandbox_command_matcher.py; tests/te
+source_document · source_390254d0aefa
+https://minimal-agent.com/
+Open evidence
+knowledge_card: minimal-agent.com
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "applicability": "Use as project guidance when generating issues.",
+  "key_claims": [
+    "text source provides project guidance"
+  ],
+  "risks": [],
+  "source_role": "requirement_source",
+  "summary": "<!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta name=\"author\" content=\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\"> <link rel=\"canonical\" href=\"https://minimal-agent.com/\"> <link rel=\"icon\" href=\"assets/mini.png\"> <meta name=\"generator\" content=\"mkdocs-1.6.1, mkdocs-material-9.7.1\"> <title>Minimal AI agent tutorial</title> <link rel=\"stylesheet\" href=\"assets/stylesheets/main.484c7ddc.min.css\"> <link rel=\"stylesheet\" href=\"assets/stylesheets/palette…
+source_artifact · source_artifact_04537ea5c2cc
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_04537ea5c2cc.payload.json
+Open evidence
+knowledge_card: minimal-agent 博客
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "applicability": "Use as project guidance when generating issues.",
+  "key_claims": [
+    "text source provides project guidance"
+  ],
+  "risks": [],
+  "source_role": "background_knowledge",
+  "summary": "真实 code agent 产品需要把 trajectory、动作、观察、测试和 review 作为一等证据，而不是只展示 planner 文本。",
+  "title": "minimal-agent 博客"
+}
+source_artifact · source_artifact_26aba347c1fd
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_26aba347c1fd.payload.json
+Open evidence
+knowledge_card: minimal-agent.com
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "applicability": "Use as project guidance when generating issues.",
+  "key_claims": [
+    "text source provides project guidance"
+  ],
+  "risks": [],
+  "source_role": "requirement_source",
+  "summary": "<!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta name=\"author\" content=\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\"> <link rel=\"canonical\" href=\"https://minimal-agent.com/\"> <link rel=\"icon\" href=\"assets/mini.png\"> <meta name=\"generator\" content=\"mkdocs-1.6.1, mkdocs-material-9.7.1\"> <title>Minimal AI agent tutorial</title> <link rel=\"stylesheet\" href=\"assets/stylesheets/main.484c7ddc.min.css\"> <link rel=\"stylesheet\" href=\"assets/stylesheets/palette…
+source_artifact · source_artifact_59554d57fb1a
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_59554d57fb1a.payload.json
+Open evidence
+knowledge_card: minimal-agent.com
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "applicability": "Use as project guidance when generating issues.",
+  "key_claims": [
+    "text source provides project guidance"
+  ],
+  "risks": [],
+  "source_role": "requirement_source",
+  "summary": "<!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta name=\"author\" content=\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\"> <link rel=\"canonical\" href=\"https://minimal-agent.com/\"> <link rel=\"icon\" href=\"assets/mini.png\"> <meta name=\"generator\" content=\"mkdocs-1.6.1, mkdocs-material-9.7.1\"> <title>Minimal AI agent tutorial</title> <link rel=\"stylesheet\" href=\"assets/stylesheets/main.484c7ddc.min.css\"> <link rel=\"stylesheet\" href=\"assets/stylesheets/palette…
+source_artifact · source_artifact_aecb87bb35ac
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_aecb87bb35ac.payload.json
+Open evidence
+repository_understanding: MiniCode 仓库
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "avoid_notes": [
+    "Do not copy implementation files directly from the reference project."
+  ],
+  "behavior_patterns": [
+    "Expose a small CLI as the primary builder interface.",
+    "Keep an executable test path for every agent iteration."
+  ],
+  "entrypoints": [
+    "src/index.ts",
+    "src/tools/index.ts",
+    "src/tui/index.ts"
+  ],
+  "identity": {
+    "commit_sha": "f5b18eee2d9c2aaedfa282954c433598a3c00c75",
+    "frameworks": [],
+    "name": "checkout",
+    "package_manager": "npm",
+    "primary_language": "javascript",
+    "remote_url": "https://github.com/LiuMengxuan04/MiniCode"
+  },
+  "license": {
+    "confidence": "high",
+    "detected": "MIT",
+    "license_file_path": "LICENSE"
+  },
+  "license_risk": "green",
+  "manifests": [
+    "package.json"
+  ],
+  "repo_map": {
+    "core_modules": [
+      ".gitignore",
+      ".gitmodules",
+      "ARCHITECTURE.md",
+      "ARCHITECTU…
+source_artifact · source_artifact_b6b939aa42fe
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_b6b939aa42fe.payload.json
+Open evidence
+repository_understanding: SWE-agent mini-SWE-agent 仓库
+AVAILABLE
+
+4 evidence refs.
+
+{
+  "architecture_insights": [
+    "Executable entrypoints detected: \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\", \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \"openai != 1.100.0,!=1.100.1\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446, Documentation = \"https://mini-swe-agent.com/latest/\".",
+    "Repository separates product code into a source/app package boundary.",
+    "Repository keeps tests as a first-class top-level module.",
+    "Repository language suggests an agent/runtime/tool boundary worth reflecting in issues.",
+    "Python package metadata is present, so CLI/package setup can be inferred."
+  ],
+  "avoid_notes": [
+    "Do not copy implementation files directly from the reference project."
+  ],
+  "behavior_patterns": [
+    "Expose a small CLI as the primary builder…
+source_artifact · source_artifact_d021e4f22927
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_d021e4f22927.payload.json
+Open evidence
+knowledge_card: Add minimal reviewer checks for task completion
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "applicability": "Use as project guidance when generating issues.",
+  "key_claims": [
+    "text source provides project guidance"
+  ],
+  "risks": [],
+  "source_role": "background_knowledge",
+  "summary": "<!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta name=\"author\" content=\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\"> <link rel=\"canonical\" href=\"https://minimal-agent.com/\"> <link rel=\"icon\" href=\"assets/mini.png\"> <meta name=\"generator\" content=\"mkdocs-1.6.1, mkdocs-material-9.7.1\"> <title>Minimal AI agent tutorial</title> <link rel=\"stylesheet\" href=\"assets/stylesheets/main.484c7ddc.min.css\"> <link rel=\"stylesheet\" href=\"assets/stylesheets/palet…
+source_artifact · source_artifact_db83e688b859
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_db83e688b859.payload.json
+Open evidence
+knowledge_card: minimal-agent.com
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "applicability": "Use as project guidance when generating issues.",
+  "key_claims": [
+    "text source provides project guidance"
+  ],
+  "risks": [],
+  "source_role": "requirement_source",
+  "summary": "<!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta name=\"author\" content=\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\"> <link rel=\"canonical\" href=\"https://minimal-agent.com/\"> <link rel=\"icon\" href=\"assets/mini.png\"> <meta name=\"generator\" content=\"mkdocs-1.6.1, mkdocs-material-9.7.1\"> <title>Minimal AI agent tutorial</title> <link rel=\"stylesheet\" href=\"assets/stylesheets/main.484c7ddc.min.css\"> <link rel=\"stylesheet\" href=\"assets/stylesheets/palette…
+source_artifact · source_artifact_e62eb8beab43
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_e62eb8beab43.payload.json
+Open evidence
+repository_understanding: e10nMa2k/cc-mini
+AVAILABLE
+
+1 evidence refs.
+
+{
+  "avoid_notes": [
+    "Do not copy implementation files directly from the reference project."
+  ],
+  "behavior_patterns": [
+    "Expose a small CLI as the primary builder interface.",
+    "Persist session or trajectory data for review.",
+    "Keep an executable test path for every agent iteration."
+  ],
+  "entrypoints": [
+    "cc-mini = \"tui.app:main\""
+  ],
+  "identity": {
+    "commit_sha": "73c5bc563093b650ea8754bf9101a7507d8328a8",
+    "frameworks": [],
+    "name": "checkout",
+    "package_manager": "python",
+    "primary_language": "python",
+    "remote_url": "https://github.com/e10nMa2k/cc-mini"
+  },
+  "license": {
+    "confidence": "low",
+    "detected": "unknown",
+    "license_file_path": null
+  },
+  "license_risk": "yellow",
+  "manifests": [
+    "pyproject.toml"
+  ],
+  "repo_map": {
+    "core_modules": [
+      ".gitignore",
+      "README.md",
+      "assets",
+      "install.s…
+source_artifact · source_artifact_ecb39c056d7f
+/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_ecb39c056d7f.payload.json
+Open evidence
+Claim from SWE-agent mini-SWE-agent 仓库
+AVAILABLE
+
+repository architecture suggests issue decomposition boundaries (0.74)
+
+repository architecture scan
+Claim: repository architecture suggests issue decomposition boundaries
+Evidence: Executable entrypoints detected: "Bug Tracker" = "https://github.com/SWE-agent/mini-swe-agent/issues", "litellm >= 1.75.5, != 1.82.7, != 1.82.8", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, "openai != 1.100.0,!=1.100.
+source_evidence · source_evidence_04f7c7f374e1
+https://github.com/SWE-agent/mini-SWE-agent
+Open evidence
+Claim from minimal-agent.com
+AVAILABLE
+
+text source provides project guidance (0.80)
+
+https://minimal-agent.com/?ariadne_phase5=1782137304681
+Claim: text source provides project guidance
+Evidence: <!doctype html> <html lang="en" class="no-js"> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width,initial-scale=1"> <meta name="description" content="Building a minimal AI agent for terminal use and more"> <meta
+source_evidence · source_evidence_08f634101190
+https://minimal-agent.com/?ariadne_phase5=1782137304681
+Open evidence
+Claim from minimal-agent.com
+AVAILABLE
+
+text source provides project guidance (0.80)
+
+https://minimal-agent.com/?ariadne_phase5=1782137177613
+Claim: text source provides project guidance
+Evidence: <!doctype html> <html lang="en" class="no-js"> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width,initial-scale=1"> <meta name="description" content="Building a minimal AI agent for terminal use and more"> <meta
+source_evidence · source_evidence_189fb0414205
+https://minimal-agent.com/?ariadne_phase5=1782137177613
+Open evidence
+Claim from e10nMa2k/cc-mini
+AVAILABLE
+
+repository structure informs target project issue generation (0.80)
+
+README.md
+Claim: repository structure informs target project issue generation
+Evidence: <div align="center">
+
+# cc-mini
+
+**Ultra-light Harness scaffolding for AI agents**
+
+**Agentic** &nbsp;·&nbsp; **Built to Extend** &nbsp;·&nbsp; **From Claude Code**
+<br>
+
+The entire core is `~1000 lines of Python`
+
+</div>
+
+---
+
+### **NEW: B
+source_evidence · source_evidence_407f170c61fb
+https://github.com/e10nMa2k/cc-mini
+Open evidence
+Claim from SWE-agent mini-SWE-agent 仓库
+AVAILABLE
+
+repository structure informs target project issue generation (0.80)
+
+README.md
+Claim: repository structure informs target project issue generation
+Evidence: <div align="center">
+<a href="https://mini-swe-agent.com/latest/"><img src="https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg" alt="mini-swe-agent banner" style="height: 7em"/></a>
+</div>
+
+# The mini
+source_evidence · source_evidence_483cc8b4eec3
+https://github.com/SWE-agent/mini-SWE-agent
+Open evidence
+Claim from Add minimal reviewer checks for task completion
+AVAILABLE
+
+text source provides project guidance (0.80)
+
+https://minimal-agent.com/
+Claim: text source provides project guidance
+Evidence: <!doctype html> <html lang="en" class="no-js"> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width,initial-scale=1"> <meta name="description" content="Building a minimal AI agent for terminal use and more"> <meta
+source_evidence · source_evidence_49bbbf060425
+https://minimal-agent.com/
+Open evidence
+Claim from SWE-agent mini-SWE-agent 仓库
+AVAILABLE
+
+repository test strategy informs acceptance criteria (0.72)
+
+repository test scan
+Claim: repository test strategy informs acceptance criteria
+Evidence: Detected 57 test file(s). Suggested test command: python3.11 -m pytest
+source_evidence · source_evidence_72b1ad21bb21
+https://github.com/SWE-agent/mini-SWE-agent
+Open evidence
+Claim from SWE-agent mini-SWE-agent 仓库
+AVAILABLE
+
+repository safety signals inform implementation constraints (0.68)
+
+repository safety scan
+Claim: repository safety signals inform implementation constraints
+Evidence: No explicit safety model was detected; generated issues should add local execution boundaries.
+source_evidence · source_evidence_7e685db6aeb5
+https://github.com/SWE-agent/mini-SWE-agent
+Open evidence
+Claim from minimal-agent 博客
+AVAILABLE
+
+text source provides project guidance (0.80)
+
+https://minimal-agent.com/
+Claim: text source provides project guidance
+Evidence: 真实 code agent 产品需要把 trajectory、动作、观察、测试和 review 作为一等证据，而不是只展示 planner 文本。
+source_evidence · source_evidence_85eabe737a64
+https://minimal-agent.com/
+Open evidence
+Claim from SWE-agent mini-SWE-agent 仓库
+AVAILABLE
+
+repository README explains reusable project intent (0.78)
+
+README.md
+Claim: repository README explains reusable project intent
+Evidence: <div align="center">
+<a href="https://mini-swe-agent.com/latest/"><img src="https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg" alt="mini-swe-agent banner" style="height: 7em"/></a>
+</div>
+
+# The mini
+source_evidence · source_evidence_87f8f4a27b96
+https://github.com/SWE-agent/mini-SWE-agent
+Open evidence
+Claim from minimal-agent.com
+AVAILABLE
+
+text source provides project guidance (0.80)
+
+https://minimal-agent.com/?ariadne_phase5=1782137694960
+Claim: text source provides project guidance
+Evidence: <!doctype html> <html lang="en" class="no-js"> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width,initial-scale=1"> <meta name="description" content="Building a minimal AI agent for terminal use and more"> <meta
+source_evidence · source_evidence_c091afd8c290
+https://minimal-agent.com/?ariadne_phase5=1782137694960
+Open evidence
+Claim from MiniCode 仓库
+AVAILABLE
+
+repository structure informs target project issue generation (0.80)
+
+README.md
+Claim: repository structure informs target project issue generation
+Evidence: # MiniCode
+
+<p align="center">
+  <img src="./docs/logo.svg" alt="MiniCode Logo" width="180" />
+</p>
+
+<h2 align="center">MiniCode</h2>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Editor-Minicode-D97757?style=for-the-badge" a
+source_evidence · source_evidence_c1d4b49015ef
+https://github.com/LiuMengxuan04/MiniCode
+Open evidence
+Claim from minimal-agent.com
+AVAILABLE
+
+text source provides project guidance (0.80)
+
+https://minimal-agent.com/?ariadne_phase5=1782137639236
+Claim: text source provides project guidance
+Evidence: <!doctype html> <html lang="en" class="no-js"> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width,initial-scale=1"> <meta name="description" content="Building a minimal AI agent for terminal use and more"> <meta
+source_evidence · source_evidence_fbb7d9874eec
+https://minimal-agent.com/?ariadne_phase5=1782137639236
+Open evidence
+Handoff Evidence
+Handoff packet M0TR-001
+AVAILABLE
+
+9 evidence refs, 3 acceptance criteria.
+
+# M0TR-001: Bootstrap Python package and CLI
+
+## Target Repository
+/Users/martinlos/code/ariadne-dogfood/mini-code-agent
+
+## Route
+- Backend: `codex`
+- Planner: `llm`
+- Agent runtime: `llm`
+
+## Task
+Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Persist session or trajectory data for review.; Keep an executable test path for every agent iteration.; cc-mini = "tui.app:main"; tests/__init__.py; tests/test_ask_user.py; tests/test_buddy_companion.py; tests/test_buddy_mood.py; tests/test_buddy_storage.py; tests/test_config.py; tests/test_context.py; tests/test_coordinator.py; tests/test_cost_tracker.py; tests/test_engine.py; tests/test_llm.py; tests/test_main.py; tests/test_permissions.py; tests/test_plan.py; tests/test_sandbox_checker.py; tests/test_sandbox_command_matcher.py; tests/te
+
+## Planner Tasks
+- Bootstrap Python package and…
+handoff_packet · handoff_packet_110f66d641e7
+/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/M0TR-001-handoff_packet_110f66d641e7.md
+Open evidence
+Route Decision
+Route decision: codex
+AVAILABLE
+
+Phase 3 Codex 1782402810345 -> codex; allowed skills: none
+
+{
+  "id": "route_d5b54d4ca465",
+  "ticket_id": "ticket_ca91950a67f4",
+  "ticket_key": "M0TR-001",
+  "planner_name": "llm",
+  "agent_runtime": "llm",
+  "backlog_planner_name": "llm",
+  "backend_name": "codex",
+  "build_team_id": null,
+  "build_team_name": null,
+  "team_role_agent_ids": {},
+  "selected_agent_id": "agent_4b050c358500",
+  "selected_agent_name": "Phase 3 Codex 1782402810345",
+  "selected_agent_role": "coding_agent",
+  "target_repo_path": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+  "build_decision": "code_task",
+  "reason": "Direct assignment routed to Phase 3 Codex 1782402810345.",
+  "external_execution_enabled": false,
+  "confirm_execution": false,
+  "permission_profile_id": null,
+  "skill_refs": [],
+  "resource_refs": [],
+  "created_at": "2026-06-25T15:54:16Z",
+  "route_artifact_id": null
+}
+
+route_decision · route_d5b54d4ca465
+/Users/martinlos/code/Ariadne/.ariadne/routes/route_d5b54d4ca465.json
+Open evidence
+Memory Artifacts
+Memory record
+MISSING
+
+Memory is missing.
+
+memory_record · ticket_ca91950a67f4
+Open evidence
+No memory record has been written for this ticket.
+Execution Results
+
+No execution results yet.
+
+Assignment Progress
+
+No active assignment is currently claimed or running.
+
+Timeline
+2026-06-22T14:15:10Z
+Backlog
+backlog_preview_applied
+
+Applied preview operation: Reference inputs indicate a CLI-first agent shape: Expose a small CLI as the primary builder interface.; Persist session or trajectory data for review.; Keep an executable test path for every agent iteration.; cc-mini = "tui.app:main"; tests/__init__.py; tests/test_ask_user.py; tests/test_buddy_companion.py; tests/test_buddy_mood.py; tests/test_buddy_storage.py; tests/test_config.py; tests/test_context.py; tests/test_coordinator.py; tests/test_cost_tracker.py; tests/test_engine.py; tests/test_llm.py; tests/test_main.py; tests/test_permissions.py; tests/test_plan.py; tests/test_sandbox_checker.py; tests/test_sandbox_command_matcher.py; tests/te
+
+2026-06-22T14:15:10Z
+Backlog
+backlog_updated
+
+Backlog update recorded: Applied backlog preview backlog_preview_8aa11cc0eca5.
+
+2026-06-25T15:54:16Z
+Ariadne
+status_changed
+
+Assigned to Phase 3 Codex 1782402810345.
+
+2026-06-25T15:54:16Z
+Phase 3 Codex 1782402810345
+assignment:ready_to_claim
+
+Assignment ready_to_claim: Phase 3 Codex 1782402810345
+
+2026-06-25T15:54:16Z
+Ariadne
+comment:assignment
+
+Assignment created: M0TR-001 -> Phase 3 Codex 1782402810345.
+
+2026-06-25T15:54:16Z
+Ariadne
+runtime_event:queued
+
+assignment: queued
+
+Comments
+Ariadne
+2026-06-25T15:54:16Z
+
+Assignment created: M0TR-001 -> Phase 3 Codex 1782402810345.
+
+Summary
+Assignee
+Phase 3 Codex 1782402810345
+Runtime
+codex
+Last run
+unknown
+Review
+NOT RECORDED
+Evidence
+0
+Blocked
+No
+Handoff / Route
+{ "id": "handoff_packet_110f66d641e7", "payload_ref": null, "handoff_file": null, "assignment_id": "assignment_12ecf14fc6cb" }
+Diff / Tests / Review
+
+Not recorded
+
+Not recorded
+
+Not recorded
+
+Acceptance / Modules
+The implementation is reachable from the Web Workbench product path.
+The behavior writes inspectable run evidence.
+Tests cover the behavior without external credentials.
+pyproject.toml
+mini_code_agent/__main__.py
+mini_code_agent/cli.py
+tests/test_cli.py
+.mini-code-agent/
+Links
+https://minimal-agent.com/
+source_390254d0aefa
+source_artifact_04537ea5c2cc
+source_artifact_26aba347c1fd
+source_artifact_59554d57fb1a
+source_artifact_aecb87bb35ac
+source_artifact_b6b939aa42fe
+source_artifact_d021e4f22927
+source_artifact_db83e688b859
+source_artifact_e62eb8beab43
+source_artifact_ecb39c056d7f
+Assignments
+Phase 3 Codex 1782402810345
+codex
+ready_to_claim
+Attempt 1
+assignment_12ecf14fc6cb
+assignment is not blocked or failed
+对话

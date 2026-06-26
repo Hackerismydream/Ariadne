@@ -297,7 +297,7 @@ def test_doctor_v1_reports_local_readiness(tmp_path: Path) -> None:
     result = runner.invoke(app, ["--root", str(tmp_path), "doctor", "v1"])
 
     assert result.exit_code == 0, result.output
-    assert "agent profiles: ok" in result.output
+    assert "agent definitions: missing" in result.output
     assert "backend capability: ok" in result.output
     assert "example sources: ok" in result.output
     assert "board: ok" in result.output

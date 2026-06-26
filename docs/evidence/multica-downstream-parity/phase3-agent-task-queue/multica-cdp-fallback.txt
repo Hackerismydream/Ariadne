@@ -1,0 +1,7 @@
+url=http://localhost:3001/login
+
+登录 Multica
+输入邮箱以获取登录验证码
+邮箱
+继续
+想用桌面应用？ 下载

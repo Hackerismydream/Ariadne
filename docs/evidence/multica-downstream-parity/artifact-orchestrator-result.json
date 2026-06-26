@@ -1,0 +1,60 @@
+{
+  "agent_runtime": "llm",
+  "artifacts": {
+    "backlog_next_tickets_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json",
+    "backlog_planner_artifact_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_next_tickets_blocked.json",
+    "board_path": "/Users/martinlos/code/Ariadne/.ariadne/board/index.md",
+    "feishu_plan_path": "/Users/martinlos/code/Ariadne/.ariadne/feishu_plans/feishu_7fa74a1ac241.json",
+    "llm_agent_artifact_paths": [
+      "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_build_lead.json",
+      "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_knowledge.json",
+      "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_memory.json"
+    ],
+    "memory_path": "/Users/martinlos/code/Ariadne/.ariadne/memory/tickets/ticket_f31888277cd3.md",
+    "next_tickets_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json",
+    "permission_profile_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/execution_permission_profile.json",
+    "provider_skill_dir": "/Users/martinlos/code/Ariadne/.ariadne/skills/m0tr-002",
+    "skill_bundle_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/skill_bundle.json"
+  },
+  "backend_name": "codex",
+  "backlog_next_tickets_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/next_tickets.json",
+  "backlog_planner_artifact_id": "artifact_b79a889fa7a8",
+  "backlog_planner_name": "llm",
+  "backlog_preview_ids": [
+    "backlog_preview_dfbe3258af23",
+    "backlog_preview_deff797885fc",
+    "backlog_preview_1b85be575dd2",
+    "backlog_preview_effbdecf98cd"
+  ],
+  "backlog_update_ids": [
+    "backlog_e07848dd44e0",
+    "backlog_019808568886",
+    "backlog_6177c14bcbb6",
+    "backlog_7049cd695538"
+  ],
+  "board_html_path": "/Users/martinlos/code/Ariadne/.ariadne/board/index.html",
+  "board_path": "/Users/martinlos/code/Ariadne/.ariadne/board/index.md",
+  "build_packet_id": "packet_170d7acffcc8",
+  "changed_files": [],
+  "confirm_execution": false,
+  "execution_result_id": "execution_ad2a60e49e38",
+  "external_execution_enabled": false,
+  "feishu_plan_id": "feishu_7fa74a1ac241",
+  "handoff_artifact_id": "artifact_b2e723f5d967",
+  "llm_agent_artifact_paths": [
+    "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_build_lead.json",
+    "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_knowledge.json",
+    "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_f31888277cd3/llm_memory.json"
+  ],
+  "memory_record_id": "memory_7fa74a1ac241",
+  "permission_profile_id": "permission_profile_97398fbe679e",
+  "planner_name": "llm",
+  "review_report_id": "review_fca849bcfaf9",
+  "review_verdict": "blocked",
+  "skill_bundle_artifact_id": "artifact_3a7427d0d539",
+  "test_command": "/opt/homebrew/bin/pytest",
+  "test_exit_code": null,
+  "ticket_id": "ticket_f31888277cd3",
+  "ticket_key": "M0TR-002",
+  "worktree_path": null
+}

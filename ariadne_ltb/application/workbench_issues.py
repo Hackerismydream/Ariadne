@@ -27,6 +27,7 @@ from ariadne_ltb.application.errors import NotFoundError, ValidationAppError
 from ariadne_ltb.application.mappers import assignment_dto, comment_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
+from ariadne_ltb.application.run_events import RunEventService
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.workbench_artifacts import IssueEvidenceProjectionService
 from ariadne_ltb.application.work_truth import reduce_work_truth
@@ -359,6 +360,7 @@ class WorkbenchIssuesService:
 
     def _timeline(self, ticket: BuildTicket) -> list[IssueTimelineEventDTO]:
         events: list[IssueTimelineEventDTO] = []
+        assignment_ids = {assignment.id for assignment in self.store.list_assignments_for_ticket(ticket.id)}
         for index, event in enumerate(ticket.event_log):
             events.append(
                 IssueTimelineEventDTO(
@@ -370,7 +372,20 @@ class WorkbenchIssuesService:
                     ref_id=event.payload_ref,
                 )
             )
+        for assignment_event in RunEventService(self.store).ticket_assignment_events(ticket.id):
+            events.append(
+                IssueTimelineEventDTO(
+                    id=f"assignment-event:{assignment_event.id}",
+                    event_type=f"{assignment_event.source}:{assignment_event.event_type}",
+                    actor=assignment_event.actor,
+                    summary=assignment_event.summary,
+                    timestamp=assignment_event.timestamp,
+                    ref_id=assignment_event.ref_id or assignment_event.assignment_id,
+                )
+            )
         for comment in self.store.list_comments(ticket.id):
+            if comment.thread_id in assignment_ids or comment.payload_ref in assignment_ids:
+                continue
             events.append(
                 IssueTimelineEventDTO(
                     id=comment.id,
@@ -382,6 +397,8 @@ class WorkbenchIssuesService:
                 )
             )
         for event in self.store.list_runtime_events_for_ticket(ticket.id):
+            if event.assignment_id in assignment_ids:
+                continue
             events.append(
                 IssueTimelineEventDTO(
                     id=event.id,

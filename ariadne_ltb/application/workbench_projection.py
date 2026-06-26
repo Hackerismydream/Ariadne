@@ -70,8 +70,8 @@ class WorkbenchProjectionService:
             tickets=[ticket_summary(self.store, ticket) for ticket in current_tickets],
             assignments=[assignment_dto(assignment) for assignment in current_assignments],
             agents=[
-                agent_profile_dto(self.store, profile)
-                for profile in self.store.ensure_default_agent_profiles()
+                agent_profile_dto(self.store, agent.to_agent_profile())
+                for agent in self.store.list_agent_definitions()
             ],
             runtime_capabilities=RuntimeStatusService(self.store).snapshot(include_internal_backends),
             target_projects=TargetProjectRegistry(self.store).list(),

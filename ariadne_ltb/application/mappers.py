@@ -398,6 +398,8 @@ def inbox_item_dto(store: AriadneStore, item: InboxItem) -> InboxItemDTO:
         source_id=item.source_id,
         ticket_id=item.ticket_id,
         ticket_key=item.ticket_key,
+        agent_id=item.agent_id,
+        agent_name=item.agent_name,
         title=item.title,
         summary=item.summary,
         severity=item.severity.value,

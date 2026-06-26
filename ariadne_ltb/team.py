@@ -7,6 +7,7 @@ from ariadne_ltb.application.assignment_readiness import prepare_assignment_for_
 from ariadne_ltb.application.handoff_packets import create_handoff_packet
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
+    AgentDefinition,
     Artifact,
     ArtifactType,
     BuildDecision,
@@ -75,6 +76,13 @@ def route_ticket_to_build_team(
             skill_names=set(team.skill_refs) if team.skill_refs else None,
         )
     ] or list(team.skill_refs)
+    implementer_definition = _load_agent_definition(store, implementer.id)
+    runtime_profile_id = implementer_definition.runtime_profile_id if implementer_definition else None
+    selected_skills = list(implementer_definition.skill_ids if implementer_definition else skill_refs)
+    agent_reason = (
+        f"Build team `{team.name}` selected real AgentDefinition `{implementer.name}` "
+        f"for {ticket.key}."
+    )
     route_decision = RouteDecision(
         id=stable_id("route", ticket.id, team.id, selected_backend, str(target_repo)),
         ticket_id=ticket.id,
@@ -94,6 +102,10 @@ def route_ticket_to_build_team(
         selected_agent_id=implementer.id,
         selected_agent_name=implementer.name,
         selected_agent_role=implementer.role,
+        agent_id=implementer.id,
+        agent_reason=agent_reason,
+        selected_skills=selected_skills,
+        runtime_profile_id=runtime_profile_id,
         target_repo_path=str(target_repo),
         build_decision=store.load_build_packet(ticket.build_packet_id).build_decision
         if ticket.build_packet_id
@@ -243,3 +255,10 @@ def route_ticket_to_build_team(
         )
     )
     return BuildTeamRouteResult(team, assignment, route_decision, route_artifact, handoff_packet.id)
+
+
+def _load_agent_definition(store: AriadneStore, agent_id: str) -> AgentDefinition | None:
+    try:
+        return store.load_agent_definition(agent_id)
+    except FileNotFoundError:
+        return None

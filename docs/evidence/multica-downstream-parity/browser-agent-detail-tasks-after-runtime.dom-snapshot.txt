@@ -1,0 +1,147 @@
+- complementary:
+  - button "A Ariadne":
+    - generic: A
+    - generic: Ariadne
+  - button "搜索... ⌘ K":
+    - generic: 搜索...
+    - generic: ⌘ K
+  - button "新建 issue C":
+    - generic: 新建 issue
+    - generic: C
+  - navigation:
+    - paragraph: Workbench
+    - button "Issues":
+      - generic: Issues
+    - button "Sources":
+      - generic: Sources
+    - button "Plan Changes":
+      - generic: Plan Changes
+    - button "Team":
+      - generic: Team
+    - button "Runs":
+      - generic: Runs
+    - button "Inbox 4":
+      - generic: Inbox
+      - emphasis: "4"
+    - button "Diagnostics":
+      - generic: Diagnostics
+  - button "?"
+- main:
+  - region "Current Version Context":
+    - generic: Current Version Context
+    - strong: M0TR-003 target repository
+    - paragraph: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Project
+    - strong: M0TR-003 target repository
+    - generic: /Users/martinlos/code/ariadne-dogfood/mini-code-agent
+    - generic: Target Version
+    - strong: Build Mini Code Agent v0.1
+    - generic: 当前阻塞
+    - generic: Goal
+    - strong: Build Mini Code Agent v0.1
+    - generic: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Sources readiness
+    - strong: 11/64
+    - generic: ready for issue factory
+    - generic: Issue Delta status
+    - strong: 已应用
+    - generic: 10 current issues
+    - generic: Active Run
+    - strong: Blocked · M0TR-003 assignment blocked。
+    - generic: API connected
+    - generic: Blocked count
+    - strong: "6"
+    - generic: M0TR-003 assignment blocked。
+    - generic: Latest Evidence
+    - strong: M0TR-003 · codex · blocked_before_execution · tests n/a · review 已阻塞
+    - generic: execution_7a3913677d7e
+    - button "Next Action 处理当前阻塞 M0TR-003 assignment blocked。":
+      - generic: Next Action
+      - strong: 处理当前阻塞
+      - generic: M0TR-003 assignment blocked。
+  - heading "Phase 3 Codex 1782402810345" [level=1]
+  - generic: Active
+  - paragraph: Browser-created real AgentDefinition for Phase 3 task queue verification.
+  - button "Back to Team"
+  - button "Refresh":
+    - text: Refresh
+  - heading "Profile" [level=2]:
+    - text: Profile
+  - term: Backend
+  - definition: codex
+  - term: Model
+  - definition: Not recorded
+  - term: Working directory
+  - definition: Not recorded
+  - term: Visibility
+  - definition: Visible
+  - term: Assignments
+  - definition: "0"
+  - term: Blocked
+  - definition: "4"
+  - button "activity"
+  - button "tasks" [active]
+  - button "instructions"
+  - button "skills"
+  - button "environment"
+  - button "runs"
+  - article:
+    - strong: ARI-077
+    - generic: failed
+    - paragraph: Phase 3 Codex 1782402810345 · codex
+    - generic: assignment_a6a57fadf0c1
+    - generic: Attempt 1
+    - generic: Retry 0
+    - button "Inbox inbox_069b1975a66d"
+    - paragraph: "preview_operation_conflict: ticket id already exists: ticket_069f27d18f2d"
+    - generic: Claimed 2026-06-25T16:59:49Z
+    - generic: Started 2026-06-25T16:59:49Z
+    - generic: Completed 2026-06-25T17:00:52Z
+  - article:
+    - strong: ARI-077
+    - generic: blocked
+    - paragraph: Phase 3 Codex 1782402810345 · codex
+    - generic: assignment_e8cc969fc650
+    - generic: Attempt 1
+    - generic: Retry 0
+    - button "Inbox inbox_5a7b2d017597"
+    - paragraph: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+    - generic: Claimed 2026-06-25T16:44:27Z
+    - generic: Started 2026-06-25T16:44:27Z
+    - generic: Completed 2026-06-25T16:46:13Z
+  - article:
+    - strong: M0TR-004
+    - generic: blocked
+    - paragraph: Phase 3 Codex 1782402810345 · codex
+    - generic: assignment_55fdcd30a8f4
+    - generic: Attempt 1
+    - generic: Retry 0
+    - button "Inbox inbox_60aa9b4e6dc8"
+    - paragraph: "Phase 7 evidence: agent repair required after failed execution."
+    - generic: Completed 2026-06-25T16:30:29Z
+  - article:
+    - strong: M0TR-002
+    - generic: blocked
+    - paragraph: Phase 3 Codex 1782402810345 · codex
+    - generic: assignment_699c4079b8ca
+    - generic: Attempt 1
+    - generic: Retry 0
+    - button "Inbox inbox_2e72a9cff211"
+    - paragraph: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+    - generic: Claimed 2026-06-25T17:11:16Z
+    - generic: Started 2026-06-25T17:11:16Z
+    - generic: Completed 2026-06-25T17:12:48Z
+  - article:
+    - strong: M0TR-001
+    - generic: blocked
+    - paragraph: Phase 3 Codex 1782402810345 · codex
+    - generic: assignment_12ecf14fc6cb
+    - generic: Attempt 1
+    - generic: Retry 0
+    - button "Inbox inbox_1512debcf7cf"
+    - paragraph: "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+    - generic: Claimed 2026-06-25T17:08:09Z
+    - generic: Started 2026-06-25T17:08:09Z
+    - generic: Completed 2026-06-25T17:09:43Z
+- button "对话":
+  - generic: 对话

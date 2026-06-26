@@ -1,0 +1,11 @@
+{
+  "inbox_item_id": "inbox_60aa9b4e6dc8",
+  "source_assignment_id": "assignment_55fdcd30a8f4",
+  "agent_id": "agent_4b050c358500",
+  "agent_name": "Phase 3 Codex 1782402810345",
+  "repair_status": 200,
+  "repair_ticket_key": "ARI-077",
+  "repair_assignment_id": "assignment_e8cc969fc650",
+  "repair_assignment_agent_id": "agent_4b050c358500",
+  "agent_task_contains_repair": true
+}

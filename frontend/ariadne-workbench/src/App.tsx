@@ -179,6 +179,7 @@ export function App() {
   const [dataSource, setDataSource] = useState<WorkbenchDataSource>("disconnected");
   const [readOnly, setReadOnly] = useState(true);
   const [issueRef, setIssueRef] = useState(initialRoute.ticketRef);
+  const [agentRef, setAgentRef] = useState(initialRoute.agentRef);
   const [selectedTicketId, setSelectedTicketId] = useState(
     findTicketByRef(emptyWorkbenchData.tickets, initialRoute.ticketRef)?.id ?? "",
   );
@@ -193,6 +194,7 @@ export function App() {
     const route = parseHashRoute();
     applyRouteRedirect(route);
     setIssueRef(preferredTicketRef ?? route.ticketRef);
+    setAgentRef(route.agentRef);
     const preferredTicket = findTicketByRef(result.data.tickets, preferredTicketRef);
     const routeTicket = findTicketByRef(result.data.tickets, route.ticketRef);
     if (route.page) setPage(route.page);
@@ -252,6 +254,7 @@ export function App() {
       applyRouteRedirect(route);
       if (route.page) setPage(route.page);
       setIssueRef(route.ticketRef);
+      setAgentRef(route.agentRef);
       const routeTicket = findTicketByRef(data.tickets, route.ticketRef);
       if (routeTicket) {
         setPage("ready");
@@ -275,6 +278,7 @@ export function App() {
           selectedRuntime={selectedRuntime}
           selectedTicket={selectedTicket}
           issueRef={issueRef}
+          agentRef={agentRef}
           onNavigate={navigate}
           onRuntimeSelect={setSelectedRuntime}
           onTicketSelect={selectTicket}
@@ -305,6 +309,7 @@ function PageFrame({
   selectedRuntime,
   selectedTicket,
   issueRef,
+  agentRef,
   onNavigate,
   onRuntimeSelect,
   onTicketSelect,
@@ -318,6 +323,7 @@ function PageFrame({
   selectedRuntime: string;
   selectedTicket: AriadneTicket;
   issueRef?: string;
+  agentRef?: string;
   onNavigate: (page: PageKey) => void;
   onRuntimeSelect: (backend: string) => void;
   onTicketSelect: (ticketId: string) => void;
@@ -328,7 +334,7 @@ function PageFrame({
   if (page === "tasks") {
     return <PlanChangesPage data={data} dataSource={dataSource} onNavigate={onNavigate} onRefresh={onRefresh} />;
   }
-  if (page === "team") return <TeamPage />;
+  if (page === "team") return <TeamPage agentRef={agentRef} />;
   if (page === "runs") return <RunsPage />;
   if (page === "inbox") return <InboxControlPage />;
   if (page === "ready") {

@@ -389,6 +389,55 @@ class AgentProfileDTO(AriadneDTO):
     run_count: int = 0
 
 
+class AgentRuntimeProfileDTO(AriadneDTO):
+    profile_id: str
+    agent_id: str
+    backend: str
+    model: str | None = None
+    working_directory: str | None = None
+    environment_keys: list[str] = Field(default_factory=list)
+    reasoning_level: str | None = None
+    service_tier: str | None = None
+
+
+class AgentVisibilityDTO(AriadneDTO):
+    agent_id: str
+    visible: bool = True
+    team_ids: list[str] = Field(default_factory=list)
+
+
+class AgentCreateInput(AriadneDTO):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=1000)
+    backend: Literal["codex", "claude-code"] = "codex"
+    model: str | None = Field(default=None, max_length=120)
+    working_directory: str | None = Field(default=None, max_length=1000)
+    environment_keys: list[str] = Field(default_factory=list)
+    reasoning_level: str | None = Field(default=None, max_length=80)
+    service_tier: str | None = Field(default=None, max_length=80)
+    instructions: str = Field(default="", max_length=8000)
+    skill_ids: list[str] = Field(default_factory=list)
+    visible: bool = True
+    team_ids: list[str] = Field(default_factory=list)
+    max_concurrent_assignments: int = Field(default=1, ge=1, le=10)
+
+
+class AgentUpdateInput(AriadneDTO):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    status: Literal["active", "paused", "archived"] | None = None
+    model: str | None = Field(default=None, max_length=120)
+    working_directory: str | None = Field(default=None, max_length=1000)
+    environment_keys: list[str] | None = None
+    reasoning_level: str | None = Field(default=None, max_length=80)
+    service_tier: str | None = Field(default=None, max_length=80)
+    instructions: str | None = Field(default=None, max_length=8000)
+    skill_ids: list[str] | None = None
+    visible: bool | None = None
+    team_ids: list[str] | None = None
+    max_concurrent_assignments: int | None = Field(default=None, ge=1, le=10)
+
+
 class BuildSkillDTO(AriadneDTO):
     id: str
     name: str
@@ -397,12 +446,134 @@ class BuildSkillDTO(AriadneDTO):
     updated_at: str
 
 
+class AgentListItemDTO(AriadneDTO):
+    id: str
+    name: str
+    role: str
+    backend_name: str | None = None
+    runtime_compatibility: str
+    active_assignment_count: int = 0
+    blocked_count: int = 0
+    description: str = ""
+    avatar_seed: str = ""
+    status: str = "active"
+    runtime_profile: AgentRuntimeProfileDTO | None = None
+    visibility: AgentVisibilityDTO | None = None
+    skill_ids: list[str] = Field(default_factory=list)
+    instructions_present: bool = False
+    updated_at: str
+    configuration: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentDetailDTO(AgentListItemDTO):
+    instructions: str = ""
+    environment_keys: list[str] = Field(default_factory=list)
+
+
+class AgentActivityItemDTO(AriadneDTO):
+    id: str
+    timestamp: str
+    source: str
+    event_type: str
+    stage: str
+    summary: str
+    ticket_id: str | None = None
+    ticket_key: str | None = None
+    assignment_id: str | None = None
+    run_id: str | None = None
+    ref_id: str | None = None
+
+
+class AgentTaskItemDTO(AriadneDTO):
+    assignment: AssignmentDTO
+    task_id: str
+    ticket_id: str
+    ticket_key: str
+    agent_id: str
+    status: str
+    attempt_number: int = 1
+    retry_count: int = 0
+    blocker_id: str | None = None
+    blocker_reason: str | None = None
+    claimed_at: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    current: bool = False
+
+
+class AgentRunItemDTO(AriadneDTO):
+    id: str
+    ticket_id: str
+    ticket_key: str | None = None
+    agent_name: str
+    agent_role: str
+    status: str
+    lifecycle_state: str
+    backend_name: str | None = None
+    started_at: str | None = None
+    ended_at: str | None = None
+    failure_reason: str | None = None
+    error: str | None = None
+    assignment_id: str | None = None
+
+
+class AgentListResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team-agents.v1"] = "ariadne.team-agents.v1"
+    source: Literal["agent_definition_store"] = "agent_definition_store"
+    agents: list[AgentListItemDTO] = Field(default_factory=list)
+
+
+class AgentDetailResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_detail.v1"] = "ariadne.team.agent_detail.v1"
+    source: Literal["agent_definition_store"] = "agent_definition_store"
+    agent: AgentDetailDTO
+
+
+class AgentActivityResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_activity.v1"] = "ariadne.team.agent_activity.v1"
+    source: Literal["journal_assignments_runs"] = "journal_assignments_runs"
+    activity: list[AgentActivityItemDTO] = Field(default_factory=list)
+
+
+class AgentTasksResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_tasks.v1"] = "ariadne.team.agent_tasks.v1"
+    source: Literal["assignments"] = "assignments"
+    tasks: list[AgentTaskItemDTO] = Field(default_factory=list)
+
+
+class AgentRunsResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_runs.v1"] = "ariadne.team.agent_runs.v1"
+    source: Literal["runs"] = "runs"
+    runs: list[AgentRunItemDTO] = Field(default_factory=list)
+
+
+class AgentSkillsResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_skills.v1"] = "ariadne.team.agent_skills.v1"
+    source: Literal["agent_definition_store_and_build_skills"] = "agent_definition_store_and_build_skills"
+    skill_ids: list[str] = Field(default_factory=list)
+    skills: list[BuildSkillDTO] = Field(default_factory=list)
+
+
+class AgentInstructionsResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_instructions.v1"] = "ariadne.team.agent_instructions.v1"
+    source: Literal["agent_definition_store"] = "agent_definition_store"
+    instructions: str = ""
+
+
+class AgentEnvironmentResponse(AriadneDTO):
+    schema_version: Literal["ariadne.team.agent_environment.v1"] = "ariadne.team.agent_environment.v1"
+    source: Literal["agent_definition_store"] = "agent_definition_store"
+    environment_keys: list[str] = Field(default_factory=list)
+
+
 class InboxItemDTO(AriadneDTO):
     id: str
     source_type: str
     source_id: str
     ticket_id: str | None = None
     ticket_key: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
     title: str
     summary: str
     severity: str
@@ -639,6 +810,8 @@ class InboxListItemDTO(AriadneDTO):
     source_type: str | None = None
     source_id: str | None = None
     linked_assignment_id: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
     canonical_blocker_id: str | None = None
     failure_reason: str
     severity: str
@@ -683,23 +856,6 @@ class ProjectDetailResponse(AriadneDTO):
     schema_version: Literal["ariadne.project-detail.v1"] = "ariadne.project-detail.v1"
     project: TargetProjectDTO
     source: str = "project_resource_projection"
-
-
-class AgentListItemDTO(AriadneDTO):
-    id: str
-    name: str
-    role: str
-    backend_name: str | None = None
-    runtime_compatibility: str = "local"
-    active_assignment_count: int = 0
-    blocked_count: int = 0
-    configuration: dict[str, Any] = Field(default_factory=dict)
-
-
-class AgentListResponse(AriadneDTO):
-    schema_version: Literal["ariadne.team-agents.v1"] = "ariadne.team-agents.v1"
-    agents: list[AgentListItemDTO] = Field(default_factory=list)
-    source: str = "agent_profile_projection"
 
 
 class BuildTeamListItemDTO(AriadneDTO):

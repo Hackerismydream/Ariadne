@@ -2382,6 +2382,19 @@ button:disabled {
   grid-template-columns: minmax(180px, 1.3fr) 110px 130px 120px 100px 90px minmax(180px, 1.2fr);
 }
 
+button.team-agent-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.team-agent-row:hover {
+  background: var(--muted);
+}
+
 .runs-runtime-row {
   grid-template-columns: minmax(180px, 1.2fr) 110px 100px 120px 100px 70px minmax(220px, 1.5fr);
 }
@@ -2399,6 +2412,48 @@ button:disabled {
 .card-list {
   display: grid;
   gap: 10px;
+}
+
+.full-width-field {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.full-width-field textarea,
+.full-width-field input {
+  width: 100%;
+  min-height: 82px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.segmented-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.segmented-tabs button,
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 7px 10px;
+}
+
+.segmented-tabs button.active,
+.chip.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .control-card {
@@ -2459,6 +2514,70 @@ button:disabled {
   padding: 3px 7px;
   color: var(--muted-foreground);
   font-size: 11px;
+}
+
+.agent-activity-layout {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wide-activity-card {
+  grid-column: 1 / -1;
+}
+
+.activity-task-row,
+.activity-event-card {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 4px;
+  padding-top: 9px;
+}
+
+.activity-task-row strong,
+.activity-event-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-task-row span,
+.activity-task-row small {
+  color: var(--muted-foreground);
+}
+
+.activity-metrics {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-metrics span {
+  color: var(--muted-foreground);
+}
+
+.agent-skills-manager {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-skills-manager h3 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.agent-config-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-config-editor p {
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.agent-config-editor textarea {
+  min-height: 140px;
 }
 
 .runs-daemon-strip {
@@ -2850,6 +2969,18 @@ button:disabled {
 
 .issue-action-bar input {
   flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.compact-selector {
+  align-items: center;
+  color: #475569;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.compact-selector select {
   min-width: 220px;
 }
 

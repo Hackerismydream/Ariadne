@@ -1567,7 +1567,10 @@ def _find_generated_ticket(
     source_ticket_id: str,
     generated_ref: str,
 ) -> BuildTicket | None:
+    generated_ticket_id = stable_id("ticket", generated_ref)
     for ticket in store.list_tickets():
+        if ticket.id == generated_ticket_id:
+            return ticket
         if (
             ticket.metadata.get("generated_from_ticket_id") == source_ticket_id
             and ticket.metadata.get("generated_suggestion_ref") == generated_ref

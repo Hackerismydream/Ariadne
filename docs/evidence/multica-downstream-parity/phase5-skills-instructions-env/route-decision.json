@@ -1,0 +1,27 @@
+{
+  "id": "route_f97713a18048",
+  "ticket_id": "ticket_f31888277cd3",
+  "ticket_key": "M0TR-002",
+  "planner_name": "llm",
+  "agent_runtime": "llm",
+  "backlog_planner_name": "llm",
+  "backend_name": "codex",
+  "build_team_id": null,
+  "build_team_name": null,
+  "team_role_agent_ids": {},
+  "selected_agent_id": "agent_4b050c358500",
+  "selected_agent_name": "Phase 3 Codex 1782402810345",
+  "selected_agent_role": "coding_agent",
+  "target_repo_path": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+  "build_decision": "code_task",
+  "reason": "Direct assignment routed to Phase 3 Codex 1782402810345.",
+  "external_execution_enabled": false,
+  "confirm_execution": false,
+  "permission_profile_id": null,
+  "skill_refs": [
+    "skill_9179aec0c6a9"
+  ],
+  "resource_refs": [],
+  "created_at": "2026-06-25T16:10:23Z",
+  "route_artifact_id": null
+}

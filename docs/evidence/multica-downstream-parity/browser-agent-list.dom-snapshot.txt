@@ -1,0 +1,132 @@
+- complementary:
+  - button "A Ariadne":
+    - generic: A
+    - generic: Ariadne
+  - button "搜索... ⌘ K":
+    - generic: 搜索...
+    - generic: ⌘ K
+  - button "新建 issue C":
+    - generic: 新建 issue
+    - generic: C
+  - navigation:
+    - paragraph: Workbench
+    - button "Issues":
+      - generic: Issues
+    - button "Sources":
+      - generic: Sources
+    - button "Plan Changes":
+      - generic: Plan Changes
+    - button "Team":
+      - generic: Team
+    - button "Runs":
+      - generic: Runs
+    - button "Inbox 4":
+      - generic: Inbox
+      - emphasis: "4"
+    - button "Diagnostics":
+      - generic: Diagnostics
+  - button "?"
+- main:
+  - region "Current Version Context":
+    - generic: Current Version Context
+    - strong: M0TR-003 target repository
+    - paragraph: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Project
+    - strong: M0TR-003 target repository
+    - generic: /Users/martinlos/code/ariadne-dogfood/mini-code-agent
+    - generic: Target Version
+    - strong: Build Mini Code Agent v0.1
+    - generic: 当前阻塞
+    - generic: Goal
+    - strong: Build Mini Code Agent v0.1
+    - generic: 用户给一个本地项目目标和外部知识，Ariadne 组织 agent team 生成目标项目 issue，并调度 Codex/Claude 把 mini-code-agent 推进到可运行 v0.1。
+    - generic: Sources readiness
+    - strong: 11/64
+    - generic: ready for issue factory
+    - generic: Issue Delta status
+    - strong: 已应用
+    - generic: 10 current issues
+    - generic: Active Run
+    - strong: Blocked · M0TR-003 assignment blocked。
+    - generic: API connected
+    - generic: Blocked count
+    - strong: "6"
+    - generic: M0TR-003 assignment blocked。
+    - generic: Latest Evidence
+    - strong: M0TR-003 · codex · blocked_before_execution · tests n/a · review 已阻塞
+    - generic: execution_7a3913677d7e
+    - button "Next Action 处理当前阻塞 M0TR-003 assignment blocked。":
+      - generic: Next Action
+      - strong: 处理当前阻塞
+      - generic: M0TR-003 assignment blocked。
+  - heading "Team" [level=1]
+  - generic: "1"
+  - paragraph: Real local agents, build teams, and skills projected from Ariadne store.
+  - button "New Agent":
+    - text: New Agent
+  - button "Refresh":
+    - text: Refresh
+  - heading "Agents" [level=2]:
+    - text: Agents
+  - generic: Agent
+  - generic: Status
+  - generic: Backend
+  - generic: Model
+  - generic: Assignments
+  - generic: Blocked
+  - generic: Skills
+  - button "Phase 3 Codex 1782402810345 Browser-created real AgentDefinition for Phase 3 task queue verification. Active codex Not recorded 0 4 skill_9179aec0c6a9":
+    - strong:
+      - text: Phase 3 Codex 1782402810345
+      - generic: Browser-created real AgentDefinition for Phase 3 task queue verification.
+    - generic: Active
+    - generic: codex
+    - generic: Not recorded
+    - generic: "0"
+    - generic: "4"
+    - generic: skill_9179aec0c6a9
+  - heading "Build Teams" [level=2]:
+    - text: Build Teams
+  - article:
+    - strong: Ariadne Build Team
+    - generic: Enabled
+    - paragraph: "Local Build Lead routing team: route ticket to implementer, then review, memory, and backlog update through the standard runtime loop."
+    - term: Lead
+    - definition: build-lead
+    - term: Implementer
+    - definition: codex
+    - term: Reviewer
+    - definition: reviewer
+    - term: Backend
+    - definition: codex
+    - generic: codex-handoff
+    - generic: review-diff
+    - generic: feishu-write-plan
+  - heading "Skills" [level=2]:
+    - text: Skills
+  - article:
+    - strong: codex-handoff
+    - generic: 2026-06-25T17:16:48Z
+    - paragraph: Use this skill when Ariadne routes a Build Ticket to a coding backend.
+    - generic: planner
+    - generic: execution
+    - generic: reviewer
+    - generic: memory_feishu
+  - article:
+    - strong: feishu-write-plan
+    - generic: 2026-06-25T17:16:48Z
+    - paragraph: Use this skill when preparing Ariadne write-back plans.
+    - generic: planner
+    - generic: execution
+    - generic: reviewer
+    - generic: memory_feishu
+  - article:
+    - strong: review-diff
+    - generic: 2026-06-25T17:16:48Z
+    - paragraph: Use this skill when reviewing an Ariadne execution result.
+    - generic: planner
+    - generic: execution
+    - generic: reviewer
+    - generic: memory_feishu
+- button "对话":
+  - generic: 对话

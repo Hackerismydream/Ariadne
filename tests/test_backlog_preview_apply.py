@@ -6,6 +6,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from ariadne_ltb.backlog import (
+    apply_backlog_preview,
     generate_codebase_observation_preview,
     generate_execution_feedback_preview,
     generate_memory_gap_preview,
@@ -234,7 +235,6 @@ def test_memory_gap_preview_apply_creates_followup_with_packet(tmp_path: Path) -
         for item in store.list_tickets()
         if item.metadata.get("generated_by_backlog_trigger") == BacklogUpdateTrigger.MEMORY_GAP.value
     )
-    followup_packet = store.load_build_packet(followup.build_packet_id or "")
     update = store.list_backlog_updates()[0]
 
     assert result.exit_code == 0, result.output
@@ -245,7 +245,62 @@ def test_memory_gap_preview_apply_creates_followup_with_packet(tmp_path: Path) -
     ]
     assert update.trigger_ref == preview.id
     assert followup.build_packet_id
-    assert followup_packet.affected_modules == ["ariadne_ltb/memory.py"]
+
+
+def test_suggestion_preview_updates_existing_stable_ticket_id_without_metadata(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _ticket_for_stale_state()
+    packet = _packet_for_ticket(ticket)
+    execution = _passing_execution(ticket)
+    review = ReviewReport(id="review_pass", ticket_id=ticket.id, verdict=ReviewVerdict.PASS)
+    next_tickets_path = _next_tickets(
+        tmp_path,
+        [
+            {
+                "title": "Index memory records",
+                "reason": "Memory is written but not searchable.",
+                "source": "memory",
+                "priority": "high",
+                "suggested_build_decision": "code_task",
+                "acceptance_criteria": ["Planner can search memory records."],
+                "affected_modules": ["ariadne_ltb/memory.py"],
+            }
+        ],
+    )
+    store.save_ticket(ticket)
+    store.save_build_packet(packet)
+    store.save_execution_result(execution)
+    store.save_review_report(review)
+    first = generate_memory_gap_preview(
+        store,
+        ticket,
+        packet,
+        execution,
+        review,
+        "memory_record_1",
+        str(next_tickets_path),
+    )
+    apply_backlog_preview(store, first.id)
+    generated = next(item for item in store.list_tickets() if item.id != ticket.id)
+    store.save_ticket(generated.model_copy(update={"metadata": {}}))
+
+    second = generate_memory_gap_preview(
+        store,
+        ticket,
+        packet,
+        execution,
+        review,
+        "memory_record_1",
+        str(next_tickets_path),
+    )
+    operation_types = [operation.operation_type for operation in second.operations]
+
+    assert BacklogOperationType.UPDATE_TICKET in operation_types
+    assert BacklogOperationType.ADD_TICKET not in operation_types
+    apply_backlog_preview(store, second.id)
+    updated_generated = store.load_ticket(generated.id)
+    updated_packet = store.load_build_packet(updated_generated.build_packet_id or "")
+    assert updated_packet.affected_modules == ["ariadne_ltb/memory.py"]
 
 
 def test_codebase_observation_preview_apply_records_noop_without_suggestions(tmp_path: Path) -> None:

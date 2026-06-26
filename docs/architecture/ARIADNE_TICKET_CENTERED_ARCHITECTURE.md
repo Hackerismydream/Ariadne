@@ -105,47 +105,50 @@ Ariadne does not copy Multica's hosted product shape:
 - no hosted frontend requirement.
 
 The implementation remains Python, local-first, single-user, JSON/JSONL-backed,
-CLI-driven, and safety-gated for real external execution.
+Workbench-first, and safety-gated for real external execution. CLI commands are
+operator/debug surfaces, not product acceptance.
 
 ## Current Product Path
 
+```text
+Browser Workbench
+  -> Project / Target Version / Goal
+  -> External Sources + Target Codebase
+  -> Source Artifacts / ProjectKnowledge
+  -> Issue Delta
+  -> Current Version Issue Set
+  -> Assign to Agent
+  -> Runtime Claim
+  -> Real Codex / Claude Attempt
+  -> Diff / Tests / Review / Inbox / Memory / Next Issues
+  -> Current Version Progress
+```
+
+`ticket run`, `daemon run-once`, `export board`, and doctor commands remain
+local operator tools. They do not prove product closure by themselves. The
+product closure standard is browser-driven Project Version Delivery:
+
 ```bash
-ari llm doctor
-ari backend diagnose codex
-ari backend diagnose claude-code
-ari ingest examples/sources/*.md --planner llm
-ari ticket list
-ari ticket assign ARI-003 --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
+```
+
+The gated backend attempt inside that browser path must still resolve to a real
+production agent assignment. The operator-equivalent command shape is:
+
+```bash
+ari ticket assign <current-ticket> --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
-ari review run ARI-003 --reviewer llm
-FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
-ari github sync ARI-003 --confirm-write
-ari ticket comments ARI-003
-ari export board
-ari evidence packet --require-acceptance-ready
 ```
 
-Fallback:
+Those commands are diagnostic equivalents for the selected current-version
+ticket; they are not product closure unless driven and evidenced through the
+browser flow above.
 
-```bash
-python3.11 -m ariadne_ltb.cli llm doctor
-python3.11 -m ariadne_ltb.cli backend diagnose codex
-python3.11 -m ariadne_ltb.cli backend diagnose claude-code
-python3.11 -m ariadne_ltb.cli ingest examples/sources/*.md --planner llm
-python3.11 -m ariadne_ltb.cli ticket list
-python3.11 -m ariadne_ltb.cli ticket assign ARI-003 --to codex --runtime-profile production
-ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 python3.11 -m ariadne_ltb.cli daemon run-once --confirm-execution
-python3.11 -m ariadne_ltb.cli review run ARI-003 --reviewer llm
-FEISHU_ENABLE_WRITE=1 python3.11 -m ariadne_ltb.cli feishu write ARI-003 --confirm-write
-python3.11 -m ariadne_ltb.cli github sync ARI-003 --confirm-write
-python3.11 -m ariadne_ltb.cli ticket comments ARI-003
-python3.11 -m ariadne_ltb.cli export board
-python3.11 -m ariadne_ltb.cli evidence packet --require-acceptance-ready
-```
-
-`ticket run` remains a direct full-loop path. Agent Teammate Mode is the normal
-Multica-style local path because it makes assignment, daemon claim, progress,
-comments, and runtime state visible.
+The accepted success status is `REAL_CLOSED`. If the local external execution
+environment blocks the run, the accepted honest status is `BLOCKED_WITH_EVIDENCE`
+with a concrete external blocker. Missing implementation, fake data, empty
+handoff, absent source analysis, or missing evidence are product failures, not
+acceptable external blockers.
 
 ## Offline Regression Fixture
 

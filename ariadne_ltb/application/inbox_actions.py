@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ariadne_ltb.application.assign_ticket import AssignTicketService
+from ariadne_ltb.application.dtos import AssignTicketInput
 from ariadne_ltb.application.errors import ConflictError, NotFoundError, ValidationAppError
 from ariadne_ltb.application.inbox_recovery import classify_inbox_item
 from ariadne_ltb.inbox import (
@@ -16,7 +18,9 @@ from ariadne_ltb.models import (
     FailureReason,
     InboxItem,
     InboxStatus,
+    RepairAction,
     TicketAssignment,
+    stable_id,
 )
 from ariadne_ltb.retry import create_retry_assignment
 from ariadne_ltb.storage import AriadneStore
@@ -42,10 +46,15 @@ class InboxActionService:
         existing = find_repair_ticket_for_inbox_item(self.store, item.id)
         result = create_repair_ticket_from_inbox(self.store, item.id, priority=priority)
         repair_ticket = result.ticket or existing
+        repair_assignment = self._create_repair_assignment(item, repair_ticket) if repair_ticket else None
         action = "inbox_repair_ticket_reused" if result.already_exists else "inbox_repair_ticket_created"
         message = (
-            f"Repair ticket already exists: {repair_ticket.key}."
+            f"Repair ticket already exists: {repair_ticket.key}; repair assignment: {repair_assignment.id}."
+            if result.already_exists and repair_ticket and repair_assignment
+            else f"Repair ticket already exists: {repair_ticket.key}."
             if result.already_exists and repair_ticket
+            else f"Repair ticket created: {repair_ticket.key}; repair assignment: {repair_assignment.id}."
+            if repair_ticket and repair_assignment
             else f"Repair ticket created: {repair_ticket.key}."
             if repair_ticket
             else "Repair ticket preview applied."
@@ -60,6 +69,7 @@ class InboxActionService:
             inbox_item=result.inbox_item,
             action=action,
             ticket=repair_ticket,
+            assignment=repair_assignment,
             already_exists=result.already_exists,
             message=message,
         )
@@ -129,6 +139,16 @@ class InboxActionService:
             item.id,
             InboxStatus.ACKNOWLEDGED,
             f"retry assignment created: {retry.id}",
+        )
+        self.store.save_repair_action(
+            RepairAction(
+                id=stable_id("repair_action", item.id, retry.id),
+                source_inbox_item_id=item.id,
+                target_agent_id=retry.agent_id,
+                repair_type="retry",
+                new_assignment_id=retry.id,
+                repair_ticket_id=None,
+            )
         )
         self._record_source_ticket_action(
             item,
@@ -204,6 +224,88 @@ class InboxActionService:
                 "source_id": item.source_id,
             },
         )
+
+    def _create_repair_assignment(
+        self,
+        item: InboxItem,
+        repair_ticket: BuildTicket | None,
+    ) -> TicketAssignment | None:
+        if repair_ticket is None:
+            return None
+        existing_action = next(
+            (
+                action
+                for action in self.store.list_repair_actions()
+                if action.source_inbox_item_id == item.id and action.repair_ticket_id == repair_ticket.id
+            ),
+            None,
+        )
+        if existing_action is not None:
+            try:
+                return self.store.load_assignment(existing_action.new_assignment_id)
+            except FileNotFoundError:
+                pass
+        try:
+            source_assignment = self._resolve_linked_assignment(item)
+        except ConflictError:
+            return None
+        target_project_id = str(
+            source_assignment.metadata.get("target_project_id")
+            or self.store.load_ticket(source_assignment.ticket_id).metadata.get("target_project_id")
+            or ""
+        )
+        if not target_project_id:
+            return None
+        backend_name = source_assignment.backend_name or self.store.resolve_agent_profile(
+            source_assignment.agent_id
+        ).backend_name
+        try:
+            assigned = AssignTicketService(self.store).assign(
+                repair_ticket.key,
+                AssignTicketInput(
+                    assignee_id=source_assignment.agent_id,
+                    assignee_kind="agent",
+                    backend_name=backend_name,
+                    runtime_profile="auto",
+                    target_project_id=target_project_id,
+                    idempotency_key=stable_id(
+                        "inbox_repair_assignment",
+                        item.id,
+                        repair_ticket.id,
+                        source_assignment.agent_id,
+                    ),
+                ),
+                source="http",
+            )
+        except (ConflictError, FileNotFoundError, NotFoundError, ValidationAppError, ValueError):
+            return None
+        assignment = self.store.load_assignment(assigned.assignment.id)
+        assignment = assignment.model_copy(
+            deep=True,
+            update={
+                "parent_assignment_id": source_assignment.id,
+                "retry_reason": f"repair from inbox item {item.id}",
+                "metadata": assignment.metadata
+                | {
+                    "source_inbox_item_id": item.id,
+                    "repair_ticket_id": repair_ticket.id,
+                    "repair_type": "fix",
+                    "parent_assignment_id": source_assignment.id,
+                },
+            },
+        )
+        self.store.save_assignment(assignment)
+        self.store.save_repair_action(
+            RepairAction(
+                id=stable_id("repair_action", item.id, assignment.id),
+                source_inbox_item_id=item.id,
+                target_agent_id=source_assignment.agent_id,
+                repair_type="fix",
+                new_assignment_id=assignment.id,
+                repair_ticket_id=repair_ticket.id,
+            )
+        )
+        return assignment
 
     def _record_source_ticket_action(
         self,
