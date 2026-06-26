@@ -132,6 +132,18 @@ product closure standard is browser-driven Project Version Delivery:
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
 ```
 
+The gated backend attempt inside that browser path must still resolve to a real
+production agent assignment. The operator-equivalent command shape is:
+
+```bash
+ari ticket assign <current-ticket> --to codex --runtime-profile production
+ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
+```
+
+Those commands are diagnostic equivalents for the selected current-version
+ticket; they are not product closure unless driven and evidenced through the
+browser flow above.
+
 The accepted success status is `REAL_CLOSED`. If the local external execution
 environment blocks the run, the accepted honest status is `BLOCKED_WITH_EVIDENCE`
 with a concrete external blocker. Missing implementation, fake data, empty
