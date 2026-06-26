@@ -66,6 +66,13 @@ def generate_release_evidence_packet(store: AriadneStore) -> tuple[ReleaseEviden
         update={
             "product_readiness_status": product_readiness["overall_status"],
             "production_acceptance_status": product_readiness["production_acceptance_status"],
+            "product_closure_status": product_readiness["product_closure_status"],
+            "product_closure_mode": product_readiness["product_closure_mode"],
+            "product_closure_summary": product_readiness["product_closure_summary"],
+            "product_closure_reason": product_readiness["product_closure_reason"],
+            "product_closure_packet_path": product_readiness["product_closure_packet_path"],
+            "product_closure_required_command": product_readiness["product_closure_required_command"],
+            "product_closure_acceptance_path": product_readiness["product_closure_acceptance_path"],
             "run_gate_status": product_readiness["run_gate_status"],
             "product_readiness_checks": {
                 check["name"]: check["status"] for check in product_readiness["checks"]

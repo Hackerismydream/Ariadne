@@ -21,6 +21,7 @@ from ariadne_ltb.llm import (
     redact_secrets,
 )
 from ariadne_ltb.models import utc_now
+from ariadne_ltb.product_closure import REAL_CLOSED, product_closure_snapshot
 from ariadne_ltb.runtime import collect_runtime_capabilities
 from ariadne_ltb.secret_safety import secret_status_lines as secret_scan_status_lines
 from ariadne_ltb.storage import AriadneStore
@@ -143,7 +144,9 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     release_packet = _release_packet_snapshot(store)
     real_evidence = _real_evidence_snapshot(store)
     local_evidence = _local_evidence_snapshot(store)
+    closure = product_closure_snapshot(store)
     checks = [
+        _product_closure_check(closure),
         _product_check(
             "deepseek_llm",
             integration["llm"]["deepseek_api_key"] == "set",
@@ -284,7 +287,7 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     ]
     blocking = [check for check in checks if check["status"] == "blocked"]
     action_required = [check for check in checks if check["status"] == "action_required"]
-    gate_check_names = {"external_execution_gate", "feishu_write_gate"}
+    gate_check_names = {"external_execution_gate", "feishu_write_gate", "product_closure_gate"}
     acceptance_checks = [check for check in checks if check["name"] not in gate_check_names]
     acceptance_blocking = [check for check in acceptance_checks if check["status"] == "blocked"]
     acceptance_action_required = [
@@ -293,6 +296,13 @@ def product_readiness_snapshot(store: AriadneStore, repo_root: Path) -> dict[str
     snapshot = {
         "generated_at": utc_now(),
         "overall_status": "blocked" if blocking else "action_required" if action_required else "ready",
+        "product_closure_status": closure["status"],
+        "product_closure_mode": closure["mode"],
+        "product_closure_summary": closure["summary"],
+        "product_closure_reason": closure["reason"],
+        "product_closure_packet_path": closure["packet_path"],
+        "product_closure_required_command": closure["required_command"],
+        "product_closure_acceptance_path": closure["acceptance_path"],
         "production_acceptance_status": (
             "blocked"
             if acceptance_blocking
@@ -350,7 +360,9 @@ def product_readiness_lines(
     snapshot = snapshot or product_readiness_snapshot(store, repo_root)
     lines = [
         f"Product readiness: {snapshot['overall_status']}",
-        f"Production acceptance: {snapshot['production_acceptance_status']}",
+        f"Production evidence readiness: {snapshot['production_acceptance_status']}",
+        f"Product closure: {snapshot['product_closure_status']}",
+        f"Product closure path: {snapshot['product_closure_acceptance_path']}",
         f"Run gates: {snapshot['run_gate_status']}",
         f"report: {store.doctor_dir / 'product_readiness.json'}",
         f"integration report: {snapshot['integration_report']}",
@@ -576,6 +588,22 @@ def _product_github_operation_check(
         "status": "action_required",
         "summary": next_action,
         "next_action": next_action,
+    }
+
+
+def _product_closure_check(closure: dict[str, Any]) -> dict[str, Any]:
+    if closure["status"] == REAL_CLOSED:
+        return {
+            "name": "product_closure_gate",
+            "status": "ready",
+            "summary": closure["summary"],
+            "next_action": "",
+        }
+    return {
+        "name": "product_closure_gate",
+        "status": "blocked" if closure["status"] == "BLOCKED_WITH_EVIDENCE" else "action_required",
+        "summary": closure["summary"],
+        "next_action": closure["required_command"],
     }
 
 

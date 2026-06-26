@@ -303,11 +303,17 @@ def _production_acceptance_lines(store: AriadneStore) -> list[str]:
         or evidence.get("production_acceptance")
         or "unknown"
     )
+    closure_status = evidence.get("product_closure_status") or "NOT_CLOSED"
+    closure_mode = evidence.get("product_closure_mode") or "unknown"
+    closure_reason = evidence.get("product_closure_reason") or ""
     run_gate_status = evidence.get("run_gate_status") or "unknown"
     lines.extend(
         [
             f"- Product readiness: `{product_status}`",
-            f"- Production acceptance: `{acceptance_status}`",
+            f"- Production evidence readiness: `{acceptance_status}`",
+            f"- Product closure: `{closure_status}`",
+            f"- Product closure mode: `{closure_mode}`",
+            f"- Product closure reason: {closure_reason or '`none`'}",
             f"- Run gates: `{run_gate_status}`",
             f"- Product readiness report: `{product_readiness_path}`",
             f"- Release evidence packet: `{store.release_evidence_packet_path}`",

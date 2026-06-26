@@ -1541,6 +1541,13 @@ class ReleaseEvidencePacket(AriadneModel):
     latest_review_verdicts: dict[str, str] = Field(default_factory=dict)
     product_readiness_status: str | None = None
     production_acceptance_status: str | None = None
+    product_closure_status: str | None = None
+    product_closure_mode: str | None = None
+    product_closure_summary: str | None = None
+    product_closure_reason: str | None = None
+    product_closure_packet_path: str | None = None
+    product_closure_required_command: str | None = None
+    product_closure_acceptance_path: str | None = None
     run_gate_status: str | None = None
     product_readiness_checks: dict[str, str] = Field(default_factory=dict)
     readiness_next_actions: list[str] = Field(default_factory=list)

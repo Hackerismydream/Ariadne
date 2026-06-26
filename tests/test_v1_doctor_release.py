@@ -48,6 +48,33 @@ def _seed_release_packet(root: Path) -> None:
     )
 
 
+def _seed_real_closure_packet(root: Path, target: Path | None = None) -> Path:
+    target_path = target or root / "target-project"
+    target_path.mkdir(parents=True, exist_ok=True)
+    (target_path / ".git").mkdir(exist_ok=True)
+    result_dir = root / ".ariadne" / "dogfood" / "browser-real-closed"
+    result_dir.mkdir(parents=True, exist_ok=True)
+    packet_path = result_dir / "closure-result.json"
+    packet_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "ariadne.browser_dogfood_closure.v1",
+                "status": "REAL_CLOSED",
+                "mode": "real",
+                "target_path": str(target_path),
+                "workbench_url": "http://127.0.0.1:8766/#issues/MCA-001",
+                "execution_evidence_text": (
+                    "后端 codex\n执行结果 passed\n退出码 0\n测试退出码 0\nDiff changed files\n评审 pass\nMemory updated\nNext Tickets generated"
+                ),
+                "recorded_at": "2026-06-26T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return packet_path
+
+
 def _seed_full_github_product_evidence(store: AriadneStore) -> None:
     store.save_github_integration_result(
         GitHubIntegrationResult(
@@ -504,7 +531,8 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
 
     assert result.exit_code == 0, result.output
     assert "Product readiness: action_required" in result.output
-    assert "Production acceptance: action_required" in result.output
+    assert "Production evidence readiness: action_required" in result.output
+    assert "Product closure: NOT_CLOSED" in result.output
     assert "Run gates: action_required" in result.output
     assert "deepseek_llm: ready" in result.output
     assert "codex_backend: ready" in result.output
@@ -544,7 +572,7 @@ def test_doctor_product_reports_acceptance_readiness_without_external_writes(
         ["--root", str(tmp_path), "doctor", "product", "--require-acceptance-ready"],
     )
     assert required.exit_code == 2, required.output
-    assert "requirement failed: production acceptance is action_required, expected ready" in required.output
+    assert "requirement failed: production evidence readiness is action_required, expected ready" in required.output
 
 
 def test_doctor_product_tolerates_legacy_unknown_artifact_types(
@@ -712,6 +740,7 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
     _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
     _seed_ready_landing_gate_evidence(store)
+    _seed_real_closure_packet(tmp_path)
 
     def fake_which(command: str) -> str | None:
         return {
@@ -747,12 +776,15 @@ def test_doctor_product_marks_real_success_evidence_ready(monkeypatch, tmp_path:
 
     assert result.exit_code == 0, result.output
     assert "Product readiness: ready" in result.output
-    assert "Production acceptance: ready" in result.output
+    assert "Production evidence readiness: ready" in result.output
+    assert "Product closure: REAL_CLOSED" in result.output
     assert "Run gates: ready" in result.output
     snapshot = json.loads(
         (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").read_text(encoding="utf-8")
     )
     assert snapshot["production_acceptance_status"] == "ready"
+    assert snapshot["product_closure_status"] == "REAL_CLOSED"
+    assert snapshot["product_closure_mode"] == "browser_project_version_delivery"
     assert snapshot["run_gate_status"] == "ready"
     statuses = {check["name"]: check["status"] for check in snapshot["checks"]}
     assert statuses["real_codex_execution_evidence"] == "ready"
@@ -955,6 +987,7 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
     _seed_llm_agent_product_evidence(store)
     _seed_full_github_product_evidence(store)
     _seed_ready_landing_gate_evidence(store)
+    _seed_real_closure_packet(tmp_path)
 
     def fake_which(command: str) -> str | None:
         return {
@@ -990,13 +1023,15 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
 
     assert result.exit_code == 0, result.output
     assert "Product readiness: action_required" in result.output
-    assert "Production acceptance: ready" in result.output
+    assert "Production evidence readiness: ready" in result.output
+    assert "Product closure: REAL_CLOSED" in result.output
     assert "Run gates: action_required" in result.output
     snapshot = json.loads(
         (tmp_path / ".ariadne" / "doctor" / "product_readiness.json").read_text(encoding="utf-8")
     )
     assert snapshot["overall_status"] == "action_required"
     assert snapshot["production_acceptance_status"] == "ready"
+    assert snapshot["product_closure_status"] == "REAL_CLOSED"
     assert snapshot["run_gate_status"] == "action_required"
 
     acceptance_required = CliRunner().invoke(
@@ -1004,7 +1039,7 @@ def test_doctor_product_separates_acceptance_from_unset_run_gates(
         ["--root", str(tmp_path), "doctor", "product", "--require-acceptance-ready"],
     )
     assert acceptance_required.exit_code == 0, acceptance_required.output
-    assert "Production acceptance: ready" in acceptance_required.output
+    assert "Production evidence readiness: ready" in acceptance_required.output
 
     gates_required = CliRunner().invoke(
         app,

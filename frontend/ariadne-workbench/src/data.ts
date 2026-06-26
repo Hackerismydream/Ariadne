@@ -166,20 +166,7 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       } : null,
     },
     runtimes: apiData.runtime_capabilities.map(adaptRuntime),
-    projectResources: apiData.target_projects.map((project) => ({
-      id: project.id,
-      label: project.label,
-      resourceType: "local_directory",
-      available: project.available,
-      disabledReason: project.disabled_reason,
-      localPath: project.local_path ?? (typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined),
-      pathExists: project.path_exists,
-      isGitRepo: project.is_git_repo,
-      gitBranch: project.git_branch,
-      gitDirty: project.git_dirty,
-      testCommand: project.test_command ?? (typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined),
-      issuePrefix: project.issue_prefix ?? (typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined),
-    })),
+    projectResources: apiData.target_projects.map(adaptTargetProject),
     sourceArtifacts: apiData.source_artifacts.map((artifact) => ({
       id: artifact.id,
       sourceDocumentId: artifact.source_document_id,
@@ -326,20 +313,7 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       ariadneRoot: apiData.environment.ariadne_root,
       ariadneStorePath: apiData.environment.ariadne_store_path,
       activeTargetProjectId: apiData.environment.active_target_project_id,
-      activeTargetProject: apiData.environment.active_target_project ? {
-        id: apiData.environment.active_target_project.id,
-        label: apiData.environment.active_target_project.label,
-        resourceType: "local_directory",
-        available: apiData.environment.active_target_project.available,
-        disabledReason: apiData.environment.active_target_project.disabled_reason,
-        localPath: apiData.environment.active_target_project.local_path ?? undefined,
-        pathExists: apiData.environment.active_target_project.path_exists,
-        isGitRepo: apiData.environment.active_target_project.is_git_repo,
-        gitBranch: apiData.environment.active_target_project.git_branch,
-        gitDirty: apiData.environment.active_target_project.git_dirty,
-        testCommand: apiData.environment.active_target_project.test_command ?? undefined,
-        issuePrefix: apiData.environment.active_target_project.issue_prefix ?? undefined,
-      } : null,
+      activeTargetProject: apiData.environment.active_target_project ? adaptTargetProject(apiData.environment.active_target_project) : null,
       productionBackendsAvailable: apiData.environment.production_backends_available,
       selectedBackendRecommendation: apiData.environment.selected_backend_recommendation,
       blockers: apiData.environment.blockers.map((blocker) => ({
@@ -426,6 +400,12 @@ function adaptDelivery(delivery: NonNullable<ApiWorkbench["current_version_deliv
     targetState: delivery.target_state,
     summary: delivery.summary,
     generatedAt: delivery.generated_at,
+    productClosureStatus: delivery.product_closure_status,
+    productClosureMode: delivery.product_closure_mode,
+    productClosureSummary: delivery.product_closure_summary,
+    productClosureReason: delivery.product_closure_reason,
+    productClosurePacketPath: delivery.product_closure_packet_path,
+    productClosureRequiredCommand: delivery.product_closure_required_command,
     progressCounts: delivery.progress_counts,
     gates: delivery.gates.map((gate) => ({
       id: gate.id,
@@ -501,6 +481,23 @@ function adaptAgentActivity(activity: NonNullable<ApiWorkbench["agent_activities
     summary: activity.summary,
     timestamp: activity.timestamp,
     refId: activity.ref_id,
+  };
+}
+
+function adaptTargetProject(project: ApiWorkbench["target_projects"][number]) {
+  return {
+    id: project.id,
+    label: project.label,
+    resourceType: "local_directory",
+    available: project.available,
+    disabledReason: project.disabled_reason,
+    localPath: project.local_path ?? (typeof project.metadata?.local_path === "string" ? project.metadata.local_path : undefined),
+    pathExists: project.path_exists,
+    isGitRepo: project.is_git_repo,
+    gitBranch: project.git_branch,
+    gitDirty: project.git_dirty,
+    testCommand: project.test_command ?? (typeof project.metadata?.test_command === "string" ? project.metadata.test_command : undefined),
+    issuePrefix: project.issue_prefix ?? (typeof project.metadata?.issue_prefix === "string" ? project.metadata.issue_prefix : undefined),
   };
 }
 

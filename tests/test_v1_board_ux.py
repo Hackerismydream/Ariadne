@@ -197,7 +197,8 @@ def test_board_shows_production_acceptance_evidence(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "## Production Acceptance Evidence" in board
-    assert "- Production acceptance: `ready`" in board
+    assert "- Production evidence readiness: `ready`" in board
+    assert "- Product closure: `NOT_CLOSED`" in board
     assert "| `landing_gate_evidence` | `ready` |  |" in board
     assert "| `real_codex_execution_evidence` | `ready` |  |" in board
     assert "### Local Gate Evidence" in board
@@ -358,4 +359,4 @@ def test_cli_outputs_readable_ticket_state(tmp_path: Path) -> None:
     assert "build_lead: pass provider=deepseek model=deepseek-v4-pro" in show.output
     assert "Feishu: pass doc=https://example.feishu.cn/docx/ticket-show" in show.output
     assert "GitHub: ops=status issue=https://github.com/Hackerismydream/Ariadne/issues/8" in show.output
-    assert "Release packet: production_acceptance=ready" in show.output
+    assert "Release packet: production_evidence=ready product_closure=unknown" in show.output

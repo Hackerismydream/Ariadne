@@ -168,6 +168,12 @@ class ProjectVersionDeliveryDTO(AriadneDTO):
     target_state: str
     summary: str
     generated_at: str
+    product_closure_status: str = "NOT_CLOSED"
+    product_closure_mode: str = "not_attempted"
+    product_closure_summary: str = ""
+    product_closure_reason: str = ""
+    product_closure_packet_path: str | None = None
+    product_closure_required_command: str = ""
     progress_counts: dict[str, int] = Field(default_factory=dict)
     gates: list[DeliveryGateDTO] = Field(default_factory=list)
     delivery_items: list[DeliveryItemDTO] = Field(default_factory=list)

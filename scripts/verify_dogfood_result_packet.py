@@ -5,6 +5,11 @@ import json
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from ariadne_ltb.product_closure import REAL_CLOSED, evaluate_closure_packet  # noqa: E402
+
 
 REQUIRED_KEYS = {
     "schema_version",
@@ -30,24 +35,12 @@ def main() -> int:
     if missing:
         print(f"dogfood closure packet missing keys: {', '.join(missing)}", file=sys.stderr)
         return 1
-    if packet["status"] != "REAL_CLOSED":
-        print(f"dogfood status is not REAL_CLOSED: {packet['status']}", file=sys.stderr)
-        return 1
-    if packet["mode"] != "real":
-        print(f"dogfood mode is not real: {packet['mode']}", file=sys.stderr)
-        return 1
-    evidence = str(packet["execution_evidence_text"]).lower()
-    forbidden = ["fake-codex", "dry-run", "dry_run", "门禁关闭", "已阻塞"]
-    found = [item for item in forbidden if item in evidence]
-    if found:
-        print(f"dogfood evidence contains non-closure markers: {', '.join(found)}", file=sys.stderr)
-        return 1
-    target_path = Path(str(packet["target_path"])).expanduser()
-    if not target_path.exists():
-        print(f"target project path does not exist: {target_path}", file=sys.stderr)
-        return 1
-    if not (target_path / ".git").exists():
-        print(f"target project is not a git repo: {target_path}", file=sys.stderr)
+    closure = evaluate_closure_packet(packet, packet_path=path, validate_target_path=True)
+    if closure["status"] != REAL_CLOSED:
+        print(
+            f"dogfood closure rejected: {closure['status']} ({closure['mode']}): {closure['reason']}",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

@@ -1431,7 +1431,8 @@ def _ticket_production_evidence_lines(store: AriadneStore, ticket) -> list[str]:
         packet = json.loads(store.release_evidence_packet_path.read_text(encoding="utf-8"))
         lines.append(
             "  Release packet: "
-            f"production_acceptance={packet.get('production_acceptance_status', 'unknown')} "
+            f"production_evidence={packet.get('production_acceptance_status', 'unknown')} "
+            f"product_closure={packet.get('product_closure_status') or 'unknown'} "
             f"product_readiness={packet.get('product_readiness_status', 'unknown')} "
             f"path={store.release_evidence_packet_path}"
         )
@@ -2556,6 +2557,13 @@ def doctor_product(
             help="Exit non-zero unless current external execution/write gates are set.",
         ),
     ] = False,
+    require_product_closure: Annotated[
+        bool,
+        typer.Option(
+            "--require-product-closure",
+            help="Exit non-zero unless browser Project Version Delivery reached REAL_CLOSED.",
+        ),
+    ] = False,
 ) -> None:
     """Report production product-path readiness without performing external writes."""
     from ariadne_ltb.doctor import product_readiness_lines, product_readiness_snapshot
@@ -2570,10 +2578,14 @@ def doctor_product(
     failed_requirements: list[str] = []
     if require_acceptance_ready and snapshot["production_acceptance_status"] != "ready":
         failed_requirements.append(
-            f"production acceptance is {snapshot['production_acceptance_status']}, expected ready"
+            f"production evidence readiness is {snapshot['production_acceptance_status']}, expected ready"
         )
     if require_run_gates_ready and snapshot["run_gate_status"] != "ready":
         failed_requirements.append(f"run gates are {snapshot['run_gate_status']}, expected ready")
+    if require_product_closure and snapshot["product_closure_status"] != "REAL_CLOSED":
+        failed_requirements.append(
+            f"product closure is {snapshot['product_closure_status']}, expected REAL_CLOSED"
+        )
     if failed_requirements:
         for requirement in failed_requirements:
             typer.echo(f"requirement failed: {requirement}", err=True)
@@ -2930,6 +2942,13 @@ def evidence_packet(
             help="Exit non-zero unless real execution/write run gates are ready.",
         ),
     ] = False,
+    require_product_closure: Annotated[
+        bool,
+        typer.Option(
+            "--require-product-closure",
+            help="Exit non-zero unless browser Project Version Delivery reached REAL_CLOSED.",
+        ),
+    ] = False,
 ) -> None:
     """Generate a local release evidence packet from current Ariadne evidence."""
     if output not in {"table", "json"}:
@@ -2945,7 +2964,11 @@ def evidence_packet(
         typer.echo(f"reviews: {packet.review_report_count}")
         typer.echo(f"store invariants: {'ok' if packet.store_invariants_ok else 'blocked'}")
         typer.echo(f"secret scan: {'ok' if packet.secret_scan_ok else 'blocked'}")
-        typer.echo(f"production acceptance: {packet.production_acceptance_status or 'unknown'}")
+        typer.echo(f"production evidence readiness: {packet.production_acceptance_status or 'unknown'}")
+        typer.echo(f"product closure: {packet.product_closure_status or 'unknown'}")
+        typer.echo(f"product closure mode: {packet.product_closure_mode or 'unknown'}")
+        if packet.product_closure_reason:
+            typer.echo(f"product closure reason: {packet.product_closure_reason}")
         typer.echo(f"product readiness: {packet.product_readiness_status or 'unknown'}")
         typer.echo(f"run gates: {packet.run_gate_status or 'unknown'}")
         typer.echo(f"stale: {'yes' if packet.evidence_packet_stale else 'no'}")
@@ -2960,11 +2983,15 @@ def evidence_packet(
     failed_requirements: list[str] = []
     if require_acceptance_ready and packet.production_acceptance_status != "ready":
         failed_requirements.append(
-            f"production acceptance is {packet.production_acceptance_status or 'unknown'}, expected ready"
+            f"production evidence readiness is {packet.production_acceptance_status or 'unknown'}, expected ready"
         )
     if require_run_gates_ready and packet.run_gate_status != "ready":
         failed_requirements.append(
             f"run gates are {packet.run_gate_status or 'unknown'}, expected ready"
+        )
+    if require_product_closure and packet.product_closure_status != "REAL_CLOSED":
+        failed_requirements.append(
+            f"product closure is {packet.product_closure_status or 'unknown'}, expected REAL_CLOSED"
         )
     if failed_requirements:
         for requirement in failed_requirements:
