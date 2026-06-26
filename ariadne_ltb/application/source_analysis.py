@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Protocol
 
-from ariadne_ltb.application.repository_scanner import infer_test_commands, scan_repository
+from ariadne_ltb.application.repository_scanner import RepositoryScan, infer_test_commands, scan_repository
 from ariadne_ltb.application.source_repository import (
     GitRepositoryFetcher,
     RepositoryFetcher,
@@ -237,6 +237,7 @@ class SourceAnalysisService:
             "license_risk": license_risk,
             "manifests": scan.manifests,
             "entrypoints": scan.entrypoints,
+            "repo_structure": _repo_structure(scan.top_level, scan.selected_files, scan.test_paths),
             "repo_map": {
                 "top_level": scan.top_level,
                 "selected_files": scan.selected_files,
@@ -252,6 +253,8 @@ class SourceAnalysisService:
             "test_strategy": scan.test_strategy,
             "safety_model": scan.safety_model,
             "limitations": scan.limitations,
+            "reusable_patterns": _reusable_patterns(scan),
+            "risks": _repository_risks(license_risk, scan),
             "reuse_notes": ["Reuse architecture ideas and task decomposition, not source code."],
             "avoid_notes": ["Do not copy implementation files directly from the reference project."],
             "scan_warnings": scan.warnings,
@@ -656,3 +659,36 @@ def _behavior_patterns(readme_text: str, entrypoints: list[str], test_paths: lis
     if test_paths:
         patterns.append("Keep an executable test path for every agent iteration.")
     return patterns or ["Extract a minimal project structure before generating implementation tasks."]
+
+
+def _repo_structure(top_level: list[str], selected_files: list[str], test_paths: list[str]) -> dict[str, object]:
+    return {
+        "top_level": top_level,
+        "selected_files": selected_files,
+        "core_modules": [item for item in top_level if item not in {"tests", "test", "docs", ".git"}],
+        "test_modules": sorted({Path(path).parts[0] for path in test_paths if Path(path).parts}),
+        "test_files": test_paths[:12],
+    }
+
+
+def _reusable_patterns(scan: RepositoryScan) -> list[str]:
+    patterns: list[str] = []
+    patterns.extend(scan.architecture_insights[:3])
+    patterns.extend(scan.test_strategy[:2])
+    for pattern in _behavior_patterns(scan.summary, scan.entrypoints, scan.test_paths):
+        if pattern not in patterns:
+            patterns.append(pattern)
+    if scan.safety_model:
+        patterns.append(scan.safety_model[0])
+    return patterns[:8] or ["Use the repository inventory as source evidence for issue decomposition."]
+
+
+def _repository_risks(license_risk: str, scan: RepositoryScan) -> list[str]:
+    risks: list[str] = []
+    if license_risk != "green":
+        risks.append(f"License risk is {license_risk}; reuse architecture ideas but do not copy source code.")
+    risks.extend(scan.limitations[:4])
+    risks.extend(scan.warnings[:2])
+    if not scan.safety_model:
+        risks.append("No explicit safety model was detected.")
+    return risks or ["No high-risk repository reuse blocker detected by the local scan."]

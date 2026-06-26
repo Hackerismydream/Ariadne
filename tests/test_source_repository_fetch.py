@@ -129,5 +129,8 @@ def test_github_url_fetch_creates_repository_understanding_artifact(tmp_path: Pa
     assert reloaded.metadata["snapshot"]["commit_sha"]
     assert artifacts[0].artifact_type == "repository_understanding"
     assert payload["identity"]["remote_url"] == "https://github.com/acme/mini-agent"
+    assert payload["repo_structure"]["test_files"] == ["tests/test_agent.py"]
+    assert payload["reusable_patterns"]
+    assert payload["risks"]
     assert payload["tests"]["paths"] == ["tests/test_agent.py"]
     assert "pyproject.toml" in payload["manifests"]

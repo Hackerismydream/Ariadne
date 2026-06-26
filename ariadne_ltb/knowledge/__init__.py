@@ -74,7 +74,7 @@ def compile_issues_with_provenance(
             provenance=_provenance(
                 store,
                 project_id,
-                compiler_mode="old_compiler_fallback",
+                compiler_mode="artifact_driven_deterministic_fallback",
                 graph_status="skipped",
                 runtime_mode="deterministic",
                 fallback_reason="missing_deepseek_key",
@@ -113,7 +113,7 @@ def compile_issues_with_provenance(
         specs = compile_deterministic_from_themes(store, project_id=project_id)
     if not specs:
         specs = compile_issue_specs(store, title=title, north_star=north_star, context=context)
-        compiler_mode = "old_compiler_fallback"
+        compiler_mode = "artifact_driven_deterministic_fallback"
         graph_status = "fallback"
         fallback_reason = fallback_reason or "no_project_knowledge_or_theme_specs"
     return IssueCompileResult(

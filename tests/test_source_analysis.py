@@ -112,8 +112,12 @@ def test_github_repo_analysis_writes_repository_understanding(tmp_path) -> None:
     assert payload["license_risk"] == "green"
     assert payload["manifests"] == ["pyproject.toml"]
     assert payload["entrypoints"]
+    assert payload["repo_structure"]["top_level"]
+    assert payload["repo_structure"]["test_files"] == ["tests/test_cli.py"]
     assert payload["tests"]["paths"] == ["tests/test_cli.py"]
     assert payload["behavior_patterns"]
+    assert payload["reusable_patterns"]
+    assert payload["risks"]
     assert payload["architecture_insights"]
     assert payload["test_strategy"]
     assert payload["safety_model"]

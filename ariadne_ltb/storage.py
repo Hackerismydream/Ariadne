@@ -701,13 +701,13 @@ class AriadneStore:
     def list_backlog_previews(self) -> list[BacklogPreview]:
         if not self.backlog_previews_dir.exists():
             return []
-        previews: list[BacklogPreview] = []
+        previews: list[tuple[BacklogPreview, int]] = []
         for path in sorted(self.backlog_previews_dir.glob("*.json")):
             try:
-                previews.append(self._read_model(path, BacklogPreview))
+                previews.append((self._read_model(path, BacklogPreview), path.stat().st_mtime_ns))
             except (json.JSONDecodeError, ValidationError):
                 continue
-        return sorted(previews, key=lambda preview: preview.created_at)
+        return [preview for preview, _ in sorted(previews, key=lambda item: (item[0].created_at, item[1]))]
 
     def list_backlog_updates(self) -> list[BacklogUpdate]:
         if not self.backlog_updates_path.exists():

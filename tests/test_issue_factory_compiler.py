@@ -22,7 +22,11 @@ from ariadne_ltb.models import (
 from ariadne_ltb.storage import AriadneStore
 
 
-def test_issue_factory_compiles_mca_issue_set_from_typed_artifacts(tmp_path: Path) -> None:
+def test_issue_factory_compiles_reviewable_issue_delta_from_typed_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ariadne_ltb.knowledge.has_deepseek_key", lambda: False)
     store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
 
     preview = IssueFactoryService(store).preview(
@@ -32,30 +36,33 @@ def test_issue_factory_compiles_mca_issue_set_from_typed_artifacts(tmp_path: Pat
     keys = [operation.ticket_key for operation in preview.operations]
     titles = [operation.title for operation in preview.operations]
 
-    assert keys[:10] == [
+    assert keys == [
         "MCA-001",
         "MCA-002",
         "MCA-003",
         "MCA-004",
         "MCA-005",
         "MCA-006",
-        "MCA-007",
-        "MCA-008",
-        "MCA-009",
-        "MCA-010",
     ]
-    assert "Bootstrap Python package and CLI" in titles
-    assert "Add DeepSeek-backed LLM client configuration" in titles
-    assert "Define tool protocol and model action schema" in titles
-    assert "Implement shell command tool with allowlist" in titles
-    assert "Implement file read and patch tools with review-before-write safety" in titles
-    assert "Implement agent loop: prompt -> action -> observation -> repeat" in titles
-    assert "Persist session trace and run summary" in titles
-    assert "Capture git diff and test result" in titles
-    assert "Add minimal reviewer checks for task completion" in titles
-    assert "Write README quickstart and usage examples" in titles
-    bootstrap = next(operation for operation in preview.operations if operation.ticket_key == "MCA-001")
-    assert ".mini-code-agent/" in bootstrap.metadata["affected_modules"]
+    assert "Map source claims into Mini Code Agent v0.1 contract" in titles
+    assert "Create executable entrypoint for Mini Code Agent" in titles
+    assert "Implement source-backed action loop for Mini Code Agent" in titles
+    assert "Add bounded tool execution for Mini Code Agent" in titles
+    assert "Capture review evidence for Mini Code Agent runs" in titles
+    assert "Document runnable workflow for Mini Code Agent" in titles
+    legacy_template_titles = {
+        "Bootstrap Python package and CLI",
+        "Add DeepSeek-backed LLM client configuration",
+        "Define tool protocol and model action schema",
+        "Implement shell command tool with allowlist",
+        "Implement file read and patch tools with review-before-write safety",
+        "Implement agent loop: prompt -> action -> observation -> repeat",
+        "Persist session trace and run summary",
+        "Capture git diff and test result",
+        "Add minimal reviewer checks for task completion",
+        "Write README quickstart and usage examples",
+    }
+    assert not legacy_template_titles & set(titles)
 
     for operation in preview.operations:
         assert operation.metadata["target_project_id"] == project_id
@@ -67,6 +74,14 @@ def test_issue_factory_compiles_mca_issue_set_from_typed_artifacts(tmp_path: Pat
         assert operation.metadata["affected_modules"]
         assert operation.metadata["acceptance_criteria"]
         assert operation.metadata["goal_reason"]
+        assert operation.metadata["compiler_provenance"]["compiler_mode"] == "artifact_driven_deterministic_fallback"
+        assert operation.metadata["source_claim_trace"]
+        assert operation.metadata["affected_module_rationale"]
+        assert operation.metadata["acceptance_criteria_rationale"]
+        assert not any("ariadne_ltb/" in module for module in operation.metadata["affected_modules"])
+
+    loop_issue = next(operation for operation in preview.operations if "action loop" in (operation.title or "").lower())
+    assert "mini_code_agent/agent_loop.py" in loop_issue.metadata["affected_modules"]
 
 
 def test_issue_factory_rejects_unanalyzed_source(tmp_path: Path) -> None:
@@ -107,21 +122,29 @@ def test_issue_factory_rejects_unanalyzed_source(tmp_path: Path) -> None:
         )
 
 
-def test_issue_factory_uses_artifact_payload_not_only_title(tmp_path: Path) -> None:
+def test_issue_factory_uses_artifact_payload_not_only_title(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ariadne_ltb.knowledge.has_deepseek_key", lambda: False)
     store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
     source = store.load_source_document(source_ids[1])
     artifacts = store.list_source_artifacts(source.id)
     payload = store.load_source_artifact_payload(artifacts[0].id)
     assert "tests" in payload
+    assert payload["repo_structure"]["test_files"]
+    assert payload["reusable_patterns"]
+    assert payload["risks"]
 
     preview = IssueFactoryService(store).preview(
         IssueFactoryPreviewInput(goal_id=goal_id, source_ids=source_ids, target_project_id=project_id)
     )
 
-    loop_issue = next(operation for operation in preview.operations if "agent loop" in (operation.title or "").lower())
-    assert artifacts[0].id in loop_issue.metadata["source_artifact_ids"]
-    assert loop_issue.metadata["evidence_refs"]
-    assert "mini_code_agent/agent_loop.py" in loop_issue.metadata["affected_modules"]
+    evidence_issue = next(operation for operation in preview.operations if "evidence" in (operation.title or "").lower())
+    assert artifacts[0].id in evidence_issue.metadata["source_artifact_ids"]
+    assert evidence_issue.metadata["evidence_refs"]
+    assert "mini_code_agent/evidence.py" in evidence_issue.metadata["affected_modules"]
+    assert any("test" in criterion.lower() for criterion in evidence_issue.metadata["acceptance_criteria"])
 
 
 def test_issue_factory_records_provenance_and_auto_target_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -173,7 +196,7 @@ def test_issue_factory_records_provenance_and_auto_target_snapshot(tmp_path: Pat
     )
 
     first = preview.operations[0]
-    assert first.metadata["compiler_provenance"]["compiler_mode"] == "old_compiler_fallback"
+    assert first.metadata["compiler_provenance"]["compiler_mode"] == "artifact_driven_deterministic_fallback"
     assert first.metadata["compiler_provenance"]["fallback_reason"] == "missing_deepseek_key"
     assert first.metadata["codebase_snapshot_status"] == "present"
     assert first.metadata["codebase_snapshot_artifact_id"]
@@ -272,7 +295,11 @@ def test_issue_factory_refreshes_target_snapshot_when_repo_changes(
     assert second_artifact_id not in browser_artifact_ids
 
 
-def test_issue_factory_updates_existing_target_issue_scope(tmp_path: Path) -> None:
+def test_issue_factory_updates_existing_target_issue_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ariadne_ltb.knowledge.has_deepseek_key", lambda: False)
     store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
     service = IssueFactoryService(store)
     first_preview = service.preview(
@@ -280,7 +307,7 @@ def test_issue_factory_updates_existing_target_issue_scope(tmp_path: Path) -> No
     )
     service.apply(first_preview.id)
     ticket = store.resolve_ticket("MCA-001")
-    old_scope = ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py"]
+    old_scope = ["docs/old-contract.md"]
     store.save_ticket(ticket.model_copy(deep=True, update={"metadata": ticket.metadata | {"affected_modules": old_scope}}))
     packet = store.load_build_packet(ticket.build_packet_id)
     store.save_build_packet(packet.model_copy(update={"affected_modules": old_scope}))
@@ -291,12 +318,12 @@ def test_issue_factory_updates_existing_target_issue_scope(tmp_path: Path) -> No
 
     bootstrap = next(operation for operation in update_preview.operations if operation.ticket_key == "MCA-001")
     assert bootstrap.operation_type == "update_ticket"
-    assert ".mini-code-agent/" in bootstrap.metadata["affected_modules"]
+    assert "docs/product-contract.md" in bootstrap.metadata["affected_modules"]
     service.apply(update_preview.id)
     updated_ticket = store.resolve_ticket("MCA-001")
     updated_packet = store.load_build_packet(updated_ticket.build_packet_id)
-    assert ".mini-code-agent/" in updated_ticket.metadata["affected_modules"]
-    assert ".mini-code-agent/" in updated_packet.affected_modules
+    assert "docs/product-contract.md" in updated_ticket.metadata["affected_modules"]
+    assert "docs/product-contract.md" in updated_packet.affected_modules
 
 
 def test_issue_delta_validator_rejects_generic_code_task() -> None:

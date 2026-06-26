@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from ariadne_ltb.interfaces.http.app import create_app
 
 
-def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) -> None:
+def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr("ariadne_ltb.knowledge.has_deepseek_key", lambda: False)
     target = tmp_path / "mini-code-agent"
     target.mkdir()
     mini_swe_repo = _reference_repo(tmp_path / "mini-swe-agent", "mini-SWE-agent")
@@ -73,30 +74,22 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
     )
     assert preview_response.status_code == 200, preview_response.text
     preview = preview_response.json()["preview"]
-    assert [operation["ticket_key"] for operation in preview["operations"][:10]] == [
+    assert [operation["ticket_key"] for operation in preview["operations"]] == [
         "MCA-001",
         "MCA-002",
         "MCA-003",
         "MCA-004",
         "MCA-005",
         "MCA-006",
-        "MCA-007",
-        "MCA-008",
-        "MCA-009",
-        "MCA-010",
     ]
     assert {operation["title"] for operation in preview["operations"]}.issuperset(
         {
-            "Bootstrap Python package and CLI",
-            "Add DeepSeek-backed LLM client configuration",
-            "Define tool protocol and model action schema",
-            "Implement shell command tool with allowlist",
-            "Implement file read and patch tools with review-before-write safety",
-            "Implement agent loop: prompt -> action -> observation -> repeat",
-            "Persist session trace and run summary",
-            "Capture git diff and test result",
-            "Add minimal reviewer checks for task completion",
-            "Write README quickstart and usage examples",
+            "Map source claims into Mini Code Agent v0.1 contract",
+            "Create executable entrypoint for Mini Code Agent",
+            "Implement source-backed action loop for Mini Code Agent",
+            "Add bounded tool execution for Mini Code Agent",
+            "Capture review evidence for Mini Code Agent runs",
+            "Document runnable workflow for Mini Code Agent",
         }
     )
     for operation in preview["operations"]:
@@ -105,10 +98,11 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
         assert operation["evidence_refs"]
         assert operation["acceptance_criteria"]
         assert operation["affected_modules"]
+        assert operation["compiler_provenance"]["compiler_mode"] == "artifact_driven_deterministic_fallback"
 
     apply_response = client.post(f"/api/issue-factory/{preview['id']}/apply", json={})
     assert apply_response.status_code == 200, apply_response.text
-    assert len(apply_response.json()["created_ticket_ids"]) >= 10
+    assert len(apply_response.json()["created_ticket_ids"]) == 6
 
     workbench = client.get("/api/workbench")
     assert workbench.status_code == 200, workbench.text
@@ -121,7 +115,10 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path) 
     assert {"minimal-agent blog", "mini-SWE-agent repository", "MiniCode repository"}.issubset(
         {source["title"] for source in payload["sources"]}
     )
-    assert any(ticket["key"] == "MCA-001" and ticket["title"] == "Bootstrap Python package and CLI" for ticket in payload["tickets"])
+    assert any(
+        ticket["key"] == "MCA-001" and ticket["title"] == "Map source claims into Mini Code Agent v0.1 contract"
+        for ticket in payload["tickets"]
+    )
     assert payload["backlog_previews"][0]["applied_update_id"]
     generated = next(ticket for ticket in payload["tickets"] if ticket["key"] == "MCA-001")
     assert generated["target_project_id"] == project_id

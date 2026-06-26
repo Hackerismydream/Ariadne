@@ -84,7 +84,7 @@ class WorkbenchProjectionService:
             inbox=[inbox_item_dto(self.store, item) for item in current_inbox_items],
             backlog_previews=[
                 backlog_preview_dto(preview)
-                for preview in self.store.list_backlog_previews()[-10:]
+                for preview in _current_backlog_previews(self.store, target_project_id)[-10:]
             ],
             daemon_status=DaemonControlService(self.store).status(),
             environment=build_workbench_environment(self.store),
@@ -97,3 +97,19 @@ class WorkbenchProjectionService:
 
     def snapshot(self, include_internal_backends: bool = False) -> WorkbenchDTO:
         return self.get(include_internal_backends)
+
+
+def _current_backlog_previews(store: AriadneStore, target_project_id: str | None):
+    previews = store.list_backlog_previews()
+    if not target_project_id:
+        return previews
+    scoped = []
+    for preview in previews:
+        operation_targets = {
+            str(operation.metadata.get("target_project_id"))
+            for operation in preview.operations
+            if operation.metadata.get("target_project_id")
+        }
+        if target_project_id in operation_targets:
+            scoped.append(preview)
+    return scoped
