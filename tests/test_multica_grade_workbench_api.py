@@ -4,8 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from ariadne_ltb.application.dtos import CreateProjectGoalInput
-from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.dtos import CreateProjectVersionInput
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.interfaces.http.app import create_app
@@ -36,11 +36,12 @@ def _prepared_store(tmp_path: Path) -> tuple[AriadneStore, str]:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
     project = TargetProjectRegistry(store).register(ensure_demo_target_project(tmp_path), "Demo Target")
-    ProjectGoalService(store).create(
-        CreateProjectGoalInput(
-            title="Demo current version",
-            north_star="Deliver one scoped current version issue.",
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
             target_project_id=project.id,
+            version_label="v0.1",
+            goal_title="Demo current version",
+            goal_north_star="Deliver one scoped current version issue.",
         )
     )
     current = store.resolve_ticket("ARI-003")
@@ -74,7 +75,7 @@ def test_issues_endpoint_returns_current_version_mainline_tickets(tmp_path: Path
     assert payload["source"] == "build_ticket_projection"
     issue = payload["issues"][0]
     assert issue["id"]
-    assert issue["target_version"] == "Demo current version"
+    assert issue["target_version"] == "v0.1"
     assert issue["source_count"] >= 1
 
 
@@ -198,6 +199,155 @@ def test_workbench_endpoint_is_scoped_to_current_version_issue_set(tmp_path: Pat
     assert response.status_code == 200, response.text
     keys = [item["key"] for item in response.json()["tickets"]]
     assert keys == ["ARI-003"]
+
+
+def test_project_version_create_missing_path_recover_and_scope_current_tabs(tmp_path: Path) -> None:
+    client = TestClient(create_app(tmp_path))
+    target_path = tmp_path / "mini-code-agent"
+
+    missing = client.post(
+        "/api/project-versions",
+        json={
+            "target_repo_path": str(target_path),
+            "target_repo_label": "mini-code-agent",
+            "version_label": "v0.1",
+            "goal_title": "mini-code-agent v0.1",
+            "goal_north_star": "Accept a repo and task, run a safe coding step, and capture evidence.",
+            "create_if_missing": False,
+            "init_git": True,
+            "test_command": "python3.11 -m pytest",
+            "issue_prefix": "MCA",
+        },
+    )
+    assert missing.status_code == 422, missing.text
+    assert missing.json()["error"]["code"] == "target_path_missing"
+    assert missing.json()["error"]["details"]["action"] == "create_folder"
+
+    created = client.post(
+        "/api/project-versions",
+        json={
+            "target_repo_path": str(target_path),
+            "target_repo_label": "mini-code-agent",
+            "version_label": "v0.1",
+            "goal_title": "mini-code-agent v0.1",
+            "goal_north_star": "Accept a repo and task, run a safe coding step, and capture evidence.",
+            "create_if_missing": True,
+            "init_git": True,
+            "test_command": "python3.11 -m pytest",
+            "issue_prefix": "MCA",
+        },
+    )
+
+    assert created.status_code == 200, created.text
+    version = created.json()["project_version"]
+    assert version["version_label"] == "v0.1"
+    assert version["target_project_label"] == "mini-code-agent"
+    assert version["target_project"]["local_path"] == str(target_path)
+    assert target_path.is_dir()
+    assert (target_path / ".git").is_dir()
+
+    workbench = client.get("/api/workbench")
+    assert workbench.status_code == 200, workbench.text
+    payload = workbench.json()
+    assert payload["current_project_version"]["id"] == version["id"]
+    assert payload["environment"]["active_target_project_id"] == version["target_project_id"]
+    assert payload["tickets"] == []
+
+
+def test_select_project_version_scopes_issues_runs_and_inbox(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    project_a = TargetProjectRegistry(store).register(ensure_demo_target_project(tmp_path / "a"), "mini-code-agent")
+    project_b = TargetProjectRegistry(store).register(ensure_demo_target_project(tmp_path / "b"), "other-target")
+    version_service = ProjectVersionService(store)
+    version_a = version_service.create(
+        CreateProjectVersionInput(
+            target_project_id=project_a.id,
+            version_label="v0.1",
+            goal_title="mini-code-agent v0.1",
+            goal_north_star="Deliver mini-code-agent v0.1.",
+        )
+    )
+    version_b = version_service.create(
+        CreateProjectVersionInput(
+            target_project_id=project_b.id,
+            version_label="v0.1",
+            goal_title="other-target v0.1",
+            goal_north_star="Deliver other target v0.1.",
+        )
+    )
+    ticket_a = BuildTicket(
+        id="ticket-a",
+        key="MCA-001",
+        title="Current mini-code-agent issue",
+        description="Scoped to mini-code-agent.",
+        source_type="manual_goal",
+        source_ref="mini",
+        status=TicketStatus.READY_FOR_EXECUTION,
+        metadata={"target_project_id": project_a.id, "issue_class": "mainline", "root_ticket_key": "MCA-001"},
+    )
+    ticket_b = BuildTicket(
+        id="ticket-b",
+        key="OTH-001",
+        title="Other target issue",
+        description="Scoped to another target.",
+        source_type="manual_goal",
+        source_ref="other",
+        status=TicketStatus.READY_FOR_EXECUTION,
+        metadata={"target_project_id": project_b.id, "issue_class": "mainline", "root_ticket_key": "OTH-001"},
+    )
+    store.save_ticket(ticket_a)
+    store.save_ticket(ticket_b)
+    assignment_a = store.create_assignment(ticket_a, store.resolve_agent_profile("codex"), backend_name="codex")
+    assignment_b = store.create_assignment(ticket_b, store.resolve_agent_profile("codex"), backend_name="codex")
+    store.save_assignment(assignment_a.mark_blocked("external gate closed", FailureReason.EXTERNAL_EXECUTION_BLOCKED))
+    store.save_assignment(assignment_b.mark_blocked("other gate closed", FailureReason.EXTERNAL_EXECUTION_BLOCKED))
+    client = TestClient(create_app(tmp_path))
+
+    selected = client.post("/api/project-versions/select", json={"version_id": version_a.id})
+    issues = client.get("/api/issues")
+    runs = client.get("/api/runs/assignments")
+    inbox = client.get("/api/inbox")
+    workbench = client.get("/api/workbench")
+
+    assert selected.status_code == 200, selected.text
+    assert selected.json()["project_version"]["id"] == version_a.id
+    assert version_b.id != version_a.id
+    assert issues.status_code == 200, issues.text
+    assert [item["key"] for item in issues.json()["issues"]] == ["MCA-001"]
+    assert [item["ticket_key"] for item in runs.json()["assignments"]] == ["MCA-001"]
+    assert [item["issue_key"] for item in inbox.json()["inbox"]] == ["MCA-001"]
+    assert [item["key"] for item in workbench.json()["tickets"]] == ["MCA-001"]
+    assert workbench.json()["current_project_version"]["id"] == version_a.id
+
+
+def test_without_current_project_version_historical_tickets_are_not_mainline(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = BuildTicket(
+        id="historical-ticket",
+        key="ARI-HIST",
+        title="Historical Ariadne task",
+        description="Stored historical work must not become current-version work.",
+        source_type="manual_goal",
+        source_ref="history",
+        status=TicketStatus.PLANNING,
+        metadata={"target_project_id": "old-target", "issue_class": "mainline", "root_ticket_key": "ARI-HIST"},
+    )
+    store.save_ticket(ticket)
+    client = TestClient(create_app(tmp_path))
+
+    issues = client.get("/api/issues")
+    workbench = client.get("/api/workbench")
+    runs = client.get("/api/runs/assignments")
+    inbox = client.get("/api/inbox")
+
+    assert issues.status_code == 200, issues.text
+    assert issues.json()["issues"] == []
+    assert workbench.status_code == 200, workbench.text
+    assert workbench.json()["tickets"] == []
+    assert workbench.json()["current_project_version"] is None
+    assert workbench.json()["environment"]["blockers"][0]["code"] == "project_version_missing"
+    assert runs.json()["assignments"] == []
+    assert inbox.json()["inbox"] == []
 
 
 def test_issue_detail_timeline_and_comment_facade(tmp_path: Path) -> None:

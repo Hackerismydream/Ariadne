@@ -229,6 +229,29 @@ def test_frontend_product_path_defaults_to_current_issues_context() -> None:
         assert label in sidebar
 
 
+def test_frontend_project_page_creates_selects_and_recovers_project_versions() -> None:
+    app = APP.read_text(encoding="utf-8")
+    client = API_CLIENT.read_text(encoding="utf-8")
+    api_types = API_TYPES.read_text(encoding="utf-8")
+    data = DATA.read_text(encoding="utf-8")
+    current_strip = CURRENT_STRIP.read_text(encoding="utf-8")
+
+    assert "export type ApiProjectVersion" in api_types
+    assert "export type CreateProjectVersionRequest" in api_types
+    assert "export type SelectProjectVersionRequest" in api_types
+    assert "/api/project-versions" in client
+    assert "/api/project-versions/select" in client
+    assert "createProjectVersion({" in app
+    assert "selectProjectVersion({ version_id: selectedVersionId })" in app
+    assert 'apiErrorCode(error) === "target_path_missing"' in app
+    assert "创建缺失 target path 并初始化" in app
+    assert "data.tickets.slice" not in app
+    assert "projectVersions:" in data
+    assert "currentProjectVersion:" in data
+    assert "currentProjectVersion?.goalNorthStar" in current_strip
+    assert "创建或选择 Project Version" in current_strip
+
+
 def test_frontend_exposes_knowledge_to_issue_provenance_contract() -> None:
     api_types = API_TYPES.read_text(encoding="utf-8")
     data = DATA.read_text(encoding="utf-8")

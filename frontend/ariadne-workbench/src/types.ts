@@ -283,6 +283,21 @@ export type ProjectResource = {
   issuePrefix?: string;
 };
 
+export type ProjectVersion = {
+  id: string;
+  targetProjectId: string;
+  targetProjectLabel?: string | null;
+  targetProject?: ProjectResource | null;
+  versionLabel: string;
+  goalId: string;
+  goalTitle: string;
+  goalNorthStar: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  selectedAt?: string | null;
+};
+
 export type AssignmentSummary = {
   id: string;
   ticketId: string;
@@ -684,6 +699,8 @@ export type AgentWorkflowStep = {
 
 export type WorkbenchData = {
   goal: AriadneGoal;
+  projectVersions?: ProjectVersion[];
+  currentProjectVersion?: ProjectVersion | null;
   tickets: AriadneTicket[];
   sources: SourceDocument[];
   sourceArtifacts?: SourceArtifact[];

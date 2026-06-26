@@ -7,7 +7,8 @@ from typer.testing import CliRunner
 
 from ariadne_ltb.application.assign_ticket import AssignTicketService
 from ariadne_ltb.application.daemon_control import DaemonControlService
-from ariadne_ltb.application.dtos import AssignTicketInput, DaemonStartInput, RunAssignmentInput
+from ariadne_ltb.application.dtos import AssignTicketInput, CreateProjectVersionInput, DaemonStartInput, RunAssignmentInput
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.daemon import LocalDaemonWorker
@@ -58,7 +59,17 @@ def test_http_workbench_and_runtime_status_are_browser_safe(tmp_path: Path) -> N
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
     target = ensure_demo_target_project(tmp_path)
-    TargetProjectRegistry(store).register(target, "Demo Target")
+    project = TargetProjectRegistry(store).register(target, "Demo Target")
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
+            target_project_id=project.id,
+            version_label="v0.1",
+            goal_title="Demo Target v0.1",
+            goal_north_star="Deliver one scoped current version issue.",
+        )
+    )
+    ticket = store.resolve_ticket("ARI-003")
+    store.save_ticket(ticket.model_copy(update={"metadata": ticket.metadata | {"target_project_id": project.id}}))
     client = TestClient(create_app(tmp_path))
 
     workbench = client.get("/api/workbench")

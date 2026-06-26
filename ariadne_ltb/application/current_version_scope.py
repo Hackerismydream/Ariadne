@@ -1,35 +1,22 @@
 from __future__ import annotations
 
-from collections import Counter
-
 from ariadne_ltb.application.issue_projection import classify_ticket
-from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.models import BacklogOperation, BacklogPreview, BuildTicket, TicketStatus
 from ariadne_ltb.storage import AriadneStore
 
 
 def current_version_target_project_id(store: AriadneStore) -> str | None:
-    goals = ProjectGoalService(store).list()
-    resources = store.load_project_resources()
-    goal = max(enumerate(goals), key=lambda item: (item[1].created_at, -item[0]))[1] if goals else None
-    if goal and goal.target_project_id:
-        return goal.target_project_id
-    target_ids = [
-        str(ticket.metadata["target_project_id"])
-        for ticket in store.list_tickets()
-        if ticket.metadata.get("target_project_id")
-    ]
-    if target_ids:
-        return Counter(target_ids).most_common(1)[0][0]
-    target = resources[-1] if resources else None
-    return target.id if target else None
+    return ProjectVersionService(store).current_target_project_id()
 
 
 def current_version_mainline_tickets(store: AriadneStore, target_project_id: str | None) -> list[BuildTicket]:
     """Project the currently applied version issue set from persisted BuildTickets."""
+    if target_project_id is None:
+        return []
     all_tickets = store.list_tickets()
     scoped_tickets = [ticket for ticket in all_tickets if _belongs_to_target(ticket, target_project_id)]
-    tickets = scoped_tickets or all_tickets
+    tickets = scoped_tickets
     latest_keys = _latest_applied_issue_delta_keys(store, target_project_id)
     if latest_keys:
         by_key = {ticket.key: ticket for ticket in tickets if _is_visible(ticket)}
@@ -63,7 +50,7 @@ def _latest_applied_issue_delta_keys(store: AriadneStore, target_project_id: str
 
 def _preview_targets(preview: BacklogPreview, target_project_id: str | None) -> bool:
     if target_project_id is None:
-        return True
+        return False
     return any(operation.metadata.get("target_project_id") == target_project_id for operation in preview.operations)
 
 
@@ -75,7 +62,7 @@ def _operation_included(operation: BacklogOperation) -> bool:
 
 def _belongs_to_target(ticket: BuildTicket, target_project_id: str | None) -> bool:
     if target_project_id is None:
-        return True
+        return False
     return ticket.metadata.get("target_project_id") == target_project_id
 
 

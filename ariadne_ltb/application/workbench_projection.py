@@ -19,6 +19,7 @@ from ariadne_ltb.application.mappers import (
 from ariadne_ltb.application.project_inputs import build_project_inputs
 from ariadne_ltb.application.project_version_delivery import build_current_version_delivery
 from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
 from ariadne_ltb.application.source_understanding import build_source_events, build_source_understandings
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
@@ -35,8 +36,10 @@ class WorkbenchProjectionService:
     def get(self, include_internal_backends: bool = False) -> WorkbenchDTO:
         inbox_items = refresh_inbox(self.store)
         agent_workflows, agent_activities = build_agent_workflows(self.store)
+        project_versions = ProjectVersionService(self.store)
+        current_project_version = project_versions.current()
         current_version_delivery = build_current_version_delivery(self.store)
-        target_project_id = current_version_delivery.target_project_id if current_version_delivery else None
+        target_project_id = current_project_version.target_project_id if current_project_version else None
         current_tickets = current_version_mainline_tickets(self.store, target_project_id)
         current_ticket_ids = {ticket.id for ticket in current_tickets}
         current_ticket_keys = {ticket.key for ticket in current_tickets}
@@ -56,6 +59,8 @@ class WorkbenchProjectionService:
         ]
         return WorkbenchDTO(
             goals=ProjectGoalService(self.store).list(),
+            project_versions=project_versions.list(),
+            current_project_version=current_project_version,
             sources=[source_document_dto(self.store, source) for source in self.store.list_source_documents()],
             source_artifacts=[
                 source_artifact_dto(artifact)
@@ -85,7 +90,7 @@ class WorkbenchProjectionService:
             environment=build_workbench_environment(self.store),
             current_version_delivery=current_version_delivery,
             project_inputs=build_project_inputs(self.store),
-            issue_projection=build_issue_projection(self.store),
+            issue_projection=build_issue_projection(self.store, current_tickets),
             agent_workflows=current_workflows,
             agent_activities=current_activities,
         )

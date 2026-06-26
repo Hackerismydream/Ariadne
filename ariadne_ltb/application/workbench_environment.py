@@ -6,13 +6,18 @@ import subprocess
 from pathlib import Path
 
 from ariadne_ltb.application.dtos import EnvironmentBlockerDTO, TargetProjectDTO, WorkbenchEnvironmentDTO
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.models import ProjectResource
 from ariadne_ltb.storage import AriadneStore
 
 
 def build_workbench_environment(store: AriadneStore) -> WorkbenchEnvironmentDTO:
     resources = store.load_project_resources()
-    active = resources[-1] if resources else None
+    current_version = ProjectVersionService(store).current()
+    active = next(
+        (resource for resource in resources if current_version and resource.id == current_version.target_project_id),
+        None,
+    )
     active_dto = _target_project_dto(active) if active else None
     codex_available = shutil.which("codex") is not None
     claude_available = shutil.which("claude") is not None
@@ -21,7 +26,10 @@ def build_workbench_environment(store: AriadneStore) -> WorkbenchEnvironmentDTO:
         name for name, available in {"codex": codex_available, "claude-code": claude_available}.items() if available
     ]
     blockers: list[EnvironmentBlockerDTO] = []
-    if active_dto is None or not active_dto.path_exists:
+    if current_version is None:
+        blockers.append(EnvironmentBlockerDTO(code="project_version_missing", message="还没有创建或选择当前 Project Version。", severity="error"))
+        execution_mode = "api_project_version_missing"
+    elif active_dto is None or not active_dto.path_exists:
         blockers.append(EnvironmentBlockerDTO(code="target_missing", message="目标 repo 不存在或未注册。", severity="error"))
         execution_mode = "api_target_missing"
     elif not production_backends:
