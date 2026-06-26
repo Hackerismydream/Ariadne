@@ -1,68 +1,60 @@
 # Ariadne
 
-Ariadne turns external knowledge into local software iterations for coding
-agents. It is a single-user, local-first Learning-to-Build workbench: ingest
-Markdown sources, create Build Tickets and Build Packets, hand a selected ticket
-to a backend, capture the result, review it, write memory, generate next ticket
-suggestions, and export a static board.
+Ariadne is a local-first Agent Workbench for AI builders.
+
+The product path is Workbench-first: choose a target project and version, add
+external knowledge, generate a current-version issue set, assign issues to
+Codex or Claude Code agents, let the local runtime attempt the work, and inspect
+diffs, tests, review, blockers, memory, and next issues in the browser.
 
 Repository name: `ariadne-ltb`. Python package: `ariadne_ltb`. CLI target:
 `ari`. Fallback CLI: `python -m ariadne_ltb.cli`.
 
 ## Ariadne v1.0 Quickstart
 
-Ariadne v1.0 is a local-first, Ticket-centered Agent Workbench:
+Start the local Workbench:
 
 ```bash
-ari ingest examples/sources/*.md
-ari backlog history
-ari ticket list
-ari ticket assign ARI-003 --to codex --runtime-profile production
-ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
-ari ticket comments ARI-003
-ari runtime journal
-ari runtime recover
-ari export board
-ari board serve
+cd frontend/ariadne-workbench
+npm install
+npm run build
+cd ../..
+python3.11 -m ariadne_ltb.cli workbench serve --host 127.0.0.1 --port 8766
 ```
 
-This path shows the full local loop:
+Then open:
 
 ```text
-Source -> Ticket -> Assignment -> Daemon -> Planner -> Backend -> Review -> Memory -> Board
+http://127.0.0.1:8766/#issues
 ```
 
-Ticket backlog updates are persisted under `.ariadne/backlog/updates.jsonl` and
-shown on the board. The explicit backlog commands are:
+The intended browser loop is:
 
-```bash
-ari backlog update --from-source examples/sources/*.md
-ari backlog history
-ari ticket supersede ARI-003 --reason "Replaced by narrower follow-up work"
+```text
+Project goal + external inputs + target codebase
+  -> source understanding
+  -> issue delta
+  -> current-version issue set
+  -> assign to agent
+  -> daemon claim
+  -> Codex / Claude execution attempt
+  -> diff / tests / review / inbox / memory / next issues
+  -> current version progress
 ```
+
+CLI commands remain available for local operations, diagnostics, automation, and
+fallback debugging. CLI-only success is not product closure.
 
 ## Production Product Path
 
-The recommended product path is the real, gated Agent Teammate Mode:
+The recommended product path is the real browser Workbench. It uses the same
+local store, assignment queue, daemon, and orchestrator as the CLI, but product
+acceptance is measured only through the browser Project Version Delivery loop.
 
-```bash
-ari doctor integrations
-ari doctor product
-ari ingest examples/sources/*.md --planner llm
-ari ticket list
-ari ticket assign ARI-003 --to codex --runtime-profile production
-ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 ari daemon run-once --confirm-execution
-ari review run ARI-003 --reviewer llm
-FEISHU_ENABLE_WRITE=1 ari feishu write ARI-003 --confirm-write
-ari github sync ARI-003 --confirm-write
-ari ticket comments ARI-003
-ari export board
-ari evidence packet --require-acceptance-ready
-```
-
-In this mode, a human assigns a Build Ticket to an Agent teammate, the local
-daemon claims one assignment, the Agent runs the ticket through Ariadne's full
-loop, writes comments and journal events, and updates the board.
+Real Codex or Claude execution remains local and gated. If the backend cannot
+run because of login, quota, configuration, or `ARIADNE_ENABLE_EXTERNAL_EXECUTION`,
+the Workbench must show `BLOCKED_WITH_EVIDENCE` instead of pretending the target
+project advanced.
 
 ## Local API Control Plane
 
@@ -72,17 +64,6 @@ same store, assignment queue, daemon, and orchestrator as the CLI.
 
 ```bash
 python3.11 -m ariadne_ltb.cli api serve --host 127.0.0.1 --port 8766
-```
-
-For the browser product entrypoint, build the frontend once and serve the
-Workbench, API, and WebSocket control plane from one local origin:
-
-```bash
-cd frontend/ariadne-workbench
-npm install
-npm run build
-cd ../..
-python3.11 -m ariadne_ltb.cli workbench serve --host 127.0.0.1 --port 8766
 ```
 
 Register an explicit target repository before browser-triggered runs:
@@ -247,8 +228,9 @@ the production acceptance path.
 
 `ari demo full` remains available only as an offline regression fixture and
 fixture validation command. It is not the product path and it is not production
-acceptance evidence. The product path is the ticket/assignment/daemon loop with
-production runtime profiles and gated real backends.
+acceptance evidence. The product path is the browser Workbench Project Version
+Delivery loop backed by ticket assignments, daemon claim, production runtime
+profiles, and gated real backends.
 
 ```bash
 python3.11 -m ariadne_ltb.cli demo full
@@ -485,8 +467,8 @@ Knowledge / Feedback / Codebase
 Multica is the fixed benchmark for agent work management. Multica lets agents
 work issues. Ariadne lets knowledge and feedback update tickets, then lets
 agents work tickets. Ariadne keeps a local-first Python architecture with
-JSON/JSONL storage, CLI commands, static/local board output, and explicit safety
-gates for Codex, Claude, and Feishu.
+JSON/JSONL storage, a Workbench-first product surface, CLI operator commands,
+local evidence output, and explicit safety gates for Codex, Claude, and Feishu.
 
 Architecture entrypoints:
 
@@ -498,7 +480,7 @@ Architecture entrypoints:
 - [`docs/demo/ARIADNE_V1_DEMO_CONTRACT.md`](docs/demo/ARIADNE_V1_DEMO_CONTRACT.md)
 - [`docs/adr/ADR-0004-ticket-centered-agent-workbench.md`](docs/adr/ADR-0004-ticket-centered-agent-workbench.md)
 
-Offline regression path:
+Offline regression path for automated tests and local fixture validation:
 
 ```bash
 ari ingest examples/sources/*.md
@@ -509,7 +491,8 @@ ari ticket comments ARI-003
 ari export board
 ```
 
-Real Codex path remains optional and gated:
+CLI-operated real Codex path remains optional and gated. It is useful for
+operator verification, but it is not the product closure path:
 
 ```bash
 ari ticket assign ARI-003 --to codex --runtime-profile production
