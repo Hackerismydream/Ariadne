@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM
+from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM, call_node_json, node_event
 from ariadne_ltb.knowledge.models import BlockerLearning, ContradictionRecord, ProjectPurpose
 from ariadne_ltb.knowledge.prompts import goal_coverage_prompt
 
@@ -31,14 +31,13 @@ def quality_gate(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
         if str(spec.get("priority") or "").lower() in {"p0", "high"}
     ]
     if priority_specs and purpose.success_signals:
-        try:
-            coverage_response = llm.complete_json(
-                goal_coverage_prompt(purpose, priority_specs),
-                "GoalCoverageScore",
-            )
-            coverage = float(coverage_response.get("coverage", 0.0))
-        except Exception:
-            coverage = 0.0
+        coverage_response = call_node_json(
+            llm,
+            goal_coverage_prompt(purpose, priority_specs),
+            "GoalCoverageScore",
+            node_name="quality_gate",
+        )
+        coverage = float(coverage_response.get("coverage", 0.0))
         if coverage < 0.6:
             issues.append(f"low_goal_coverage:{coverage:.2f}")
             score -= 0.3
@@ -71,6 +70,16 @@ def quality_gate(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
         "quality_issues": issues,
         "compiled_specs": specs if score >= 0.6 and not _has_hard_failure(issues) else [],
         "used_fallback": False,
+        "node_provenance": [
+            node_event(
+                "quality_gate",
+                status="completed",
+                schema_name="GoalCoverageScore" if priority_specs and purpose.success_signals else None,
+                quality_score=score,
+                quality_issues=issues,
+                compiled_count=len(specs) if score >= 0.6 and not _has_hard_failure(issues) else 0,
+            )
+        ],
     }
 
 

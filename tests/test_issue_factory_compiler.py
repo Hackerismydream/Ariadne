@@ -11,6 +11,7 @@ from ariadne_ltb.application.issue_delta_validation import validate_issue_delta_
 from ariadne_ltb.application.issue_factory import IssueFactoryService
 from ariadne_ltb.application.project_goals import ProjectGoalService
 from ariadne_ltb.application.source_analysis import SourceAnalysisService
+from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.models import (
     BacklogOperation,
     BacklogOperationType,
@@ -203,6 +204,37 @@ def test_issue_factory_records_provenance_and_auto_target_snapshot(tmp_path: Pat
     assert first.metadata["source_claim_trace"]
     assert first.metadata["affected_module_rationale"]
     assert first.metadata["acceptance_criteria_rationale"]
+
+
+def test_issue_factory_records_deepseek_invalid_json_node_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, goal_id, project_id, source_ids = _seed_mini_code_agent_context(tmp_path)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-testsecret1234567890")
+    monkeypatch.setenv("ARIADNE_ALLOW_KNOWLEDGE_LLM_IN_TESTS", "1")
+    monkeypatch.setattr("ariadne_ltb.knowledge.default_knowledge_llm", lambda: _invalid_json_client())
+
+    preview = IssueFactoryService(store).preview(
+        IssueFactoryPreviewInput(goal_id=goal_id, source_ids=source_ids, target_project_id=project_id)
+    )
+
+    provenance = preview.operations[0].metadata["compiler_provenance"]
+    assert provenance["compiler_mode"] == "artifact_driven_deterministic_fallback"
+    assert provenance["graph_status"] == "fallback"
+    assert "KnowledgeNodeError:analyze_source" in provenance["fallback_reason"]
+    assert "schema_name=SourceInsightDraft" in provenance["fallback_reason"]
+    assert "model=deepseek-v4-pro" in provenance["fallback_reason"]
+    assert "finish_reason=length" in provenance["fallback_reason"]
+    assert "sk-testsecret" not in provenance["fallback_reason"]
+    node_events = provenance["node_provenance"]
+    failed = next(event for event in node_events if event["status"] == "failed")
+    assert failed["node"] == "analyze_source"
+    assert failed["schema_name"] == "SourceInsightDraft"
+    assert failed["model"] == "deepseek-v4-pro"
+    assert failed["finish_reason"] == "length"
+    assert failed["usage"]["total_tokens"] == 33
+    assert "sk-testsecret" not in failed["raw_content_excerpt"]
 
 
 def test_issue_factory_refreshes_target_snapshot_when_repo_changes(
@@ -467,3 +499,35 @@ def store_project_resource(*, project_id: str, path: Path, label: str, issue_pre
             }
         }
     )
+
+
+class _InvalidJsonTransport:
+    def post_json(
+        self,
+        url: str,
+        payload: dict[str, object],
+        headers: dict[str, str],
+        timeout_seconds: int,
+    ) -> dict[str, object]:
+        return {
+            "id": "chatcmpl_bad",
+            "model": "deepseek-v4-pro",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "content": "not json sk-testsecret1234567890 " + ("x" * 900),
+                    },
+                    "finish_reason": "length",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 11,
+                "completion_tokens": 22,
+                "total_tokens": 33,
+            },
+        }
+
+
+def _invalid_json_client() -> DeepSeekClient:
+    return DeepSeekClient(api_key="sk-testsecret1234567890", transport=_InvalidJsonTransport())

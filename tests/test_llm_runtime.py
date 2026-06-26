@@ -125,6 +125,55 @@ def test_deepseek_client_extracts_json_object_from_fenced_response(monkeypatch) 
     assert result == {"summary": "ok", "decision": "continue"}
 
 
+def test_deepseek_invalid_json_error_includes_safe_diagnostics(monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    response = {
+        "id": "chatcmpl_bad",
+        "model": "deepseek-v4-pro",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "content": (
+                        "not json with leaked key sk-testsecret1234567890 "
+                        + ("x" * 900)
+                    )
+                },
+                "finish_reason": "length",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 11,
+            "completion_tokens": 22,
+            "total_tokens": 33,
+        },
+    }
+    transport = FakeTransport(response=response)
+
+    try:
+        DeepSeekClient(api_key="test-secret-key", transport=transport).complete_json(
+            "Return json.",
+            "IssueDecompositionDrafts",
+        )
+    except LLMClientError as exc:
+        assert exc.error.schema_name == "IssueDecompositionDrafts"
+        assert exc.error.model == "deepseek-v4-pro"
+        assert exc.error.finish_reason == "length"
+        assert exc.error.usage is not None
+        assert exc.error.usage.total_tokens == 33
+        assert exc.error.raw_content_excerpt is not None
+        assert len(exc.error.raw_content_excerpt) <= 600
+        assert "sk-testsecret" not in exc.error.raw_content_excerpt
+        assert "sk-[REDACTED]" in exc.error.raw_content_excerpt
+        assert "schema_name=IssueDecompositionDrafts" in exc.error.message
+        assert "model=deepseek-v4-pro" in exc.error.message
+        assert "finish_reason=length" in exc.error.message
+        assert "total_tokens=33" in exc.error.message
+        assert "sk-testsecret" not in exc.error.message
+    else:
+        raise AssertionError("expected LLMClientError")
+
+
 def test_deepseek_client_redacts_transport_errors(monkeypatch) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     transport = FakeTransport(error=OSError("bad token test-secret-key"))

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM
+from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM, call_node_json, node_event
 from ariadne_ltb.knowledge.models import BlockerLearning, ContradictionRecord, ProjectPurpose, SynthesisTheme
 from ariadne_ltb.knowledge.prompts import ground_evidence_prompt
 
@@ -19,9 +19,11 @@ def ground_evidence(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
         item.id for item in contradictions
     }
     fallback_refs = [theme.id for theme in themes[:3]]
-    response = llm.complete_json(
+    response = call_node_json(
+        llm,
         ground_evidence_prompt(purpose, draft, themes, blockers, contradictions),
         "GroundedIssueDrafts",
+        node_name="ground_evidence",
     )
     grounded: list[dict[str, Any]] = []
     for item in response.get("issues", []):
@@ -34,4 +36,15 @@ def ground_evidence(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, Any]:
             grounded.append(item | {"evidence_refs": refs})
     if not grounded and fallback_refs:
         grounded = [dict(item) | {"evidence_refs": fallback_refs} for item in draft if isinstance(item, dict)]
-    return {"grounded_issues": grounded}
+    return {
+        "grounded_issues": grounded,
+        "node_provenance": [
+            node_event(
+                "ground_evidence",
+                status="completed",
+                schema_name="GroundedIssueDrafts",
+                draft_issue_count=len(draft),
+                grounded_issue_count=len(grounded),
+            )
+        ],
+    }

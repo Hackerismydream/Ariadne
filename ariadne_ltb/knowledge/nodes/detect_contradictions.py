@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM
+from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM, call_node_json, node_event
 from ariadne_ltb.knowledge.models import (
     ClaimWithEvidence,
     ContradictionRecord,
@@ -19,10 +19,22 @@ def detect_contradictions(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str,
     insights = [SourceInsight.model_validate(item) for item in state.get("new_insights", [])]
     themes = [SynthesisTheme.model_validate(item) for item in state.get("updated_themes", [])]
     if not insights:
-        return {"new_contradictions": []}
-    response = llm.complete_json(
+        return {
+            "new_contradictions": [],
+            "node_provenance": [
+                node_event(
+                    "detect_contradictions",
+                    status="skipped",
+                    schema_name="ContradictionDrafts",
+                    reason="no_new_insights",
+                )
+            ],
+        }
+    response = call_node_json(
+        llm,
         detect_contradictions_prompt(purpose, insights, themes),
         "ContradictionDrafts",
+        node_name="detect_contradictions",
     )
     contradictions: list[ContradictionRecord] = []
     for item in response.get("contradictions", []):
@@ -47,5 +59,14 @@ def detect_contradictions(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str,
                 affected_theme_ids=[str(value) for value in item.get("affected_theme_ids", [])],
             )
         )
-    return {"new_contradictions": contradictions}
-
+    return {
+        "new_contradictions": contradictions,
+        "node_provenance": [
+            node_event(
+                "detect_contradictions",
+                status="completed",
+                schema_name="ContradictionDrafts",
+                contradiction_count=len(contradictions),
+            )
+        ],
+    }
