@@ -7,8 +7,8 @@ from ariadne_ltb.models import BuildTicket, TicketStatus
 from ariadne_ltb.storage import AriadneStore
 
 
-def build_issue_projection(store: AriadneStore) -> IssueProjectionDTO:
-    tickets = sorted(store.list_tickets(), key=lambda item: item.key)
+def build_issue_projection(store: AriadneStore, tickets: list[BuildTicket] | None = None) -> IssueProjectionDTO:
+    tickets = sorted(tickets if tickets is not None else store.list_tickets(), key=lambda item: item.key)
     classified = [(ticket, *classify_ticket(ticket)) for ticket in tickets]
     children_by_root: dict[str, list[tuple[BuildTicket, str, str, str]]] = defaultdict(list)
     mainline: dict[str, BuildTicket] = {}

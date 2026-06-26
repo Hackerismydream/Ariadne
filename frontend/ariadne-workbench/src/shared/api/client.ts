@@ -27,6 +27,7 @@ import type {
   AssignTicketRequest,
   CreateAgentRequest,
   CreateProjectGoalRequest,
+  CreateProjectVersionRequest,
   CreateSourceRequest,
   InboxActionRequest,
   InboxActionResponse,
@@ -34,6 +35,7 @@ import type {
   RegisterTargetProjectRequest,
   DaemonStartRequest,
   RunAssignmentRequest,
+  SelectProjectVersionRequest,
   UpdateAgentRequest,
 } from "./types";
 import { AriadneApiError } from "./errors";
@@ -186,6 +188,20 @@ export function registerTargetProject(payload: RegisterTargetProjectRequest) {
 
 export function createProjectGoal(payload: CreateProjectGoalRequest) {
   return requestJson("/api/goals", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createProjectVersion(payload: CreateProjectVersionRequest) {
+  return requestJson("/api/project-versions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function selectProjectVersion(payload: SelectProjectVersionRequest) {
+  return requestJson("/api/project-versions/select", {
     method: "POST",
     body: JSON.stringify(payload),
   });

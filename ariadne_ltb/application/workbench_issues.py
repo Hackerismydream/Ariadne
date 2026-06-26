@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
-
 from ariadne_ltb.application.assignment_control import canonicalize_duplicate_runnable_assignments
 from ariadne_ltb.application.comments import CommentService
 from ariadne_ltb.application.current_version_scope import current_version_mainline_tickets
@@ -25,7 +23,7 @@ from ariadne_ltb.application.dtos import (
 )
 from ariadne_ltb.application.errors import NotFoundError, ValidationAppError
 from ariadne_ltb.application.mappers import assignment_dto, comment_dto
-from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.run_events import RunEventService
 from ariadne_ltb.application.assign_ticket import AssignTicketService
@@ -147,20 +145,10 @@ class WorkbenchIssuesService:
         return DaemonControlService(self.store).run_now(assignment.id, payload)
 
     def _current_version_scope(self) -> tuple[str | None, str | None]:
-        goals = ProjectGoalService(self.store).list()
-        resources = self.store.load_project_resources()
-        goal = max(enumerate(goals), key=lambda item: (item[1].created_at, -item[0]))[1] if goals else None
-        if goal and goal.target_project_id:
-            return goal.target_project_id, goal.title
-        target_ids = [
-            str(ticket.metadata["target_project_id"])
-            for ticket in self.store.list_tickets()
-            if ticket.metadata.get("target_project_id")
-        ]
-        if target_ids:
-            return Counter(target_ids).most_common(1)[0][0], goal.title if goal else None
-        target = resources[-1] if resources else None
-        return target.id if target else None, goal.title if goal else None
+        current = ProjectVersionService(self.store).current()
+        if current is None:
+            return None, None
+        return current.target_project_id, current.version_label
 
     def _current_version_mainline_tickets(self, target_project_id: str | None) -> list[BuildTicket]:
         return current_version_mainline_tickets(self.store, target_project_id)

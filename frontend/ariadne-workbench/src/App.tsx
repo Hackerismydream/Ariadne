@@ -19,9 +19,10 @@ import { SourcesPage } from "./pages/sources/SourcesPage";
 import { TeamPage } from "./pages/team/TeamPage";
 import { CurrentVersionStrip } from "./widgets/current-version/CurrentVersionStrip";
 import {
-  createProjectGoal,
-  registerTargetProject,
+  createProjectVersion,
+  selectProjectVersion,
 } from "./shared/api/client";
+import { apiErrorCode } from "./shared/api/errors";
 import type {
   AriadneTicket,
   BackendSmokeEvidence,
@@ -100,13 +101,14 @@ function resultLabel(ok: boolean, blocked = false) {
 }
 
 function getActiveTargetProject(data: WorkbenchData) {
+  const versionTargetId = data.currentProjectVersion?.targetProjectId;
   const deliveryTargetId = data.currentVersionDelivery?.targetProjectId;
   const goalTargetId = data.goal.targetProjectId;
-  return data.projectResources?.find((resource) => resource.id === deliveryTargetId && resource.available)
+  return data.projectResources?.find((resource) => resource.id === versionTargetId && resource.available)
+    ?? data.currentProjectVersion?.targetProject
+    ?? data.projectResources?.find((resource) => resource.id === deliveryTargetId && resource.available)
     ?? data.projectResources?.find((resource) => resource.id === goalTargetId && resource.available)
     ?? data.environment?.activeTargetProject
-    ?? data.projectResources?.find((resource) => resource.available)
-    ?? data.projectResources?.[0]
     ?? null;
 }
 
@@ -114,9 +116,12 @@ function getCurrentVersionTickets(data: WorkbenchData) {
   const deliveryKeys = new Set((data.currentVersionDelivery?.deliveryItems ?? []).map((item) => item.ticketKey));
   const deliveryTickets = data.tickets.filter((ticket) => deliveryKeys.has(ticket.key));
   if (deliveryTickets.length) return deliveryTickets;
-  const targetProjectId = data.currentVersionDelivery?.targetProjectId ?? data.goal.targetProjectId ?? getActiveTargetProject(data)?.id;
+  const targetProjectId = data.currentProjectVersion?.targetProjectId
+    ?? data.currentVersionDelivery?.targetProjectId
+    ?? data.goal.targetProjectId
+    ?? getActiveTargetProject(data)?.id;
   const targetTickets = data.tickets.filter((ticket) => targetProjectId && ticket.targetProjectId === targetProjectId);
-  return targetTickets.length ? targetTickets : data.tickets;
+  return targetTickets;
 }
 
 function getCurrentVersionWorkflows(data: WorkbenchData) {
@@ -125,7 +130,9 @@ function getCurrentVersionWorkflows(data: WorkbenchData) {
 }
 
 function projectDisplayName(data: WorkbenchData) {
-  return data.currentVersionDelivery?.targetProjectLabel
+  return data.currentProjectVersion?.targetProjectLabel
+    ?? data.currentProjectVersion?.targetProject?.label
+    ?? data.currentVersionDelivery?.targetProjectLabel
     ?? getActiveTargetProject(data)?.label
     ?? data.goal.title
     ?? "当前项目";
@@ -144,6 +151,9 @@ function nextDeliveryAction(data: WorkbenchData) {
   const inputs = data.projectInputs ?? [];
   const readyInputs = inputs.filter((input) => input.lifecycle.readyForIssueFactory).length;
   const currentTickets = getCurrentVersionTickets(data);
+  if (!data.currentProjectVersion) {
+    return { label: "创建或选择 Project Version", detail: "先绑定 target repo、v0.1 和版本目标。", page: "project" as PageKey };
+  }
   if (delivery?.status === "real_closed" && delivery.latestRealRun?.reviewVerdict === "pass") {
     return { label: "查看版本证据", detail: `${delivery.latestRealRun.ticketKey} 已由 ${delivery.latestRealRun.backendName} 完成真实执行，测试和 review 通过。`, page: "ready" as PageKey };
   }
@@ -446,65 +456,80 @@ function GoalPage({
   onRefresh: () => Promise<void>;
   onTicketSelect: (ticketId: string) => void;
 }) {
-  const goal = data.goal;
-  const [projectPath, setProjectPath] = useState("");
-  const [projectLabel, setProjectLabel] = useState(data.projectResources?.[0]?.label ?? "");
-  const [createIfMissing, setCreateIfMissing] = useState(true);
+  const versions = data.projectVersions ?? [];
+  const currentVersion = data.currentProjectVersion;
+  const activeProject = getActiveTargetProject(data);
+  const [selectedVersionId, setSelectedVersionId] = useState(currentVersion?.id ?? versions[0]?.id ?? "");
+  const [targetMode, setTargetMode] = useState<"new" | "existing">(activeProject ? "existing" : "new");
+  const [targetProjectId, setTargetProjectId] = useState(currentVersion?.targetProjectId ?? activeProject?.id ?? "");
+  const [projectPath, setProjectPath] = useState(activeProject?.localPath ?? "");
+  const [projectLabel, setProjectLabel] = useState(activeProject?.label ?? "mini-code-agent");
+  const [createIfMissing, setCreateIfMissing] = useState(false);
   const [initGit, setInitGit] = useState(true);
   const [testCommand, setTestCommand] = useState("python3.11 -m pytest");
   const [issuePrefix, setIssuePrefix] = useState("MCA");
-  const [goalTitle, setGoalTitle] = useState(goal.id === "GOAL-NOT-CREATED" ? "" : goal.title);
-  const [northStar, setNorthStar] = useState(goal.id === "GOAL-NOT-CREATED" ? "" : goal.northStar);
-  const [targetState, setTargetState] = useState(goal.targetState);
+  const [versionLabel, setVersionLabel] = useState(currentVersion?.versionLabel ?? "v0.1");
+  const [versionGoal, setVersionGoal] = useState(
+    currentVersion?.goalNorthStar
+      ?? "mini-code-agent v0.1 can accept a local repo and task, run a safe coding step, capture trajectory/diff/tests, and expose reviewable evidence.",
+  );
+  const [targetState, setTargetState] = useState("mini-code-agent v0.1 is a runnable local coding loop with evidence.");
   const [status, setStatus] = useState("");
-  const [isSavingProject, setIsSavingProject] = useState(false);
-  const [preferredProjectId, setPreferredProjectId] = useState(goal.targetProjectId ?? data.projectResources?.[0]?.id ?? "");
-  const activeProject = data.projectResources?.find((resource) => resource.id === preferredProjectId && resource.available)
-    ?? data.projectResources?.find((resource) => resource.available)
-    ?? data.projectResources?.[0];
+  const [recoveryAction, setRecoveryAction] = useState<null | "create_missing_path">(null);
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+  const currentTickets = getCurrentVersionTickets(data);
 
-  async function saveProject() {
-    if (!projectPath.trim() || isSavingProject) return;
-    setIsSavingProject(true);
-    setStatus("正在注册目标项目...");
+  useEffect(() => {
+    setSelectedVersionId((current) => current || currentVersion?.id || versions[0]?.id || "");
+  }, [currentVersion?.id, versions]);
+
+  async function saveProjectVersion(forceCreateMissing = false) {
+    if (isSavingVersion) return;
+    const usesExisting = targetMode === "existing" && targetProjectId;
+    if (!usesExisting && !projectPath.trim()) {
+      setStatus("先填写 target repo path。");
+      return;
+    }
+    setIsSavingVersion(true);
+    setRecoveryAction(null);
+    setStatus("正在创建 Project Version...");
     try {
-      const result = await registerTargetProject({
-        path: projectPath.trim(),
-        label: projectLabel.trim() || undefined,
-        create_if_missing: createIfMissing,
+      await createProjectVersion({
+        target_project_id: usesExisting ? targetProjectId : null,
+        target_repo_path: usesExisting ? null : projectPath.trim(),
+        target_repo_label: usesExisting ? null : projectLabel.trim() || "mini-code-agent",
+        create_if_missing: forceCreateMissing || createIfMissing,
         init_git: initGit,
         test_command: testCommand.trim() || undefined,
         issue_prefix: issuePrefix.trim() || undefined,
-      }) as {
-        target_project?: { id?: string };
-      };
-      if (result.target_project?.id) setPreferredProjectId(result.target_project.id);
+        version_label: versionLabel.trim() || "v0.1",
+        goal_title: `${projectLabel.trim() || activeProject?.label || "mini-code-agent"} ${versionLabel.trim() || "v0.1"}`,
+        goal_north_star: versionGoal.trim(),
+        target_state: targetState.trim(),
+      });
       await onRefresh();
-      setStatus("目标项目已注册。");
+      setStatus("Project Version 已创建并设为当前版本。");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "目标项目注册失败。");
+      if (apiErrorCode(error) === "target_path_missing") {
+        setRecoveryAction("create_missing_path");
+        setStatus("Target path 不存在。可以从 Workbench 创建文件夹并初始化 git。");
+      } else {
+        setStatus(error instanceof Error ? error.message : "Project Version 创建失败。");
+      }
     } finally {
-      setIsSavingProject(false);
+      setIsSavingVersion(false);
     }
   }
 
-  async function saveGoal() {
-    if (!goalTitle.trim() || !northStar.trim()) return;
-    setStatus("正在创建目标...");
+  async function selectVersion() {
+    if (!selectedVersionId) return;
+    setStatus("正在切换 Project Version...");
     try {
-      await createProjectGoal({
-        title: goalTitle.trim(),
-        north_star: northStar.trim(),
-        current_state: "Builder has provided a folder-backed project and external knowledge sources.",
-        target_state: targetState.trim() || "Ariadne generates issues, assigns agents, and records evidence from the Web Workbench.",
-        target_project_id: activeProject?.id ?? null,
-        knowledge_inputs: data.sources.map((source) => source.title),
-        feedback_signals: ["Created from Ariadne Workbench web product path."],
-      });
+      await selectProjectVersion({ version_id: selectedVersionId });
       await onRefresh();
-      setStatus("目标已创建。");
+      setStatus("Project Version 已切换。");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "目标创建失败。");
+      setStatus(error instanceof Error ? error.message : "Project Version 切换失败。");
     }
   }
 
@@ -512,29 +537,67 @@ function GoalPage({
     <section className="page">
       <PageHeader
         icon={<Target size={17} />}
-        title="当前目标"
-        count={1}
-        description="目标是输入，任务状态机才是执行中心。"
-        action={<button className="outline-button" type="button" onClick={() => { globalThis.location.hash = "knowledge"; }}>导入知识</button>}
+        title="Project Version"
+        count={versions.length}
+        description="Project / Target Version / Goal 是浏览器产品入口。Goal 只是版本输入，不是 runtime center。"
+        action={<button className="outline-button" type="button" onClick={() => { globalThis.location.hash = "sources"; }}>添加 Sources</button>}
       />
       <div className="goal-layout">
         <section className="panel wide">
-          <h2>项目和目标输入</h2>
+          <h2>创建或选择当前 Project Version</h2>
           <div className="form-grid">
             <label>
-              <span>项目文件夹</span>
+              <span>已有 Project Version</span>
+              <select
+                disabled={dataSource !== "api" || !versions.length}
+                value={selectedVersionId}
+                onChange={(event) => setSelectedVersionId(event.target.value)}
+              >
+                {!versions.length ? <option value="">暂无 Project Version</option> : null}
+                {versions.map((version) => (
+                  <option key={version.id} value={version.id}>
+                    {version.targetProjectLabel ?? version.targetProject?.label ?? version.targetProjectId} · {version.versionLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button disabled={dataSource !== "api" || !selectedVersionId} type="button" onClick={() => void selectVersion()}>
+              选择 Project Version
+            </button>
+            <label>
+              <span>Target repo 来源</span>
+              <select value={targetMode} disabled={dataSource !== "api"} onChange={(event) => setTargetMode(event.target.value as "new" | "existing")}>
+                <option value="new">注册或初始化 target repo</option>
+                <option value="existing">使用已注册 target repo</option>
+              </select>
+            </label>
+            {targetMode === "existing" ? (
+              <label>
+                <span>已注册 target repo</span>
+                <select value={targetProjectId} disabled={dataSource !== "api"} onChange={(event) => setTargetProjectId(event.target.value)}>
+                  {!data.projectResources?.length ? <option value="">暂无 target repo</option> : null}
+                  {data.projectResources?.map((resource) => (
+                    <option key={resource.id} value={resource.id}>
+                      {resource.label} · {resource.pathExists ? "path ok" : "path missing"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label>
+              <span>Target repo path</span>
               <input
-                disabled={dataSource !== "api"}
-                placeholder="/Users/you/code/project"
+                disabled={dataSource !== "api" || targetMode === "existing"}
+                placeholder="/Users/you/code/mini-code-agent"
                 value={projectPath}
                 onChange={(event) => setProjectPath(event.target.value)}
               />
             </label>
             <label>
-              <span>项目名称</span>
+              <span>Target repo label</span>
               <input
-                disabled={dataSource !== "api"}
-                placeholder="Mini Code Agent"
+                disabled={dataSource !== "api" || targetMode === "existing"}
+                placeholder="mini-code-agent"
                 value={projectLabel}
                 onChange={(event) => setProjectLabel(event.target.value)}
               />
@@ -557,10 +620,19 @@ function GoalPage({
                 onChange={(event) => setIssuePrefix(event.target.value.toUpperCase())}
               />
             </label>
+            <label>
+              <span>Target Version</span>
+              <input
+                disabled={dataSource !== "api"}
+                placeholder="v0.1"
+                value={versionLabel}
+                onChange={(event) => setVersionLabel(event.target.value)}
+              />
+            </label>
             <label className="checkbox-line">
               <input
                 checked={createIfMissing}
-                disabled={dataSource !== "api"}
+                disabled={dataSource !== "api" || targetMode === "existing"}
                 type="checkbox"
                 onChange={(event) => setCreateIfMissing(event.target.checked)}
               />
@@ -569,33 +641,21 @@ function GoalPage({
             <label className="checkbox-line">
               <input
                 checked={initGit}
-                disabled={dataSource !== "api"}
+                disabled={dataSource !== "api" || targetMode === "existing"}
                 type="checkbox"
                 onChange={(event) => setInitGit(event.target.checked)}
               />
               <span>注册时初始化 git</span>
             </label>
-            <button disabled={dataSource !== "api" || isSavingProject || !projectPath.trim()} type="button" onClick={() => void saveProject()}>
-              {isSavingProject ? "注册中..." : "注册项目"}
-            </button>
           </div>
           <div className="form-grid goal-form">
             <label>
-              <span>目标标题</span>
-              <input
-                disabled={dataSource !== "api"}
-                placeholder="构建 Mini Code Agent"
-                value={goalTitle}
-                onChange={(event) => setGoalTitle(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>北极星目标</span>
+              <span>v0.1 goal</span>
               <textarea
                 disabled={dataSource !== "api"}
-                placeholder="一个文件夹就是一个项目，外部知识进入后生成 issue，并调度 Codex/Claude 完成版本。"
-                value={northStar}
-                onChange={(event) => setNorthStar(event.target.value)}
+                placeholder="mini-code-agent accepts a local repo and task, runs a safe coding step, captures trajectory/diff/tests, and exposes reviewable evidence."
+                value={versionGoal}
+                onChange={(event) => setVersionGoal(event.target.value)}
               />
             </label>
             <label>
@@ -606,40 +666,66 @@ function GoalPage({
                 onChange={(event) => setTargetState(event.target.value)}
               />
             </label>
-            <button disabled={dataSource !== "api" || !goalTitle.trim() || !northStar.trim()} type="button" onClick={() => void saveGoal()}>
-              创建目标
+            <button
+              disabled={dataSource !== "api" || isSavingVersion || !versionGoal.trim()}
+              type="button"
+              onClick={() => void saveProjectVersion(false)}
+            >
+              {isSavingVersion ? "创建中..." : "创建并设为当前 Project Version"}
             </button>
+            {recoveryAction === "create_missing_path" ? (
+              <button
+                className="outline-button"
+                disabled={dataSource !== "api" || isSavingVersion}
+                type="button"
+                onClick={() => void saveProjectVersion(true)}
+              >
+                创建缺失 target path 并初始化
+              </button>
+            ) : null}
           </div>
           {status ? <p className="action-message">{status}</p> : null}
         </section>
         <section className="goal-hero">
           <div className="status-dot active" />
-          <p className="eyebrow">{goal.id}</p>
-          <h2>{goal.title}</h2>
-          <p>{goal.northStar}</p>
+          <p className="eyebrow">{currentVersion?.id ?? "PROJECT-VERSION-NOT-SELECTED"}</p>
+          <h2>{currentVersion ? `${currentVersion.targetProjectLabel ?? currentVersion.targetProject?.label ?? currentVersion.targetProjectId} ${currentVersion.versionLabel}` : "选择当前 Project Version"}</h2>
+          <p>{currentVersion?.goalNorthStar ?? "Sources / Issues / Runs / Inbox 会在选择 Project Version 后共享同一个 current-version scope。"}</p>
           <div className="state-grid">
-            <StateBox label="当前态" value={goal.currentState} />
-            <StateBox label="目标态" value={goal.targetState} />
+            <StateBox label="Target repo" value={currentVersion?.targetProject?.localPath ?? activeProject?.localPath ?? "未选择"} />
+            <StateBox label="Target Version" value={currentVersion?.versionLabel ?? "未选择"} />
           </div>
         </section>
         <section className="panel">
-          <h2>知识输入</h2>
-          <List items={goal.knowledgeInputs} />
+          <h2>共享 current version scope</h2>
+          <PropertyGrid
+            rows={[
+              ["Sources", String(data.projectInputs?.length ?? data.sources.length)],
+              ["Issues", String(currentTickets.length)],
+              ["Runs", String(data.assignments?.length ?? 0)],
+              ["Inbox", String(data.inbox.length)],
+            ]}
+          />
         </section>
         <section className="panel">
-          <h2>反馈信号</h2>
-          <List items={goal.feedbackSignals} />
+          <h2>Target repos</h2>
+          <List
+            items={(data.projectResources ?? []).map((resource) => (
+              `${resource.label} · ${resource.localPath ?? "no path"} · ${resource.pathExists ? "path ok" : "path missing"}`
+            ))}
+          />
         </section>
         <section className="panel wide">
-          <h2>由目标派生的当前任务</h2>
+          <h2>当前版本 mainline issues</h2>
           <div className="compact-ticket-list">
-            {data.tickets.slice(0, 4).map((ticket) => (
+            {currentTickets.map((ticket) => (
               <button key={ticket.id} type="button" onClick={() => onTicketSelect(ticket.id)}>
                 <span>{ticket.key}</span>
                 <strong>{ticket.title}</strong>
                 <em>{statusLabel(ticket.status)}</em>
               </button>
             ))}
+            {!currentTickets.length ? <p className="empty-column">当前 Project Version 还没有 mainline issues。</p> : null}
           </div>
         </section>
       </div>

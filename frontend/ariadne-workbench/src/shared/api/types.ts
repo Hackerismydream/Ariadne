@@ -1,5 +1,7 @@
 export type ApiWorkbench = {
   goals: ApiProjectGoal[];
+  project_versions: ApiProjectVersion[];
+  current_project_version?: ApiProjectVersion | null;
   sources: ApiSourceDocument[];
   source_artifacts: ApiSourceArtifact[];
   source_evidence: ApiSourceEvidence[];
@@ -306,6 +308,21 @@ export type ApiTargetProject = {
   test_command?: string | null;
   issue_prefix?: string | null;
   boundary_role?: string;
+};
+
+export type ApiProjectVersion = {
+  id: string;
+  target_project_id: string;
+  target_project_label?: string | null;
+  target_project?: ApiTargetProject | null;
+  version_label: string;
+  goal_id: string;
+  goal_title: string;
+  goal_north_star: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  selected_at?: string | null;
 };
 
 export type ApiEnvironmentBlocker = {
@@ -1008,6 +1025,24 @@ export type RegisterTargetProjectRequest = {
   init_git?: boolean;
   test_command?: string | null;
   issue_prefix?: string | null;
+};
+
+export type CreateProjectVersionRequest = {
+  target_project_id?: string | null;
+  target_repo_path?: string | null;
+  target_repo_label?: string | null;
+  create_if_missing?: boolean;
+  init_git?: boolean;
+  test_command?: string | null;
+  issue_prefix?: string | null;
+  version_label: string;
+  goal_title: string;
+  goal_north_star: string;
+  target_state?: string;
+};
+
+export type SelectProjectVersionRequest = {
+  version_id: string;
 };
 
 export type AssignTicketRequest = {

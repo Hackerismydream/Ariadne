@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from ariadne_ltb.application.dtos import CreateProjectVersionInput
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.ingest import ingest_sources
 from ariadne_ltb.interfaces.http.app import create_app
@@ -39,6 +41,16 @@ def test_run_now_claims_assignment_and_projects_blocked_codex_evidence(tmp_path:
     ingest_sources(store, SOURCE_FIXTURES)
     target = ensure_demo_target_project(tmp_path)
     project = TargetProjectRegistry(store).register(target, "Demo Target")
+    ProjectVersionService(store).create(
+        CreateProjectVersionInput(
+            target_project_id=project.id,
+            version_label="v0.1",
+            goal_title="Demo Target v0.1",
+            goal_north_star="Run ARI-003 through browser workbench evidence.",
+        )
+    )
+    ticket = store.resolve_ticket("ARI-003")
+    store.save_ticket(ticket.model_copy(update={"metadata": ticket.metadata | {"target_project_id": project.id}}))
     client = TestClient(create_app(tmp_path))
     assigned = client.post(
         "/api/tickets/ARI-003/assign",

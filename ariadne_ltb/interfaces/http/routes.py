@@ -12,6 +12,7 @@ from ariadne_ltb.application.dtos import (
     AssignTicketInput,
     CreateCommentInput,
     CreateProjectGoalInput,
+    CreateProjectVersionInput,
     CreateSourceInput,
     DaemonStartInput,
     InboxActionInput,
@@ -19,6 +20,7 @@ from ariadne_ltb.application.dtos import (
     IssuePatchInput,
     RegisterTargetProjectInput,
     RunAssignmentInput,
+    SelectProjectVersionInput,
 )
 from ariadne_ltb.application.daemon_control import DaemonControlService
 from ariadne_ltb.application.errors import ApplicationError
@@ -36,6 +38,7 @@ from ariadne_ltb.application.mappers import (
 )
 from ariadne_ltb.application.project_inputs import build_project_inputs
 from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.run_assignment import RunAssignmentService
 from ariadne_ltb.application.run_events import AssignmentEventCache, RunEventService
 from ariadne_ltb.application.runtime_status import RuntimeStatusService
@@ -292,6 +295,33 @@ def register_target_project(
         issue_prefix=payload.issue_prefix,
     )
     return {"target_project": project.model_dump(mode="json")}
+
+
+@router.get("/api/project-versions")
+def list_project_versions(store: AriadneStore = Depends(get_store)) -> dict:
+    service = ProjectVersionService(store)
+    return {
+        "project_versions": [version.model_dump(mode="json") for version in service.list()],
+        "current_project_version": service.current().model_dump(mode="json") if service.current() else None,
+    }
+
+
+@router.post("/api/project-versions")
+def create_project_version(
+    payload: CreateProjectVersionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    version = ProjectVersionService(store).create(payload)
+    return {"project_version": version.model_dump(mode="json")}
+
+
+@router.post("/api/project-versions/select")
+def select_project_version(
+    payload: SelectProjectVersionInput,
+    store: AriadneStore = Depends(get_store),
+) -> dict:
+    version = ProjectVersionService(store).select(payload.version_id)
+    return {"project_version": version.model_dump(mode="json")}
 
 
 @router.get("/api/goals")
