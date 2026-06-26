@@ -129,6 +129,7 @@ local operator tools. They do not prove product closure by themselves. The
 product closure standard is browser-driven Project Version Delivery:
 
 ```bash
+ari ticket assign <current-ticket> --to codex --runtime-profile production
 ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
 ```
 
