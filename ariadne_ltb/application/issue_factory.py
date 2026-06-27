@@ -12,6 +12,7 @@ from ariadne_ltb.application.issue_compiler import CompiledIssueSpec
 from ariadne_ltb.application.issue_delta_validation import validate_issue_delta_operations
 from ariadne_ltb.application.mappers import backlog_preview_dto
 from ariadne_ltb.application.project_goals import ProjectGoalService
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.backlog import apply_backlog_preview, ticket_backlog_fingerprint
 from ariadne_ltb.models import (
     BacklogOperation,
@@ -104,6 +105,7 @@ class IssueFactoryService:
         prefix = _issue_prefix(self.store, context.manifest.target_project_id, title)
         next_index = _next_ticket_index(existing_keys, prefix)
         existing_by_title = {}
+        target_version_label = _target_version_label(self.store, context.manifest.target_project_id)
         for ticket in sorted(existing_tickets, key=lambda item: item.key):
             if not ticket.key.startswith(f"{prefix}-"):
                 continue
@@ -149,9 +151,7 @@ class IssueFactoryService:
                         "origin": "issue_factory",
                         "root_ticket_key": ticket_key,
                         "change_intent": change_intent,
-                        "target_version_label": context.manifest.metadata.get("target_version_label", "v0.1")
-                        if hasattr(context.manifest, "metadata")
-                        else "v0.1",
+                        "target_version_label": target_version_label,
                         "existing_ticket_key": existing_ticket.key if existing_ticket else None,
                         "after_summary": task.reason,
                         "confidence": 0.75,
@@ -298,121 +298,15 @@ def _prefix_from_label(value: str) -> str:
     return (letters or "PRJ")[:4]
 
 
-def _is_mini_code_context(title: str, north_star: str, context: IssueFactoryContext) -> bool:
-    haystack = " ".join(
-        [
-            title,
-            north_star,
-            *[source.title + " " + source.path_or_url for source in context.sources],
-        ]
-    ).lower()
-    return any(token in haystack for token in ["mini code", "mini-code", "mini-swe", "minimal-agent"])
-
-
-def _mini_code_agent_tasks() -> list[dict[str, object]]:
-    return [
-        _task(
-            "Bootstrap Python package and CLI",
-            "A minimal coding agent needs an executable package and command-line entrypoint before higher-level agent behavior can be tested.",
-            "high",
-            ["pyproject.toml", "mini_code_agent/__main__.py", "mini_code_agent/cli.py", "tests/test_cli.py", ".mini-code-agent/"],
-        ),
-        _task(
-            "Add DeepSeek-backed LLM client configuration",
-            "The target agent needs a real upstream model client and local configuration path instead of demo responses.",
-            "high",
-            ["mini_code_agent/llm.py", "mini_code_agent/config.py", "tests/test_llm_config.py"],
-        ),
-        _task(
-            "Define tool protocol and model action schema",
-            "Reference projects converge on a model-action-observation loop, so the target needs a typed protocol before tool execution.",
-            "high",
-            ["mini_code_agent/protocol.py", "tests/test_protocol.py"],
-        ),
-        _task(
-            "Implement shell command tool with allowlist",
-            "Coding agents need shell access, but the first version must restrict commands to an explicit allowlist.",
-            "high",
-            ["mini_code_agent/tools/shell.py", "tests/test_shell_tool.py"],
-        ),
-        _task(
-            "Implement file read and patch tools with review-before-write safety",
-            "Reference agents expose file operations, but Ariadne should dogfood review-before-write safety in the target agent.",
-            "high",
-            ["mini_code_agent/tools/files.py", "tests/test_file_tools.py"],
-        ),
-        _task(
-            "Implement agent loop: prompt -> action -> observation -> repeat",
-            "The core agent value is the loop that turns model actions into tool observations until the task is complete or blocked.",
-            "high",
-            ["mini_code_agent/agent_loop.py", "tests/test_agent_loop.py"],
-        ),
-        _task(
-            "Persist session trace and run summary",
-            "AI Builders need inspectable trajectories to debug and improve the mini code agent.",
-            "medium",
-            ["mini_code_agent/trace.py", "tests/test_trace.py"],
-        ),
-        _task(
-            "Capture git diff and test result",
-            "The target agent must report changed files, diff, and tests so the builder can review output.",
-            "high",
-            ["mini_code_agent/evidence.py", "tests/test_evidence.py"],
-        ),
-        _task(
-            "Add minimal reviewer checks for task completion",
-            "A conservative reviewer pass is needed before a run can be considered usable.",
-            "medium",
-            ["mini_code_agent/reviewer.py", "tests/test_reviewer.py"],
-        ),
-        _task(
-            "Write README quickstart and usage examples",
-            "A v0.1 is not usable unless an AI Builder can install it, run it, and inspect output.",
-            "medium",
-            ["README.md", "docs/quickstart.md"],
-        ),
-    ]
-
-
-def _generic_tasks(title: str) -> list[dict[str, object]]:
-    return [
-        _task(
-            f"Clarify product contract for {title}",
-            "Turn the goal and selected knowledge into an explicit implementation contract.",
-            "high",
-            ["docs/product/contract.md"],
-        ),
-        _task(
-            f"Implement first vertical slice for {title}",
-            "Build the smallest end-to-end version that proves the goal can move through planning, execution, and review.",
-            "high",
-            ["src/", "tests/"],
-        ),
-        _task(
-            f"Add evidence and review loop for {title}",
-            "Record diff, tests, review verdict, and next issue suggestions for future iterations.",
-            "medium",
-            ["src/evidence", "tests/"],
-        ),
-    ]
-
-
-def _task(title: str, reason: str, priority: str, affected_modules: list[str]) -> dict[str, object]:
-    return {
-        "title": title,
-        "reason": reason,
-        "priority": priority,
-        "owner_agent": "Build Lead",
-        "build_decision": "code_task",
-        "acceptance_criteria": [
-            "The implementation is reachable from the Web Workbench product path.",
-            "The resulting behavior writes inspectable evidence.",
-            "Tests cover the new behavior without external credentials.",
-        ],
-        "affected_modules": affected_modules,
-        "risks": ["Scope should stay small enough for one issue-sized coding pass."],
-        "assumptions": ["The target project is a local Python package managed from the Ariadne Workbench."],
-    }
+def _target_version_label(store: AriadneStore, target_project_id: str) -> str:
+    versions = ProjectVersionService(store).list()
+    current = ProjectVersionService(store).current()
+    if current and current.target_project_id == target_project_id:
+        return current.version_label
+    for version in versions:
+        if version.target_project_id == target_project_id:
+            return version.version_label
+    return "current"
 
 
 def _source_for_task(

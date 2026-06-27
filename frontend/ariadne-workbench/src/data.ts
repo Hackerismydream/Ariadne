@@ -1,6 +1,6 @@
 import { getWorkbench } from "./shared/api/client";
-import type { ApiBacklogOperation, ApiBacklogPreview, ApiSourceDocument, ApiWorkbench } from "./shared/api/types";
-import type { AriadneTicket, RuntimeInfo, TicketExecutionEvidence, TicketStatus, WorkbenchData } from "./types";
+import type { ApiBacklogOperation, ApiBacklogPreview, ApiProjectInputDetail, ApiSourceDocument, ApiWorkbench } from "./shared/api/types";
+import type { AriadneTicket, ProjectInputDetail, RuntimeInfo, TicketExecutionEvidence, TicketStatus, WorkbenchData } from "./types";
 
 export const emptyWorkbenchData: WorkbenchData = {
   goal: {
@@ -217,63 +217,7 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       label: event.label,
       createdAt: event.created_at,
     })),
-    projectInputs: (apiData.project_inputs ?? []).map((item) => ({
-      source: adaptSource(item.source),
-      lifecycle: {
-        sourceId: item.lifecycle.source_id,
-        status: item.lifecycle.status,
-        label: item.lifecycle.label,
-        detail: item.lifecycle.detail,
-        terminal: item.lifecycle.terminal,
-        readyForIssueFactory: item.lifecycle.ready_for_issue_factory,
-        blocker: item.lifecycle.blocker,
-        updatedAt: item.lifecycle.updated_at,
-        nextActions: item.lifecycle.next_actions.map((action) => ({
-          id: action.id,
-          label: action.label,
-          enabled: action.enabled,
-          reason: action.reason,
-          targetRoute: action.target_route,
-          apiAction: action.api_action,
-        })),
-      },
-      understanding: item.understanding ? {
-        sourceId: item.understanding.source_id,
-        displayTitle: item.understanding.display_title,
-        kindLabel: item.understanding.kind_label,
-        roleLabel: item.understanding.role_label,
-        analysisLabel: item.understanding.analysis_label,
-        licenseRiskLabel: item.understanding.license_risk_label,
-        whatAriadneUnderstood: item.understanding.what_ariadne_understood,
-        evidenceItems: item.understanding.evidence_items.map((evidence) => ({
-          locator: evidence.locator,
-          summary: evidence.summary,
-          claim: evidence.claim,
-          confidenceLabel: evidence.confidence_label,
-        })),
-        generatedOutputs: item.understanding.generated_outputs,
-        risks: item.understanding.risks,
-        impactedTicketKeys: item.understanding.impacted_ticket_keys,
-        nextActions: item.understanding.next_actions,
-      } : null,
-      artifacts: item.artifacts.map((artifact) => ({
-        id: artifact.id,
-        kind: artifact.kind,
-        label: artifact.label,
-        summary: artifact.summary,
-        payloadPath: artifact.payload_path,
-        payloadHash: artifact.payload_hash,
-        evidenceCount: artifact.evidence_count,
-        keyFields: artifact.key_fields,
-      })),
-      evidence: item.evidence.map((evidence) => ({
-        locator: evidence.locator,
-        summary: evidence.summary,
-        claim: evidence.claim,
-        confidenceLabel: evidence.confidence_label,
-      })),
-      impactedTicketKeys: item.impacted_ticket_keys,
-    })),
+    projectInputs: (apiData.project_inputs ?? []).map(adaptProjectInputDetail),
     backendSmokeEvidence: [],
     releaseEvidence: undefined,
     skills: apiData.skills.map((skill) => ({
@@ -365,6 +309,66 @@ function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
       blockedReason: step.blocked_reason,
     })),
     agentActivities: (apiData.agent_activities ?? []).map(adaptAgentActivity),
+  };
+}
+
+export function adaptProjectInputDetail(item: ApiProjectInputDetail): ProjectInputDetail {
+  return {
+    source: adaptSource(item.source),
+    lifecycle: {
+      sourceId: item.lifecycle.source_id,
+      status: item.lifecycle.status,
+      label: item.lifecycle.label,
+      detail: item.lifecycle.detail,
+      terminal: item.lifecycle.terminal,
+      readyForIssueFactory: item.lifecycle.ready_for_issue_factory,
+      blocker: item.lifecycle.blocker,
+      updatedAt: item.lifecycle.updated_at,
+      nextActions: item.lifecycle.next_actions.map((action) => ({
+        id: action.id,
+        label: action.label,
+        enabled: action.enabled,
+        reason: action.reason,
+        targetRoute: action.target_route,
+        apiAction: action.api_action,
+      })),
+    },
+    understanding: item.understanding ? {
+      sourceId: item.understanding.source_id,
+      displayTitle: item.understanding.display_title,
+      kindLabel: item.understanding.kind_label,
+      roleLabel: item.understanding.role_label,
+      analysisLabel: item.understanding.analysis_label,
+      licenseRiskLabel: item.understanding.license_risk_label,
+      whatAriadneUnderstood: item.understanding.what_ariadne_understood,
+      evidenceItems: item.understanding.evidence_items.map((evidence) => ({
+        locator: evidence.locator,
+        summary: evidence.summary,
+        claim: evidence.claim,
+        confidenceLabel: evidence.confidence_label,
+      })),
+      generatedOutputs: item.understanding.generated_outputs,
+      risks: item.understanding.risks,
+      impactedTicketKeys: item.understanding.impacted_ticket_keys,
+      nextActions: item.understanding.next_actions,
+    } : null,
+    artifacts: item.artifacts.map((artifact) => ({
+      id: artifact.id,
+      kind: artifact.kind,
+      label: artifact.label,
+      summary: artifact.summary,
+      payloadPath: artifact.payload_path,
+      payloadHash: artifact.payload_hash,
+      evidenceCount: artifact.evidence_count,
+      keyFields: artifact.key_fields ?? {},
+    })),
+    evidence: item.evidence.map((evidence) => ({
+      locator: evidence.locator,
+      summary: evidence.summary,
+      claim: evidence.claim,
+      confidenceLabel: evidence.confidence_label,
+    })),
+    impactedTicketKeys: item.impacted_ticket_keys,
   };
 }
 

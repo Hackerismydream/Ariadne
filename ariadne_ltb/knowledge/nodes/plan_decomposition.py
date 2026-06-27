@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM
+from ariadne_ltb.knowledge.llm_adapter import KnowledgeLLM, KnowledgeNodeError, call_node_json, node_event
 from ariadne_ltb.knowledge.models import (
     BlockerLearning,
     ContradictionRecord,
@@ -24,7 +24,8 @@ def plan_decomposition(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, An
     ]
     previous_quality_issues = list(state.get("quality_issues") or [])
     try:
-        response = llm.complete_json(
+        response = call_node_json(
+            llm,
             plan_decomposition_prompt(
                 purpose,
                 themes,
@@ -34,18 +35,37 @@ def plan_decomposition(state: dict[str, Any], llm: KnowledgeLLM) -> dict[str, An
                 previous_quality_issues,
             ),
             "IssueDecompositionDrafts",
+            node_name="plan_decomposition",
         )
+    except KnowledgeNodeError:
+        raise
     except Exception:
         return {
             "draft_issues": _drafts_from_themes(themes),
             "compile_attempts": int(state.get("compile_attempts") or 0) + 1,
             "quality_issues": [],
+            "node_provenance": [
+                node_event(
+                    "plan_decomposition",
+                    status="fallback",
+                    schema_name="IssueDecompositionDrafts",
+                    reason="local_planning_exception",
+                )
+            ],
         }
     issues = [item for item in response.get("issues", []) if isinstance(item, dict)]
     return {
         "draft_issues": issues,
         "compile_attempts": int(state.get("compile_attempts") or 0) + 1,
         "quality_issues": [],
+        "node_provenance": [
+            node_event(
+                "plan_decomposition",
+                status="completed",
+                schema_name="IssueDecompositionDrafts",
+                issue_count=len(issues),
+            )
+        ],
     }
 
 

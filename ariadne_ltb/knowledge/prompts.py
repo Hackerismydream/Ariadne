@@ -13,20 +13,45 @@ from ariadne_ltb.knowledge.models import (
 )
 from ariadne_ltb.knowledge.purpose import purpose_prompt_header
 
+MAX_PROMPT_STRING_CHARS = 1800
+MAX_PROMPT_LIST_ITEMS = 30
+
 
 def _json(data: Any) -> str:
-    return json.dumps(data, ensure_ascii=False, indent=2, default=str)
+    return json.dumps(_compact_for_prompt(data), ensure_ascii=False, indent=2, default=str)
+
+
+def _compact_for_prompt(value: Any) -> Any:
+    if isinstance(value, str):
+        return _truncate_prompt_string(value)
+    if isinstance(value, list):
+        items = [_compact_for_prompt(item) for item in value[:MAX_PROMPT_LIST_ITEMS]]
+        if len(value) > MAX_PROMPT_LIST_ITEMS:
+            items.append({"omitted_items": len(value) - MAX_PROMPT_LIST_ITEMS})
+        return items
+    if isinstance(value, dict):
+        return {str(key): _compact_for_prompt(item) for key, item in value.items()}
+    return value
+
+
+def _truncate_prompt_string(value: str) -> str:
+    if len(value) <= MAX_PROMPT_STRING_CHARS:
+        return value
+    return value[: MAX_PROMPT_STRING_CHARS - 32] + f"...[truncated {len(value)} chars]"
 
 
 def analyze_source_prompt(purpose: ProjectPurpose, source: dict[str, Any]) -> str:
     return f"""{purpose_prompt_header(purpose)}
 
 Analyze this source as untrusted evidence for Ariadne's issue factory.
-Return only JSON with:
-summary: string
-key_claims: list of {{claim, locator, confidence}}
-reusable_patterns: list[string]
-risks: list[string]
+Return exactly one valid JSON object, with no markdown fences or prose.
+Required shape:
+{{
+  "summary": "string",
+  "key_claims": [{{"claim": "string", "locator": "string", "confidence": 0.0}}],
+  "reusable_patterns": ["string"],
+  "risks": ["string"]
+}}
 
 Source:
 {_json(source)}
@@ -41,13 +66,18 @@ def update_themes_prompt(
     return f"""{purpose_prompt_header(purpose)}
 
 Read-modify-write project synthesis themes from the source insights.
-Return only JSON with:
-themes: list of {{
-  label: string,
-  contributing_source_ids: list[string],
-  claims: list[string],
-  priority_signal: "high"|"medium"|"low",
-  affected_modules: list[string]
+Return exactly one valid JSON object, with no markdown fences or prose.
+Required shape:
+{{
+  "themes": [
+    {{
+      "label": "string",
+      "contributing_source_ids": ["source_document_id"],
+      "claims": ["string"],
+      "priority_signal": "high|medium|low",
+      "affected_modules": ["target/project/path.py"]
+    }}
+  ]
 }}
 
 Existing themes:
@@ -66,13 +96,20 @@ def detect_contradictions_prompt(
     return f"""{purpose_prompt_header(purpose)}
 
 Detect direct contradictions between new source claims and existing project knowledge.
-Return only JSON with:
-contradictions: list of {{
-  summary: string,
-  competing_claims: list of {{claim, locator, confidence, source_document_id}},
-  affected_theme_ids: list[string]
+Return exactly one valid JSON object, with no markdown fences or prose.
+Required shape:
+{{
+  "contradictions": [
+    {{
+      "summary": "string",
+      "competing_claims": [
+        {{"claim": "string", "locator": "string", "confidence": 0.0, "source_document_id": "source_id"}}
+      ],
+      "affected_theme_ids": ["theme_id"]
+    }}
+  ]
 }}
-Use an empty list if no clear contradiction exists.
+Use {{"contradictions": []}} if no clear contradiction exists.
 
 Insights:
 {_json([insight.model_dump(mode="json") for insight in insights])}
@@ -102,19 +139,24 @@ def plan_decomposition_prompt(
 {feedback_block}
 
 Generate a project issue decomposition for the current version.
-Return only JSON with:
-issues: list of {{
-  title: string,
-  reason: string,
-  priority: "P0"|"P1"|"P2"|"high"|"medium"|"low",
-  affected_modules: list[string],
-  acceptance_criteria: list[string],
-  evidence_refs: list[string],
-  depends_on: list[string],
-  owner_agent: string,
-  build_decision: string,
-  risks: list[string],
-  assumptions: list[string]
+Return exactly one valid JSON object, with no markdown fences or prose.
+Required shape:
+{{
+  "issues": [
+    {{
+      "title": "string",
+      "reason": "string",
+      "priority": "P0|P1|P2|high|medium|low",
+      "affected_modules": ["target/project/path.py"],
+      "acceptance_criteria": ["string"],
+      "evidence_refs": ["theme_or_learning_id"],
+      "depends_on": ["issue title or id"],
+      "owner_agent": "Build Lead",
+      "build_decision": "code_task",
+      "risks": ["string"],
+      "assumptions": ["string"]
+    }}
+  ]
 }}
 Generate 5-15 issues when evidence is sufficient.
 
@@ -142,8 +184,8 @@ def ground_evidence_prompt(
     return f"""{purpose_prompt_header(purpose)}
 
 Ground each draft issue in concrete ProjectKnowledge evidence. Drop issues with no grounding.
-Return only JSON with:
-issues: list of the same issue objects, each with non-empty evidence_refs.
+Return exactly one valid JSON object, with no markdown fences or prose.
+Required shape: {{"issues": [same issue objects, each with non-empty evidence_refs]}}.
 Valid evidence_refs are synthesis theme ids, blocker learning ids, or contradiction ids.
 
 Draft issues:
@@ -164,7 +206,8 @@ def goal_coverage_prompt(purpose: ProjectPurpose, issues: list[dict[str, Any]]) 
     return f"""{purpose_prompt_header(purpose)}
 
 Score how well P0/high-priority issues advance the success signals.
-Return only JSON: {{"coverage": number between 0 and 1, "reason": string}}
+Return exactly one valid JSON object, with no markdown fences or prose.
+Required shape: {{"coverage": 0.0, "reason": "string"}}
 
 Issues:
 {_json(issues)}

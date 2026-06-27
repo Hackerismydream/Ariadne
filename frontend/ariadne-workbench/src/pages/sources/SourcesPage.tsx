@@ -4,7 +4,7 @@ import type { PageKey } from "../../app/routes";
 import { inferSourceInput, sourceAnalysisLabel, type SourceFormType } from "../../features/project-inputs/model";
 import { analyzeSource, createSource, getSourceDetail } from "../../shared/api/client";
 import type { ProjectInputDetail, SourceDocument, WorkbenchData } from "../../types";
-import type { WorkbenchDataSource } from "../../data";
+import { adaptProjectInputDetail, type WorkbenchDataSource } from "../../data";
 
 function sourceTypeLabel(sourceType: SourceDocument["sourceType"]) {
   const labels: Record<SourceDocument["sourceType"], string> = {
@@ -116,7 +116,7 @@ export function SourcesPage({
     if (dataSource !== "api") return;
     try {
       const response = await getSourceDetail(sourceId);
-      setSelectedDetail(response.project_input as unknown as ProjectInputDetail);
+      setSelectedDetail(adaptProjectInputDetail(response.project_input));
     } catch {
       // The aggregate workbench snapshot is enough for display; detail refresh is opportunistic.
     }
@@ -143,7 +143,7 @@ export function SourcesPage({
       setSelectedSourceId(result.source.id);
       await onRefresh();
       if (result.project_input) {
-        setSelectedDetail(result.project_input as unknown as ProjectInputDetail);
+        setSelectedDetail(adaptProjectInputDetail(result.project_input));
       }
       setMessage(result.duplicate ? `Existing source opened: ${result.source.title}` : `Analyzed source: ${result.source.title}`);
     } catch (error) {
@@ -161,7 +161,7 @@ export function SourcesPage({
       const result = await analyzeSource(selectedSource.id);
       await onRefresh();
       if (result.project_input) {
-        setSelectedDetail(result.project_input as unknown as ProjectInputDetail);
+        setSelectedDetail(adaptProjectInputDetail(result.project_input));
       }
       setMessage(`Analysis complete: ${selectedSource.title}`);
     } catch (error) {

@@ -109,10 +109,13 @@ def _typed_artifact(
     identity = payload.get("identity")
     if isinstance(identity, dict):
         key_fields["commit_sha"] = identity.get("commit_sha")
-        key_fields["repo_url"] = identity.get("repo_url")
+        key_fields["repo_url"] = identity.get("remote_url") or identity.get("repo_url")
     for key in (
         "manifests",
         "entrypoints",
+        "repo_structure",
+        "reusable_patterns",
+        "risks",
         "avoid_notes",
         "architecture_insights",
         "test_strategy",
@@ -123,6 +126,8 @@ def _typed_artifact(
         value = payload.get(key)
         if isinstance(value, list):
             key_fields[key] = value[:5]
+        elif isinstance(value, dict):
+            key_fields[key] = value
     quality_status = payload.get("quality_status")
     if isinstance(quality_status, str):
         key_fields["quality_status"] = quality_status

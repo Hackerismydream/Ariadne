@@ -31,6 +31,7 @@ class IngestState(TypedDict):
     source_documents: dict[str, dict[str, Any]]
     source_artifacts: dict[str, list[dict[str, Any]]]
     source_evidence: dict[str, list[dict[str, Any]]]
+    node_provenance: Annotated[list[dict[str, Any]], operator.add]
     store: NotRequired[AriadneStore]
 
 
@@ -89,6 +90,7 @@ def ingest_sources(
         },
         "source_artifacts": _artifact_payloads_by_source(store, context),
         "source_evidence": _evidence_by_source(context),
+        "node_provenance": [],
         "store": store,
     }
     result = build_ingest_graph(llm).invoke(initial_state)
@@ -130,4 +132,3 @@ def _evidence_by_source(context: IssueFactoryContext) -> dict[str, list[dict[str
     for item in context.evidence:
         evidence.setdefault(item.source_document_id, []).append(item.model_dump(mode="json"))
     return evidence
-

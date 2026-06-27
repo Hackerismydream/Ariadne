@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, NotRequired, TypedDict
+import operator
+from dataclasses import dataclass
+from typing import Annotated, Any, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -39,7 +41,15 @@ class CompileState(TypedDict):
     quality_issues: list[str]
     compile_attempts: int
     used_fallback: bool
+    node_provenance: Annotated[list[dict[str, Any]], operator.add]
     store: NotRequired[AriadneStore]
+
+
+@dataclass(frozen=True)
+class KnowledgeCompileGraphResult:
+    specs: list[CompiledIssueSpec]
+    node_provenance: list[dict[str, Any]]
+    quality_issues: list[str]
 
 
 def build_compile_graph(llm: KnowledgeLLM):
@@ -70,6 +80,23 @@ def compile_from_knowledge(
     purpose: ProjectPurpose,
     llm: KnowledgeLLM,
 ) -> list[CompiledIssueSpec]:
+    return compile_from_knowledge_with_provenance(
+        store,
+        project_id=project_id,
+        target_project_id=target_project_id,
+        purpose=purpose,
+        llm=llm,
+    ).specs
+
+
+def compile_from_knowledge_with_provenance(
+    store: AriadneStore,
+    *,
+    project_id: str,
+    target_project_id: str,
+    purpose: ProjectPurpose,
+    llm: KnowledgeLLM,
+) -> KnowledgeCompileGraphResult:
     initial_state: CompileState = {
         "project_id": project_id,
         "project_purpose": purpose,
@@ -86,10 +113,15 @@ def compile_from_knowledge(
         "quality_issues": [],
         "compile_attempts": 0,
         "used_fallback": False,
+        "node_provenance": [],
         "store": store,
     }
     result = build_compile_graph(llm).invoke(initial_state)
-    return [_compiled_issue_spec(item) for item in result.get("compiled_specs", [])]
+    return KnowledgeCompileGraphResult(
+        specs=[_compiled_issue_spec(item) for item in result.get("compiled_specs", [])],
+        node_provenance=[dict(item) for item in result.get("node_provenance", []) if isinstance(item, dict)],
+        quality_issues=[str(item) for item in result.get("quality_issues", [])],
+    )
 
 
 def compile_deterministic_from_themes(

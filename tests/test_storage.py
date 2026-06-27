@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from ariadne_ltb.models import (
     AgentRun,
     AgentRunStatus,
     ArtifactType,
+    BacklogPreview,
+    BacklogUpdateTrigger,
     BuildTicket,
     ProjectSpace,
     TicketStatus,
@@ -83,3 +86,26 @@ def test_list_tickets_reads_persisted_ticket_files(tmp_path: Path) -> None:
     )
 
     assert [ticket.key for ticket in store.list_tickets()] == ["ARI-001"]
+
+
+def test_list_backlog_previews_orders_same_second_by_file_write_time(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    first = BacklogPreview(
+        id="backlog_preview_first",
+        trigger_type=BacklogUpdateTrigger.MANUAL_GOAL,
+        trigger_ref="goal_1",
+        idempotency_key="first",
+        base_ticket_fingerprint="base",
+        rationale="first",
+        created_at="2026-06-26T00:00:00Z",
+    )
+    second = first.model_copy(update={"id": "backlog_preview_second", "idempotency_key": "second"})
+
+    store.save_backlog_preview(first)
+    time.sleep(0.001)
+    store.save_backlog_preview(second)
+
+    assert [preview.id for preview in store.list_backlog_previews()] == [
+        "backlog_preview_first",
+        "backlog_preview_second",
+    ]
