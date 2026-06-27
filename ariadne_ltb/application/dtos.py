@@ -638,6 +638,11 @@ class BacklogOperationDTO(AriadneDTO):
     source_artifact_ids: list[str] = Field(default_factory=list)
     build_context_id: str | None = None
     target_project_id: str | None = None
+    project_version_id: str | None = None
+    target_project_label: str | None = None
+    target_project_path: str | None = None
+    target_repo_path: str | None = None
+    target_project_identity: dict[str, Any] = Field(default_factory=dict)
     compiler_provenance: dict[str, Any] = Field(default_factory=dict)
     codebase_snapshot_artifact_id: str | None = None
     codebase_snapshot_status: str = "missing"
@@ -673,6 +678,11 @@ class BacklogPreviewDTO(AriadneDTO):
     source_document_ids: list[str] = Field(default_factory=list)
     source_artifact_ids: list[str] = Field(default_factory=list)
     target_project_id: str | None = None
+    project_version_id: str | None = None
+    target_project_label: str | None = None
+    target_project_path: str | None = None
+    target_repo_path: str | None = None
+    target_project_identity: dict[str, Any] = Field(default_factory=dict)
     compiler_provenance: dict[str, Any] = Field(default_factory=dict)
     codebase_snapshot_artifact_id: str | None = None
     codebase_snapshot_status: str = "missing"
@@ -723,7 +733,16 @@ class IssueListItemDTO(AriadneDTO):
     priority: str
     assignee: str | None = None
     project: str | None = None
+    target_project_id: str | None = None
+    project_version_id: str | None = None
+    target_project_label: str | None = None
+    target_project_path: str | None = None
+    target_repo_path: str | None = None
     target_version: str | None = None
+    build_context_id: str | None = None
+    source_document_ids: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    source_evidence_refs: list[str] = Field(default_factory=list)
     source_count: int = 0
     evidence_count: int = 0
     last_run_status: str | None = None
@@ -792,6 +811,14 @@ class IssueDetailDTO(IssueListItemDTO):
     body: str
     acceptance_criteria: list[str] = Field(default_factory=list)
     affected_modules: list[str] = Field(default_factory=list)
+    target_project_identity: dict[str, Any] = Field(default_factory=dict)
+    compiler_provenance: dict[str, Any] = Field(default_factory=dict)
+    codebase_snapshot_artifact_id: str | None = None
+    codebase_snapshot_status: str = "missing"
+    codebase_snapshot_reason: str | None = None
+    source_claim_trace: list[dict[str, Any]] = Field(default_factory=list)
+    affected_module_rationale: str = ""
+    acceptance_criteria_rationale: str = ""
     comments: list[CommentDTO] = Field(default_factory=list)
     timeline: list[IssueTimelineEventDTO] = Field(default_factory=list)
     assignments: list[AssignmentDTO] = Field(default_factory=list)

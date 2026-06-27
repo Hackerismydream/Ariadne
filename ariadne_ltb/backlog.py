@@ -673,7 +673,19 @@ def _build_packet_from_preview_operation(
             affected_modules=[str(item) for item in operation.metadata.get("affected_modules", [])],
             risks=["Generated issue needs normal review before real external execution."],
             assumptions=["The target project path registered in Workbench is the intended build workspace."],
-            metadata={"source_document_id": document.id, "preview_operation_id": operation.id},
+            metadata={
+                "source_document_id": document.id,
+                "preview_operation_id": operation.id,
+                "target_project_id": operation.metadata.get("target_project_id"),
+                "project_version_id": operation.metadata.get("project_version_id"),
+                "target_version_label": operation.metadata.get("target_version_label"),
+                "target_project_label": operation.metadata.get("target_project_label"),
+                "target_repo_path": operation.metadata.get("target_repo_path"),
+                "source_document_ids": operation.metadata.get("source_document_ids", []),
+                "source_artifact_ids": operation.metadata.get("source_artifact_ids", []),
+                "evidence_refs": operation.metadata.get("evidence_refs", []),
+                "build_context_id": operation.metadata.get("build_context_id"),
+            },
         )
     return fallback_builder(ticket, document)
 

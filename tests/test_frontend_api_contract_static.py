@@ -402,6 +402,9 @@ def test_frontend_phase5_sources_and_plan_changes_are_extracted() -> None:
     for text in ["Issue Delta", "Generate Issue Delta", "Apply Changes", "View Issues", "Refresh Preview"]:
         assert text in plan_page
     assert "stale_preview" in plan_page
+    assert "data.backlogMutationPreview.stale" in plan_page
+    assert 'onNavigate("ready")' in plan_page
+    assert "targetRepoPath" in plan_page
 
 
 def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:
@@ -424,3 +427,6 @@ def test_frontend_release_evidence_exposes_guided_readiness_summary() -> None:
     assert "Diff / Tests / Review" in issue_detail
     assert "Execution Results" in issue_detail
     assert "next_issue_links" in issue_detail
+    assert "Target Context" in issue_detail
+    assert "Source Grounding" in issue_detail
+    assert "Compiler Context" in issue_detail

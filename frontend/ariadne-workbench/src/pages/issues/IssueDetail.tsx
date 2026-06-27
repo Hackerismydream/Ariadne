@@ -417,6 +417,8 @@ export function IssueDetail({
           <section className="panel">
             <h2>Summary</h2>
             <div className="property-grid">
+              <div><span>Project</span><strong>{display(issue.target_project_label ?? issue.target_project_id)}</strong></div>
+              <div><span>Version</span><strong>{display(issue.target_version)}</strong></div>
               <div><span>Assignee</span><strong>{display(issue.assignee, "Unassigned")}</strong></div>
               <div><span>Runtime</span><strong>{activeRuntime?.backend ?? selectedRuntime}</strong></div>
               <div><span>Last run</span><strong>{display(issue.last_run_status)}</strong></div>
@@ -427,6 +429,40 @@ export function IssueDetail({
               <div><span>Evidence</span><strong>{issue.evidence_count}</strong></div>
               <div><span>Blocked</span><strong>{display(issue.blocked_reason, "No")}</strong></div>
             </div>
+          </section>
+          <section className="panel" data-testid="issue-target-context">
+            <h2>Target Context</h2>
+            <div className="property-grid">
+              <div><span>Project ID</span><strong>{display(issue.target_project_id ?? issue.project)}</strong></div>
+              <div><span>Version ID</span><strong>{display(issue.project_version_id)}</strong></div>
+              <div><span>Build context</span><strong>{display(issue.build_context_id)}</strong></div>
+            </div>
+            {issue.target_repo_path ?? issue.target_project_path ? (
+              <code className="wide-code">{issue.target_repo_path ?? issue.target_project_path}</code>
+            ) : null}
+          </section>
+          <section className="panel" data-testid="issue-source-grounding">
+            <h2>Source Grounding</h2>
+            <div className="module-row">
+              {(issue.source_document_ids ?? []).map((item) => <code key={`doc-${item}`}>{item}</code>)}
+              {(issue.source_artifact_ids ?? []).map((item) => <code key={`artifact-${item}`}>{item}</code>)}
+              {(issue.source_evidence_refs ?? []).map((item) => <code key={`evidence-${item}`}>{item}</code>)}
+              {!issue.source_document_ids?.length && !issue.source_artifact_ids?.length && !issue.source_evidence_refs?.length ? <span>No source refs recorded</span> : null}
+            </div>
+            {issue.source_claim_trace?.length ? issue.source_claim_trace.slice(0, 4).map((item) => (
+              <article className="evidence-row" key={String(item.evidence_id ?? item.locator ?? item.claim)}>
+                <strong>{String(item.evidence_id ?? "source evidence")}</strong>
+                <p>{String(item.claim ?? "No claim recorded.")}</p>
+                <small>{String(item.locator ?? "No locator recorded.")}</small>
+              </article>
+            )) : null}
+          </section>
+          <section className="panel" data-testid="issue-compiler-context">
+            <h2>Compiler Context</h2>
+            <p>{display(issue.codebase_snapshot_status)}</p>
+            {issue.codebase_snapshot_artifact_id ? <code>{issue.codebase_snapshot_artifact_id}</code> : null}
+            {issue.codebase_snapshot_reason ? <small>{issue.codebase_snapshot_reason}</small> : null}
+            <code className="wide-code">{JSON.stringify(issue.compiler_provenance ?? {}, null, 2)}</code>
           </section>
           <section className="panel">
             <h2>Handoff / Route</h2>
@@ -440,11 +476,13 @@ export function IssueDetail({
           </section>
           <section className="panel">
             <h2>Acceptance / Modules</h2>
+            {issue.acceptance_criteria_rationale ? <p>{issue.acceptance_criteria_rationale}</p> : null}
             {issue.acceptance_criteria.length ? (
               <ul className="compact-list">
                 {issue.acceptance_criteria.map((item) => <li key={item}>{item}</li>)}
               </ul>
             ) : <p className="empty-column">No acceptance criteria recorded.</p>}
+            {issue.affected_module_rationale ? <p>{issue.affected_module_rationale}</p> : null}
             <div className="module-row">
               {issue.affected_modules.length ? issue.affected_modules.map((item) => <code key={item}>{item}</code>) : <span>No affected modules recorded</span>}
             </div>

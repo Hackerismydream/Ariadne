@@ -131,6 +131,8 @@ function DeltaDetail({ change }: { change?: BacklogChange }) {
       </section>
       <section>
         <h3>Target codebase snapshot</h3>
+        <p>{change.targetProjectLabel ?? change.targetProjectId ?? "Target project not recorded"} · {change.targetVersionLabel ?? "version not recorded"}</p>
+        {change.targetRepoPath ?? change.targetProjectPath ? <code>{change.targetRepoPath ?? change.targetProjectPath}</code> : null}
         <p>{change.codebaseSnapshotStatus ?? "missing"}</p>
         {change.codebaseSnapshotArtifactId ? <code>{change.codebaseSnapshotArtifactId}</code> : null}
         {change.codebaseSnapshotReason ? <small>{change.codebaseSnapshotReason}</small> : null}
@@ -224,16 +226,27 @@ export function PlanChangesPage({
   const traceSteps = selectedChange
     ? data.traceSteps.filter((step) => !step.backlogChangeId || step.backlogChangeId === selectedChange.id)
     : data.traceSteps.slice(0, 8);
+  const previewIsStale = Boolean(stalePreviewId || data.backlogMutationPreview.stale);
 
   useEffect(() => {
     if (!data.backlogChanges.some((change) => change.id === selectedChangeId)) {
       setSelectedChangeId(data.backlogChanges[0]?.id ?? "");
     }
-    if (data.backlogMutationPreview.previewId && !currentPreviewId) {
+    if (data.backlogMutationPreview.previewId && data.backlogMutationPreview.previewId !== currentPreviewId) {
       setCurrentPreviewId(data.backlogMutationPreview.previewId);
       setPreviewStatus(data.backlogMutationPreview.status);
     }
-  }, [currentPreviewId, data.backlogChanges, data.backlogMutationPreview.status, data.backlogMutationPreview.previewId, selectedChangeId]);
+    if (data.backlogMutationPreview.stale && data.backlogMutationPreview.previewId) {
+      setStalePreviewId(data.backlogMutationPreview.previewId);
+    }
+  }, [
+    currentPreviewId,
+    data.backlogChanges,
+    data.backlogMutationPreview.previewId,
+    data.backlogMutationPreview.stale,
+    data.backlogMutationPreview.status,
+    selectedChangeId,
+  ]);
 
   async function generateDelta() {
     if (!activeGoal) {
@@ -296,6 +309,11 @@ export function PlanChangesPage({
       setActionStatus("No issue delta preview is ready to apply.");
       return;
     }
+    if (previewIsStale) {
+      setStalePreviewId(previewId);
+      setActionStatus("Preview is stale because the issue backlog changed. Refresh the preview before applying.");
+      return;
+    }
     setBusy(true);
     setActionStatus("Applying issue delta...");
     try {
@@ -304,6 +322,7 @@ export function PlanChangesPage({
       setPreviewStatus("applied");
       setShowViewIssues(true);
       setActionStatus("Issue delta applied. New issues are available on the board.");
+      onNavigate("ready");
     } catch (error) {
       if (apiErrorCode(error) === "stale_preview") {
         setStalePreviewId(previewId);
@@ -330,7 +349,7 @@ export function PlanChangesPage({
           <button className="primary-action" disabled={dataSource !== "api" || busy} type="button" onClick={() => void generateDelta()}>
             Generate Issue Delta
           </button>
-          <button disabled={dataSource !== "api" || busy || !(currentPreviewId || activePreviewId) || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
+          <button disabled={dataSource !== "api" || busy || previewIsStale || !(currentPreviewId || activePreviewId) || previewStatus === "applied"} type="button" onClick={() => void applyPreview()}>
             {previewStatus === "applied" ? "Applied" : "Apply Changes"}
           </button>
           {showViewIssues ? <button type="button" onClick={() => onNavigate("ready")}>View Issues</button> : null}
@@ -350,10 +369,10 @@ export function PlanChangesPage({
           <span>Unsafe {data.backlogMutationPreview.unsafe}</span>
           <em>{previewStatusLabel(previewStatus)}</em>
         </div>
-        {stalePreviewId ? (
+        {previewIsStale ? (
           <div className="stale-preview-callout">
             <AlertTriangle size={16} />
-            <span>Preview is stale. Refresh it before applying.</span>
+            <span>{data.backlogMutationPreview.staleReason || "Preview is stale. Refresh it before applying."}</span>
             <button disabled={busy} type="button" onClick={() => void refreshStalePreview()}>
               <RefreshCw size={14} /> Refresh Preview
             </button>

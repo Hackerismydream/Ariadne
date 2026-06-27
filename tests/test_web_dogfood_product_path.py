@@ -94,6 +94,11 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path, 
     )
     for operation in preview["operations"]:
         assert operation["target_project_id"] == project_id
+        assert operation["project_version_id"] == project_version["id"]
+        assert operation["target_version_label"] == "v0.1"
+        assert operation["target_project_label"] == "Mini Code Agent"
+        assert operation["target_repo_path"] == str(target)
+        assert operation["target_project_identity"]["project_version_id"] == project_version["id"]
         assert operation["build_context_id"]
         assert operation["evidence_refs"]
         assert operation["acceptance_criteria"]
@@ -124,6 +129,33 @@ def test_web_workbench_creates_goal_sources_preview_and_tickets(tmp_path: Path, 
     assert generated["target_project_id"] == project_id
     assert generated["acceptance_criteria"]
     assert generated["affected_modules"]
+
+    issues = client.get("/api/issues")
+    assert issues.status_code == 200, issues.text
+    issue_cards = issues.json()["issues"]
+    assert len(issue_cards) == 6
+    first_issue = issue_cards[0]
+    assert first_issue["target_project_id"] == project_id
+    assert first_issue["project_version_id"] == project_version["id"]
+    assert first_issue["target_version"] == "v0.1"
+    assert first_issue["target_repo_path"] == str(target)
+    assert first_issue["source_evidence_refs"]
+    assert first_issue["source_artifact_ids"]
+    assert first_issue["build_context_id"]
+
+    detail = client.get(f"/api/issues/{first_issue['key']}")
+    assert detail.status_code == 200, detail.text
+    issue = detail.json()["issue"]
+    assert issue["target_project_identity"]["project_version_id"] == project_version["id"]
+    assert issue["target_repo_path"] == str(target)
+    assert issue["target_version"] == "v0.1"
+    assert issue["source_evidence_refs"]
+    assert issue["source_artifact_ids"]
+    assert issue["acceptance_criteria"]
+    assert issue["affected_modules"]
+    assert issue["source_claim_trace"]
+    assert issue["compiler_provenance"]["compiler_mode"] == "artifact_driven_deterministic_fallback"
+    assert issue["codebase_snapshot_status"] in {"present", "blocked"}
 
 
 def _reference_repo(path: Path, title: str) -> Path:

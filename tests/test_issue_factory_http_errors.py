@@ -59,3 +59,9 @@ def test_apply_stale_preview_returns_409(tmp_path: Path) -> None:
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "stale_preview"
     assert "Regenerate" in response.json()["error"]["message"]
+
+    workbench = client.get("/api/workbench")
+    assert workbench.status_code == 200, workbench.text
+    rendered_preview = next(item for item in workbench.json()["backlog_previews"] if item["id"] == preview["id"])
+    assert rendered_preview["stale"] is True
+    assert rendered_preview["stale_reason"] == "ticket_backlog_changed"

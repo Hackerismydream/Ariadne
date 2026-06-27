@@ -94,8 +94,7 @@ export async function loadWorkbenchData(): Promise<{ data: WorkbenchData; source
 }
 
 function adaptApiWorkbench(apiData: ApiWorkbench): WorkbenchData {
-  const sortedPreviews = [...apiData.backlog_previews].sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const latestPreview = sortedPreviews.length ? sortedPreviews[sortedPreviews.length - 1] : undefined;
+  const latestPreview = selectCurrentIssueDeltaPreview(apiData);
   const sources = apiData.sources.map(adaptSource);
   const knowledgeCards = apiData.sources.map(adaptKnowledgeCard);
   const backlogChanges = latestPreview ? adaptBacklogPreviewChanges(latestPreview) : [];
@@ -769,6 +768,11 @@ function adaptBacklogOperation(preview: ApiBacklogPreview, operation: ApiBacklog
     sourceArtifactIds: operation.source_artifact_ids,
     buildContextId: operation.build_context_id,
     targetProjectId: operation.target_project_id,
+    projectVersionId: operation.project_version_id,
+    targetProjectLabel: operation.target_project_label,
+    targetProjectPath: operation.target_project_path,
+    targetRepoPath: operation.target_repo_path,
+    targetProjectIdentity: operation.target_project_identity,
     compilerProvenance: operation.compiler_provenance,
     codebaseSnapshotArtifactId: operation.codebase_snapshot_artifact_id,
     codebaseSnapshotStatus: operation.codebase_snapshot_status,
@@ -839,7 +843,29 @@ function adaptBacklogMutationPreview(preview?: ApiBacklogPreview): WorkbenchData
     previewId: preview.id,
     triggerType: preview.trigger_type,
     appliedUpdateId: preview.applied_update_id,
+    stale: preview.stale,
+    staleReason: preview.stale_reason,
+    targetProjectId: preview.target_project_id,
+    projectVersionId: preview.project_version_id,
+    targetVersionLabel: preview.target_version_label,
   };
+}
+
+function selectCurrentIssueDeltaPreview(apiData: ApiWorkbench): ApiBacklogPreview | undefined {
+  const currentVersion = apiData.current_project_version;
+  const sortedPreviews = [...apiData.backlog_previews].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const manualGoalPreviews = sortedPreviews.filter((preview) => preview.trigger_type === "manual_goal");
+  if (!currentVersion) {
+    return manualGoalPreviews.at(-1) ?? sortedPreviews.at(-1);
+  }
+  const currentScoped = manualGoalPreviews.filter((preview) => {
+    if (preview.project_version_id && preview.project_version_id !== currentVersion.id) return false;
+    if (!preview.project_version_id && preview.target_version_label && preview.target_version_label !== currentVersion.version_label) return false;
+    if (preview.target_project_id && preview.target_project_id !== currentVersion.target_project_id) return false;
+    if (!preview.target_project_id && preview.operations.some((operation) => operation.target_project_id && operation.target_project_id !== currentVersion.target_project_id)) return false;
+    return true;
+  });
+  return currentScoped.at(-1) ?? manualGoalPreviews.at(-1) ?? sortedPreviews.at(-1);
 }
 
 function adaptSourceType(sourceType: string): WorkbenchData["sources"][number]["sourceType"] {

@@ -24,6 +24,7 @@ from ariadne_ltb.application.runtime_status import RuntimeStatusService
 from ariadne_ltb.application.source_understanding import build_source_events, build_source_understandings
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.application.workbench_environment import build_workbench_environment
+from ariadne_ltb.backlog import ticket_backlog_fingerprint
 from ariadne_ltb.inbox import refresh_inbox
 from ariadne_ltb.skills import discover_build_skills
 from ariadne_ltb.storage import AriadneStore
@@ -41,6 +42,7 @@ class WorkbenchProjectionService:
         current_version_delivery = build_current_version_delivery(self.store)
         target_project_id = current_project_version.target_project_id if current_project_version else None
         current_tickets = current_version_mainline_tickets(self.store, target_project_id)
+        current_ticket_fingerprint = ticket_backlog_fingerprint(self.store)
         current_ticket_ids = {ticket.id for ticket in current_tickets}
         current_ticket_keys = {ticket.key for ticket in current_tickets}
         current_assignments = [
@@ -83,7 +85,7 @@ class WorkbenchProjectionService:
             skills=[build_skill_dto(skill) for skill in discover_build_skills(self.store.root)],
             inbox=[inbox_item_dto(self.store, item) for item in current_inbox_items],
             backlog_previews=[
-                backlog_preview_dto(preview)
+                backlog_preview_dto(preview, current_ticket_fingerprint=current_ticket_fingerprint)
                 for preview in _current_backlog_previews(self.store, target_project_id)[-10:]
             ],
             daemon_status=DaemonControlService(self.store).status(),

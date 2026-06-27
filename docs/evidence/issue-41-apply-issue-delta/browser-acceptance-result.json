@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "issues_url": "http://127.0.0.1:8766/#issues",
+  "detail_url": "http://127.0.0.1:8766/#issues/M0TR-011",
+  "version_label": "issue-41-browser-1782533510718",
+  "project_version_id": "project_version_bf051f90d40b",
+  "target_project_id": "resource_56a27abf28d0",
+  "issues_count": 10,
+  "first_issue_key": "M0TR-011",
+  "checks": {
+    "current_board_has_only_current_version": true,
+    "issues_created": true,
+    "navigated_to_issues_after_apply": true,
+    "detail_has_source_evidence_refs": true,
+    "detail_has_acceptance_criteria": true,
+    "detail_has_affected_modules": true,
+    "detail_has_target_project_path": true,
+    "detail_has_target_project_version": true,
+    "preview_applied": true
+  },
+  "non_goals": [
+    "no #42 runtime claim",
+    "no #43 real Codex/Claude execution",
+    "no #44 closure evidence implementation"
+  ]
+}
