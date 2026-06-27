@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from ariadne_ltb.defaults import PRODUCT_DEFAULT_BACKEND
+from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND, PRODUCT_DEFAULT_BACKEND
 from ariadne_ltb.failure import SAFE_RETRY_FAILURE_REASONS, record_assignment_failure
 from ariadne_ltb.journal import runtime_event
 from ariadne_ltb.models import (
@@ -50,7 +50,12 @@ class LocalDaemonWorker:
         timeout_seconds: int | None = None,
         assignment_id: str | None = None,
         target_project_id: str | None = None,
+        project_version_id: str | None = None,
+        target_version_label: str | None = None,
+        ticket_id: str | None = None,
+        ticket_key: str | None = None,
         allowed_backends: list[str] | None = None,
+        block_without_external_authorization: bool = False,
         isolate_worktree: bool = True,
     ) -> DaemonRunResult:
         self._recover_stale_assignments()
@@ -58,6 +63,10 @@ class LocalDaemonWorker:
         assignment = self._next_assignment(
             assignment_id=assignment_id,
             target_project_id=target_project_id,
+            project_version_id=project_version_id,
+            target_version_label=target_version_label,
+            ticket_id=ticket_id,
+            ticket_key=ticket_key,
             allowed_backends=allowed_backends,
         )
         if assignment is None:
@@ -118,6 +127,37 @@ class LocalDaemonWorker:
             ticket=ticket,
             last_event_id=start_event.id,
         )
+        effective_backend = running.backend_name or PRODUCT_DEFAULT_BACKEND
+        if block_without_external_authorization and not confirm_execution and effective_backend != OFFLINE_TEST_BACKEND:
+            blocker = "External execution blocked: ARIADNE_ENABLE_EXTERNAL_EXECUTION must be 1."
+            failure = record_assignment_failure(
+                self.store,
+                ticket,
+                running,
+                AssignmentStatus.BLOCKED,
+                blocker,
+                FailureReason.EXTERNAL_EXECUTION_BLOCKED,
+                self.runtime_id,
+                actor=running.agent_name,
+                stage="execution",
+                metadata={"confirm_execution": False, "backend_name": effective_backend},
+            )
+            self._heartbeat(
+                DaemonStatus.BLOCKED,
+                "blocked",
+                assignment=failure.assignment,
+                ticket=failure.ticket,
+                last_event_id=failure.event_id,
+                last_error=blocker,
+            )
+            return DaemonRunResult(
+                runtime_id=self.runtime_id,
+                did_work=True,
+                assignment_id=failure.assignment.id,
+                ticket_key=ticket.key,
+                status=failure.assignment.status.value,
+                message=blocker,
+            )
         try:
             target_repo_path = running.metadata.get("target_repo_path")
             result = TicketRunOrchestrator(
@@ -381,6 +421,10 @@ class LocalDaemonWorker:
         self,
         assignment_id: str | None = None,
         target_project_id: str | None = None,
+        project_version_id: str | None = None,
+        target_version_label: str | None = None,
+        ticket_id: str | None = None,
+        ticket_key: str | None = None,
         allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         if assignment_id:
@@ -388,11 +432,19 @@ class LocalDaemonWorker:
                 assignment_id,
                 self.runtime_id,
                 target_project_id=target_project_id,
+                project_version_id=project_version_id,
+                target_version_label=target_version_label,
+                ticket_id=ticket_id,
+                ticket_key=ticket_key,
                 allowed_backends=allowed_backends,
             )
         return self.store.claim_next_assignment(
             self.runtime_id,
             target_project_id=target_project_id,
+            project_version_id=project_version_id,
+            target_version_label=target_version_label,
+            ticket_id=ticket_id,
+            ticket_key=ticket_key,
             allowed_backends=allowed_backends,
         )
 

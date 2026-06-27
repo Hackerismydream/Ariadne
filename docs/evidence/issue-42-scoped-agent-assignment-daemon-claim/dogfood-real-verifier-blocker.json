@@ -1,0 +1,16 @@
+{
+  "schema_version": "ariadne.issue_42.dogfood_verifier_blocker.v1",
+  "command": "scripts/verify_dogfood_browser.sh --real",
+  "status": "failed_before_issue_42_flow",
+  "recorded_at": "2026-06-27T05:24:59Z",
+  "blocker": {
+    "code": "stale_dogfood_selector",
+    "step": "open real Workbench in API mode",
+    "expected_selector": "heading 当前目标",
+    "actual_page": "current Workbench Project Version entry page renders heading Project Version and Current Version Context",
+    "result_directory": ".ariadne/dogfood/browser-20260627T052459Z",
+    "server_log": ".ariadne/dogfood/browser-20260627T052459Z/logs/workbench.log"
+  },
+  "reason_not_fixed_in_issue_42": "The verifier is a full Project Version Delivery dogfood harness with stale pre-#41 UI labels. Rewriting the full harness is outside the scoped #42 assignment/daemon-claim landing unit.",
+  "issue_42_browser_evidence": "browser-acceptance-result.json"
+}

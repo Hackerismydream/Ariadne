@@ -156,8 +156,18 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert "confirm_execution" not in run_block
     assert "Codex/Claude allowed" in runs_page
     assert "startScopedDaemon" in runs_page
+    assert "sortedClaimableAssignments" in runs_page
+    assert 'assignment.status === "ready_to_claim"' in runs_page
+    assert "localeCompare" in runs_page
     assert "allowed_assignment_id:" in runs_page
-    assert 'scope_mode: assignment ? "assignment" : "project"' in runs_page
+    assert "external_execution_authorized: false" in runs_page
+    assert "project_version_id:" in runs_page
+    assert "target_version_label:" in runs_page
+    assert "ticket_id:" in runs_page
+    assert "ticket_key:" in runs_page
+    assert 'scope_mode: "assignment"' in runs_page
+    assert 'scope_mode: assignment ? "assignment" : "project"' not in runs_page
+    assert "busyAction !== null || !claimableAssignment" in runs_page
     assert "external_execution_authorized: true" in control
     assert "target_project_id:" in control
     assert "allowed_backends:" in control

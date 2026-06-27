@@ -9,6 +9,7 @@ from ariadne_ltb.application.dtos import AssignTicketInput, AssignTicketOutput
 from ariadne_ltb.application.errors import NotFoundError, ValidationAppError
 from ariadne_ltb.application.idempotency import IdempotencyStore
 from ariadne_ltb.application.mappers import assignment_dto, ticket_summary
+from ariadne_ltb.application.project_versions import ProjectVersionService
 from ariadne_ltb.application.target_project_registry import TargetProjectRegistry
 from ariadne_ltb.defaults import OFFLINE_TEST_BACKEND
 from ariadne_ltb.domain.runtime_policy import (
@@ -154,23 +155,47 @@ class AssignTicketService:
         target_project_id: str,
         target_repo_path: str,
     ) -> TicketAssignment:
+        current_version = ProjectVersionService(self.store).current()
+        version_scope = (
+            {
+                "project_version_id": current_version.id,
+                "target_version_label": current_version.version_label,
+            }
+            if current_version and current_version.target_project_id == target_project_id
+            else {}
+        )
+        assignment_scope = {
+            "target_project_id": target_project_id,
+            "target_repo_path": target_repo_path,
+            "issue_ticket_id": assignment.ticket_id,
+            "issue_ticket_key": assignment.ticket_key,
+            "selected_agent_id": assignment.agent_id,
+            "selected_agent_name": assignment.agent_name,
+            "scope_mode": "assignment",
+            "runtime_backend_intent": {
+                "backend_name": assignment.backend_name,
+                "planner_name": assignment.planner_name,
+                "agent_runtime": assignment.agent_runtime,
+                "backlog_planner_name": assignment.backlog_planner_name,
+            },
+        } | version_scope
         updated = assignment.model_copy(
             deep=True,
-            update={
-                "metadata": assignment.metadata
-                | {"target_project_id": target_project_id, "target_repo_path": target_repo_path}
-            },
+            update={"metadata": assignment.metadata | assignment_scope},
         )
         self.store.save_assignment(updated)
-        ticket = self.store.load_ticket(updated.ticket_id).model_copy(
+        current_ticket = self.store.load_ticket(updated.ticket_id)
+        ticket = current_ticket.model_copy(
             deep=True,
             update={
-                "metadata": self.store.load_ticket(updated.ticket_id).metadata
+                "metadata": current_ticket.metadata
                 | {
                     "latest_assignment_id": updated.id,
                     "target_project_id": target_project_id,
                     "target_repo_path": target_repo_path,
+                    "assigned_agent_id": assignment.agent_id,
                 }
+                | version_scope
             },
         )
         self.store.save_ticket(ticket)

@@ -19,16 +19,21 @@ function display(value: string | number | null | undefined, fallback = "Not reco
 function statusLabel(status: string | null | undefined) {
   const labels: Record<string, string> = {
     assigned: "Assigned",
+    awaiting_user_approval: "Awaiting approval",
     blocked: "Blocked",
     blocked_before_execution: "Blocked before execution",
+    claimed: "Claimed",
     done: "Done",
     executed_failed: "Execution failed",
     failed: "Failed",
+    handoff_ready: "Handoff ready",
     in_progress: "Running",
     open: "Backlog",
     planning: "Planning",
     queued: "Queued",
     ready: "Ready",
+    ready_to_claim: "Ready to claim",
+    routed: "Routed",
     reviewing: "Review",
     review_blocked: "Review blocked",
     running: "Running",
@@ -52,7 +57,15 @@ function validityLabel(validity: string) {
 }
 
 function activeAssignment(assignments: ApiAssignmentSummary[]) {
-  return assignments.find((assignment) => ["claimed", "running"].includes(assignment.status)) ?? null;
+  return assignments.find((assignment) => [
+    "queued",
+    "routed",
+    "handoff_ready",
+    "awaiting_user_approval",
+    "ready_to_claim",
+    "claimed",
+    "running",
+  ].includes(assignment.status)) ?? null;
 }
 
 function assignableBackend(value: string | null | undefined): "codex" | "claude-code" | null {
@@ -371,7 +384,7 @@ export function IssueDetail({
 
           <section className="panel" data-testid="issue-assignment-progress">
             <h2>Assignment Progress</h2>
-            {active ? <p><strong>{active.id}</strong> · {statusLabel(active.status)} · polling every 5s</p> : <p className="empty-column">No active assignment is currently claimed or running.</p>}
+            {active ? <p><strong>{active.id}</strong> · {statusLabel(active.status)} · polling every 5s</p> : <p className="empty-column">No current assignment is queued, ready, claimed, or running.</p>}
             {eventsMessage ? <p className="action-message">{eventsMessage}</p> : null}
             {assignmentEvents.length ? (
               <ol className="assignment-event-list">

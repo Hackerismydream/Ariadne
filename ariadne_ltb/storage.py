@@ -401,6 +401,10 @@ class AriadneStore:
         runtime_id: str,
         lease_seconds: int = 600,
         target_project_id: str | None = None,
+        project_version_id: str | None = None,
+        target_version_label: str | None = None,
+        ticket_id: str | None = None,
+        ticket_key: str | None = None,
         allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
@@ -410,6 +414,10 @@ class AriadneStore:
                     runtime_id,
                     lease_seconds,
                     target_project_id=target_project_id,
+                    project_version_id=project_version_id,
+                    target_version_label=target_version_label,
+                    ticket_id=ticket_id,
+                    ticket_key=ticket_key,
                     allowed_backends=allowed_backends,
                 )
                 if claimed is not None:
@@ -422,6 +430,10 @@ class AriadneStore:
         runtime_id: str,
         lease_seconds: int = 600,
         target_project_id: str | None = None,
+        project_version_id: str | None = None,
+        target_version_label: str | None = None,
+        ticket_id: str | None = None,
+        ticket_key: str | None = None,
         allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
         with self._assignment_claim_lock():
@@ -434,6 +446,10 @@ class AriadneStore:
                 runtime_id,
                 lease_seconds,
                 target_project_id=target_project_id,
+                project_version_id=project_version_id,
+                target_version_label=target_version_label,
+                ticket_id=ticket_id,
+                ticket_key=ticket_key,
                 allowed_backends=allowed_backends,
             )
 
@@ -443,9 +459,21 @@ class AriadneStore:
         runtime_id: str,
         lease_seconds: int,
         target_project_id: str | None = None,
+        project_version_id: str | None = None,
+        target_version_label: str | None = None,
+        ticket_id: str | None = None,
+        ticket_key: str | None = None,
         allowed_backends: list[str] | None = None,
     ) -> TicketAssignment | None:
-        if not self._claimable_assignment(assignment, target_project_id, allowed_backends):
+        if not self._claimable_assignment(
+            assignment,
+            target_project_id,
+            project_version_id,
+            target_version_label,
+            ticket_id,
+            ticket_key,
+            allowed_backends,
+        ):
             return None
         try:
             ticket = self.load_ticket(assignment.ticket_id)
@@ -495,6 +523,10 @@ class AriadneStore:
         self,
         assignment: TicketAssignment,
         target_project_id: str | None = None,
+        project_version_id: str | None = None,
+        target_version_label: str | None = None,
+        ticket_id: str | None = None,
+        ticket_key: str | None = None,
         allowed_backends: list[str] | None = None,
     ) -> bool:
         if assignment.status is AssignmentStatus.READY_TO_CLAIM:
@@ -508,6 +540,14 @@ class AriadneStore:
             return False
         metadata = assignment.metadata
         if target_project_id is not None and metadata.get("target_project_id") != target_project_id:
+            return False
+        if project_version_id is not None and metadata.get("project_version_id") != project_version_id:
+            return False
+        if target_version_label is not None and metadata.get("target_version_label") != target_version_label:
+            return False
+        if ticket_id is not None and assignment.ticket_id != ticket_id and metadata.get("issue_ticket_id") != ticket_id:
+            return False
+        if ticket_key is not None and assignment.ticket_key != ticket_key and metadata.get("issue_ticket_key") != ticket_key:
             return False
         if allowed_backends and assignment.backend_name not in allowed_backends:
             return False

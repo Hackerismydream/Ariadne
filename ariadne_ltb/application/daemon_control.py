@@ -34,7 +34,12 @@ class _DaemonLoopHandle:
         external_execution_authorized: bool,
         allowed_assignment_id: str | None,
         target_project_id: str | None,
+        project_version_id: str | None,
+        target_version_label: str | None,
+        ticket_id: str | None,
+        ticket_key: str | None,
         allowed_backends: list[str],
+        block_without_external_authorization: bool,
         scope_mode: str,
     ) -> None:
         self.root = root
@@ -45,7 +50,12 @@ class _DaemonLoopHandle:
         self.external_execution_authorized = external_execution_authorized
         self.allowed_assignment_id = allowed_assignment_id
         self.target_project_id = target_project_id
+        self.project_version_id = project_version_id
+        self.target_version_label = target_version_label
+        self.ticket_id = ticket_id
+        self.ticket_key = ticket_key
         self.allowed_backends = allowed_backends
+        self.block_without_external_authorization = block_without_external_authorization
         self.scope_mode = scope_mode
         self.stop_event = threading.Event()
         self.last_message = "starting"
@@ -70,7 +80,12 @@ class _DaemonLoopHandle:
                 confirm_execution=self.external_execution_authorized,
                 assignment_id=self.allowed_assignment_id,
                 target_project_id=self.target_project_id,
+                project_version_id=self.project_version_id,
+                target_version_label=self.target_version_label,
+                ticket_id=self.ticket_id,
+                ticket_key=self.ticket_key,
                 allowed_backends=self.allowed_backends,
+                block_without_external_authorization=self.block_without_external_authorization,
                 timeout_seconds=self.timeout_seconds,
                 isolate_worktree=False,
             )
@@ -100,6 +115,10 @@ class DaemonControlService:
         scope = RuntimeScopeDTO(
             mode=handle.scope_mode if handle else "paused",
             target_project_id=handle.target_project_id if handle else None,
+            project_version_id=handle.project_version_id if handle else None,
+            target_version_label=handle.target_version_label if handle else None,
+            ticket_id=handle.ticket_id if handle else None,
+            ticket_key=handle.ticket_key if handle else None,
             assignment_id=handle.allowed_assignment_id if handle else None,
             allowed_backends=handle.allowed_backends if handle else [],
         )
@@ -157,6 +176,10 @@ class DaemonControlService:
                 existing.runtime_id != payload.runtime_id
                 or existing.allowed_assignment_id != payload.allowed_assignment_id
                 or existing.target_project_id != payload.target_project_id
+                or existing.project_version_id != payload.project_version_id
+                or existing.target_version_label != payload.target_version_label
+                or existing.ticket_id != payload.ticket_id
+                or existing.ticket_key != payload.ticket_key
                 or existing.allowed_backends != payload.allowed_backends
                 or existing.scope_mode != payload.scope_mode
             )
@@ -181,7 +204,13 @@ class DaemonControlService:
             external_execution_authorized=payload.external_execution_authorized,
             allowed_assignment_id=payload.allowed_assignment_id,
             target_project_id=payload.target_project_id,
+            project_version_id=payload.project_version_id,
+            target_version_label=payload.target_version_label,
+            ticket_id=payload.ticket_id,
+            ticket_key=payload.ticket_key,
             allowed_backends=payload.allowed_backends,
+            block_without_external_authorization=not payload.external_execution_authorized
+            and bool(payload.allowed_assignment_id),
             scope_mode=payload.scope_mode,
         )
         _DAEMON_HANDLES[self.store.root] = handle
@@ -216,6 +245,10 @@ class DaemonControlService:
             timeout_seconds=payload.timeout_seconds,
             assignment_id=assignment_id,
             target_project_id=requested_assignment.metadata.get("target_project_id"),
+            project_version_id=requested_assignment.metadata.get("project_version_id"),
+            target_version_label=requested_assignment.metadata.get("target_version_label"),
+            ticket_id=requested_assignment.metadata.get("issue_ticket_id") or requested_assignment.ticket_id,
+            ticket_key=requested_assignment.metadata.get("issue_ticket_key") or requested_assignment.ticket_key,
             allowed_backends=[requested_assignment.backend_name] if requested_assignment.backend_name else None,
             isolate_worktree=False,
         )
@@ -233,6 +266,10 @@ class DaemonControlService:
         return (
             not payload.allowed_assignment_id
             and not payload.target_project_id
+            and not payload.project_version_id
+            and not payload.target_version_label
+            and not payload.ticket_id
+            and not payload.ticket_key
             and not payload.allowed_backends
             and payload.scope_mode != "paused"
         )
@@ -267,6 +304,14 @@ class DaemonControlService:
                 assignment_dto(item)
                 for item in assignments
                 if item.metadata.get("target_project_id") == scope.target_project_id
+                and (
+                    not scope.project_version_id
+                    or item.metadata.get("project_version_id") == scope.project_version_id
+                )
+                and (
+                    not scope.target_version_label
+                    or item.metadata.get("target_version_label") == scope.target_version_label
+                )
                 and item.status is AssignmentStatus.READY_TO_CLAIM
             ][:20]
         scoped_ids = {item.id for item in same_ticket + same_project}
