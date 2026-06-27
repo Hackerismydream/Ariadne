@@ -1,0 +1,50 @@
+[
+  {
+    "attachments": [],
+    "author_id": "9348ede6-68bf-4e94-86da-641274158d14",
+    "author_type": "agent",
+    "content": "codex thread/start failed: thread/start: failed to load configuration: /Users/****/multica_workspaces/ariadne/b6a2e682-c257-4c5c-ac6c-f44b75a25a7f/5c501a12/codex-home/config.toml:24:16: unknown variant `priority`, expected `fast` or `flex` (code=-32600); codex stderr: {\"timestamp\":\"2026-06-27T02:50:34.539233Z\",\"level\":\"ERROR\",\"fields\":{\"message\":\"Invalid configuration; using defaults. /Users/****/multica_workspaces/ariadne/b6a2e682-c257-4c5c-ac6c-f44b75a25a7f/5c501a12/codex-home/config.toml:24:16: unknown variant `priority`, expected `fast` or `flex`\"},\"target\":\"codex_app_server\"}",
+    "created_at": "2026-06-27T10:50:34+08:00",
+    "id": "bf027aa2-a0b0-4f36-afcc-2989ddcb70a5",
+    "issue_id": "773afe86-ea82-4c8c-beb2-cb076484f0fd",
+    "parent_id": null,
+    "reactions": [],
+    "resolved_at": null,
+    "resolved_by_id": null,
+    "resolved_by_type": null,
+    "type": "system",
+    "updated_at": "2026-06-27T10:50:34+08:00"
+  },
+  {
+    "attachments": [],
+    "author_id": "9348ede6-68bf-4e94-86da-641274158d14",
+    "author_type": "agent",
+    "content": "{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Unsupported service_tier: flex\"}}",
+    "created_at": "2026-06-27T10:52:58+08:00",
+    "id": "b1d1c1b5-43bf-4641-a6cd-6120062d3958",
+    "issue_id": "773afe86-ea82-4c8c-beb2-cb076484f0fd",
+    "parent_id": null,
+    "reactions": [],
+    "resolved_at": null,
+    "resolved_by_id": null,
+    "resolved_by_type": null,
+    "type": "system",
+    "updated_at": "2026-06-27T10:52:58+08:00"
+  },
+  {
+    "attachments": [],
+    "author_id": "9348ede6-68bf-4e94-86da-641274158d14",
+    "author_type": "agent",
+    "content": "Defined the mini coding-agent v0.1 shape from the two references and Ariadne’s local-first ticket-centered boundary. I did not edit files, commit, push, create a PR, or create child issues; the build issues below are draft issue specs for the backlog.\n\n## What the references imply\n\n`mini-swe-agent` says the useful core can be very small: a linear model loop, a local execution environment, bounded cost/step/time limits, simple command execution, append-only trajectory, and a clear completion signal. Its strongest lesson is not “many tools”; it is that the harness should be inspectable and recoverable.\n\n`cc-mini` adds the product affordances a builder expects around that loop: explicit tools, read-only tools auto-approved, writes/bash permission-gated, local session persistence, context compaction, plan/read-only mode, optional sandboxing, and later coordinator/worker expansion. For Ariadne v0.1, most of that should be staged as capabilities around TicketAssignment and AgentRun, not as a standalone Claude Code clone.\n\n## Proposed v0.1 architecture\n\nPlain shape:\n\n1. BuildTicket is the work carrier.\n2. A human or backlog update assigns a ticket to an AgentProfile, creating a TicketAssignment.\n3. The local daemon claims one queued assignment and starts an AgentRun.\n4. The run builds a compact handoff from the ticket, BuildPacket, target repo, runtime capability snapshot, and selected skills.\n5. A backend adapter executes the run locally: fake-codex first, real Codex/Claude only behind existing explicit execution gates.\n6. The run records progress events, model/tool transcript or trajectory, changed files/diff, test output, blocker or completion summary, and next-ticket suggestions as local artifacts/comments.\n7. The Workbench shows the run timeline and evidence packet on the ticket.\n\nKeep in v0.1:\n- linear local run loop and persisted trajectory;\n- one assignment claimed at a time;\n- explicit runtime/resource snapshot;\n- permission/default-off external execution;\n- typed blocker/failure reason;\n- local diff/test/review evidence;\n- browser-visible ticket comments and run status.\n\nDefer:\n- hosted server clone, Postgres, multi-workspace auth, WebSockets, cloud runtime fleet;\n- automatic commit/push/merge/PR creation;\n- multi-agent coordinator mode;\n- full memory consolidation and companion-style UX;\n- generic tool ecosystem beyond what the ticket runtime needs.\n\n## First 3 build issues\n\n### 1. Minimal TicketAssignment -\u003e AgentRun execution kernel\n\nBuild the smallest local daemon path that claims one queued TicketAssignment, creates an AgentRun, writes lifecycle events, invokes a backend adapter, and persists a trajectory/artifact directory.\n\nAcceptance:\n- queued assignment becomes claimed/running/done, blocked, or failed;\n- AgentRun stores lifecycle_state, failure_reason, blocker, started/finished timestamps, and artifact paths;\n- fake backend can complete deterministically without external execution;\n- every state transition appears in ticket comments/progress events;\n- directory lock prevents concurrent runs on the same target repo.\n\n### 2. Local coding backend adapter with gated real execution\n\nDefine a backend interface inspired by mini-swe-agent: prepare handoff, execute locally, capture transcript, collect diff/tests, return structured result. Wire fake-codex first and real Codex/Claude only when `ARIADNE_ENABLE_EXTERNAL_EXECUTION=1` plus explicit confirmation is present.\n\nAcceptance:\n- backend result schema includes status, summary, transcript path, diff path, changed files, tests run, failure reason, blocker, and suggested next tickets;\n- missing login/quota/configuration returns `BLOCKED_WITH_EVIDENCE`, not a silent failure;\n- no backend can commit, push, merge, or create PRs;\n- command execution is bounded by timeout and local target path validation;\n- unit tests cover success, blocked, failed, and execution-disabled paths.\n\n### 3. Workbench ticket run timeline and evidence packet\n\nExpose the v0.1 coding-agent loop in the browser ticket view: assignment status, active run status, progress comments, blocker, diff/test/review artifacts, and next-ticket suggestions.\n\nAcceptance:\n- assigning a ticket from the Workbench creates a queued assignment visible on the ticket;\n- daemon/run progress updates are visible without reading files manually;\n- completed run shows evidence packet links: handoff, transcript, diff, tests, review/blocker, next tickets;\n- blocked run clearly names the missing gate/resource and maps to Inbox/Runtime behavior;\n- UI stays local-only and does not expose raw shell execution controls.\n\n## Blockers / missing resources\n\nNo blocking project resource was missing for this definition: both external reference repos were available and Ariadne’s local docs establish the ticket-centered boundary. The only product decision to pin before implementation is which real backend is first-class for v0.1 (`codex`, `claude-code`, or both behind the same adapter), but fake-codex can start the work without that decision.",
+    "created_at": "2026-06-27T10:57:11+08:00",
+    "id": "709f4619-2e7d-4cf5-844b-56dd6a2f58eb",
+    "issue_id": "773afe86-ea82-4c8c-beb2-cb076484f0fd",
+    "parent_id": null,
+    "reactions": [],
+    "resolved_at": null,
+    "resolved_by_id": null,
+    "resolved_by_type": null,
+    "type": "comment",
+    "updated_at": "2026-06-27T10:57:11+08:00"
+  }
+]

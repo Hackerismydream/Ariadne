@@ -1,0 +1,23 @@
+{
+  "assignee_id": "9348ede6-68bf-4e94-86da-641274158d14",
+  "assignee_type": "agent",
+  "created_at": "2026-06-27T10:50:27+08:00",
+  "creator_id": "c45e9f1a-9d53-441b-bbad-2ee10ca5628f",
+  "creator_type": "member",
+  "description": "Dogfood scenario for Ariadne parity work.\n\nProject goal:\nBuild a minimal coding-agent product concept for AI builders, using external references attached to this project.\n\nExternal references:\n- https://github.com/SWE-agent/mini-swe-agent\n- https://github.com/e10nMa2k/cc-mini\n\nThis is a read-only Multica downstream parity task. Do not edit files, do not commit, do not push, and do not create PRs.\n\nExpected agent output:\n1. Identify what the references imply about a minimal coding agent.\n2. Propose the v0.1 architecture in plain terms.\n3. Produce the first 3 build issues needed to implement it.\n4. Call out blockers or missing project resources.\n\nAcceptance criteria:\n- The issue is assigned to a real Multica agent.\n- Multica creates a task/run for the assignment.\n- Agent activity is visible on the agent detail page.\n- The issue receives either a useful agent response or a concrete blocker.\n- Any blocker is visible enough to map back to Ariadne Inbox/Runtime behavior.",
+  "due_date": null,
+  "id": "773afe86-ea82-4c8c-beb2-cb076484f0fd",
+  "identifier": "LOC-109",
+  "labels": [],
+  "metadata": {},
+  "number": 109,
+  "parent_issue_id": null,
+  "position": -1,
+  "priority": "high",
+  "project_id": "3de2e771-0049-4fa5-9a05-e124cbf26e9e",
+  "start_date": null,
+  "status": "in_review",
+  "title": "Define mini coding agent v0.1 from external references",
+  "updated_at": "2026-06-27T10:57:15+08:00",
+  "workspace_id": "b6a2e682-c257-4c5c-ac6c-f44b75a25a7f"
+}
