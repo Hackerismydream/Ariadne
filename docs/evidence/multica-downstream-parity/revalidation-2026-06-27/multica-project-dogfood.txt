@@ -1,0 +1,969 @@
+L
+Local Dev
+搜索...
+⌘
+K
+新建 issue
+C
+收件箱
+7
+我的 issue
+工作区
+Issues
+项目
+自动化
+智能体
+小队
+用量
+配置
+运行时
+Skills
+设置
+Issues
+全部
+成员
+智能体
+1
+工作中
+筛选
+手动
+看板
+待规划
+69
+
+LOC-107
+
+ARI-MUL-102: Worktree cleanup and rollback policy
+
+Implement cleanup and rollback policy for isolated worktrees and landing artifacts. Why: Overnight agent work will create many branches/worktrees. Ariadne needs predictable cleanup without losing evidence. Scope: - Define states where a worktree can be cleaned: merged, rejected, cancelled, or expired. - Preserve evidence artifacts before deleting worktrees. - Provide rollback instructions for pushed or merged branches. - Refuse cleanup when uncommitted useful changes would be lost. Acceptance criteria: - Cleanup command reports dry-run by default. - Safe cleanup removes only eligible worktrees. - Risky cleanup blocks with typed reason and evidence path. - Tests cover merged, active, dirty, and missing worktree cases. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-106
+
+ARI-MUL-101: Multica landing status sync
+
+Sync Ariadne landing status back into Multica issues as comments and metadata. Why: If Multica is the operator console, branch, review, gate, push, merge, and blocked status must be visible there. Scope: - Write issue metadata for branch, worktree, gate status, review verdict, push status, merge status, and evidence paths. - Add concise issue comments at major transitions. - Do not print secrets or raw environment values. Acceptance criteria: - Multica issue page shows landing status without opening local artifacts. - Metadata is idempotent and update-safe. - Failed/blocked paths sync useful reasons. - Tests cover metadata/comment payload construction without requiring live Multica. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-105
+
+ARI-MUL-100: Optional gated auto-merge
+
+Add a default-off auto-merge path guarded by explicit configuration and merge gates. Why: The user eventually wants verified work to land automatically, but Ariadne must keep merge behavior conservative and auditable. Scope: - Auto-merge must be disabled by default. - Require explicit config/env and successful merge gate evaluation. - Support only a conservative merge strategy initially, with clear audit artifacts. - Never merge if conflicts, stale base, failed tests, or failed review exist. Acceptance criteria: - Without explicit enablement, auto-merge returns blocked/dry-run. - With enablement and passing gates, merge action is recorded with commit SHA. - Failure writes a landing report and leaves branch intact. - Tests cover disabled, pass, and conflict-blocked paths using local repos. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-104
+
+ARI-MUL-99: Gated auto-commit and auto-push
+
+Implement optional gated commit and branch push after review and gate success. Why: For overnight Multica-driven work, Ariadne needs a way to preserve passing isolated work without manually committing every branch. Scope: - Commit only after review and merge gates pass. - Commit message must include ticket key and evidence artifact path. - Push only the isolated branch, never main. - Default remains disabled unless explicit landing policy enables it. Acceptance criteria: - Disabled mode reports what would be committed/pushed. - Enabled mode commits and pushes only after all gates pass. - Failed gates block commit/push. - Tests use local remotes and do not require GitHub credentials. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-103
+
+ARI-MUL-98: Branch freshness and safe update gate
+
+Add a branch freshness gate and safe update path for isolated ticket branches. Why: A branch that passed tests against an old base may not be safe to land after main moves. Scope: - Record base SHA at worktree creation. - Compare base SHA with current configured base before landing. - Either block stale branches with evidence or perform a safe update strategy when explicitly enabled. Acceptance criteria: - Stale branch is detected and shown on board. - Default behavior is block with a typed reason, not silent rebase. - Optional update mode is gated and leaves an audit trail. - Tests cover fresh, stale-blocked, and update-disabled paths. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-95
+
+ARI-MUL-90: Packaged local web command
+
+Objective Make Ariadne Web easy to start and stop locally. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Add ari web or equivalent to launch the local web surface with port handling, doctor checks, shutdown instructions, and static-board fallback guidance. Non-scope No always-on system service, hosted deployment, or mandatory web server for CLI use. Acceptance Criteria - ari web starts on a free local port or explains conflict. - Command prints URL and safety mode. - Stopping web leaves .ariadne state intact. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-94
+
+ARI-MUL-89: CLI, static board, and web parity tests
+
+Objective Ensure three surfaces explain the same Ariadne state. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Compare representative ticket/run/backlog/review states across CLI output, static board export, and web read models. Non-scope No requirement that all surfaces have identical visual layout. Acceptance Criteria - Fixture workspace parity test passes across all surfaces. - Differences are classified as intentional or bugs. - Static board remains sufficient when web is disabled. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-93
+
+ARI-MUL-88: Web smoke tests
+
+Objective Prevent the local web surface from drifting away from CLI behavior. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Add browser smoke tests for board, ticket detail, backlog preview/apply, run timeline, safety modal, artifact browser, and settings diagnostics. Non-scope No test dependency on Codex/Claude/DeepSeek/Feishu/GitHub credentials. Acceptance Criteria - Smoke tests run locally/CI with deterministic fixtures. - Tests cover blocked safety-gate states. - Failures point to exact UI route and expected local artifact. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-92
+
+ARI-MUL-87: Web accessibility and responsive polish
+
+Objective Keep the web workbench usable under real review conditions. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Add keyboard navigation, focus states, readable responsive layouts, empty/error/loading states, and accessible labels for key workbench actions. Non-scope No decorative marketing redesign. Acceptance Criteria - Core ticket/run/review flows are keyboard usable. - Mobile/narrow viewport remains readable. - No text overlap in key layouts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-91
+
+ARI-MUL-86: Onboarding wizard
+
+Objective Help a new local user verify Ariadne without reading the whole README first. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Guide through doctor, fixture ingest, ticket list, fake-codex ticket run, board/web review, and troubleshooting. Non-scope No hosted signup, account provisioning, or external provider requirement. Acceptance Criteria - Wizard can complete fully offline. - Failures link to doctor output and docs. - Completing wizard leaves a valid demo workspace. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-90
+
+ARI-MUL-85: Settings UI for resources and skills
+
+Objective Make project resources and local skills inspectable and configurable. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Show target repo path, source folders, project resources, BuildSkill packs, trust state, hashes, and permission profiles. Non-scope No remote skill marketplace or credential manager. Acceptance Criteria - Settings never displays secret values. - Invalid resource paths show doctor errors. - Skill trust changes require confirmation and audit. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-89
+
+ARI-MUL-84: Filters, labels, and saved views
+
+Objective Support repeated work-management views without losing local simplicity. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Add filters by status, area, phase, priority, agent, backend, source type, blocked reason, safety state, and review verdict; persist saved views locally. Non-scope No multi-user shared view permissions. Acceptance Criteria - Filters match CLI metadata semantics. - Saved views serialize under .ariadne local config. - Default views cover runtime, backlog, blocked, and review queues. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-88
+
+ARI-MUL-83: Local search UI
+
+Objective Make local Ariadne history searchable from the browser. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Search tickets, comments, artifacts, memory, sources, backlog updates, and runtime events with local indexing or bounded scans. Non-scope No vector DB requirement and no remote search service. Acceptance Criteria - Search works offline on fixture workspace. - Results show object type and evidence snippet. - Large local workspaces degrade with clear limits or index status. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-87
+
+ARI-MUL-82: Release evidence packet UI
+
+Objective Present a completed development slice as an evidence packet. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Aggregate tests, ruff, doctor, CLI smoke, board path, memory path, next tickets, changed artifacts, known limitations, branch state, and safety gates. Non-scope No GitHub release automation or mandatory PR creation. Acceptance Criteria - Evidence packet is generated from local artifacts. - Missing checks are explicit. - Packet can be reviewed without live external services. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-86
+
+ARI-MUL-81: Review report UI
+
+Objective Make reviewer verdicts and risks visible enough for human decisions. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render verdict, warnings, failed checks, risk score, AC evidence, changed files, reviewer comments, and next recommended tickets. Non-scope No final release/merge approval automation. Acceptance Criteria - Review UI distinguishes pass, warning, fail, and blocked. - Warnings link to evidence. - Next tickets link to backlog suggestions or created tickets. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-85
+
+ARI-MUL-80: Diff and changed files viewer
+
+Objective Expose implementation changes without adding landing automation. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Show changed files, git diff, test command/result, and backend stdout/stderr references for each run. Non-scope No commit, push, merge, PR creation, or patch application from the web UI. Acceptance Criteria - Diff viewer handles no-change, failed-run, and large-diff states. - Changed files match ExecutionResult artifacts. - Dangerous file changes are highlighted when safety checks flag them. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-84
+
+ARI-MUL-79: Artifact browser
+
+Objective Let users browse all local evidence produced by the Ariadne loop. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render BuildPacket, handoff, execution result, review report, memory record, Feishu dry-run plan, next tickets, route decision, and runtime capability artifacts. Non-scope No remote artifact upload or external sharing by default. Acceptance Criteria - Artifact browser handles missing/corrupt artifacts gracefully. - Artifacts link back to ticket/run/source. - Secret scanner status is shown before rendering sensitive artifacts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-83
+
+ARI-MUL-78: Failure and blocker view
+
+Objective Make failures actionable rather than buried in artifacts. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Aggregate typed failure reasons, blockers, retry/backoff state, dead-letter state, manual recovery plans, and affected tickets. Non-scope No automatic destructive repair from UI. Acceptance Criteria - Blocked tickets have clear next action. - Retry/dead-letter state matches runtime policy artifacts. - Recovery actions require explicit confirmation. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-82
+
+ARI-MUL-77: Runtime capability dashboard
+
+Objective Show whether Ariadne can run fake, Codex, Claude, and shell backends safely. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render backend doctor output, provider capability snapshots, external execution gate status, command template status, and target repo/resource state. Non-scope No provider credential management or secret display. Acceptance Criteria - Dashboard never prints token values. - Disabled external execution is shown as safe default. - Doctor output matches CLI backend doctor. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-81
+
+ARI-MUL-76: Run progress timeline
+
+Objective Make ticket execution progress inspectable in real time or near-real time from local artifacts. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render claim, handoff, backend start, stdout/stderr summary, changed files, tests, review, memory, Feishu plan, and next tickets as timeline events. Non-scope No required WebSocket stream; polling or static refresh is acceptable. Acceptance Criteria - Timeline reconstructs from journal/events artifacts. - Failed and blocked runs show typed reason. - Long output is summarized with links to artifacts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-80
+
+ARI-MUL-75: Agent assignment panel
+
+Objective Expose local agent teammate choices and routing evidence. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Show agent profiles, role contracts, capability match, current assignment state, runtime availability, and suggested backend. Non-scope No hosted agent marketplace or remote worker management. Acceptance Criteria - Agent panel explains why an agent can/cannot take a ticket. - Assignment action routes through command gateway. - Unavailable backend states are visible. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-79
+
+ARI-MUL-74: Feedback-to-ticket trace UI
+
+Objective Explain how execution, review, memory, and codebase feedback generated ticket changes. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render provenance chains from run/review/memory/codebase feedback to backlog preview suggestions and applied ticket mutations. Non-scope No opaque planner-only backlog rewrite. Acceptance Criteria - Each ticket delta links back to feedback evidence. - Review failures can be traced to suggested follow-up tickets. - Board and web agree on trace artifacts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-78
+
+ARI-MUL-73: Knowledge source inbox UI
+
+Objective Show external knowledge inputs and how they influence tickets. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render ingested blogs, papers, notes, repo context, source type, evidence snippets, extracted decisions, and linked tickets/backlog updates. Non-scope No real crawler, network fetcher, or remote document sync by default. Acceptance Criteria - Source inbox works from local markdown fixtures. - Each source shows linked tickets/backlog deltas. - Untrusted source warnings are visible. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-77
+
+ARI-MUL-72: Backlog apply confirmation UI
+
+Objective Let users apply backlog updates from web only with explicit confirmation and audit. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Implement confirmation UX for backlog apply, showing exact mutations, idempotency key, conflicts, and rollback guidance. Non-scope No bulk apply without review and no hidden ticket deletion. Acceptance Criteria - Apply button is disabled when conflicts are unresolved. - Applied updates write audit events and artifacts. - CLI can inspect the same applied update history. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-76
+
+ARI-MUL-71: Backlog update preview UI
+
+Objective Expose Ariadne's key differentiator: knowledge and feedback change the ticket backlog. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Display proposed ticket creates, updates, downgrades, splits, supersessions, closes, and dependency changes from BacklogUpdate previews. Non-scope No silent backlog mutation and no auto-run after preview generation. Acceptance Criteria - Preview UI groups suggestions by source/evidence. - Each suggested delta shows affected tickets and reason. - Repeated previews with same idempotency key do not duplicate UI rows. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-75
+
+ARI-MUL-70: Acceptance criteria evidence panel
+
+Objective Make acceptance criteria reviewable in the browser. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render each AC with pass/fail/unknown state, evidence artifact, reviewer note, and related test/diff references. Non-scope No automatic merge or release approval based only on UI status. Acceptance Criteria - AC panel mirrors review artifact data. - Unknown/missing evidence is explicit. - Panel supports both fake-codex and real-backend runs. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-74
+
+ARI-MUL-69: Ticket relationship visualization
+
+Objective Make dependencies and supersession visible enough for backlog decisions. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Show blocks, blockedby, supersedes, duplicateof, splitfrom, and related relationships on ticket detail and board cards. Non-scope No graph database or remote cross-workspace dependency browser. Acceptance Criteria - Relationship visualization handles missing/cyclic invalid state gracefully. - Dependency blockers link to target tickets. - Board highlights tickets blocked by unfinished dependencies. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-73
+
+ARI-MUL-68: Ticket lifecycle actions
+
+Objective Allow local web users to operate ticket lifecycle without bypassing Ariadne rules. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Expose plan, assign, run, review, block, reopen, supersede, cancel, pause, and resume actions through command gateway. Non-scope No direct state mutation from client-side code and no action that skips lifecycle transition gates. Acceptance Criteria - Invalid transitions are rejected with visible typed reason. - Successful actions append audit/progress events. - Tests cover at least assign/run/block/reopen/supersede paths. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-72
+
+ARI-MUL-67: Ticket detail page
+
+Objective Make one ticket fully inspectable from the web UI. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Show title, status, priority, area, phase, acceptance criteria, relationships, assignment, comments, run history, artifacts, review, memory, and next tickets. Non-scope No web-only ticket fields that are not persisted in Ariadne local state. Acceptance Criteria - Detail page can explain why a ticket exists and what happened to it. - All artifact links resolve locally or show missing-artifact state. - Detail content matches CLI/static board fixtures. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-71
+
+ARI-MUL-66: Ticket board swimlanes
+
+Objective Show Ariadne tickets in a Multica-style work board while preserving local semantics. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Render backlog, todo, inprogress, inreview, blocked, done, and cancelled swimlanes with priority, area, phase, assignee, and blocked reason. Non-scope No drag-and-drop mutation unless routed through command gateway and audit. Acceptance Criteria - Swimlane counts match ari ticket list and local store state. - Blocked/dry-run/external-gated states are visually distinct. - Board handles 100+ tickets without hiding critical state. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-70
+
+ARI-MUL-65: Web app shell and navigation
+
+Objective Create the local Ariadne web workbench frame. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Implement navigation for Tickets, Backlog Updates, Runs, Sources, Memory, Artifacts, Resources, Skills, Runtime, and Settings. Non-scope No marketing landing page and no hosted account/workspace onboarding. Acceptance Criteria - ari web or equivalent opens the local workbench. - Navigation works on fixture data. - CLI/static board still work when web is not running. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-69
+
+ARI-MUL-64: Web safety gate model
+
+Objective Make web-triggered external execution and writes fail closed by default. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Define safety gates and UI states for external execution, real Feishu/GitHub writes, backlog apply, import/export conflicts, destructive recovery, and secret warnings. Non-scope No auth/RBAC approval workflow and no bypass of CLI safety flags. Acceptance Criteria - Missing gate shows blocked state with exact reason. - Confirmations are recorded in audit events. - Tests cover blocked web execution/write paths. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-68
+
+ARI-MUL-63: Web command gateway
+
+Objective Make every web mutation equivalent to an explicit local Ariadne command. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Create a command gateway design for plan, assign, run, review, backlog apply, export, doctor, and recover actions. Each action must log intent and result. Non-scope No direct browser writes to arbitrary files, no hidden daemon execution, and no auto-commit/push/merge/PR. Acceptance Criteria - Each web command maps to a documented CLI command. - Commands produce audit events/artifacts. - Dangerous commands require explicit confirmation before execution. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-67
+
+ARI-MUL-62: Local web data adapter
+
+Objective Give the web UI a read path over Ariadne local state without creating a second source of truth. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Expose read models for tickets, backlog updates, assignments, runs, comments, artifacts, memory, resources, skills, and runtime capability from existing .ariadne store APIs. Non-scope No separate database, no web-only state model, and no mandatory long-running service dependency for core CLI use. Acceptance Criteria - Adapter output is deterministic on fixture workspaces. - CLI/static board and web read the same underlying state. - Tests prove no duplicate ticket/run model is introduced. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-66
+
+ARI-MUL-61: Local web workbench architecture ADR
+
+Objective Define the Ariadne Web product boundary before implementation starts. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. The web surface is a local workbench over .ariadne artifacts and CLI-equivalent commands, not a hosted SaaS or Multica clone. BuildTicket remains the work, audit, and board unit. CLI and static board remain valid fallback surfaces. Do not introduce required Postgres, hosted auth, multi-workspace permissions, cloud runtime, default external writes, or auto commit/push/merge/PR. Any mutation from the web UI must pass through an explicit local command gateway with safety gates and audit artifacts. Scope Write an ADR that positions Ariadne Web as local-first, Ticket-centered, and backed by .ariadne store APIs plus CLI-equivalent command paths. Non-scope No hosted SaaS, Multica UI clone, server-first rewrite, auth system, or replacement of CLI/static board. Acceptance Criteria - ADR explains web surface, data ownership, write gates, and rollback path. - ADR explicitly rejects hosted/multi-user/server-first scope. - README links the ADR before web implementation issues are executed. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. If UI is touched, include Playwright or equivalent browser smoke checks. Static board and CLI fallback must continue to work.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-65
+
+ARI-MUL-60: Issue metadata governance and lint
+
+Objective Keep Ariadne/Multica issue metadata consistent enough for filtering and automation. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Define required metadata keys, allowed areas/phases, priority conventions, and a lint command/report for local and Multica-mirrored issue records. Non-scope No dependence on Multica as source of truth for Ariadne runtime. Acceptance Criteria - Metadata lint catches missing ticketkey/area/phase/boundary. - Existing fixtures pass or have documented migrations. - Multica-mirrored records can be audited without title parsing. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-64
+
+ARI-MUL-59: End-to-end dogfood scenario pack
+
+Objective Create realistic deterministic scenarios proving Ariadne can develop Ariadne-style work. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Package scenarios that exercise ingest, backlog update preview/apply, assignment, daemon run-once, fake-codex run, review, memory, board, recovery, and next-ticket generation. Non-scope No network, external provider, or live Feishu/GitHub requirement. Acceptance Criteria - Scenario pack runs in CI/local tests without credentials. - Each scenario has expected artifacts and board output. - Failures point to exact loop stage. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-63
+
+ARI-MUL-58: Optional read-only local board/debug API adapter
+
+Objective Explore a minimal local adapter for board/debug consumption without changing Ariadne's architecture. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope If needed, expose read-only local data access over loopback for board/debug tooling, generated from the same store APIs as CLI. Non-scope No primary backend, auth system, WebSocket stream, service dependency, or write endpoint. Acceptance Criteria - Feature remains optional and disabled unless explicitly started. - CLI/static board remains canonical. - No tests require a long-running server. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-62
+
+ARI-MUL-57: Static board semantic parity with CLI state
+
+Objective Ensure the board displays every important state visible through CLI/artifacts. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Render ticket lifecycle, relationships, assignment, run timeline, comments, provider audit, review, memory, backlog updates, safety gates, and next tickets. Non-scope No requirement to clone Multica UI or build a hosted frontend. Acceptance Criteria - Board has ticket detail pages with full loop trace. - CLI state and board state match on fixtures. - Board clearly marks blocked/dry-run/external-gated states. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-60
+
+ARI-MUL-55: Project resource permission profiles
+
+Objective Turn project resources into explicit local boundaries for planning and execution. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Define resource types, allowed operations, target repo validation, path boundaries, and board-visible resource use. Non-scope No multi-user workspace permission system. Acceptance Criteria - Invalid target repo/resource paths are blocked. - Handoff lists resources and allowed operations. - Doctor validates resource configuration. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-59
+
+ARI-MUL-54: Skill trust and provenance workflow
+
+Objective Make local BuildSkill packs visible, reviewable, and bounded. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Record skill source path, hash, allowed use, trust state, and handoff references. Add materialization preview and review workflow. Non-scope No remote skill marketplace or blind dynamic install. Acceptance Criteria - Skill references include path/hash/provenance. - Untrusted skill use requires approval or blocks. - Board shows skills used in a run. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-58
+
+ARI-MUL-53: Integration sync conflict handling
+
+Objective Detect and explain conflicts between local Ariadne state and optional external mirrors. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Compare local mappings against Multica/GitHub/Feishu dry-run or fetched state and emit conflict plans. Non-scope No automatic remote overwrite and no cloud sync engine. Acceptance Criteria - Conflict report distinguishes local vs remote changes. - Resolution is preview-first. - Tests use fixtures, not live services. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-57
+
+ARI-MUL-52: External identity mapping for Multica, GitHub, and Feishu
+
+Objective Create stable local mappings between Ariadne objects and external references. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Model local ticket/run/comment/artifact ids mapped to Multica issues, GitHub issues/PRs, and Feishu docs/tasks with idempotency keys. Non-scope No live sync by default and no required external credentials. Acceptance Criteria - Mappings serialize locally with provenance. - Duplicate exports are prevented by idempotency keys. - Missing credentials produce dry-run artifacts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-56
+
+ARI-MUL-51: Provider token and cost usage capture
+
+Objective Record provider usage where locally available without introducing account management. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Best-effort capture of tokens, model, cost estimate, service tier, and latency from backend results/logs when exposed. Non-scope No billing enforcement, quota management, or secret exposure. Acceptance Criteria - Usage fields are optional and absent-safe. - Board/report never prints API keys. - Tests pass without provider credentials. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-55
+
+ARI-MUL-50: Flaky test and run duration tracking
+
+Objective Expose repeated uncertainty in tests and backend runs. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Track repeated failures, reruns, duration outliers, and backend instability per ticket/backend/test command. Non-scope No central flaky-test service. Acceptance Criteria - Repeated failure fixtures are marked flaky/unstable. - Run durations appear in metrics artifacts. - Reviewer distinguishes failure from uncertainty. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-54
+
+ARI-MUL-49: Local quality metrics dashboard
+
+Objective Summarize ticket/run/review health from local artifacts. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Compute local metrics for pass/fail, blocked reasons, review verdicts, retries, durations, and ticket aging. Non-scope No platform analytics, telemetry upload, or billing dashboard. Acceptance Criteria - Metrics derive from local artifacts. - Board includes compact metrics section. - Missing data is reported honestly. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-53
+
+ARI-MUL-48: Release evidence packet
+
+Objective Bundle the evidence needed to review a completed Ariadne development slice. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Collect tests, ruff, doctor, CLI smoke, board path, memory path, next tickets, changed artifacts, known limitations, and safety-gate status. Non-scope No GitHub release automation or mandatory push/PR. Acceptance Criteria - A command generates a release evidence artifact. - Evidence packet links artifacts without duplicating secrets. - Packet is board-visible. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-52
+
+ARI-MUL-47: Dogfood branch and merge policy evidence
+
+Objective Codify how Ariadne should be used to develop Ariadne without auto-landing code. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Detect branch state, record intended branch/PR/merge policy, and produce reviewer-facing evidence for human landing decisions. Non-scope No auto commit, auto push, auto merge, or auto PR from Ariadne. Acceptance Criteria - Ticket runs record branch and dirty-tree state. - Release evidence includes branch/merge policy status. - Unsafe landing actions remain manual. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-51
+
+ARI-MUL-46: Local onboarding and doctor golden path
+
+Objective Make a new user understand and verify Ariadne locally without external services. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Add/upgrade local onboarding flow around ari doctor, fixture ingest, ticket run, board export, and troubleshooting output. Non-scope No hosted signup/auth onboarding. Acceptance Criteria - README golden path matches working commands. - Doctor explains missing optional tools safely. - A fresh workspace can run deterministic demo. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-50
+
+ARI-MUL-45: Manual approval checkpoints
+
+Objective Centralize user confirmation for dangerous local actions. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Require explicit CLI approvals for external execution, real writes, backlog apply, destructive recovery, and export/import conflict resolution. Non-scope No auth, RBAC, multi-user approval workflow, or hosted approval queue. Acceptance Criteria - Dangerous commands fail closed without confirmation. - Approval requirements are documented in artifacts. - Tests cover missing-confirmation blocked paths. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+待办
+1
+
+LOC-109
+
+正在工作
+
+Define mini coding agent v0.1 from external references
+
+Dogfood scenario for Ariadne parity work. Project goal: Build a minimal coding-agent product concept for AI builders, using external references attached to this project. External references: - https://github.com/SWE-agent/mini-swe-agent - https://github.com/e10nMa2k/cc-mini This is a read-only Multica downstream parity task. Do not edit files, do not commit, do not push, and do not create PRs. Expected agent output: 1. Identify what the references imply about a minimal coding agent. 2. Propose the v0.1 architecture in plain terms. 3. Produce the first 3 build issues needed to implement it. 4. Call out blockers or missing project resources. Acceptance criteria: - The issue is assigned to a real Multica agent. - Multica creates a task/run for the assignment. - Agent activity is visible on the agent detail page. - The issue receives either a useful agent response or a concrete blocker. - Any blocker is visible enough to map back to Ariadne Inbox/Runtime behavior.
+
+🧵
+Ariadne Dogfood: Mini Coding Agent v0.1
+Ariadne Implementer
+更新于 4 分钟前
+进行中
+0
+
+无 issue
+
+审核中
+2
+
+LOC-100
+
+ARI-MUL-95: Automatic reviewer assignment chain
+
+Add an automatic reviewer assignment after implementation runs. Why: Ariadne should not land implementation output without a separate review step. Review must be visible and issue-centered. Scope: - After implementation, create a reviewer AgentRun/assignment with read-only instructions. - Reviewer consumes the landing evidence packet and source ticket. - Review verdict can be pass, needsfix, blocked, or reject. - needsfix routes back to the same isolated worktree. Acceptance criteria: - Reviewer run is created automatically after execution. - Reviewer cannot mutate target repo by default. - Review comments/artifacts are attached to the ticket and board. - Tests cover pass, needsfix, and blocked review flow. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+Ariadne Reviewer
+更新于 9 天前
+
+LOC-108
+
+ARI-MUL-103: Overnight controlled batch runner
+
+Configure and operate a controlled overnight Multica batch for Ariadne development. Mission: Use Multica to advance Ariadne issues while the user is away without letting agents corrupt the main checkout or bypass safety gates. Operating protocol: 1. Run one code-mutating issue at a time until landing worktree/evidence/gate foundations exist. 2. Route implementation to Ariadne Implementer or Ariadne Codex. 3. Route review to Ariadne Codex Reviewer or Ariadne Reviewer. 4. Route final verification to Ariadne Release Verifier. 5. Retry a failed implementation at most once. 6. After a second failure, mark blocked with exact command output and artifact paths. 7. Never auto-commit, auto-push, auto-merge, or create PRs unless the gated landing pipeline explicitly enables it. Initial execution order: ARI-MUL-91 -> ARI-MUL-92 -> ARI-MUL-93 -> ARI-MUL-94 -> ARI-MUL-96 -> ARI-MUL-97 -> ARI-MUL-98 -> ARI-MUL-99. Required verification after any code-mutating issue: pytest ruff check . python3.11 -m ariadneltb.cli demo full python3.11 -m ariadneltb.cli export board python3.11 -m ariadneltb.cli backend doctor scripts/verifyv1.sh Acceptance criteria: - Overnight batch has explicit waves, dependencies, assignees, and stop rules. - Only the controller and the first safe code issue are active initially. - All active issues contain handoff comments with safety boundaries. - Failed work is blocked with evidence instead of looping forever. - Main remains protected unless gated landing explicitly passes.
+
+📁
+Ariadne v1.0 Development
+未分配
+已完成
+37
+
+LOC-102
+
+ARI-MUL-97: Conflict detection and conflict report
+
+Detect conflicts against the current base branch and write a conflict report. Why: Agents working overnight will diverge. Ariadne must detect whether a ticket branch can be merged cleanly before landing. Scope: - Compare ticket branch/worktree against latest origin/main or configured base. - Detect merge or rebase conflicts without destroying work. - Write conflictreport.md and structured conflict metadata. - Block landing when conflicts exist. Acceptance criteria: - Clean branch reports mergeable. - Conflicting branch writes a conflict report with files and suggested next action. - Conflict detection does not mutate or discard agent changes. - Tests cover clean and conflicting histories. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+Ariadne Implementer
+更新于 9 天前
+
+LOC-101
+
+ARI-MUL-96: Merge gate policy engine
+
+Implement a fail-closed merge gate policy engine for Ariadne landing. Why: Before Ariadne can auto-commit, push, or merge anything, it needs explicit gates that encode the minimum safety standard. Scope: - Add a local policy file/config for required gates. - Required gates should include clean review pass, passing tests, no blocked safety reason, target path validation, no forbidden changed files, and branch freshness. - Gate evaluation writes a structured artifact. Acceptance criteria: - Gate evaluation returns pass/fail/blocked with typed reasons. - Missing policy or missing evidence fails closed. - Board shows gate status. - Tests cover pass, failed test, failed review, forbidden path, and missing evidence. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+Ariadne Release Verifier
+更新于 9 天前
+
+LOC-99
+
+ARI-MUL-94: Landing evidence packet artifact
+
+Generate a single landing evidence packet after each implementation run. Why: Automatic review and merge gates need stable evidence: diff, changed files, tests, doctor output, board paths, and reviewer verdicts. Scope: - Add landingevidence.json and landingevidence.md artifacts. - Include ticket, branch, worktree, changed files, git diff summary, test commands/results, review verdict, memory path, board path, next tickets path, and gate inputs. - Keep large raw logs as linked artifacts rather than embedding them fully. Acceptance criteria: - Every ticket run with execution writes landing evidence. - Evidence packet is referenced from board loop trace. - Evidence schema is validated in tests. - Failed/blocked runs still write partial evidence. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+Ariadne Release Verifier
+更新于 9 天前
+
+LOC-98
+
+ARI-MUL-93: Agent target resource rebinding to isolated worktree
+
+Rebind implementation handoffs and backend execution to the isolated worktree instead of the main repository checkout. Why: Worktree isolation is useless if Codex/Claude/fake-codex still execute in the main repo path. Scope: - Update project resource resolution so ticket execution can target the isolated worktree. - Handoff artifacts must show the exact target repo path. - Backend execution must receive the worktree path and never silently fall back to the main checkout. Acceptance criteria: - ExecutionResult records the target worktree path. - Handoff contains a ProjectResource reference for the isolated worktree. - Missing/invalid target path blocks execution with a typed reason. - Tests cover fake-codex execution targeting a temporary worktree. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+Ariadne Release Verifier
+更新于 9 天前
+
+LOC-97
+
+ARI-MUL-92: Branch naming and issue binding policy
+
+Define the canonical branch naming and ticket binding policy for Ariadne landing work. Why: Agent-created branches need deterministic names and explicit linkage to tickets so review, gates, cleanup, and Multica status sync can reason about them. Scope: - Add a branch naming policy such as codex/<ticket-key>-<slug>. - Store ticket id/key, branch name, base SHA, target repo, and worktree path in ticket/runtime metadata. - Validate branch names and reject unsafe path/name characters. Acceptance criteria: - Branch name generation is deterministic and collision-resistant. - Ticket metadata can resolve the active branch/worktree. - Invalid ticket keys/slugs are rejected before filesystem mutation. - Tests cover normal, duplicate, and invalid branch names. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+Ariadne Release Verifier
+更新于 10 天前
+
+LOC-96
+
+ARI-MUL-91: Git worktree isolation manager
+
+Implement a local worktree isolation manager for Ariadne ticket execution. Why: Ariadne cannot safely let multiple agents implement issues against the same checkout. Each executable ticket needs an isolated branch/worktree before an implementation agent starts. Scope: - Create a deterministic per-ticket branch and worktree from the selected base branch. - Record branch name, base SHA, worktree path, createdat, and owning ticket metadata. - Refuse to create a worktree if the base checkout is dirty or an active worktree already exists for the same ticket. - Keep the existing default no-auto-commit/no-auto-push/no-auto-merge behavior. Acceptance criteria: - ari ticket run <ticket> --isolate-worktree creates and records an isolated worktree. - Running the same ticket twice reuses or blocks on the active worktree predictably. - Dirty base checkout produces a typed blocked result with an artifact. - Tests cover create, duplicate, dirty-base, and metadata persistence. Boundary: Preserve Ariadne as local-first and ticket-centered. Landing automation is a separate gated pipeline after agent execution. No commit, push, merge, or PR creation may happen by default; all landing actions require explicit policy and review/gate evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-61
+
+ARI-MUL-56: Agent role capability contracts
+
+Objective Make Ariadne agent roles machine-readable enough for routing and review. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Define AgentProfile contracts for Build Lead, Planner, Implementer, Reviewer, Memory, Feishu, and Release Verifier: inputs, outputs, allowed actions, required artifacts. Non-scope No workspace-member model or hosted agent management. Acceptance Criteria - Routing can inspect role capabilities. - Missing required artifacts are detected. - Board shows assigned role and expected outputs. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-48
+
+ARI-MUL-43: Local daemon capacity hints and assignment queue
+
+Objective Prevent local daemon work from over-claiming assignments while staying simple. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Add max local assignments, capability match hints, lock visibility, and FIFO selection rules. Non-scope No worker fleet, runtime registry service, or distributed scheduler. Acceptance Criteria - Daemon respects local capacity hints. - Assignments explain claimed/skipped reasons. - No duplicate claim under concurrent local attempts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-44
+
+ARI-MUL-39: Execution sandbox permission profiles
+
+Objective Define local backend read/write/execute boundaries before real agents run. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Model path allowlists, env allowlists, network policy, git-operation policy, and backend-specific gates as local permission profiles. Non-scope No OS-level sandbox requirement for MVP and no multi-user permission system. Acceptance Criteria - Backends validate target repo and allowed paths. - Dangerous git operations stay blocked by default. - Permission profile is visible in handoff and board. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-43
+
+ARI-MUL-38: Prompt injection guard for sources and skills
+
+Objective Treat external knowledge, source documents, and local skills as untrusted unless explicitly trusted. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Quote/sandbox source text in BuildPacket and handoff, enforce instruction hierarchy, and flag source text that attempts to override constraints. Non-scope No remote content execution or blind dynamic skill install. Acceptance Criteria - Malicious fixture source is quoted, not executed as instruction. - Handoff includes trust boundary text. - Reviewer reports prompt-injection warnings. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-42
+
+ARI-MUL-37: Secret and sensitive file safety doctor
+
+Objective Prevent handoffs, artifacts, memory, board exports, and diffs from leaking credentials. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Scan likely secret patterns, .env-like files, private keys, tokens, and configured sensitive paths before external execution/export/memory write. Non-scope Do not print secret values and do not write secrets into board or memory. Acceptance Criteria - Fake secrets are detected in tests. - Blocked results redact values and cite path only. - Doctor reports secret-safety status without exposing values. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-41
+
+ARI-MUL-36: Provider execution audit artifacts
+
+Objective Record how Codex, Claude, fake-codex, and shell backends were selected and executed. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Persist provider capability snapshot, rendered command, safety gates, stdout/stderr, exit code, changed files, diff summary, and test result. Non-scope No provider account management, billing enforcement, or secret printing. Acceptance Criteria - Backends produce audit artifacts. - Blocked runs include gate failure reasons. - Board links provider audit artifacts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-40
+
+ARI-MUL-35: Unified audit event log and replay fixtures
+
+Objective Create one local event/audit spine that can explain what happened and support replay tests. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Append ticket-scoped JSONL events under .ariadne/journal for ticket, assignment, run, review, memory, backlog, and board actions. Add deterministic replay fixtures. Non-scope No WebSocket stream, server event bus, or separate analytics service. Acceptance Criteria - Every ticket run emits ordered events. - Replay fixtures reconstruct expected board state. - Release evidence can derive from the event log. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-39
+
+ARI-MUL-34: Cancel, pause, resume, and supersede running work
+
+Objective Handle work that changes while an agent assignment or run is in progress. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Add local operations and lifecycle semantics for cancel, pause, resume, and supersede. Preserve audit history and prevent stale writes. Non-scope No remote process control beyond safety-gated local backend handling. Acceptance Criteria - Cancelled/superseded work cannot update success state. - Paused/resumed assignments preserve timeline evidence. - Board shows cancellation/supersession reason. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-38
+
+ARI-MUL-33: Retry/backoff/dead-letter failure policy
+
+Objective Make repeated failures predictable instead of relying on ad hoc reruns. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Define typed retryable vs terminal failures, retry limits, backoff metadata, dead-letter/blocked state, and manual recovery entrypoints. Non-scope No cloud scheduler or background fleet retry service. Acceptance Criteria - Retry policy is encoded locally. - Repeated failures eventually become blocked/dead-letter with evidence. - Board shows retry history. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-37
+
+ARI-MUL-32: Dependency-aware ticket promotion
+
+Objective Promote prerequisites before dependent work so agents do not execute impossible tasks. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Use local ticket relationships and acceptance criteria to propose prerequisite promotion from backlog to todo. Non-scope No auto-assign or auto-run of promoted tickets. Acceptance Criteria - Blocked tickets explain the dependency. - Promotion is preview-first. - Tests cover blocked and unblocked dependency chains. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-36
+
+ARI-MUL-31: Backlog conflict resolver
+
+Objective Resolve conflicts when new knowledge disagrees with existing ticket state. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Detect duplicate, superseded, contradictory, downgraded, and split-ticket cases. Produce conservative manual resolution plans. Non-scope Do not silently choose winners or delete user-authored tickets. Acceptance Criteria - Conflict plans include options and evidence. - Apply requires explicit confirmation. - Board highlights unresolved conflicts. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-35
+
+ARI-MUL-30: Split backlog feedback generators
+
+Objective Separate the sources that can change the ticket set so each generator is reviewable. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Implement distinct suggestion generators for source ingestion, execution result, review report, memory gaps, and codebase diff/context. Non-scope No monolithic planner that rewrites the backlog without provenance. Acceptance Criteria - Each suggestion records trigger and evidence. - Generators produce artifacts before mutation. - Tests cover source, review, and execution feedback. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-34
+
+ARI-MUL-29: Idempotent backlog preview/apply
+
+Objective Make knowledge/feedback-driven ticket mutation safe by separating proposal from mutation. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Generate BacklogUpdate previews with stable ids and idempotency keys. Require explicit ari backlog apply <preview-id> before mutating tickets. Non-scope No silent ticket rewrites and no automatic assignment/run after applying updates. Acceptance Criteria - Repeated preview generation does not duplicate suggestions. - Apply is idempotent and auditable. - Preview/apply artifacts are visible on the board. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-32
+
+ARI-MUL-27: Lifecycle transition gates
+
+Objective Make ticket, assignment, and run lifecycle transitions explicit and enforceable. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Define allowed TicketStatus, AssignmentStatus, AgentRun, and review transitions; reject invalid transitions with CLI-visible typed failures; record transition events. Non-scope No second task state machine and no server-side scheduler rewrite. Acceptance Criteria - Invalid transitions are rejected before save. - Terminal states require explicit reopen/supersede operations. - Tests cover valid and invalid transitions. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-31
+
+ARI-MUL-26: Ticket relationship graph and dependency invariants
+
+Objective Represent local BuildTicket relationships so Ariadne can reason about blockers, supersession, splits, and related work. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Add local metadata for blocks, blockedby, supersedes, splitfrom, duplicateof, and related. Validate references and render them on the board. Non-scope No graph database, cross-workspace dependency service, or automatic remote linking. Acceptance Criteria - Relationships serialize in local ticket JSON. - Doctor catches dangling or cyclic blocking dependencies. - Board shows relationship context. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-30
+
+ARI-MUL-25: Store invariant doctor
+
+Objective Add a local doctor that validates impossible Ariadne states before agents trust the workspace. Architecture Boundary This issue must preserve Ariadne as a single-user, local-first, Ticket-centered Python workbench. BuildTicket remains the work, audit, and board unit. Persistence stays under .ariadne/ as JSON/JSONL unless an ADR explicitly changes it. Expose a CLI path, static board evidence, tests, failure behavior, and safety gates. Do not introduce hosted SaaS, Postgres, WebSocket, auth, multi-workspace permissions, always-on cloud runtime, default external writes, or auto commit/push/merge/PR. Scope Validate duplicate ticket keys, orphan artifacts, missing BuildPackets, invalid AgentRun lifecycle transitions, broken assignment/run links, stale locks, and malformed JSON/JSONL. Emit machine-readable and human-readable reports. Non-scope No automatic destructive repair; repair plans must be explicit artifacts. Acceptance Criteria - Doctor reports store invariants. - Invalid fixtures fail deterministically with typed reasons. - Valid demo/full loop remains clean. Verification Run targeted tests plus scripts/verifyv1.sh where applicable. Static board output must show the resulting state/evidence.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-15
+
+ARI-MUL-10: Memory retrieval into planning
+
+Background Ariadne writes memory but planner decisions do not yet use prior memory as evidence. Scope Add local memory search and ari ticket plan --use-memory so BuildPacket evidence can cite previous decisions, review reports, and next-ticket artifacts. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria ari memory search returns relevant snippets; planner artifacts include memory evidence with source refs; no vector DB or network dependency is required. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-10
+
+ARI-MUL-05: Skill materialization
+
+Background Multica injects skills into provider-visible execution context. Ariadne currently references skills in handoff but does not prove the backend receives skill files. Scope Discover .skills//SKILL.md, select relevant skills for a ticket, and materialize them into the run artifact bundle and provider-visible fallback location without writing to the user's global Codex or Claude skill directories. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Handoff artifact includes skill references and materialized skill paths; Codex/Claude scaffold and fake-codex tests verify skills are available; missing skills produce warnings instead of crashes. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-5
+
+MUL-ARI-004: Define Multica issue metadata convention for Ariadne
+
+Background Ariadne development issues need consistent metadata so Multica can filter by area, priority, phase, and safety boundary. Scope Use ariadne.ticketkey, ariadne.area, ariadne.priority, ariadne.phase, ariadne.boundary, ariadne.verification, ariadne.requiresbranch, and ariadne.externalexecution metadata on created issues. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria New issues can be filtered with multica issue list --metadata ariadne.area=<area>; metadata contains no long logs or secrets. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Completed for the initial backlog created in this configuration pass.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-14
+
+ARI-MUL-09: Real Codex teammate main demo
+
+Background Ariadne has a gated CodexBackend scaffold and fake-codex demo. To prove it is not a fake-only harness, real Codex should become an optional, documented teammate demo. Scope Make the real Codex smoke path a first-class local demo while keeping ARIADNEENABLEEXTERNALEXECUTION=1 and --confirm-execution required. Capture stdout/stderr/exit/diff/tests/review/memory/board even on failure. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria No gate produces blocked result; missing Codex produces blocked result; when Codex is installed and confirmed, the full ticket loop runs through CodexBackend; it never commits, pushes, merges, or creates PRs. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-9
+
+ARI-MUL-04: Thread-aware comments
+
+Background Multica comments support threads, recent views, tail reads, and cursor-style narrowing so agents do not load huge issue histories. Ariadne comments are currently mostly flat. Scope Add parentcommentid and threadid to TicketComment, plus CLI views for roots, thread, recent, tail, and since. Use threads for blocker, review, retry, and release-verification conversations. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Old comments still load; new threaded comments are persisted; ari ticket comments can show a whole thread or recent active threads; board shows thread summaries; tests cover compatibility and tail reads. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-4
+
+MUL-ARI-003: Create Ariadne development agents
+
+Background Ariadne had only one generic Codex agent. Mature Multica-style dogfooding needs separated implementer, reviewer, and release verifier identities. Scope Create Ariadne Implementer, Ariadne Reviewer, and Ariadne Release Verifier agents with maxconcurrenttasks=1 and local-first instructions. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria agent list shows all three agents; implementer/release verifier bind Codex runtime; reviewer binds Claude runtime; all have conservative instructions and no custom secret env. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Completed during Multica configuration pass.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-13
+
+ARI-MUL-08: Provider capability matrix
+
+Background Ariadne backend doctor checks availability, but mature runtime routing needs a matrix of what each backend can actually do. Scope Add ari backend matrix and persist/display capability fields for prompt-file, stdin, session resume, MCP, skill materialization, model/reasoning support, timeout semantics, diff capture, test capture, and external execution gating. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Matrix includes fake-codex, dry-run, shell, codex, and claude-code; board shows latest matrix; no secrets are printed; tests cover disabled, missing command, and template cases. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-8
+
+ARI-MUL-03: Run message stream
+
+Background Multica stores detailed task messages separately from issue comments. Ariadne has artifacts, comments, and journal events, but no per-run seq-addressable message stream. Scope Persist .ariadne/runs/<runid>/messages.jsonl with seq, timestamp, stage, type, content, artifactref, and optional tool/result fields. Add CLI support for reading messages with --since. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Every ticket run writes a message stream; ari run messages <runid> --since N returns deterministic incremental messages; board links run messages; comments remain summaries rather than long logs. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-3
+
+MUL-ARI-002: Create Ariadne workspace skills
+
+Background Ariadne guardrails were only embedded in one agent prompt. They need to be reusable workspace skills so future Multica agents receive the same project constraints. Scope Create ariadne-local-first-guardrails, ariadne-verification, ariadne-multica-reference-lens, and ariadne-review-diff workspace skills. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria multica skill list shows all four skills; each skill describes a reusable Ariadne development rule; none contains secrets. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Completed during Multica configuration pass.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-12
+
+ARI-MUL-07: Build Team / Squad routing
+
+Background Multica supports squads where a leader routes work to agents. Ariadne has agent assignments but no BuildTeam abstraction or team-level routing path. Scope Add BuildTeam model, ari team list/show, and ari ticket assign <ticket> --to build-team. Build Lead should write routedecision.json and create the next assignment for implementer/reviewer/memory roles as appropriate. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Assigning to build-team creates a visible route decision before execution; comments and board explain selected agent, backend, skills, resources, and reason; no server-side squad clone is introduced. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-7
+
+ARI-MUL-02: Unified failure pipeline
+
+Background Multica routes task failure, cancellation, completion, and recovery through consistent lifecycle code. Ariadne failure behavior is spread across daemon, orchestrator, backend, review, and recovery paths. Scope Create one failure handler for assignment failure/block/cancel/recovery. It should update assignment, ticket, comments, runtime journal, optional retry recommendation, and board-visible state from a typed FailureReason. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Backend blocked, review failed, daemon exception, stale recovery, and user cancellation all produce consistent comments, journal events, statuses, and recovery output; tests cover each FailureReason category. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-2
+
+MUL-ARI-001: Configure Ariadne local_directory project resource
+
+Background Ariadne development through Multica needs a project resource that points to the live local checkout, not only the GitHub repo URL. Scope Add a Multica project resource of type localdirectory for /Users/martinlos/code/Ariadne, bound to the ariadne-local daemon, with a readable label. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Project resource list shows both githubrepo and localdirectory; localdirectory points to /Users/martinlos/code/Ariadne; future issues can rely on project resources instead of repeating the repo path. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Completed during Multica configuration pass. Resource id: 1536cdf1-1592-4f87-ae85-8c1e078deac6.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-11
+
+ARI-MUL-06: Feedback-to-ticket update engine
+
+Background Ariadne's core difference is that knowledge, feedback, memory, and codebase context update the ticket set before agents work. Current backlog updates cover source ingest and manual supersede but not the full feedback loop. Scope Generate BacklogUpdate records from execution results, review reports, memory gaps, and repo observations. Support create, update, downgrade, supersede, and no-op decisions with evidence and rationale. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria After ari daemon run-once, review/execution/memory can produce ticket deltas; ari backlog history explains trigger, rationale, and affected ticket keys; board shows how the ticket set changed; tests cover all change types. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-6
+
+ARI-MUL-01: Atomic local claim + lease
+
+Background Multica prevents duplicate task claims with server-side locking. Ariadne persists assignments as JSON, so two local daemon runs can race on the same queued assignment. Scope Add local atomic claim semantics using a file lock and assignment lease fields such as claimedat, claimedbyruntimeid, and leaseexpiresat. Stale leases must be recoverable without corrupting assignments. Non-scope Do not introduce a Multica server clone, PostgreSQL, WebSockets, multi-workspace auth, hosted UI, default external execution, real Feishu writes, auto-commit, auto-push, auto-merge, or PR creation. Acceptance Criteria Two concurrent ari daemon run-once invocations cannot claim the same assignment; stale leases can be reclaimed deterministically; board and runtime journal show lease owner and expiry; tests cover normal claim, concurrent claim, and stale lease recovery. Verification Run pytest, ruff check ., python3.11 -m ariadneltb.cli demo full, python3.11 -m ariadneltb.cli ticket list, python3.11 -m ariadneltb.cli ticket run ARI-003 --backend fake-codex, python3.11 -m ariadneltb.cli export board, python3.11 -m ariadneltb.cli backend doctor, and scripts/verifyv1.sh if present. Notes Keep Ariadne local-first and ticket-centered. Goal is allowed as directional input, but Build Ticket remains the runtime work center.
+
+📁
+Ariadne v1.0 Development
+未分配
+
+LOC-1
+
+Smoke: Multica can drive Ariadne development
+
+Use Multica to develop Ariadne smoke test. Repo target: /Users/martinlos/code/Ariadne Task: Do not edit files. Inspect the repository and reply with: 1. current git branch and latest commit; 2. whether Ariadne is positioned as a local-first Ticket-centered Agent Workbench; 3. the verification commands that should run before merging Ariadne changes. Constraints: - Do not modify files. - Do not commit, push, merge, or create a PR. - Keep Ariadne local-first; do not propose turning it into a Multica server clone.
+
+📁
+Ariadne v1.0 Development
+Ariadne Codex
+更新于 10 天前
+已阻塞
+0
+
+无 issue
+
+新对话
+和你的智能体对话
+
+✨ 它们了解你的工作区—— issue、项目、skill。
+
+让它做一份总结、规划你的一天，或交给它一个小任务。
+
+
+
+
+Ariadne Codex

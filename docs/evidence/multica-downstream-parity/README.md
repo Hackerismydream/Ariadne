@@ -2,6 +2,26 @@
 
 Status: `BLOCKED_WITH_EVIDENCE`
 
+Multica reference revalidation: `completed`
+
+Latest Multica reference run:
+
+- Evidence: `revalidation-2026-06-27/`
+- Multica project: `Ariadne Dogfood: Mini Coding Agent v0.1`
+- Multica issue: `LOC-109 Define mini coding agent v0.1 from external references`
+- Agent: `Ariadne Implementer`
+- Runtime: `Codex (192.168.5.116)`
+- Final task: `18aa1811-4edc-4613-b971-88df69fb25d9`
+- Final task status: `completed`
+- Final issue status: `in_review`
+
+This confirms the Multica downstream reference behavior exists locally: project resources,
+issue assignment, task queue, runtime claim, run messages, retry, failure taxonomy, Inbox,
+agent activity, issue comment write-back, and status update.
+
+The `BLOCKED_WITH_EVIDENCE` status below is Ariadne's own prior product-closure evidence,
+not a statement that Multica is unavailable.
+
 Canonical browser/API closure run: `M0TR-002` via assignment `assignment_699c4079b8ca` assigned to `Phase 3 Codex 1782402810345`.
 
 What this proves:

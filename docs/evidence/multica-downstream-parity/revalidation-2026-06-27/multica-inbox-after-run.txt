@@ -1,0 +1,92 @@
+L
+Local Dev
+搜索...
+⌘
+K
+新建 issue
+C
+收件箱
+7
+我的 issue
+工作区
+Issues
+项目
+自动化
+智能体
+小队
+用量
+配置
+运行时
+Skills
+设置
+收件箱
+7
+Define mini coding agent v0.1 from external references
+
+task 失败
+
+1 分钟
+ARI-MUL-97: Conflict detection and conflict report
+
+codex thread/start failed: thread/start: failed to load configuration: /Users/****/multica_workspaces_ariadne-local/b6a2e682-c257-4c5c-ac6c-f44b75a25a7f/2695eba1/codex-home/config.toml:24:16: unknown variant `priority`, expected `fast` or `flex` (code=-32600); codex stderr: {"timestamp":"2026-06-17T05:46:38.517062Z","level":"ERROR","fields":{"message":"Invalid configuration; using defaults. /Users/****/multica_workspaces_ariadne-local/b6a2e682-c257-4c5c-ac6c-f44b75a25a7f/2695eba1/codex-home/config.toml:24:16: unknown variant `priority`, expected `fast` or `flex`"},"target":"codex_app_server"}
+
+9 天
+ARI-MUL-96: Merge gate policy engine
+
+状态设为
+In Review
+
+9 天
+ARI-MUL-95: Automatic reviewer assignment chain
+
+状态设为
+In Review
+
+9 天
+ARI-MUL-94: Landing evidence packet artifact
+
+状态设为
+In Review
+
+9 天
+ARI-MUL-93: Agent target resource rebinding to isolated worktree
+
+Acknowledged. Release verification for [LOC-98](mention://issue/a81a1ca3-6010-43df-8b0f-266b6468bdef) remains passed, and the issue is already marked `done` with `pipeline_status=done`. I pinned the full landed commit SHA in metadata: `9bb8bb9b5cc61c76604c5666d96bed278cad0711`. No further verifier action needed.
+
+9 天
+ARI-MUL-92: Branch naming and issue binding policy
+
+Acknowledged. Release verification remains passed for `codex/ari-mul-92-branch-naming-policy`, and the issue metadata now records `branch_name=codex/ari-mul-92-branch-naming-policy`, `landed_commit=384e607`, and `pipeline_status=branch_pushed`. No additional verifier action taken, and no merge to main was performed by me.
+
+10 天
+ARI-MUL-91: Git worktree isolation manager
+
+状态设为
+In Review
+
+10 天
+ARI-MUL-103: Overnight controlled batch runner
+
+task 失败
+
+10 天
+Smoke: Multica can drive Ariadne development
+
+状态设为
+In Review
+
+10 天
+
+选择一条通知查看详情
+
+新对话
+和你的智能体对话
+
+✨ 它们了解你的工作区—— issue、项目、skill。
+
+让它做一份总结、规划你的一天，或交给它一个小任务。
+
+
+
+
+Ariadne Codex

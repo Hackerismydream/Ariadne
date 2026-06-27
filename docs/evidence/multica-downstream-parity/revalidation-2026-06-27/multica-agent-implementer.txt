@@ -1,0 +1,109 @@
+L
+Local Dev
+搜索...
+⌘
+K
+新建 issue
+C
+收件箱
+7
+我的 issue
+工作区
+Issues
+项目
+自动化
+智能体
+小队
+用量
+配置
+运行时
+Skills
+设置
+智能体
+Ariadne Implementer
+在线
+Ariadne Implementer
+Implementation agent for Ariadne local-first Python workbench changes.
+在线
+属性
+运行时
+Codex (192.168.5.116)
+模型
+默认
+思考
+High
+可见性
+Personal
+并发
+1
+详情
+所有者
+L
+local
+创建时间
+10 天前
+更新时间
+刚刚
+SKILLS
+4
+ariadne-local-first-guardrails
+ariadne-multica-reference-lens
+ariadne-review-diff
+ariadne-verification
+外部集成
+动态
+Tasks
+指令
+Skills
+环境变量
+自定义参数
+MCP
+当前
+1 个进行中的 task
+LOC-109
+Define mini coding agent v0.1 from external references
+刚刚启动
+近 30 天
+表现
+22
+次运行
+68% 成功·平均 3m 18s·7 次失败
+最近工作
+5 / 22
+LOC-109
+Define mini coding agent v0.1 from external references
+刚刚
+·
+33s
+·
+Codex semantic inactivity timeout
+LOC-109
+Define mini coding agent v0.1 from external references
+2 分钟前
+·
+1m 02s
+LOC-109
+Define mini coding agent v0.1 from external references
+4 分钟前
+·
+6s
+LOC-102
+ARI-MUL-97: Conflict detection and conflict report
+9 天前
+LOC-102
+ARI-MUL-97: Conflict detection and conflict report
+9 天前
+·
+10m 19s
+查看更多 →
+新对话
+和你的智能体对话
+
+✨ 它们了解你的工作区—— issue、项目、skill。
+
+让它做一份总结、规划你的一天，或交给它一个小任务。
+
+
+
+
+Ariadne Codex

@@ -1,0 +1,140 @@
+L
+Local Dev
+搜索...
+⌘
+K
+新建 issue
+C
+收件箱
+7
+我的 issue
+工作区
+Issues
+项目
+自动化
+智能体
+小队
+用量
+配置
+运行时
+Skills
+设置
+🧵
+Ariadne Dogfood: Mini Coding Agent v0.1
+LOC-109 Define mini coding agent v0.1 from external references
+Ariadne Implementer 在工作
+
+Define mini coding agent v0.1 from external references
+
+Dogfood scenario for Ariadne parity work.
+
+Project goal:
+Build a minimal coding-agent product concept for AI builders, using external references attached to this project.
+
+External references:
+
+https://github.com/SWE-agent/mini-swe-agent
+
+https://github.com/e10nMa2k/cc-mini
+
+This is a read-only Multica downstream parity task. Do not edit files, do not commit, do not push, and do not create PRs.
+
+Expected agent output:
+
+Identify what the references imply about a minimal coding agent.
+
+Propose the v0.1 architecture in plain terms.
+
+Produce the first 3 build issues needed to implement it.
+
+Call out blockers or missing project resources.
+
+Acceptance criteria:
+
+The issue is assigned to a real Multica agent.
+
+Multica creates a task/run for the assignment.
+
+Agent activity is visible on the agent detail page.
+
+The issue receives either a useful agent response or a concrete blocker.
+
+Any blocker is visible enough to map back to Ariadne Inbox/Runtime behavior.
+
+
+
+
+添加子 issue
+动态
+取消订阅
+L
+2 条动态
+Ariadne Implementer
+4 分钟前
+
+codex thread/start failed: thread/start: failed to load configuration: /Users//multica_workspaces/ariadne/b6a2e682-c257-4c5c-ac6c-f44b75a25a7f/5c501a12/codex-home/config.toml:24:16: unknown variant priority, expected fast or flex (code=-32600); codex stderr: {"timestamp":"2026-06-27T02:50:34.539233Z","level":"ERROR","fields":{"message":"Invalid configuration; using defaults. /Users//multica_workspaces/ariadne/b6a2e682-c257-4c5c-ac6c-f44b75a25a7f/5c501a12/codex-home/config.toml:24:16: unknown variant priority, expected fast or flex"},"target":"codex_app_server"}
+
+L
+
+
+
+
+1 条动态
+Ariadne Implementer
+2 分钟前
+
+{"type":"error","status":400,"error":{"type":"invalid_request_error","message":"Unsupported service_tier: flex"}}
+
+L
+
+
+
+
+1 条动态
+Ariadne Implementer
+task 失败（1 次）
+刚刚
+
+
+
+
+属性
+状态
+待办
+负责人
+Ariadne Implementer
+项目
+🧵
+Ariadne Dogfood: Mini Coding Agent v0.1
+优先级
+高
+添加字段
+Pull Request
+
+还没有关联的 PR。在 PR 的分支名、标题或正文里引用本 issue 的 identifier 即可自动关联。
+
+详情
+创建者
+L
+local
+创建时间
+Jun 27
+更新时间
+Jun 27
+执行日志
+1
+重试 #2
+58s
+处理中
+显示历史运行（3）
+新对话
+和你的智能体对话
+
+✨ 它们了解你的工作区—— issue、项目、skill。
+
+让它做一份总结、规划你的一天，或交给它一个小任务。
+
+
+
+
+Ariadne Codex
