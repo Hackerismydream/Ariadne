@@ -36,7 +36,7 @@ def _prepared_store(tmp_path: Path) -> tuple[AriadneStore, str]:
     store = AriadneStore(tmp_path)
     ingest_sources(store, SOURCE_FIXTURES)
     project = TargetProjectRegistry(store).register(ensure_demo_target_project(tmp_path), "Demo Target")
-    ProjectVersionService(store).create(
+    version = ProjectVersionService(store).create(
         CreateProjectVersionInput(
             target_project_id=project.id,
             version_label="v0.1",
@@ -48,7 +48,14 @@ def _prepared_store(tmp_path: Path) -> tuple[AriadneStore, str]:
     store.save_ticket(
         current.model_copy(
             deep=True,
-            update={"metadata": current.metadata | {"target_project_id": project.id}},
+            update={
+                "metadata": current.metadata
+                | {
+                    "target_project_id": project.id,
+                    "project_version_id": version.id,
+                    "target_version_label": version.version_label,
+                }
+            },
         )
     )
     outside = store.resolve_ticket("ARI-001")
@@ -81,6 +88,8 @@ def test_issues_endpoint_returns_current_version_mainline_tickets(tmp_path: Path
 
 def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boundary(tmp_path: Path) -> None:
     store, project_id = _prepared_store(tmp_path)
+    version = ProjectVersionService(store).current()
+    assert version is not None
     old_ticket = BuildTicket(
         id="old-ticket",
         key="MCA-OLD",
@@ -89,7 +98,13 @@ def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boun
         source_type="manual_goal",
         source_ref="old",
         status=TicketStatus.PLANNING,
-        metadata={"target_project_id": project_id, "issue_class": "mainline", "root_ticket_key": "MCA-OLD"},
+        metadata={
+            "target_project_id": project_id,
+            "project_version_id": version.id,
+            "target_version_label": version.version_label,
+            "issue_class": "mainline",
+            "root_ticket_key": "MCA-OLD",
+        },
     )
     current_ticket = BuildTicket(
         id="current-ticket",
@@ -99,7 +114,13 @@ def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boun
         source_type="manual_goal",
         source_ref="new",
         status=TicketStatus.PLANNING,
-        metadata={"target_project_id": project_id, "issue_class": "mainline", "root_ticket_key": "MCA-NEW"},
+        metadata={
+            "target_project_id": project_id,
+            "project_version_id": version.id,
+            "target_version_label": version.version_label,
+            "issue_class": "mainline",
+            "root_ticket_key": "MCA-NEW",
+        },
     )
     store.save_ticket(old_ticket)
     store.save_ticket(current_ticket)
@@ -120,7 +141,12 @@ def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boun
                     ticket_id=old_ticket.id,
                     ticket_key=old_ticket.key,
                     title=old_ticket.title,
-                    metadata={"target_project_id": project_id, "included": True},
+                    metadata={
+                        "target_project_id": project_id,
+                        "project_version_id": version.id,
+                        "target_version_label": version.version_label,
+                        "included": True,
+                    },
                 )
             ],
         )
@@ -142,7 +168,12 @@ def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boun
                     ticket_id=current_ticket.id,
                     ticket_key=current_ticket.key,
                     title=current_ticket.title,
-                    metadata={"target_project_id": project_id, "included": True},
+                    metadata={
+                        "target_project_id": project_id,
+                        "project_version_id": version.id,
+                        "target_version_label": version.version_label,
+                        "included": True,
+                    },
                 )
             ],
         )
@@ -158,6 +189,8 @@ def test_issues_endpoint_uses_latest_applied_issue_delta_as_current_version_boun
 
 def test_workbench_endpoint_is_scoped_to_current_version_issue_set(tmp_path: Path) -> None:
     store, project_id = _prepared_store(tmp_path)
+    version = ProjectVersionService(store).current()
+    assert version is not None
     current = store.resolve_ticket("ARI-003")
     historical = BuildTicket(
         id="historical-ticket",
@@ -167,7 +200,13 @@ def test_workbench_endpoint_is_scoped_to_current_version_issue_set(tmp_path: Pat
         source_type="manual_goal",
         source_ref="history",
         status=TicketStatus.PLANNING,
-        metadata={"target_project_id": project_id, "issue_class": "mainline", "root_ticket_key": "MCA-HIST"},
+        metadata={
+            "target_project_id": project_id,
+            "project_version_id": version.id,
+            "target_version_label": version.version_label,
+            "issue_class": "mainline",
+            "root_ticket_key": "MCA-HIST",
+        },
     )
     store.save_ticket(historical)
     store.save_backlog_preview(
@@ -187,7 +226,12 @@ def test_workbench_endpoint_is_scoped_to_current_version_issue_set(tmp_path: Pat
                     ticket_id=current.id,
                     ticket_key=current.key,
                     title=current.title,
-                    metadata={"target_project_id": project_id, "included": True},
+                    metadata={
+                        "target_project_id": project_id,
+                        "project_version_id": version.id,
+                        "target_version_label": version.version_label,
+                        "included": True,
+                    },
                 )
             ],
         )
@@ -283,7 +327,13 @@ def test_select_project_version_scopes_issues_runs_and_inbox(tmp_path: Path) -> 
         source_type="manual_goal",
         source_ref="mini",
         status=TicketStatus.READY_FOR_EXECUTION,
-        metadata={"target_project_id": project_a.id, "issue_class": "mainline", "root_ticket_key": "MCA-001"},
+        metadata={
+            "target_project_id": project_a.id,
+            "project_version_id": version_a.id,
+            "target_version_label": version_a.version_label,
+            "issue_class": "mainline",
+            "root_ticket_key": "MCA-001",
+        },
     )
     ticket_b = BuildTicket(
         id="ticket-b",
@@ -293,7 +343,13 @@ def test_select_project_version_scopes_issues_runs_and_inbox(tmp_path: Path) -> 
         source_type="manual_goal",
         source_ref="other",
         status=TicketStatus.READY_FOR_EXECUTION,
-        metadata={"target_project_id": project_b.id, "issue_class": "mainline", "root_ticket_key": "OTH-001"},
+        metadata={
+            "target_project_id": project_b.id,
+            "project_version_id": version_b.id,
+            "target_version_label": version_b.version_label,
+            "issue_class": "mainline",
+            "root_ticket_key": "OTH-001",
+        },
     )
     store.save_ticket(ticket_a)
     store.save_ticket(ticket_b)
@@ -318,6 +374,76 @@ def test_select_project_version_scopes_issues_runs_and_inbox(tmp_path: Path) -> 
     assert [item["issue_key"] for item in inbox.json()["inbox"]] == ["MCA-001"]
     assert [item["key"] for item in workbench.json()["tickets"]] == ["MCA-001"]
     assert workbench.json()["current_project_version"]["id"] == version_a.id
+
+
+def test_issues_endpoint_scopes_same_target_by_selected_project_version(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    project = TargetProjectRegistry(store).register(ensure_demo_target_project(tmp_path / "target"), "mini-code-agent")
+    version_service = ProjectVersionService(store)
+    version_01 = version_service.create(
+        CreateProjectVersionInput(
+            target_project_id=project.id,
+            version_label="v0.1",
+            goal_title="mini-code-agent v0.1",
+            goal_north_star="Deliver v0.1.",
+        )
+    )
+    version_02 = version_service.create(
+        CreateProjectVersionInput(
+            target_project_id=project.id,
+            version_label="v0.2",
+            goal_title="mini-code-agent v0.2",
+            goal_north_star="Deliver v0.2.",
+        )
+    )
+    store.save_ticket(
+        BuildTicket(
+            id="ticket-v01",
+            key="MCA-001",
+            title="v0.1 issue",
+            description="Old version issue.",
+            source_type="manual_goal",
+            source_ref="v0.1",
+            status=TicketStatus.PLANNING,
+            metadata={
+                "target_project_id": project.id,
+                "project_version_id": version_01.id,
+                "target_version_label": "v0.1",
+                "issue_class": "mainline",
+                "root_ticket_key": "MCA-001",
+            },
+        )
+    )
+    store.save_ticket(
+        BuildTicket(
+            id="ticket-v02",
+            key="MCA-002",
+            title="v0.2 issue",
+            description="Current version issue.",
+            source_type="manual_goal",
+            source_ref="v0.2",
+            status=TicketStatus.PLANNING,
+            metadata={
+                "target_project_id": project.id,
+                "project_version_id": version_02.id,
+                "target_version_label": "v0.2",
+                "issue_class": "mainline",
+                "root_ticket_key": "MCA-002",
+            },
+        )
+    )
+    client = TestClient(create_app(tmp_path))
+
+    current_issues = client.get("/api/issues")
+    select_01 = client.post("/api/project-versions/select", json={"version_id": version_01.id})
+    selected_issues = client.get("/api/issues")
+
+    assert current_issues.status_code == 200, current_issues.text
+    assert [item["key"] for item in current_issues.json()["issues"]] == ["MCA-002"]
+    assert current_issues.json()["issues"][0]["project_version_id"] == version_02.id
+    assert select_01.status_code == 200, select_01.text
+    assert [item["key"] for item in selected_issues.json()["issues"]] == ["MCA-001"]
+    assert selected_issues.json()["issues"][0]["project_version_id"] == version_01.id
 
 
 def test_without_current_project_version_historical_tickets_are_not_mainline(tmp_path: Path) -> None:

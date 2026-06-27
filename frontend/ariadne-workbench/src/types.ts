@@ -469,6 +469,11 @@ export type BacklogChange = {
   sourceArtifactIds?: string[];
   buildContextId?: string | null;
   targetProjectId?: string | null;
+  projectVersionId?: string | null;
+  targetProjectLabel?: string | null;
+  targetProjectPath?: string | null;
+  targetRepoPath?: string | null;
+  targetProjectIdentity?: Record<string, unknown>;
   compilerProvenance?: Record<string, unknown>;
   codebaseSnapshotArtifactId?: string | null;
   codebaseSnapshotStatus?: string;
@@ -509,6 +514,11 @@ export type BacklogMutationPreview = {
   previewId?: string;
   triggerType?: string;
   appliedUpdateId?: string | null;
+  stale?: boolean;
+  staleReason?: string;
+  targetProjectId?: string | null;
+  projectVersionId?: string | null;
+  targetVersionLabel?: string | null;
 };
 
 export type SkillInfo = {

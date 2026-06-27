@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from hashlib import sha256
+from typing import Any
 
 from ariadne_ltb.application.build_context import IssueFactoryContext, assemble_issue_factory_context
 from ariadne_ltb.application.dtos import (
@@ -41,7 +42,7 @@ class IssueFactoryService:
         preview_id = stable_id("backlog_preview", idempotency_key)
         existing = self._load_existing(preview_id)
         if existing:
-            return backlog_preview_dto(existing)
+            return backlog_preview_dto(existing, current_ticket_fingerprint=fingerprint)
 
         operations = validate_issue_delta_operations(self._operations(goal.title, goal.north_star, context))
         preview = BacklogPreview(
@@ -58,13 +59,16 @@ class IssueFactoryService:
             evidence_refs=[goal.id, *context.manifest.evidence_ids],
         )
         self.store.save_backlog_preview(preview)
-        return backlog_preview_dto(preview)
+        return backlog_preview_dto(preview, current_ticket_fingerprint=fingerprint)
 
     def apply(self, preview_id: str) -> IssueFactoryApplyOutput:
         result = apply_backlog_preview(self.store, preview_id)
         update = result.update
         return IssueFactoryApplyOutput(
-            preview=backlog_preview_dto(result.preview),
+            preview=backlog_preview_dto(
+                result.preview,
+                current_ticket_fingerprint=ticket_backlog_fingerprint(self.store),
+            ),
             created_ticket_ids=update.created_ticket_ids if update else [],
             updated_ticket_ids=update.updated_ticket_ids if update else [],
             superseded_ticket_ids=update.superseded_ticket_ids if update else [],
@@ -105,11 +109,13 @@ class IssueFactoryService:
         prefix = _issue_prefix(self.store, context.manifest.target_project_id, title)
         next_index = _next_ticket_index(existing_keys, prefix)
         existing_by_title = {}
-        target_version_label = _target_version_label(self.store, context.manifest.target_project_id)
+        target_metadata = _target_version_metadata(self.store, context.manifest.target_project_id)
         for ticket in sorted(existing_tickets, key=lambda item: item.key):
             if not ticket.key.startswith(f"{prefix}-"):
                 continue
             if ticket.metadata.get("target_project_id") != context.manifest.target_project_id:
+                continue
+            if not _same_project_version(ticket.metadata, target_metadata):
                 continue
             existing_by_title.setdefault(ticket.title.strip().lower(), ticket)
         primary_source = context.sources[0] if context.sources else _synthetic_source(title, north_star)
@@ -151,7 +157,7 @@ class IssueFactoryService:
                         "origin": "issue_factory",
                         "root_ticket_key": ticket_key,
                         "change_intent": change_intent,
-                        "target_version_label": target_version_label,
+                        **target_metadata,
                         "existing_ticket_key": existing_ticket.key if existing_ticket else None,
                         "after_summary": task.reason,
                         "confidence": 0.75,
@@ -298,15 +304,83 @@ def _prefix_from_label(value: str) -> str:
     return (letters or "PRJ")[:4]
 
 
-def _target_version_label(store: AriadneStore, target_project_id: str) -> str:
-    versions = ProjectVersionService(store).list()
+def _target_version_metadata(store: AriadneStore, target_project_id: str) -> dict[str, Any]:
     current = ProjectVersionService(store).current()
-    if current and current.target_project_id == target_project_id:
-        return current.version_label
-    for version in versions:
-        if version.target_project_id == target_project_id:
-            return version.version_label
-    return "current"
+    versions = ProjectVersionService(store).list()
+    version = current if current and current.target_project_id == target_project_id else None
+    if version is None:
+        version = next((item for item in versions if item.target_project_id == target_project_id), None)
+    target_project = version.target_project if version and version.target_project else None
+    if target_project is None:
+        target_project = next(
+            (
+                project
+                for project in ProjectVersionService(store).list()
+                if project.target_project_id == target_project_id and project.target_project
+            ),
+            None,
+        )
+        target_project = target_project.target_project if target_project else None
+    target_path = target_project.local_path if target_project else _target_project_path(store, target_project_id)
+    target_label = (
+        target_project.label
+        if target_project
+        else _target_project_label(store, target_project_id)
+    )
+    target_version_label = version.version_label if version else "current"
+    project_version_id = version.id if version else None
+    identity = {
+        "project_id": target_project_id,
+        "project_version_id": project_version_id,
+        "version_label": target_version_label,
+        "label": target_label,
+        "path": target_path,
+    }
+    metadata: dict[str, Any] = {
+        "project_version_id": project_version_id,
+        "target_version_label": target_version_label,
+        "target_project_label": target_label,
+        "target_project_path": target_path,
+        "target_repo_path": target_path,
+        "target_project_identity": identity,
+    }
+    if target_project:
+        metadata["test_command"] = target_project.test_command
+        metadata["issue_prefix"] = target_project.issue_prefix
+    return metadata
+
+
+def _same_project_version(ticket_metadata: dict[str, Any], target_metadata: dict[str, Any]) -> bool:
+    target_version_id = target_metadata.get("project_version_id")
+    ticket_version_id = ticket_metadata.get("project_version_id")
+    if target_version_id:
+        if ticket_version_id:
+            return ticket_version_id == target_version_id
+        target_version_label = target_metadata.get("target_version_label")
+        ticket_version_label = ticket_metadata.get("target_version_label")
+        if target_version_label and ticket_version_label:
+            return ticket_version_label == target_version_label
+        return False
+    target_version_label = target_metadata.get("target_version_label")
+    ticket_version_label = ticket_metadata.get("target_version_label")
+    if target_version_label and ticket_version_label:
+        return ticket_version_label == target_version_label
+    return not ticket_version_id and not ticket_version_label
+
+
+def _target_project_path(store: AriadneStore, target_project_id: str) -> str | None:
+    for resource in store.load_project_resources():
+        if resource.id == target_project_id:
+            path = resource.resource_ref.get("local_path")
+            return str(path) if path else None
+    return None
+
+
+def _target_project_label(store: AriadneStore, target_project_id: str) -> str | None:
+    for resource in store.load_project_resources():
+        if resource.id == target_project_id:
+            return resource.label or str(resource.resource_ref.get("label") or target_project_id)
+    return None
 
 
 def _source_for_task(

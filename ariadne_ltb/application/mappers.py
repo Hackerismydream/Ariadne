@@ -445,6 +445,11 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
         source_artifact_ids=[str(item) for item in operation.metadata.get("source_artifact_ids", [])],
         build_context_id=operation.metadata.get("build_context_id"),
         target_project_id=operation.metadata.get("target_project_id"),
+        project_version_id=operation.metadata.get("project_version_id"),
+        target_project_label=operation.metadata.get("target_project_label"),
+        target_project_path=operation.metadata.get("target_project_path"),
+        target_repo_path=operation.metadata.get("target_repo_path"),
+        target_project_identity=_metadata_dict(operation.metadata, "target_project_identity"),
         compiler_provenance=operation.metadata.get("compiler_provenance", {}),
         codebase_snapshot_artifact_id=operation.metadata.get("codebase_snapshot_artifact_id"),
         codebase_snapshot_status=str(operation.metadata.get("codebase_snapshot_status") or "missing"),
@@ -482,6 +487,11 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
                 "acceptance_criteria",
                 "goal_reason",
                 "target_project_id",
+                "project_version_id",
+                "target_project_label",
+                "target_project_path",
+                "target_repo_path",
+                "target_project_identity",
                 "risks",
                 "assumptions",
                 "test_command",
@@ -498,8 +508,16 @@ def backlog_operation_dto(operation: BacklogOperation) -> BacklogOperationDTO:
     )
 
 
-def backlog_preview_dto(preview: BacklogPreview) -> BacklogPreviewDTO:
+def backlog_preview_dto(
+    preview: BacklogPreview,
+    current_ticket_fingerprint: str | None = None,
+) -> BacklogPreviewDTO:
     first_metadata = preview.operations[0].metadata if preview.operations else {}
+    stale = bool(
+        current_ticket_fingerprint
+        and not preview.applied_update_id
+        and current_ticket_fingerprint != preview.base_ticket_fingerprint
+    )
     return BacklogPreviewDTO(
         id=preview.id,
         trigger_type=preview.trigger_type.value,
@@ -516,9 +534,21 @@ def backlog_preview_dto(preview: BacklogPreview) -> BacklogPreviewDTO:
         source_document_ids=[str(item) for item in first_metadata.get("source_document_ids", [])],
         source_artifact_ids=[str(item) for item in first_metadata.get("source_artifact_ids", [])],
         target_project_id=first_metadata.get("target_project_id"),
+        project_version_id=first_metadata.get("project_version_id"),
+        target_project_label=first_metadata.get("target_project_label"),
+        target_project_path=first_metadata.get("target_project_path"),
+        target_repo_path=first_metadata.get("target_repo_path"),
+        target_project_identity=_metadata_dict(first_metadata, "target_project_identity"),
         compiler_provenance=first_metadata.get("compiler_provenance", {}),
         codebase_snapshot_artifact_id=first_metadata.get("codebase_snapshot_artifact_id"),
         codebase_snapshot_status=str(first_metadata.get("codebase_snapshot_status") or "missing"),
         codebase_snapshot_reason=first_metadata.get("codebase_snapshot_reason"),
         target_version_label=first_metadata.get("target_version_label"),
+        stale=stale,
+        stale_reason="ticket_backlog_changed" if stale else "",
     )
+
+
+def _metadata_dict(metadata: dict[str, object], key: str) -> dict[str, object]:
+    value = metadata.get(key)
+    return dict(value) if isinstance(value, dict) else {}

@@ -70,6 +70,14 @@ class WorkbenchIssuesService:
             body=ticket.description,
             acceptance_criteria=self._acceptance_criteria(ticket),
             affected_modules=self._affected_modules(ticket),
+            target_project_identity=self._metadata_dict(ticket, "target_project_identity"),
+            compiler_provenance=self._metadata_dict(ticket, "compiler_provenance"),
+            codebase_snapshot_artifact_id=self._metadata_str(ticket, "codebase_snapshot_artifact_id"),
+            codebase_snapshot_status=self._metadata_str(ticket, "codebase_snapshot_status") or "missing",
+            codebase_snapshot_reason=self._metadata_str(ticket, "codebase_snapshot_reason"),
+            source_claim_trace=self._metadata_dict_list(ticket, "source_claim_trace"),
+            affected_module_rationale=self._metadata_str(ticket, "affected_module_rationale") or "",
+            acceptance_criteria_rationale=self._metadata_str(ticket, "acceptance_criteria_rationale") or "",
             comments=[comment_dto(comment) for comment in self.store.list_comments(ticket.id)],
             timeline=self._timeline(ticket),
             assignments=[assignment_dto(assignment) for assignment in assignments],
@@ -232,6 +240,7 @@ class WorkbenchIssuesService:
             int(context["execution_counts"].get(ticket.id, 0))
             + int(context["review_counts"].get(ticket.id, 0))
             + len(ticket.artifact_ids)
+            + len(self._metadata_list(ticket, "evidence_refs"))
             if context
             else self._evidence_count(ticket)
         )
@@ -248,8 +257,17 @@ class WorkbenchIssuesService:
             status=ticket.status.value,
             priority=ticket.priority,
             assignee=effective_assignment.agent_name if effective_assignment else ticket.owner_agent,
-            project=ticket.metadata.get("target_project_id"),
-            target_version=target_version,
+            project=self._metadata_str(ticket, "target_project_id"),
+            target_project_id=self._metadata_str(ticket, "target_project_id"),
+            project_version_id=self._metadata_str(ticket, "project_version_id"),
+            target_project_label=self._metadata_str(ticket, "target_project_label"),
+            target_project_path=self._metadata_str(ticket, "target_project_path"),
+            target_repo_path=self._metadata_str(ticket, "target_repo_path"),
+            target_version=self._metadata_str(ticket, "target_version_label") or target_version,
+            build_context_id=self._metadata_str(ticket, "build_context_id"),
+            source_document_ids=self._metadata_list(ticket, "source_document_ids"),
+            source_artifact_ids=self._metadata_list(ticket, "source_artifact_ids"),
+            source_evidence_refs=self._metadata_list(ticket, "evidence_refs"),
             source_count=len(self._source_links(ticket)),
             evidence_count=evidence_count,
             last_run_status=truth.terminal_verdict,
@@ -263,6 +281,28 @@ class WorkbenchIssuesService:
             ),
             updated_at=ticket.updated_at or ticket.created_at,
         )
+
+    def _metadata_str(self, ticket: BuildTicket, key: str) -> str | None:
+        value = ticket.metadata.get(key)
+        return str(value) if value is not None and str(value).strip() else None
+
+    def _metadata_list(self, ticket: BuildTicket, key: str) -> list[str]:
+        value = ticket.metadata.get(key)
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item).strip()]
+        if value is None:
+            return []
+        return [str(value)] if str(value).strip() else []
+
+    def _metadata_dict(self, ticket: BuildTicket, key: str) -> dict[str, object]:
+        value = ticket.metadata.get(key)
+        return dict(value) if isinstance(value, dict) else {}
+
+    def _metadata_dict_list(self, ticket: BuildTicket, key: str) -> list[dict[str, object]]:
+        value = ticket.metadata.get(key)
+        if not isinstance(value, list):
+            return []
+        return [dict(item) for item in value if isinstance(item, dict)]
 
     def _latest_assignment(self, ticket: BuildTicket) -> TicketAssignment | None:
         return self.store.find_latest_assignment_for_ticket(ticket.id)
@@ -401,12 +441,13 @@ class WorkbenchIssuesService:
 
     def _source_links(self, ticket: BuildTicket) -> list[str]:
         links = [ticket.source_ref] if ticket.source_ref else []
-        for key in ["source_document_id", "source_id", "source_artifact_id"]:
+        for key in ["source_document_id", "source_id", "source_artifact_id", "build_context_id"]:
             value = ticket.metadata.get(key)
             if value:
                 links.append(str(value))
-        for value in ticket.metadata.get("source_artifact_ids", []) or []:
-            links.append(str(value))
+        for key in ["source_document_ids", "source_artifact_ids", "evidence_refs"]:
+            for value in ticket.metadata.get(key, []) or []:
+                links.append(str(value))
         return sorted(set(links))
 
     def _acceptance_criteria(self, ticket: BuildTicket) -> list[str]:
@@ -436,6 +477,7 @@ class WorkbenchIssuesService:
             len(self._executions(ticket))
             + len([report for report in self.store.list_review_reports() if report.ticket_id == ticket.id])
             + len(self.store.list_artifacts_for_ticket(ticket.id))
+            + len(self._metadata_list(ticket, "evidence_refs"))
         )
 
     def _blocked_reason(

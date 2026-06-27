@@ -32,6 +32,7 @@ export function IssueCard({ issue, onOpen }: { issue: ApiIssueListItem; onOpen: 
       <strong>{issue.title}</strong>
       <div className="phase3-card-meta">
         <span>{issue.assignee ?? "Unassigned"}</span>
+        <span>{issue.target_version ?? "current version"}</span>
         <span>{statusLabel(issue.last_run_status)}</span>
         <span>{issue.evidence_count} evidence</span>
       </div>
