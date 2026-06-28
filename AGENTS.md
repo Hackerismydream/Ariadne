@@ -3,19 +3,24 @@
 ## 执行前必读（按顺序，不允许跳过）
 
 1. `README.md` — 产品定义和当前状态
-2. `docs/adr/ADR-0004-ticket-centered-agent-workbench.md` — 架构决策
-3. `docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md` — 核心循环
-4. `docs/superpowers/plans/2026-06-26-project-version-delivery-closure-phase.md` — **当前执行计划**
-5. `docs/reviews/grill-workflows/results/2026-06-24-final-41-grill-list.md` — 历史问题清单（参考）
-6. `docs/architecture/multica_downstream_parity_matrix.md` — Multica 对照矩阵
+2. `CONTEXT.md` — 当前闭环 campaign 的领域词汇和不可变决策
+3. `docs/adr/ADR-0004-ticket-centered-agent-workbench.md` — 架构决策
+4. `docs/architecture/ARIADNE_TICKET_CENTERED_ARCHITECTURE.md` — 核心循环
+5. `docs/superpowers/plans/2026-06-26-project-version-delivery-closure-phase.md` — Project Version Delivery 计划
+6. `docs/goals/2026-06-28-project-version-delivery-real-closure-goal.md` — **当前执行 goal**
+7. `docs/architecture/project-version-delivery-closure-ledger.md` — 最终闭环证据 schema
+8. `docs/runbooks/project-version-dogfood-browser-acceptance.md` — 浏览器 dogfood 验收步骤
+9. `docs/reviews/grill-workflows/results/2026-06-24-final-41-grill-list.md` — 历史问题清单（参考）
+10. `docs/architecture/multica_downstream_parity_matrix.md` — Multica 对照矩阵
 
 ## 当前执行阶段
 
-**Project Version Delivery Closure Phase**
+**Project Version Delivery Real Closure Campaign**
 
-计划文件：
+计划和 goal 文件：
 ```text
 docs/superpowers/plans/2026-06-26-project-version-delivery-closure-phase.md
+docs/goals/2026-06-28-project-version-delivery-real-closure-goal.md
 ```
 
 当前目标：
@@ -34,16 +39,24 @@ Browser Workbench
 
 执行节奏：
 ```text
-Slice 1 Workbench-first project entry
-→ Slice 2 Source-to-Issue target project compiler
-→ Slice 3 Issue-to-Agent scoped execution
-→ Slice 4 Real backend attempt
-→ Slice 5 Closure evidence
+land #50 / close #42
+→ repair scripts/verify_dogfood_browser.sh --real if stale
+→ #43 real Codex / Claude modifies target repo
+→ #44 review / inbox / memory / next issues / closure-result
+→ browser verifier writes status REAL_CLOSED
 ```
 
 已完成的 Multica Downstream Parity Phase 只证明下层 agent work-management
 skeleton。后续不能再把“有页面 / 有 API / 有投影 / blocked rehearsal”当成产品闭环。
-当前唯一产品闭环是浏览器里的 Project Version Delivery。
+当前唯一产品闭环是浏览器里的 Project Version Delivery，并且本 campaign 要求真实
+Codex / Claude 成功修改 dogfood target repo：
+
+```text
+/Users/martinlos/code/ariadne-dogfood/mini-code-agent
+```
+
+真实尝试但没有改动目标 repo 不算完成。外部执行 blocker 只能停止 goal 并等待 owner
+处理，不能作为本 campaign 的完成状态。
 
 ## 三锚点方法（每个 phase 实施前必须完成）
 
@@ -65,7 +78,9 @@ skeleton。后续不能再把“有页面 / 有 API / 有投影 / blocked rehear
 6. **No mock product data:** 产品代码、Workbench、API projection、agent/runtime/orchestrator 不允许使用 mock / fixture / sample / static fallback 数据。所有产品数据必须来自真实用户输入、外部 source、目标代码库扫描、agent run、review、memory、或 `.ariadne` 持久化 store
 7. **Three anchors before code:** 每个 phase 写代码前必须完成 CDP 观察 + 源码对照 + 实现映射。不允许跳过锚点直接实现
 8. **Workbench-first acceptance:** CLI 只用于本地运维、调试、自动化和 fallback。产品验收必须通过浏览器 Workbench 链路完成
-9. **Project version closure:** 任何不能推进 current project/version issue set 走向真实 Codex/Claude attempt 的工作，都不是当前阶段产品进展
+9. **Project version closure:** 任何不能推进 current project/version issue set 走向真实 Codex/Claude target-repo code modification 的工作，都不是当前阶段产品进展
+10. **Real closure required:** 当前 campaign 只能以 `REAL_CLOSED` 完成；`BLOCKED_WITH_EVIDENCE` 是停止原因，不是完成状态
+11. **Merge Gate required:** Codex 可以自动 merge 通过 gate 的 PR；gate 规则见 `CONTEXT.md`
 
 ## 偏移检测
 
@@ -86,6 +101,9 @@ skeleton。后续不能再把“有页面 / 有 API / 有投影 / blocked rehear
 - 用 mini-code-agent 或其他 dogfood 专用模板冒充通用 source-to-issue 能力
 - daemon 抢跑旧 assignment，或用户无法明确控制当前 issue 的 assignment/run
 - 没有真实 Codex/Claude attempt，却声称目标项目版本已推进
+- 真实 Codex/Claude 只尝试但未修改 dogfood target repo，却声称 campaign 完成
+- 用 `BLOCKED_WITH_EVIDENCE` 作为当前 campaign 成功状态
+- `scripts/verify_dogfood_browser.sh --real` selector 过期却把它记为外部 blocker
 - 引入 Go/Postgres/auth/workspace/billing
 - **跳过 CDP 观察直接写 UI 代码**
 - **跳过源码对照直接设计数据模型**
@@ -120,11 +138,12 @@ skeleton。后续不能再把“有页面 / 有 API / 有投影 / blocked rehear
 3. `cd frontend/ariadne-workbench && npm run build` — 前端受影响时必须通过
 4. 每个 phase 必须有浏览器 evidence
 5. 不得依赖 fake-codex、demo full、mock data、static fixture、CLI-only path
-6. 如果真实 Codex/Claude 执行被环境阻塞，必须显示为 `BLOCKED_WITH_EVIDENCE`，不得声称闭环
+6. 如果真实 Codex/Claude 执行被环境阻塞，必须停止 goal 并报告 owner；不得声称 campaign 完成
 7. `scripts/verify_dogfood_browser.sh --real` 是唯一产品闭环验收入口
-8. `BLOCKED_WITH_EVIDENCE` 只能来自外部状态：CLI 不可用、未登录、quota、执行门禁、target repo 权限或 git 状态
+8. 当前 campaign 最终必须是 `REAL_CLOSED`；`BLOCKED_WITH_EVIDENCE` 只能解释停止原因，且只能来自外部状态：CLI 不可用、未登录、quota、执行门禁、target repo 权限或 git 状态
 9. 系统内部没实现、按钮没 action、source 没分析、issue 没生成、handoff 为空、evidence 没回流，都不能记为外部 blocker
 10. parity matrix 中对应行的 "Browser Acceptance" 列必须全部通过
+11. closure ledger 必须符合 `docs/architecture/project-version-delivery-closure-ledger.md`
 
 ## Multica 参考说明
 
