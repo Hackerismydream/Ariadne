@@ -29,7 +29,7 @@ def build_current_version_delivery(store: AriadneStore) -> ProjectVersionDeliver
     delivery_tickets = current_version_mainline_tickets(store, target_project_id)
     items = [_delivery_item(store, ticket) for ticket in sorted(delivery_tickets, key=lambda item: item.key)]
     latest_real_run = _latest_real_run(store, items)
-    closure = product_closure_snapshot(store)
+    closure = product_closure_snapshot(store, project_version_id=current_version.id)
     gates = _gates(store, items, latest_real_run, closure)
     status = _status(gates, latest_real_run, items, closure)
     blockers = [gate.detail for gate in gates if gate.status == "blocked" and gate.detail]

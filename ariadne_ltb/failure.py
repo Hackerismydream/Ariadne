@@ -18,6 +18,7 @@ from ariadne_ltb.storage import AriadneStore
 SAFE_RETRY_FAILURE_REASONS = {
     FailureReason.RUNTIME_OFFLINE,
     FailureReason.TIMEOUT,
+    FailureReason.PROVIDER_TRANSPORT_ERROR,
     FailureReason.COMMAND_UNAVAILABLE,
     FailureReason.REVIEW_FAILED,
 }

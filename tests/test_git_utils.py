@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ariadne_ltb.git_utils import changed_files, run_git
+from ariadne_ltb.git_utils import changed_files, git_diff, run_git
 
 
 def test_changed_files_expands_untracked_directories_to_files(tmp_path: Path) -> None:
@@ -19,3 +19,7 @@ def test_changed_files_expands_untracked_directories_to_files(tmp_path: Path) ->
     (tmp_path / "mini_code_agent" / "__pycache__" / "cli.cpython-311.pyc").write_bytes(b"cache")
 
     assert changed_files(tmp_path) == ["mini_code_agent/cli.py"]
+    diff = git_diff(tmp_path)
+    assert "diff --git a/mini_code_agent/cli.py b/mini_code_agent/cli.py" in diff
+    assert "+print('ok')" in diff
+    assert "__pycache__" not in diff

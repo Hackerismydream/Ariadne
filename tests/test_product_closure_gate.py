@@ -52,6 +52,91 @@ def test_verify_dogfood_result_packet_rejects_fake_real_closed(tmp_path: Path) -
     assert "fake-codex" in result.stderr
 
 
+def test_verify_dogfood_result_packet_accepts_real_execution_log_with_dry_run_false(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / ".git").mkdir()
+    packet = tmp_path / "closure-result.json"
+    packet.write_text(
+        json.dumps(
+            {
+                "schema_version": "ariadne.browser_dogfood_closure.v1",
+                "status": "REAL_CLOSED",
+                "mode": "real",
+                "target_path": str(target),
+                "workbench_url": "http://127.0.0.1:8766/#issues/MCA-274",
+                "execution_evidence_text": (
+                    "codex\n"
+                    "exit 0\n"
+                    "tests 0\n"
+                    "Diff artifact: /tmp/git_diff.patch\n"
+                    "mini_code_agent/core/loop.py\n"
+                    "Review report: pass\n"
+                    "Memory record\n"
+                    "Next tickets artifact\n"
+                    '"dry_run": false\n'
+                    '"blocked": false\n'
+                ),
+                "recorded_at": "2026-06-28T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "verify_dogfood_result_packet.py"), str(packet)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_verify_dogfood_result_packet_rejects_dry_run_true_real_closed(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / ".git").mkdir()
+    packet = tmp_path / "closure-result.json"
+    packet.write_text(
+        json.dumps(
+            {
+                "schema_version": "ariadne.browser_dogfood_closure.v1",
+                "status": "REAL_CLOSED",
+                "mode": "real",
+                "target_path": str(target),
+                "workbench_url": "http://127.0.0.1:8766/#issues/MCA-274",
+                "execution_evidence_text": (
+                    "codex\n"
+                    "exit 0\n"
+                    "tests 0\n"
+                    "Diff artifact: /tmp/git_diff.patch\n"
+                    "mini_code_agent/core/loop.py\n"
+                    "Review report: pass\n"
+                    "Memory record\n"
+                    "Next tickets artifact\n"
+                    '"dry_run": true\n'
+                ),
+                "recorded_at": "2026-06-28T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "verify_dogfood_result_packet.py"), str(packet)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "dogfood closure rejected: OFFLINE_REGRESSION" in result.stderr
+    assert "dry_run" in result.stderr
+
+
 def test_product_closure_snapshot_marks_fake_execution_offline_regression(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     store.save_execution_result(
@@ -116,3 +201,48 @@ def test_closure_packet_mode_blocked_is_diagnostic_not_real_closed(tmp_path: Pat
     assert snapshot["status"] == BLOCKED_WITH_EVIDENCE
     assert snapshot["mode"] == "blocked_diagnostic"
     assert "blocked before REAL_CLOSED" in snapshot["reason"]
+
+
+def test_product_closure_snapshot_scopes_packets_to_project_version(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / ".git").mkdir()
+    older = store.root / ".ariadne" / "dogfood" / "browser-old"
+    newer = store.root / ".ariadne" / "dogfood" / "browser-new"
+    older.mkdir(parents=True)
+    newer.mkdir(parents=True)
+    (older / "current-blocker.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ariadne.browser_dogfood_blocker.v1",
+                "project": {"project_version_id": "project_version_old"},
+                "error": "old version blocked",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (newer / "closure-result.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ariadne.project_version_closure.v1",
+                "status": "REAL_CLOSED",
+                "mode": "real",
+                "workbench_url": "http://127.0.0.1:8766/#issues/MCA-321",
+                "target_repo": {"path": str(target)},
+                "project": {"project_version_id": "project_version_current"},
+                "execution_evidence_text": "codex exit 0 tests 0 review pass changed mini_code_agent/core/loop.py",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    current = product_closure_snapshot(store, project_version_id="project_version_current")
+    missing = product_closure_snapshot(store, project_version_id="project_version_missing")
+
+    assert current["status"] == "REAL_CLOSED"
+    assert current["packet_path"] == str(newer / "closure-result.json")
+    assert missing["status"] == NOT_CLOSED
+    assert "old version blocked" not in missing["reason"]

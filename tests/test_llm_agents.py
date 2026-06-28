@@ -12,6 +12,7 @@ from ariadne_ltb.llm import DeepSeekClient
 from ariadne_ltb.llm_agents import JSONLLMAgent, LLMAgentRole, run_ticket_llm_agent
 from ariadne_ltb.llm_proof import run_llm_proof_sequence
 from ariadne_ltb.models import AgentRunStatus, ArtifactType, ExecutionResult, MemoryRecord
+from ariadne_ltb.orchestrator import _llm_role_failure_can_fallback
 from ariadne_ltb.storage import AriadneStore
 
 
@@ -118,6 +119,16 @@ def test_json_llm_agent_redacts_errors(monkeypatch, tmp_path: Path) -> None:
     assert result.succeeded is False
     assert result.error
     assert "test-secret-key" not in result.error
+
+
+def test_orchestrator_llm_role_fallback_allows_transient_transport_errors() -> None:
+    assert _llm_role_failure_can_fallback(
+        "DeepSeek transport_error: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred>"
+    )
+    assert _llm_role_failure_can_fallback("DeepSeek request timeout while reading response")
+    assert _llm_role_failure_can_fallback("IncompleteRead(0 bytes read)")
+    assert not _llm_role_failure_can_fallback("DeepSeek authentication failed for API key")
+    assert not _llm_role_failure_can_fallback("DeepSeek rate limit quota exceeded")
 
 
 def test_ticket_llm_agent_persists_run_artifact_and_ticket_event(monkeypatch, tmp_path: Path) -> None:

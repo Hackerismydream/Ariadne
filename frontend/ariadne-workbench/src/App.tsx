@@ -543,7 +543,7 @@ function GoalPage({
         action={<button className="outline-button" type="button" onClick={() => { globalThis.location.hash = "sources"; }}>添加 Sources</button>}
       />
       <div className="goal-layout">
-        <section className="panel wide">
+        <section className="panel wide" data-testid="project-version-form">
           <h2>创建或选择当前 Project Version</h2>
           <div className="form-grid">
             <label>
@@ -566,7 +566,7 @@ function GoalPage({
             </button>
             <label>
               <span>Target repo 来源</span>
-              <select value={targetMode} disabled={dataSource !== "api"} onChange={(event) => setTargetMode(event.target.value as "new" | "existing")}>
+              <select data-testid="project-version-target-mode" value={targetMode} disabled={dataSource !== "api"} onChange={(event) => setTargetMode(event.target.value as "new" | "existing")}>
                 <option value="new">注册或初始化 target repo</option>
                 <option value="existing">使用已注册 target repo</option>
               </select>
@@ -587,6 +587,7 @@ function GoalPage({
             <label>
               <span>Target repo path</span>
               <input
+                data-testid="project-version-target-path"
                 disabled={dataSource !== "api" || targetMode === "existing"}
                 placeholder="/Users/you/code/mini-code-agent"
                 value={projectPath}
@@ -596,6 +597,7 @@ function GoalPage({
             <label>
               <span>Target repo label</span>
               <input
+                data-testid="project-version-target-label"
                 disabled={dataSource !== "api" || targetMode === "existing"}
                 placeholder="mini-code-agent"
                 value={projectLabel}
@@ -605,6 +607,7 @@ function GoalPage({
             <label>
               <span>测试命令</span>
               <input
+                data-testid="project-version-test-command"
                 disabled={dataSource !== "api"}
                 placeholder="python3.11 -m pytest"
                 value={testCommand}
@@ -614,6 +617,7 @@ function GoalPage({
             <label>
               <span>Issue 前缀</span>
               <input
+                data-testid="project-version-issue-prefix"
                 disabled={dataSource !== "api"}
                 placeholder="MCA"
                 value={issuePrefix}
@@ -623,6 +627,7 @@ function GoalPage({
             <label>
               <span>Target Version</span>
               <input
+                data-testid="project-version-target-version"
                 disabled={dataSource !== "api"}
                 placeholder="v0.1"
                 value={versionLabel}
@@ -652,6 +657,7 @@ function GoalPage({
             <label>
               <span>v0.1 goal</span>
               <textarea
+                data-testid="project-version-goal"
                 disabled={dataSource !== "api"}
                 placeholder="mini-code-agent accepts a local repo and task, runs a safe coding step, captures trajectory/diff/tests, and exposes reviewable evidence."
                 value={versionGoal}
@@ -661,12 +667,14 @@ function GoalPage({
             <label>
               <span>目标态</span>
               <textarea
+                data-testid="project-version-target-state"
                 disabled={dataSource !== "api"}
                 value={targetState}
                 onChange={(event) => setTargetState(event.target.value)}
               />
             </label>
             <button
+              data-testid="project-version-create"
               disabled={dataSource !== "api" || isSavingVersion || !versionGoal.trim()}
               type="button"
               onClick={() => void saveProjectVersion(false)}

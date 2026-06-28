@@ -14,6 +14,7 @@ from ariadne_ltb.application.mappers import (
     source_artifact_dto,
     source_document_dto,
     source_evidence_dto,
+    source_linked_ticket_counts,
     ticket_summary,
 )
 from ariadne_ltb.application.project_inputs import build_project_inputs
@@ -59,11 +60,16 @@ class WorkbenchProjectionService:
             for activity in agent_activities
             if activity.ticket_id in current_ticket_ids or activity.ticket_key in current_ticket_keys
         ]
+        sources = self.store.list_source_documents()
+        source_linked_counts = source_linked_ticket_counts(self.store)
         return WorkbenchDTO(
             goals=ProjectGoalService(self.store).list(),
             project_versions=project_versions.list(),
             current_project_version=current_project_version,
-            sources=[source_document_dto(self.store, source) for source in self.store.list_source_documents()],
+            sources=[
+                source_document_dto(self.store, source, linked_count=source_linked_counts.get(source.id, 0))
+                for source in sources
+            ],
             source_artifacts=[
                 source_artifact_dto(artifact)
                 for artifact in self.store.list_source_artifacts()
@@ -104,7 +110,7 @@ class WorkbenchProjectionService:
 def _current_backlog_previews(store: AriadneStore, target_project_id: str | None):
     previews = store.list_backlog_previews()
     if not target_project_id:
-        return previews
+        return _sort_previews_by_time(previews)
     scoped = []
     for preview in previews:
         operation_targets = {
@@ -114,4 +120,8 @@ def _current_backlog_previews(store: AriadneStore, target_project_id: str | None
         }
         if target_project_id in operation_targets:
             scoped.append(preview)
-    return scoped
+    return _sort_previews_by_time(scoped)
+
+
+def _sort_previews_by_time(previews):
+    return sorted(previews, key=lambda preview: preview.applied_at or preview.created_at)

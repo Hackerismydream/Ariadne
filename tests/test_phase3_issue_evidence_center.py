@@ -281,6 +281,32 @@ def test_issue_evidence_detail_endpoint_opens_readable_content(tmp_path: Path) -
     assert "Source claim" in payload["content_excerpt"]
 
 
+def test_issue_evidence_projects_next_tickets_artifact_without_ticket_metadata(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    ticket = _seed_issue_with_evidence(store)
+    next_artifact = store.write_artifact(
+        ticket.id,
+        "run-phase3",
+        ArtifactType.NEXT_TICKETS,
+        "next_tickets.json",
+        '{"next_tickets":[{"title":"Follow up"}]}\n',
+        "Generated next Build Ticket suggestions.",
+    )
+    client = TestClient(create_app(tmp_path))
+
+    response = client.get(f"/api/issues/{ticket.key}")
+
+    assert response.status_code == 200, response.text
+    sections = {section["category"]: section for section in response.json()["issue"]["evidence_sections"]}
+    next_ticket_items = sections["next_ticket"]["items"]
+    assert any(
+        item["ref_type"] == "next_tickets_artifact"
+        and item["ref_id"] == next_artifact.id
+        and item["path_or_url"].endswith("next_tickets.json")
+        for item in next_ticket_items
+    )
+
+
 def test_issue_evidence_reader_bounds_large_artifacts_and_blocks_outside_store(tmp_path: Path) -> None:
     store = AriadneStore(tmp_path)
     ticket = _seed_issue_with_evidence(store)

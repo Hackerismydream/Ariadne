@@ -107,8 +107,13 @@ class DirectoryLock:
         try:
             fd = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError as exc:
-            msg = f"target directory is locked: {self.target_path}"
-            raise RuntimeError(msg) from exc
+            existing = _read_lock(self.lock_path)
+            if is_stale_lock(existing):
+                self.lock_path.unlink(missing_ok=True)
+                fd = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            else:
+                msg = f"target directory is locked: {self.target_path}"
+                raise RuntimeError(msg) from exc
         metadata = {
             "pid": os.getpid(),
             "runtime_id": self.runtime_id,
@@ -150,6 +155,8 @@ def list_locks(store: AriadneStore, stale_after_seconds: int = 3600) -> list[Loc
 
 
 def is_stale_lock(info: LockInfo, stale_after_seconds: int = 3600) -> bool:
+    if info.pid is not None and not _pid_is_alive(info.pid):
+        return True
     if not info.heartbeat_at:
         return True
     try:
@@ -157,6 +164,18 @@ def is_stale_lock(info: LockInfo, stale_after_seconds: int = 3600) -> bool:
     except ValueError:
         return True
     return (datetime.now(UTC) - heartbeat).total_seconds() > stale_after_seconds
+
+
+def _pid_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def clear_stale_locks(store: AriadneStore, force: bool = False) -> list[LockInfo]:

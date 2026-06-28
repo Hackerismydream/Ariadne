@@ -15,6 +15,7 @@ from ariadne_ltb.models import (
     CommentKind,
     DaemonStatus,
     FailureReason,
+    ReviewVerdict,
     TicketAssignment,
     WorkerHeartbeat,
     utc_now,
@@ -175,7 +176,7 @@ class LocalDaemonWorker:
                 llm_agent_client=llm_agent_client,
                 confirm_execution=confirm_execution,
                 isolate_worktree=isolate_worktree,
-                timeout_seconds=timeout_seconds or 60,
+                timeout_seconds=timeout_seconds or 600,
             )
         except Exception as exc:  # pragma: no cover - defensive, tested through blocked result path
             failure = record_assignment_failure(
@@ -320,6 +321,36 @@ class LocalDaemonWorker:
             if not heartbeat_stale and not is_assignment_lease_expired(assignment):
                 continue
             ticket = self.store.load_ticket(assignment.ticket_id)
+            finalized = self._finalize_stale_successful_assignment(assignment)
+            if finalized is not None:
+                self.store.save_assignment(finalized)
+                event = runtime_event(
+                    ticket,
+                    self.runtime_id,
+                    "recovery",
+                    "orphan_finalized",
+                    "Ariadne",
+                    assignment_id=finalized.id,
+                    payload_ref=finalized.id,
+                    metadata={
+                        "previous_status": assignment.status.value,
+                        "previous_runtime_id": assignment.claimed_by_runtime_id,
+                        "execution_result_id": finalized.metadata.get("execution_result_id"),
+                        "review_report_id": finalized.metadata.get("review_report_id"),
+                    },
+                )
+                self.store.append_runtime_event(event)
+                self.store.add_comment(
+                    ticket,
+                    CommentAuthorType.SYSTEM,
+                    "Ariadne",
+                    CommentKind.RECOVERY,
+                    f"Finalized stale assignment {assignment.id}; successful execution evidence already exists.",
+                    payload_ref=finalized.id,
+                    thread_id=finalized.id,
+                )
+                recovered += 1
+                continue
             requeued = assignment.requeue("Stale heartbeat - orphan recovery")
             self.store.save_assignment(requeued)
             event = runtime_event(
@@ -350,6 +381,40 @@ class LocalDaemonWorker:
             )
             recovered += 1
         return recovered
+
+    def _finalize_stale_successful_assignment(self, assignment: TicketAssignment) -> TicketAssignment | None:
+        executions = [
+            execution
+            for execution in self.store.list_execution_results()
+            if execution.ticket_id == assignment.ticket_id
+            and _timestamp_after_or_equal(execution.ended_at or execution.started_at, assignment.started_at)
+        ]
+        reviews = [
+            review
+            for review in self.store.list_review_reports()
+            if review.ticket_id == assignment.ticket_id
+            and _timestamp_after_or_equal(review.created_at, assignment.started_at)
+        ]
+        if not executions or not reviews:
+            return None
+        execution = max(executions, key=lambda item: item.ended_at or item.started_at or "")
+        review = max(reviews, key=lambda item: item.created_at)
+        if execution.blocked:
+            return None
+        if execution.exit_code != 0 or execution.test_exit_code not in {0, None}:
+            return None
+        if not execution.changed_files:
+            return None
+        if review.verdict is not ReviewVerdict.PASS:
+            return None
+        return assignment.mark_done(
+            {
+                "execution_result_id": execution.id,
+                "review_report_id": review.id,
+                "review_verdict": review.verdict.value,
+                "recovered_from_stale_success": True,
+            }
+        )
 
     def _maybe_auto_retry(
         self,
@@ -494,3 +559,14 @@ def is_stale_heartbeat(
     except OSError:
         return True
     return False
+
+
+def _timestamp_after_or_equal(value: str | None, floor: str | None) -> bool:
+    if not value or not floor:
+        return True
+    try:
+        parsed_value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed_floor = datetime.fromisoformat(floor.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return parsed_value >= parsed_floor

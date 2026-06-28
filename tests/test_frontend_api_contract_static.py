@@ -160,7 +160,7 @@ def test_frontend_uses_runtime_level_external_execution_authorization() -> None:
     assert 'assignment.status === "ready_to_claim"' in runs_page
     assert "localeCompare" in runs_page
     assert "allowed_assignment_id:" in runs_page
-    assert "external_execution_authorized: false" in runs_page
+    assert "external_execution_authorized: true" in runs_page
     assert "project_version_id:" in runs_page
     assert "target_version_label:" in runs_page
     assert "ticket_id:" in runs_page

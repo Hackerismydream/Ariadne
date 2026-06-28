@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ from ariadne_ltb.storage import AriadneStore
 
 
 class FakeTransport:
-    def __init__(self, response: dict[str, Any] | None = None, error: OSError | None = None) -> None:
+    def __init__(self, response: dict[str, Any] | None = None, error: BaseException | None = None) -> None:
         self.response = response or {
             "id": "chatcmpl_test",
             "model": "deepseek-v4-pro",
@@ -186,6 +187,23 @@ def test_deepseek_client_redacts_transport_errors(monkeypatch) -> None:
     except LLMClientError as exc:
         assert "test-secret-key" not in exc.error.message
         assert "[REDACTED]" in exc.error.message or "[REDACTED]" in exc.error.message
+    else:
+        raise AssertionError("expected LLMClientError")
+
+
+def test_deepseek_client_wraps_incomplete_read_as_retryable_transport_error(monkeypatch) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    transport = FakeTransport(error=http.client.IncompleteRead(b""))
+
+    try:
+        DeepSeekClient(api_key="test-secret-key", transport=transport).complete_json(
+            "Return json.",
+            "ariadne_test",
+        )
+    except LLMClientError as exc:
+        assert exc.error.error_type == "transport_error"
+        assert exc.error.retryable is True
+        assert "IncompleteRead" in exc.error.message
     else:
         raise AssertionError("expected LLMClientError")
 

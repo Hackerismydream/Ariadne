@@ -42,12 +42,12 @@ export function RunsPage() {
   const [message, setMessage] = useState("");
   const [progressEvents, setProgressEvents] = useState<AssignmentEvent[]>([]);
   const [progressMessage, setProgressMessage] = useState("");
-  const activeAssignmentId = assignments.find((assignment) => ["ready_to_claim", "claimed", "running"].includes(assignment.status))?.id
-    ?? null;
   const sortedClaimableAssignments = [...assignments]
     .filter((assignment) => assignment.status === "ready_to_claim")
     .sort((left, right) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")));
   const claimableAssignment = sortedClaimableAssignments[0] ?? null;
+  const runningAssignment = assignments.find((assignment) => ["claimed", "running"].includes(assignment.status)) ?? null;
+  const activeAssignmentId = runningAssignment?.id ?? claimableAssignment?.id ?? null;
 
   async function refreshRuns() {
     setLoading(true);
@@ -87,7 +87,8 @@ export function RunsPage() {
     const assignment = claimableAssignment;
     if (!assignment) throw new Error("No current-version assignment is ready to claim.");
     return startDaemon({
-      external_execution_authorized: false,
+      external_execution_authorized: true,
+      timeout_seconds: 600,
       allowed_assignment_id: assignment.id,
       target_project_id: assignment.target_project_id ?? null,
       project_version_id: assignment.project_version_id ?? null,

@@ -585,6 +585,23 @@ def _classify_provider_failure(
         )
     if any(
         token in text
+        for token in [
+            "stream disconnected",
+            "tls handshake",
+            "connection closed",
+            "error sending request",
+            "http/request failed",
+            "websocket",
+            "networkservice",
+        ]
+    ):
+        return (
+            FailureReason.PROVIDER_TRANSPORT_ERROR,
+            "provider_transport_error",
+            _provider_failure_evidence(stdout, stderr),
+        )
+    if any(
+        token in text
         for token in ["config.toml", "unknown variant", "invalid config", "unsupported service_tier"]
     ):
         return (

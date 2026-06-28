@@ -123,6 +123,26 @@ def test_directory_lock_serializes_same_resolved_path(tmp_path: Path) -> None:
     finally:
         first.release()
 
+
+def test_directory_lock_reclaims_dead_process_lock(tmp_path: Path) -> None:
+    store = AriadneStore(tmp_path)
+    target = tmp_path / "repo"
+    target.mkdir()
+    first = DirectoryLock(store, target)
+    first.acquire()
+    metadata = json.loads(first.lock_path.read_text(encoding="utf-8"))
+    metadata["pid"] = 999999999
+    first.lock_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    second = DirectoryLock(store, target, runtime_id="local", ticket_id="ticket", assignment_id="assign")
+    second.acquire()
+    try:
+        reclaimed = json.loads(second.lock_path.read_text(encoding="utf-8"))
+        assert reclaimed["assignment_id"] == "assign"
+        assert reclaimed["pid"] != 999999999
+    finally:
+        second.release()
+
     second.acquire()
     second.release()
 
