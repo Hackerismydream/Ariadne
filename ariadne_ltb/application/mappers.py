@@ -293,11 +293,33 @@ def target_project_dto(resource: ProjectResource, available: bool = True, reason
     )
 
 
-def source_document_dto(store: AriadneStore, source: SourceDocument) -> SourceDocumentDTO:
-    linked_count = sum(
-        1 for ticket in store.list_tickets()
-        if ticket.metadata.get("source_document_id") == source.id or ticket.source_ref == source.path_or_url
-    )
+def source_linked_ticket_counts(store: AriadneStore) -> dict[str, int]:
+    sources = store.list_source_documents()
+    source_ids_by_ref = {source.path_or_url: source.id for source in sources}
+    counts = {source.id: 0 for source in sources}
+    for ticket in store.list_tickets():
+        source_id = ticket.metadata.get("source_document_id")
+        if isinstance(source_id, str) and source_id in counts:
+            counts[source_id] += 1
+            continue
+        source_id = source_ids_by_ref.get(ticket.source_ref)
+        if source_id:
+            counts[source_id] += 1
+    return counts
+
+
+def source_document_dto(
+    store: AriadneStore,
+    source: SourceDocument,
+    *,
+    linked_count: int | None = None,
+) -> SourceDocumentDTO:
+    resolved_linked_count = linked_count
+    if resolved_linked_count is None:
+        resolved_linked_count = sum(
+            1 for ticket in store.list_tickets()
+            if ticket.metadata.get("source_document_id") == source.id or ticket.source_ref == source.path_or_url
+        )
     evidence = source.metadata.get("evidence_snippets")
     artifact_ids = source.metadata.get("artifact_ids")
     return SourceDocumentDTO(
@@ -307,9 +329,9 @@ def source_document_dto(store: AriadneStore, source: SourceDocument) -> SourceDo
         title=source.title,
         path_or_url=source.path_or_url,
         summary=source.summary,
-        status="linked" if linked_count else str(source.metadata.get("analysis_status") or "new"),
+        status="linked" if resolved_linked_count else str(source.metadata.get("analysis_status") or "new"),
         analysis_status=str(source.metadata.get("analysis_status") or "pending"),
-        linked_ticket_count=linked_count,
+        linked_ticket_count=resolved_linked_count,
         created_at=source.created_at,
         evidence_snippets=[str(item) for item in evidence] if isinstance(evidence, list) else [],
         artifact_ids=[str(item) for item in artifact_ids] if isinstance(artifact_ids, list) else [],

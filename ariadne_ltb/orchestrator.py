@@ -120,7 +120,7 @@ class TicketRunOrchestrator:
         backlog_planner_client: DeepSeekClient | None = None,
         use_memory: bool = False,
         confirm_execution: bool = False,
-        timeout_seconds: int = 60,
+        timeout_seconds: int = 600,
         isolate_worktree: bool = False,
     ) -> TicketRunResult:
         ticket = self.store.resolve_ticket(ticket_id_or_key)
@@ -1037,6 +1037,13 @@ class TicketRunOrchestrator:
             f"Board path recorded at {board_path}.",
             payload_ref=str(board_path),
         )
+        _finalize_assignment_from_run_result(
+            self.store,
+            self.assignment_id,
+            execution=execution,
+            review=review,
+            board_path=str(board_path),
+        )
         return TicketRunResult(
             ticket_id=ticket.id,
             ticket_key=ticket.key,
@@ -1253,6 +1260,43 @@ def _finish_run(
     return finished
 
 
+def _finalize_assignment_from_run_result(
+    store: AriadneStore,
+    assignment_id: str | None,
+    *,
+    execution: ExecutionResult,
+    review,
+    board_path: str,
+) -> None:
+    if not assignment_id:
+        return
+    try:
+        assignment = store.load_assignment(assignment_id)
+    except FileNotFoundError:
+        return
+    if assignment.status.is_terminal:
+        return
+    metadata = {
+        "execution_result_id": execution.id,
+        "review_report_id": review.id,
+        "review_verdict": review.verdict.value,
+        "board_path": board_path,
+    }
+    if execution.blocked:
+        finalized = assignment.mark_blocked(
+            execution.block_reason or "Execution backend blocked.",
+            execution.failure_reason or FailureReason.UNKNOWN,
+        ).model_copy(update={"metadata": assignment.metadata | metadata})
+    elif review.verdict is ReviewVerdict.PASS and execution.exit_code == 0 and execution.test_exit_code in {0, None}:
+        finalized = assignment.mark_done(metadata)
+    else:
+        finalized = assignment.mark_blocked(
+            f"Reviewer verdict: {review.verdict.value}.",
+            FailureReason.REVIEW_FAILED,
+        ).model_copy(update={"metadata": assignment.metadata | metadata})
+    store.save_assignment(finalized)
+
+
 def _blocked_execution(
     context: ExecutionContext,
     backend_name: str,
@@ -1301,11 +1345,24 @@ def _llm_role_failure_can_fallback(error: str) -> bool:
         "quota",
         "rate limit",
         "billing",
-        "transport_error",
-        "timeout",
     ]
     if any(token in normalized for token in external_blockers):
         return False
+    transient_errors = [
+        "transport_error",
+        "timeout",
+        "timed out",
+        "unexpected_eof",
+        "unexpected eof",
+        "eof occurred",
+        "connection reset",
+        "connection aborted",
+        "incompleteread",
+        "incomplete read",
+        "temporarily unavailable",
+    ]
+    if any(token in normalized for token in transient_errors):
+        return True
     fallback_errors = [
         "valid json",
         "json",

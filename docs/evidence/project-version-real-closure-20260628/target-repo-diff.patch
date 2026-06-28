@@ -1,0 +1,190 @@
+diff --git a/mini_code_agent/cli.py b/mini_code_agent/cli.py
+index e733fc6..8f77359 100644
+--- a/mini_code_agent/cli.py
++++ b/mini_code_agent/cli.py
+@@ -37,6 +37,16 @@ class AgentRun:
+     evidence_files: list[str]
+ 
+ 
++@dataclass(frozen=True)
++class GeneratedIssue:
++    issue_id: str
++    title: str
++    summary: str
++    severity: str
++    source_run_id: str
++    source_snapshot: str
++
++
+ def main(argv: Sequence[str] | None = None) -> int:
+     parser = build_parser()
+     args = parser.parse_args(argv)
+@@ -74,6 +84,28 @@ def build_parser() -> argparse.ArgumentParser:
+     inspect_parser.add_argument("run_path", help="path to a run.json file")
+     inspect_parser.set_defaults(func=inspect_command)
+ 
++    for command_name in ("generate-issues", "gen-issues"):
++        issues_parser = subparsers.add_parser(
++            command_name,
++            help="generate issue summaries from a run snapshot",
++        )
++        issues_parser.add_argument(
++            "snapshot_path",
++            nargs="?",
++            help="path to a run.json snapshot or a run directory; defaults to latest evidence run",
++        )
++        issues_parser.add_argument(
++            "--snapshot",
++            dest="snapshot_option",
++            help="path to a run.json snapshot or a run directory",
++        )
++        issues_parser.add_argument(
++            "--evidence-dir",
++            default=os.environ.get("MINI_CODE_AGENT_EVIDENCE_DIR", str(DEFAULT_EVIDENCE_DIR)),
++            help="directory searched for the latest run snapshot when no snapshot path is given",
++        )
++        issues_parser.set_defaults(func=generate_issues_command)
++
+     return parser
+ 
+ 
+@@ -121,6 +153,35 @@ def inspect_command(args: argparse.Namespace) -> int:
+     return 0
+ 
+ 
++def generate_issues_command(args: argparse.Namespace) -> int:
++    snapshot_arg = args.snapshot_option or args.snapshot_path
++    if args.snapshot_option and args.snapshot_path:
++        print("provide either snapshot_path or --snapshot, not both", file=sys.stderr)
++        return 2
++
++    try:
++        snapshot_path = resolve_snapshot_path(
++            snapshot_path=snapshot_arg,
++            evidence_dir=Path(args.evidence_dir),
++        )
++        payload = read_snapshot(snapshot_path)
++    except FileNotFoundError as exc:
++        print(str(exc), file=sys.stderr)
++        return 2
++    except json.JSONDecodeError as exc:
++        print(f"run snapshot is not valid JSON: {exc}", file=sys.stderr)
++        return 2
++
++    issues = generate_issues_from_snapshot(payload=payload, snapshot_path=snapshot_path)
++    print(f"snapshot: {snapshot_path}")
++    print(f"run_id: {payload.get('run_id', '<missing>')}")
++    print(f"issues_generated: {len(issues)}")
++    for issue in issues:
++        print(f"- {issue.issue_id} [{issue.severity}] {issue.title}")
++        print(f"  summary: {issue.summary}")
++    return 0
++
++
+ def build_run(
+     prompt: str,
+     cwd: Path,
+@@ -153,6 +214,80 @@ def build_run(
+     )
+ 
+ 
++def resolve_snapshot_path(snapshot_path: str | None, evidence_dir: Path = DEFAULT_EVIDENCE_DIR) -> Path:
++    if snapshot_path:
++        path = Path(snapshot_path)
++        if path.is_dir():
++            path = path / "run.json"
++        if not path.exists():
++            raise FileNotFoundError(f"run snapshot not found: {path}")
++        return path
++
++    latest = latest_snapshot_path(evidence_dir)
++    if latest is None:
++        raise FileNotFoundError(f"no run snapshots found in: {evidence_dir}")
++    return latest
++
++
++def latest_snapshot_path(evidence_dir: Path = DEFAULT_EVIDENCE_DIR) -> Path | None:
++    candidates = list(evidence_dir.glob("*/run.json"))
++    if not candidates:
++        return None
++
++    def sort_key(path: Path) -> tuple[str, float, str]:
++        try:
++            payload = read_snapshot(path)
++            created_at = str(payload.get("created_at", ""))
++        except (OSError, json.JSONDecodeError):
++            created_at = ""
++        return (created_at, path.stat().st_mtime, str(path))
++
++    return max(candidates, key=sort_key)
++
++
++def read_snapshot(snapshot_path: Path) -> dict[str, Any]:
++    return json.loads(snapshot_path.read_text(encoding="utf-8"))
++
++
++def generate_issues_from_snapshot(payload: dict[str, Any], snapshot_path: Path) -> list[GeneratedIssue]:
++    run_id = _string_field(payload, "run_id", "unknown-run")
++    prompt = _string_field(payload, "prompt", "Review run snapshot")
++    status = _string_field(payload, "status", "unknown")
++    result = _string_field(payload, "result", "")
++    product_path = _string_field(payload, "product_path", "")
++    issues: list[GeneratedIssue] = []
++
++    if status != "completed":
++        issues.append(
++            GeneratedIssue(
++                issue_id=f"{run_id}-issue-001",
++                title=f"Investigate {status} agent run",
++                summary=f"Snapshot status is {status}; inspect the run trajectory and complete the requested work.",
++                severity="high",
++                source_run_id=run_id,
++                source_snapshot=str(snapshot_path),
++            )
++        )
++
++    title = _issue_title_from_prompt(prompt)
++    summary_parts = [f"Generated from snapshot {run_id}."]
++    if product_path:
++        summary_parts.append(f"Product path: {product_path}.")
++    if result:
++        summary_parts.append(f"Result: {result}")
++    issues.append(
++        GeneratedIssue(
++            issue_id=f"{run_id}-issue-{len(issues) + 1:03d}",
++            title=title,
++            summary=" ".join(summary_parts),
++            severity="normal",
++            source_run_id=run_id,
++            source_snapshot=str(snapshot_path),
++        )
++    )
++    return issues
++
++
+ def write_run(run: AgentRun, run_dir: Path) -> Path:
+     run_dir.mkdir(parents=True, exist_ok=False)
+     run_path = run_dir / "run.json"
+@@ -198,6 +333,22 @@ def _workbench_manifest(run: AgentRun, run_path: Path, trajectory_path: Path) ->
+     }
+ 
+ 
++def _issue_title_from_prompt(prompt: str) -> str:
++    normalized = " ".join(prompt.split())
++    if not normalized:
++        return "Review run snapshot"
++    if len(normalized) <= 80:
++        return normalized
++    return normalized[:77].rstrip() + "..."
++
++
++def _string_field(payload: dict[str, Any], key: str, default: str) -> str:
++    value = payload.get(key, default)
++    if value is None:
++        return default
++    return str(value)
++
++
+ def _print_help(args: argparse.Namespace) -> int:
+     build_parser().print_help()
+     return 0

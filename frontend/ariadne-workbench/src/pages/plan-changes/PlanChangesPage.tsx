@@ -318,11 +318,11 @@ export function PlanChangesPage({
     setActionStatus("Applying issue delta...");
     try {
       await applyIssueFactoryPreview(previewId);
-      await onRefresh();
       setPreviewStatus("applied");
       setShowViewIssues(true);
       setActionStatus("Issue delta applied. New issues are available on the board.");
       onNavigate("ready");
+      await onRefresh();
     } catch (error) {
       if (apiErrorCode(error) === "stale_preview") {
         setStalePreviewId(previewId);

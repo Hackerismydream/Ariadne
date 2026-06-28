@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from ariadne_ltb.application.dtos import (
     ProjectInputDetailDTO,
     SourceEvidenceItemDTO,
@@ -8,6 +10,7 @@ from ariadne_ltb.application.dtos import (
     SourceTypedArtifactDTO,
 )
 from ariadne_ltb.application.mappers import source_document_dto
+from ariadne_ltb.application.mappers import source_linked_ticket_counts
 from ariadne_ltb.application.source_understanding import (
     ANALYSIS_LABELS,
     ARTIFACT_LABELS,
@@ -20,14 +23,21 @@ from ariadne_ltb.storage import AriadneStore
 def build_project_inputs(store: AriadneStore) -> list[ProjectInputDetailDTO]:
     understandings = {item.source_id: item for item in build_source_understandings(store)}
     previews = store.list_backlog_previews()
+    linked_counts = source_linked_ticket_counts(store)
+    artifacts_by_source: dict[str, list[SourceArtifact]] = defaultdict(list)
+    for artifact in store.list_source_artifacts():
+        artifacts_by_source[artifact.source_document_id].append(artifact)
+    evidence_by_source: dict[str, list[SourceEvidence]] = defaultdict(list)
+    for item in store.list_source_evidence():
+        evidence_by_source[item.source_document_id].append(item)
     details: list[ProjectInputDetailDTO] = []
     for source in store.list_source_documents():
-        artifacts = store.list_source_artifacts(source.id)
-        evidence = store.list_source_evidence(source.id)
+        artifacts = artifacts_by_source[source.id]
+        evidence = evidence_by_source[source.id]
         impacted = _impacted_ticket_keys(previews, source, artifacts, evidence)
         details.append(
             ProjectInputDetailDTO(
-                source=source_document_dto(store, source),
+                source=source_document_dto(store, source, linked_count=linked_counts.get(source.id, 0)),
                 lifecycle=_lifecycle(source, artifacts, impacted),
                 understanding=understandings.get(source.id),
                 artifacts=[_typed_artifact(store, artifact, evidence) for artifact in artifacts],

@@ -64,6 +64,30 @@ def test_codex_backend_records_handoff_template_session_and_quota_failure(
     assert "redacted-secret-value" not in result.command_template
 
 
+def test_codex_backend_classifies_provider_transport_failure_as_retryable(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target = ensure_demo_target_project(tmp_path)
+    monkeypatch.setenv("ARIADNE_ENABLE_EXTERNAL_EXECUTION", "1")
+    monkeypatch.setenv(
+        "ARIADNE_CODEX_COMMAND_TEMPLATE",
+        (
+            "python3.11 -c 'import sys; "
+            'sys.stderr.write(\"stream disconnected before completion: tls handshake eof; '
+            'error sending request for url (https://chatgpt.com/backend-api/codex/responses)\"); '
+            "sys.exit(1)'"
+        ),
+    )
+
+    result = CodexBackend().execute(_context(target))
+
+    assert result.exit_code == 1
+    assert result.failure_reason is FailureReason.PROVIDER_TRANSPORT_ERROR
+    assert result.provider_failure_kind == "provider_transport_error"
+    assert "stream disconnected before completion" in (result.provider_failure_evidence or "")
+
+
 def test_codex_backend_default_template_uses_stdin_without_forcing_service_tier(
     tmp_path: Path,
 ) -> None:

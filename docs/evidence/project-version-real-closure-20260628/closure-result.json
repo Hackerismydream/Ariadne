@@ -1,0 +1,556 @@
+{
+  "schema_version": "ariadne.project_version_closure.v1",
+  "status": "REAL_CLOSED",
+  "mode": "real",
+  "created_at": "2026-06-28T16:31:24.539Z",
+  "target_path": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+  "workbench_url": "http://127.0.0.1:18784/?v=browser-dogfood-first#issues/MCA-381",
+  "project": {
+    "project_id": "resource_56a27abf28d0",
+    "title": "Mini Code Agent",
+    "goal": "",
+    "target_version": "v0.1-real-20260628162602",
+    "project_version_id": "project_version_2db31f40259a"
+  },
+  "target_repo": {
+    "path": "/Users/martinlos/code/ariadne-dogfood/mini-code-agent",
+    "before_commit": "6c14d06e6236a6b1d0277cf2a8b66d3d09ee22aa",
+    "after_commit": "6c14d06e6236a6b1d0277cf2a8b66d3d09ee22aa",
+    "git_status_before": "",
+    "git_status_after": "M mini_code_agent/cli.py"
+  },
+  "sources": [
+    {
+      "source_id": "source_eec392053126",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_de998a073cdb",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_0ea2d7fdc324",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_a4a41f22fe18",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_018ec34904b9",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_04d5f2ca622b",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_090f6e77f0c1",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_1772d4e51e30",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_1a3cc2f7548b",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_3c9a0f11c228",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_90054270100f",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_a5bcbfd897ea",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_cc10df5e33b5",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_d8b50906f78c",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    },
+    {
+      "source_id": "source_e3b78167571b",
+      "type": "source_document",
+      "uri_or_path": "https://minimal-agent.com/",
+      "artifact_ids": [
+        "source_artifact_04537ea5c2cc",
+        "source_artifact_1da8628c15ec",
+        "source_artifact_26aba347c1fd",
+        "source_artifact_2e3d481b8619",
+        "source_artifact_59554d57fb1a",
+        "source_artifact_aecb87bb35ac",
+        "source_artifact_b6b939aa42fe",
+        "source_artifact_d021e4f22927",
+        "source_artifact_db83e688b859",
+        "source_artifact_e62eb8beab43",
+        "source_artifact_e6e3b777dbb4",
+        "source_artifact_ecb39c056d7f",
+        "source_artifact_efae241f3951",
+        "source_artifact_f848dca72645"
+      ],
+      "evidence_refs": [
+        "source_evidence_483cc8b4eec3",
+        "source_evidence_1d87dc2d426d",
+        "source_evidence_ec4cd0653fe8",
+        "source_evidence_d3b315cb8cc6",
+        "source_evidence_ba00c825525e"
+      ]
+    }
+  ],
+  "issue_delta": {
+    "preview_id": "backlog_preview_5c70f56bfbb7",
+    "compiler_mode": "project_knowledge_graph",
+    "applied_at": "",
+    "item_count": 7,
+    "applied_issue_keys": [
+      "MCA-379",
+      "MCA-380",
+      "MCA-381",
+      "MCA-382",
+      "MCA-383",
+      "MCA-384",
+      "MCA-385"
+    ]
+  },
+  "selected_issue": {
+    "ticket_id": "ticket_1e1d20752e1b",
+    "ticket_key": "MCA-381",
+    "title": "Add CLI subcommand for issue generation from snapshot",
+    "acceptance_criteria": [
+      "New subcommand 'generate-issues' or 'gen-issues' is available",
+      "Command accepts optional snapshot path or uses latest",
+      "Command outputs summary of generated issues"
+    ],
+    "affected_modules": [
+      "mini_code_agent/cli.py",
+      "mini_code_agent/__main__.py"
+    ],
+    "source_evidence_refs": [
+      "source_evidence_483cc8b4eec3",
+      "source_evidence_1d87dc2d426d",
+      "source_evidence_ec4cd0653fe8",
+      "source_evidence_d3b315cb8cc6",
+      "source_evidence_ba00c825525e"
+    ]
+  },
+  "assignment": {
+    "assignment_id": "assignment_32d41975f52a",
+    "agent_id": "agent_4b050c358500",
+    "agent_name": "Phase 3 Codex 1782402810345",
+    "backend_name": "codex",
+    "runtime_profile": "agent_4b050c358500:runtime",
+    "status": "done"
+  },
+  "handoff": {
+    "artifact_id": "handoff_packet_5db75444b724",
+    "path": "/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/MCA-381-handoff_packet_5db75444b724.md",
+    "contains_goal": true,
+    "contains_evidence": true,
+    "contains_allowed_paths": true,
+    "contains_test_command": true
+  },
+  "execution": {
+    "execution_result_id": "execution_3d1c1625ec60",
+    "backend_name": "codex",
+    "command_summary": "codex exec --cd /Users/martinlos/code/ariadne-dogfood/mini-code-agent - < /Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/MCA-381-handoff_packet_5db75444b724.md",
+    "exit_code": 0,
+    "stdout_artifact_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/execution_log.json",
+    "stderr_artifact_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/execution_log.json",
+    "provider_failure_kind": null,
+    "changed_files": [
+      "mini_code_agent/cli.py"
+    ],
+    "git_diff_artifact_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/git_diff.patch",
+    "test_command": "python3.11 -m pytest",
+    "test_exit_code": 0,
+    "test_stdout_artifact_path": "",
+    "test_stderr_artifact_path": ""
+  },
+  "review": {
+    "review_report_id": "",
+    "verdict": "pass",
+    "summary": "pass: 0 failed checks, 0 warnings",
+    "artifact_path": ""
+  },
+  "inbox": {
+    "open_item_ids": [],
+    "resolved_item_ids": []
+  },
+  "memory": {
+    "record_ids": [],
+    "artifact_paths": [
+      "/Users/martinlos/code/Ariadne/.ariadne/memory/tickets/ticket_1e1d20752e1b.json"
+    ]
+  },
+  "next_issues": {
+    "artifact_path": "/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/next_tickets.json",
+    "suggested_issue_count": 2
+  },
+  "workbench_evidence": {
+    "screenshots": [
+      "/Users/martinlos/code/Ariadne/.ariadne/dogfood/browser-20260628T162556Z/closure-issue-detail.png"
+    ],
+    "api_snapshots": [
+      "/Users/martinlos/code/Ariadne/.ariadne/dogfood/browser-20260628T162556Z/workbench-snapshot.json",
+      "/Users/martinlos/code/Ariadne/.ariadne/dogfood/browser-20260628T162556Z/issue-MCA-381.json"
+    ],
+    "console_log_path": ""
+  },
+  "merge_gate": {
+    "eligible": true,
+    "checks": [
+      "browser Workbench path",
+      "real Codex/Claude backend",
+      "target repo changed files",
+      "tests recorded",
+      "review pass",
+      "memory and next issues recorded"
+    ]
+  },
+  "execution_evidence_text": " Back to board\nMCA-381\nAdd CLI subcommand for issue generation from snapshot\n\nUsers need a command to trigger issue generation. Existing CLI has subcommands for run, review, history, but not for issue generation.\n\nDonemedium\nAgent\nPhase 3 Codex 1782402810345 · codex · 1 skills\nAssign\nRun Now\nComment\nEvidence Center\nSource Evidence\nSource: Add CLI subcommand for issue generation from snapshot\nAVAILABLE\n\nUsers need a command to trigger issue generation. Existing CLI has subcommands for run, review, history, but not for issue generation.\n\nUsers need a command to trigger issue generation. Existing CLI has subcommands for run, review, history, but not for issue generation.\nsource_document · source_d8b50906f78c\nhttps://minimal-agent.com/\nOpen evidence\nknowledge_card: minimal-agent.com\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"key_claims\": [\n    \"text source provides project guidance\"\n  ],\n  \"risks\": [],\n  \"source_role\": \"requirement_source\",\n  \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…\nsource_artifact · source_artifact_04537ea5c2cc\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_04537ea5c2cc.payload.json\nOpen evidence\ncodebase_snapshot: Target codebase: mini-code-agent\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"architecture_insights\": [\n    \"Executable entrypoints detected: cc-mini = \\\"mini_code_agent.cli:main\\\", mini-code-agent = \\\"mini_code_agent.cli:main\\\", mini_code_agent/__main__.py, mini_code_agent/cli.py.\",\n    \"Repository keeps tests as a first-class top-level module.\",\n    \"Repository language suggests an agent/runtime/tool boundary worth reflecting in issues.\",\n    \"Python package metadata is present, so CLI/package setup can be inferred.\"\n  ],\n  \"commit_sha\": \"6c14d06e6236a6b1d0277cf2a8b66d3d09ee22aa\",\n  \"limitations\": [\n    \"README summary is too short for deep product inference.\"\n  ],\n  \"safety_model\": [\n    \"No explicit safety model was detected; generated issues should add local execution boundaries.\"\n  ],\n  \"selected_files\": [\n    \"README.md\",\n    \"pyproject.toml\",\n    \"mini_code_agent/__main__.py\",\n    \"mini_code_agent/cli.py\",\n    \"tests/test_cli.py\",\n    \".gitignore\",…\nsource_artifact · source_artifact_1da8628c15ec\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_1da8628c15ec.payload.json\nOpen evidence\nknowledge_card: minimal-agent 博客\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"key_claims\": [\n    \"text source provides project guidance\"\n  ],\n  \"risks\": [],\n  \"source_role\": \"background_knowledge\",\n  \"summary\": \"真实 code agent 产品需要把 trajectory、动作、观察、测试和 review 作为一等证据，而不是只展示 planner 文本。\",\n  \"title\": \"minimal-agent 博客\"\n}\nsource_artifact · source_artifact_26aba347c1fd\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_26aba347c1fd.payload.json\nOpen evidence\nknowledge_card: Implement Safety and execution boundaries\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"extraction_method\": \"html_text_extraction\",\n  \"key_claims\": [\n    \"source describes agent behavior relevant to issue generation\"\n  ],\n  \"quality_limitations\": [],\n  \"quality_status\": \"usable\",\n  \"risks\": [],\n  \"source_role\": \"background_knowledge\",\n  \"summary\": \"Minimal AI agent tutorial Skip to content Minimal AI agent tutorial Home Initializing search swe-agent/mini-swe-agent Minimal AI agent tutorial swe-agent/mini-swe-agent Home Home Table of contents Our first prototype in 50 lines Querying the LM Parse the action Execute the action Add a system prompt Let's put it together & run it! Let's make it more robust Dealing with exceptions in the control flow Handling malformatted outputs Environment variables mini-swe-agent Contribute to this guide Comments Table of contents Our first prototype in 50 lines Queryin…\nsource_artifact · source_artifact_2e3d481b8619\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_2e3d481b8619.payload.json\nOpen evidence\nknowledge_card: minimal-agent.com\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"key_claims\": [\n    \"text source provides project guidance\"\n  ],\n  \"risks\": [],\n  \"source_role\": \"requirement_source\",\n  \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…\nsource_artifact · source_artifact_59554d57fb1a\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_59554d57fb1a.payload.json\nOpen evidence\nknowledge_card: minimal-agent.com\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"key_claims\": [\n    \"text source provides project guidance\"\n  ],\n  \"risks\": [],\n  \"source_role\": \"requirement_source\",\n  \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…\nsource_artifact · source_artifact_aecb87bb35ac\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_aecb87bb35ac.payload.json\nOpen evidence\nrepository_understanding: MiniCode 仓库\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"avoid_notes\": [\n    \"Do not copy implementation files directly from the reference project.\"\n  ],\n  \"behavior_patterns\": [\n    \"Expose a small CLI as the primary builder interface.\",\n    \"Keep an executable test path for every agent iteration.\"\n  ],\n  \"entrypoints\": [\n    \"src/index.ts\",\n    \"src/tools/index.ts\",\n    \"src/tui/index.ts\"\n  ],\n  \"identity\": {\n    \"commit_sha\": \"f5b18eee2d9c2aaedfa282954c433598a3c00c75\",\n    \"frameworks\": [],\n    \"name\": \"checkout\",\n    \"package_manager\": \"npm\",\n    \"primary_language\": \"javascript\",\n    \"remote_url\": \"https://github.com/LiuMengxuan04/MiniCode\"\n  },\n  \"license\": {\n    \"confidence\": \"high\",\n    \"detected\": \"MIT\",\n    \"license_file_path\": \"LICENSE\"\n  },\n  \"license_risk\": \"green\",\n  \"manifests\": [\n    \"package.json\"\n  ],\n  \"repo_map\": {\n    \"core_modules\": [\n      \".gitignore\",\n      \".gitmodules\",\n      \"ARCHITECTURE.md\",\n      \"ARCHITECTU…\nsource_artifact · source_artifact_b6b939aa42fe\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_b6b939aa42fe.payload.json\nOpen evidence\nrepository_understanding: SWE-agent mini-SWE-agent 仓库\nAVAILABLE\n\n4 evidence refs.\n\n{\n  \"architecture_insights\": [\n    \"Executable entrypoints detected: \\\"Bug Tracker\\\" = \\\"https://github.com/SWE-agent/mini-swe-agent/issues\\\", \\\"litellm >= 1.75.5, != 1.82.7, != 1.82.8\\\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \\\"openai != 1.100.0,!=1.100.1\\\",  # https://github.com/SWE-agent/mini-swe-agent/issues/446, Documentation = \\\"https://mini-swe-agent.com/latest/\\\".\",\n    \"Repository separates product code into a source/app package boundary.\",\n    \"Repository keeps tests as a first-class top-level module.\",\n    \"Repository language suggests an agent/runtime/tool boundary worth reflecting in issues.\",\n    \"Python package metadata is present, so CLI/package setup can be inferred.\"\n  ],\n  \"avoid_notes\": [\n    \"Do not copy implementation files directly from the reference project.\"\n  ],\n  \"behavior_patterns\": [\n    \"Expose a small CLI as the primary builder…\nsource_artifact · source_artifact_d021e4f22927\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_d021e4f22927.payload.json\nOpen evidence\nknowledge_card: Add minimal reviewer checks for task completion\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"key_claims\": [\n    \"text source provides project guidance\"\n  ],\n  \"risks\": [],\n  \"source_role\": \"background_knowledge\",\n  \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palet…\nsource_artifact · source_artifact_db83e688b859\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_db83e688b859.payload.json\nOpen evidence\nknowledge_card: minimal-agent.com\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"key_claims\": [\n    \"text source provides project guidance\"\n  ],\n  \"risks\": [],\n  \"source_role\": \"requirement_source\",\n  \"summary\": \"<!doctype html> <html lang=\\\"en\\\" class=\\\"no-js\\\"> <head> <meta charset=\\\"utf-8\\\"> <meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"> <meta name=\\\"description\\\" content=\\\"Building a minimal AI agent for terminal use and more\\\"> <meta name=\\\"author\\\" content=\\\"Kilian Lieret, Carlos Jimenez, John Yang, Ofir Press\\\"> <link rel=\\\"canonical\\\" href=\\\"https://minimal-agent.com/\\\"> <link rel=\\\"icon\\\" href=\\\"assets/mini.png\\\"> <meta name=\\\"generator\\\" content=\\\"mkdocs-1.6.1, mkdocs-material-9.7.1\\\"> <title>Minimal AI agent tutorial</title> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/main.484c7ddc.min.css\\\"> <link rel=\\\"stylesheet\\\" href=\\\"assets/stylesheets/palette…\nsource_artifact · source_artifact_e62eb8beab43\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_e62eb8beab43.payload.json\nOpen evidence\nknowledge_card: browser source.md\nAVAILABLE\n\n4 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"extraction_method\": \"plain_text\",\n  \"key_claims\": [\n    \"source provides project guidance for issue generation\",\n    \"source provides project guidance for issue generation\",\n    \"source provides project guidance for issue generation\",\n    \"source provides project guidance for issue generation\"\n  ],\n  \"quality_limitations\": [],\n  \"quality_status\": \"usable\",\n  \"risks\": [],\n  \"source_role\": \"background_knowledge\",\n  \"summary\": \"# Issue 41 Browser Source The current Project Version must turn a generated Issue Delta into the mainline BuildTicket issue set. The applied tickets must remain scoped to the selected target project and target version. Historical tickets from the same target repository must not appear on the current Issues board unless they belong to the selected Project Version. Each applied issue should car…\nsource_artifact · source_artifact_e6e3b777dbb4\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_e6e3b777dbb4.payload.json\nOpen evidence\nrepository_understanding: e10nMa2k/cc-mini\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"avoid_notes\": [\n    \"Do not copy implementation files directly from the reference project.\"\n  ],\n  \"behavior_patterns\": [\n    \"Expose a small CLI as the primary builder interface.\",\n    \"Persist session or trajectory data for review.\",\n    \"Keep an executable test path for every agent iteration.\"\n  ],\n  \"entrypoints\": [\n    \"cc-mini = \\\"tui.app:main\\\"\"\n  ],\n  \"identity\": {\n    \"commit_sha\": \"73c5bc563093b650ea8754bf9101a7507d8328a8\",\n    \"frameworks\": [],\n    \"name\": \"checkout\",\n    \"package_manager\": \"python\",\n    \"primary_language\": \"python\",\n    \"remote_url\": \"https://github.com/e10nMa2k/cc-mini\"\n  },\n  \"license\": {\n    \"confidence\": \"low\",\n    \"detected\": \"unknown\",\n    \"license_file_path\": null\n  },\n  \"license_risk\": \"yellow\",\n  \"manifests\": [\n    \"pyproject.toml\"\n  ],\n  \"repo_map\": {\n    \"core_modules\": [\n      \".gitignore\",\n      \"README.md\",\n      \"assets\",\n      \"install.s…\nsource_artifact · source_artifact_ecb39c056d7f\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_ecb39c056d7f.payload.json\nOpen evidence\nknowledge_card: Add observation recording and evidence collection\nAVAILABLE\n\n1 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"extraction_method\": \"html_text_extraction\",\n  \"key_claims\": [\n    \"source describes agent behavior relevant to issue generation\"\n  ],\n  \"quality_limitations\": [],\n  \"quality_status\": \"usable\",\n  \"risks\": [],\n  \"source_role\": \"background_knowledge\",\n  \"summary\": \"Minimal AI agent tutorial Skip to content Minimal AI agent tutorial Home Initializing search swe-agent/mini-swe-agent Minimal AI agent tutorial swe-agent/mini-swe-agent Home Home Table of contents Our first prototype in 50 lines Querying the LM Parse the action Execute the action Add a system prompt Let's put it together & run it! Let's make it more robust Dealing with exceptions in the control flow Handling malformatted outputs Environment variables mini-swe-agent Contribute to this guide Comments Table of contents Our first prototype in 50 lines Queryin…\nsource_artifact · source_artifact_efae241f3951\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_efae241f3951.payload.json\nOpen evidence\nknowledge_card: Phase 4 source: minimal agent loop\nAVAILABLE\n\n2 evidence refs.\n\n{\n  \"applicability\": \"Use as project guidance when generating issues.\",\n  \"extraction_method\": \"plain_text\",\n  \"key_claims\": [\n    \"source describes verification or test expectations\",\n    \"source provides project guidance for issue generation\"\n  ],\n  \"quality_limitations\": [],\n  \"quality_status\": \"usable\",\n  \"risks\": [],\n  \"source_role\": \"requirement_source\",\n  \"summary\": \"Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder. A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints.\",\n  \"title\": \"Phase 4 source: minimal agent loop\"\n}\nsource_artifact · source_artifact_f848dca72645\n/Users/martinlos/code/Ariadne/.ariadne/project/source_artifacts/source_artifact_f848dca72645.payload.json\nOpen evidence\nClaim from SWE-agent mini-SWE-agent 仓库\nAVAILABLE\n\nrepository architecture suggests issue decomposition boundaries (0.74)\n\nrepository architecture scan\nClaim: repository architecture suggests issue decomposition boundaries\nEvidence: Executable entrypoints detected: \"Bug Tracker\" = \"https://github.com/SWE-agent/mini-swe-agent/issues\", \"litellm >= 1.75.5, != 1.82.7, != 1.82.8\", # Security: Skip compromised 1.82.7/8; requires 1.75.5+ for GPT-5, \"openai != 1.100.0,!=1.100.\nsource_evidence · source_evidence_04f7c7f374e1\nhttps://github.com/SWE-agent/mini-SWE-agent\nOpen evidence\nClaim from minimal-agent.com\nAVAILABLE\n\ntext source provides project guidance (0.80)\n\nhttps://minimal-agent.com/?ariadne_phase5=1782137304681\nClaim: text source provides project guidance\nEvidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta\nsource_evidence · source_evidence_08f634101190\nhttps://minimal-agent.com/?ariadne_phase5=1782137304681\nOpen evidence\nClaim from minimal-agent.com\nAVAILABLE\n\ntext source provides project guidance (0.80)\n\nhttps://minimal-agent.com/?ariadne_phase5=1782137177613\nClaim: text source provides project guidance\nEvidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta\nsource_evidence · source_evidence_189fb0414205\nhttps://minimal-agent.com/?ariadne_phase5=1782137177613\nOpen evidence\nClaim from browser source.md\nAVAILABLE\n\nsource provides project guidance for issue generation (0.78)\n\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md#claim-1\nClaim: source provides project guidance for issue generation\nEvidence: # Issue 41 Browser Source The current Project Version must turn a generated Issue Delta into the mainline BuildTicket issue set\nsource_evidence · source_evidence_1d87dc2d426d\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md\nOpen evidence\nClaim from browser source.md\nAVAILABLE\n\nsource provides project guidance for issue generation (0.78)\n\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md#claim-3\nClaim: source provides project guidance for issue generation\nEvidence: Historical tickets from the same target repository must not appear on the current Issues board unless they belong to the selected Project Version\nsource_evidence · source_evidence_31ab6163636e\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md\nOpen evidence\nClaim from browser source.md\nAVAILABLE\n\nsource provides project guidance for issue generation (0.78)\n\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md#claim-4\nClaim: source provides project guidance for issue generation\nEvidence: Each applied issue should carry source evidence references, acceptance criteria, affected modules, build context, target project identity, target project path, and target version metadata so the Workbench issue detail can explain why the is\nsource_evidence · source_evidence_3d17e6f59a7f\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md\nOpen evidence\nClaim from e10nMa2k/cc-mini\nAVAILABLE\n\nrepository structure informs target project issue generation (0.80)\n\nREADME.md\nClaim: repository structure informs target project issue generation\nEvidence: <div align=\"center\">\n\n# cc-mini\n\n**Ultra-light Harness scaffolding for AI agents**\n\n**Agentic** &nbsp;·&nbsp; **Built to Extend** &nbsp;·&nbsp; **From Claude Code**\n<br>\n\nThe entire core is `~1000 lines of Python`\n\n</div>\n\n---\n\n### **NEW: B\nsource_evidence · source_evidence_407f170c61fb\nhttps://github.com/e10nMa2k/cc-mini\nOpen evidence\nClaim from Add observation recording and evidence collection\nAVAILABLE\n\nsource describes agent behavior relevant to issue generation (0.78)\n\nhttps://minimal-agent.com/#claim-1\nClaim: source describes agent behavior relevant to issue generation\nEvidence: Minimal AI agent tutorial Skip to content Minimal AI agent tutorial Home Initializing search swe-agent/mini-swe-agent Minimal AI agent tutorial swe-agent/mini-swe-agent Home Home Table of contents Our first prototype in 50 lines Querying th\nsource_evidence · source_evidence_4691fbeff92a\nhttps://minimal-agent.com/\nOpen evidence\nClaim from SWE-agent mini-SWE-agent 仓库\nAVAILABLE\n\nrepository structure informs target project issue generation (0.80)\n\nREADME.md\nClaim: repository structure informs target project issue generation\nEvidence: <div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini\nsource_evidence · source_evidence_483cc8b4eec3\nhttps://github.com/SWE-agent/mini-SWE-agent\nOpen evidence\nClaim from Add minimal reviewer checks for task completion\nAVAILABLE\n\ntext source provides project guidance (0.80)\n\nhttps://minimal-agent.com/\nClaim: text source provides project guidance\nEvidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta\nsource_evidence · source_evidence_49bbbf060425\nhttps://minimal-agent.com/\nOpen evidence\nClaim from Phase 4 source: minimal agent loop\nAVAILABLE\n\nsource describes verification or test expectations (0.78)\n\nhttps://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-1\nClaim: source describes verification or test expectations\nEvidence: Minimal agents should keep a simple loop: model proposes an action, the runtime executes a bounded tool, the observation returns to the model, and the run records trajectory, diff, tests, and review evidence for the builder\nsource_evidence · source_evidence_6d26d5ca1589\nhttps://minimal-agent.com/#ariadne-phase4-knowledge-to-issue\nOpen evidence\nClaim from SWE-agent mini-SWE-agent 仓库\nAVAILABLE\n\nrepository test strategy informs acceptance criteria (0.72)\n\nrepository test scan\nClaim: repository test strategy informs acceptance criteria\nEvidence: Detected 57 test file(s). Suggested test command: python3.11 -m pytest\nsource_evidence · source_evidence_72b1ad21bb21\nhttps://github.com/SWE-agent/mini-SWE-agent\nOpen evidence\nClaim from Implement Safety and execution boundaries\nAVAILABLE\n\nsource describes agent behavior relevant to issue generation (0.78)\n\nhttps://minimal-agent.com/#claim-1\nClaim: source describes agent behavior relevant to issue generation\nEvidence: Minimal AI agent tutorial Skip to content Minimal AI agent tutorial Home Initializing search swe-agent/mini-swe-agent Minimal AI agent tutorial swe-agent/mini-swe-agent Home Home Table of contents Our first prototype in 50 lines Querying th\nsource_evidence · source_evidence_7668820f942b\nhttps://minimal-agent.com/\nOpen evidence\nClaim from SWE-agent mini-SWE-agent 仓库\nAVAILABLE\n\nrepository safety signals inform implementation constraints (0.68)\n\nrepository safety scan\nClaim: repository safety signals inform implementation constraints\nEvidence: No explicit safety model was detected; generated issues should add local execution boundaries.\nsource_evidence · source_evidence_7e685db6aeb5\nhttps://github.com/SWE-agent/mini-SWE-agent\nOpen evidence\nClaim from minimal-agent 博客\nAVAILABLE\n\ntext source provides project guidance (0.80)\n\nhttps://minimal-agent.com/\nClaim: text source provides project guidance\nEvidence: 真实 code agent 产品需要把 trajectory、动作、观察、测试和 review 作为一等证据，而不是只展示 planner 文本。\nsource_evidence · source_evidence_85eabe737a64\nhttps://minimal-agent.com/\nOpen evidence\nClaim from SWE-agent mini-SWE-agent 仓库\nAVAILABLE\n\nrepository README explains reusable project intent (0.78)\n\nREADME.md\nClaim: repository README explains reusable project intent\nEvidence: <div align=\"center\">\n<a href=\"https://mini-swe-agent.com/latest/\"><img src=\"https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg\" alt=\"mini-swe-agent banner\" style=\"height: 7em\"/></a>\n</div>\n\n# The mini\nsource_evidence · source_evidence_87f8f4a27b96\nhttps://github.com/SWE-agent/mini-SWE-agent\nOpen evidence\nClaim from browser source.md\nAVAILABLE\n\nsource provides project guidance for issue generation (0.78)\n\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md#claim-2\nClaim: source provides project guidance for issue generation\nEvidence: The applied tickets must remain scoped to the selected target project and target version\nsource_evidence · source_evidence_a57788a38d0a\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md\nOpen evidence\nClaim from Target codebase: mini-code-agent\nAVAILABLE\n\ntarget codebase snapshot informs issue factory (0.80)\n\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nClaim: target codebase snapshot informs issue factory\nEvidence: Target codebase has 6 top-level entries and 1 test files.\nsource_evidence · source_evidence_ba00c825525e\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nOpen evidence\nClaim from minimal-agent.com\nAVAILABLE\n\ntext source provides project guidance (0.80)\n\nhttps://minimal-agent.com/?ariadne_phase5=1782137694960\nClaim: text source provides project guidance\nEvidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta\nsource_evidence · source_evidence_c091afd8c290\nhttps://minimal-agent.com/?ariadne_phase5=1782137694960\nOpen evidence\nClaim from MiniCode 仓库\nAVAILABLE\n\nrepository structure informs target project issue generation (0.80)\n\nREADME.md\nClaim: repository structure informs target project issue generation\nEvidence: # MiniCode\n\n<p align=\"center\">\n  <img src=\"./docs/logo.svg\" alt=\"MiniCode Logo\" width=\"180\" />\n</p>\n\n<h2 align=\"center\">MiniCode</h2>\n\n<p align=\"center\">\n  <img src=\"https://img.shields.io/badge/Editor-Minicode-D97757?style=for-the-badge\" a\nsource_evidence · source_evidence_c1d4b49015ef\nhttps://github.com/LiuMengxuan04/MiniCode\nOpen evidence\nClaim from Target codebase: mini-code-agent\nAVAILABLE\n\ntarget codebase snapshot informs issue factory (0.80)\n\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nClaim: target codebase snapshot informs issue factory\nEvidence: Target codebase has 5 top-level entries and 1 test files.\nsource_evidence · source_evidence_d3b315cb8cc6\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nOpen evidence\nClaim from Phase 4 source: minimal agent loop\nAVAILABLE\n\nsource provides project guidance for issue generation (0.78)\n\nhttps://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2\nClaim: source provides project guidance for issue generation\nEvidence: A useful AI builder workbench should turn this knowledge into concrete issues with acceptance criteria and target-codebase constraints\nsource_evidence · source_evidence_ec4cd0653fe8\nhttps://minimal-agent.com/#ariadne-phase4-knowledge-to-issue\nOpen evidence\nClaim from minimal-agent.com\nAVAILABLE\n\ntext source provides project guidance (0.80)\n\nhttps://minimal-agent.com/?ariadne_phase5=1782137639236\nClaim: text source provides project guidance\nEvidence: <!doctype html> <html lang=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"> <meta name=\"description\" content=\"Building a minimal AI agent for terminal use and more\"> <meta\nsource_evidence · source_evidence_fbb7d9874eec\nhttps://minimal-agent.com/?ariadne_phase5=1782137639236\nOpen evidence\nHandoff Evidence\nHandoff packet MCA-381\nAVAILABLE\n\n5 evidence refs, 3 acceptance criteria.\n\n# MCA-381: Add CLI subcommand for issue generation from snapshot\n\n## Target Repository\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\n\n## Route\n- Backend: `codex`\n- Planner: `llm`\n- Agent runtime: `llm`\n- Selected agent: `Phase 3 Codex 1782402810345`\n- Agent id: `agent_4b050c358500`\n- Runtime profile: `agent_4b050c358500:runtime`\n- Agent reason: Direct assignment selected real AgentDefinition `Phase 3 Codex 1782402810345`.\n\n## Selected Skills\n- `skill_9179aec0c6a9`\n\n## Agent Instructions\nPhase 5 evidence: use attached skills and preserve environment key boundaries.\n\n## Environment Keys\n- `CODEX_HOME`\n- `DEEPSEEK_API_KEY`\n\n## Task\nUsers need a command to trigger issue generation. Existing CLI has subcommands for run, review, history, but not for issue generation.\n\n## Planner Tasks\n- Add CLI subcommand for issue generation from snapshot\n\n## Allowed Paths\n- `mini_code_agent/cli.py`…\nhandoff_packet · handoff_packet_5db75444b724\n/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/MCA-381-handoff_packet_5db75444b724.md\nOpen evidence\nExecution handoff for codex\nAVAILABLE\n\nPrompt file used by codex.\n\n# MCA-381: Add CLI subcommand for issue generation from snapshot\n\n## Target Repository\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\n\n## Route\n- Backend: `codex`\n- Planner: `llm`\n- Agent runtime: `llm`\n- Selected agent: `Phase 3 Codex 1782402810345`\n- Agent id: `agent_4b050c358500`\n- Runtime profile: `agent_4b050c358500:runtime`\n- Agent reason: Direct assignment selected real AgentDefinition `Phase 3 Codex 1782402810345`.\n\n## Selected Skills\n- `skill_9179aec0c6a9`\n\n## Agent Instructions\nPhase 5 evidence: use attached skills and preserve environment key boundaries.\n\n## Environment Keys\n- `CODEX_HOME`\n- `DEEPSEEK_API_KEY`\n\n## Task\nUsers need a command to trigger issue generation. Existing CLI has subcommands for run, review, history, but not for issue generation.\n\n## Planner Tasks\n- Add CLI subcommand for issue generation from snapshot\n\n## Allowed Paths\n- `mini_code_agent/cli.py`…\nhandoff_file · execution_3d1c1625ec60\n/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/MCA-381-handoff_packet_5db75444b724.md\nOpen evidence\nRoute Decision\nRoute decision: codex\nAVAILABLE\n\nPhase 3 Codex 1782402810345 -> codex; allowed skills: skill_9179aec0c6a9\n\n{\n  \"id\": \"route_182a228cd4ef\",\n  \"ticket_id\": \"ticket_1e1d20752e1b\",\n  \"ticket_key\": \"MCA-381\",\n  \"planner_name\": \"llm\",\n  \"agent_runtime\": \"llm\",\n  \"backlog_planner_name\": \"llm\",\n  \"backend_name\": \"codex\",\n  \"build_team_id\": null,\n  \"build_team_name\": null,\n  \"team_role_agent_ids\": {},\n  \"selected_agent_id\": \"agent_4b050c358500\",\n  \"selected_agent_name\": \"Phase 3 Codex 1782402810345\",\n  \"selected_agent_role\": \"coding_agent\",\n  \"agent_id\": \"agent_4b050c358500\",\n  \"agent_reason\": \"Direct assignment selected real AgentDefinition `Phase 3 Codex 1782402810345`.\",\n  \"selected_skills\": [\n    \"skill_9179aec0c6a9\"\n  ],\n  \"runtime_profile_id\": \"agent_4b050c358500:runtime\",\n  \"target_repo_path\": \"/Users/martinlos/code/ariadne-dogfood/mini-code-agent\",\n  \"build_decision\": \"code_task\",\n  \"reason\": \"Direct assignment routed to Phase 3 Codex 1782402810345.\",\n  \"external_execution_enabled\": false,…\nroute_decision · route_182a228cd4ef\n/Users/martinlos/code/Ariadne/.ariadne/routes/route_182a228cd4ef.json\nOpen evidence\nExecution Artifacts\nExecution stdout/stderr/exit code capture\nPRODUCED BY RUN\n\nExecution stdout/stderr/exit code capture\n\n{\n  \"id\": \"execution_3d1c1625ec60\",\n  \"ticket_id\": \"ticket_1e1d20752e1b\",\n  \"backend_name\": \"codex\",\n  \"target_repo_path\": \"/Users/martinlos/code/ariadne-dogfood/mini-code-agent\",\n  \"target_worktree_path\": null,\n  \"dry_run\": false,\n  \"blocked\": false,\n  \"block_reason\": null,\n  \"failure_reason\": null,\n  \"command\": \"codex exec --cd /Users/martinlos/code/ariadne-dogfood/mini-code-agent - < /Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/MCA-381-handoff_packet_5db75444b724.md\",\n  \"exit_code\": 0,\n  \"stdout\": \"已完成 MCA-381，未 commit / push。\\n\\n改动在 [mini_code_agent/cli.py](/Users/martinlos/code/ariadne-dogfood/mini-code-agent/mini_code_agent/cli.py:40)：\\n\\n- 新增 `generate-issues` 和 `gen-issues` 子命令。\\n- 支持：\\n  - `mini-code-agent generate-issues`\\n  - `mini-code-agent gen-issues <run.json 或 run 目录>`\\n  - `mini-code-agent generate-issues --snapshot <path>`\\n- 省略 snapshot 时，从 `.mini-code-agen…\nartifact:execution_log · artifact_d983ab0ed0cd\n/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/execution_log.json\nOpen evidence\nTarget project git diff\nPRODUCED BY RUN\n\nTarget project git diff\n\ndiff --git a/mini_code_agent/cli.py b/mini_code_agent/cli.py\nindex e733fc6..8f77359 100644\n--- a/mini_code_agent/cli.py\n+++ b/mini_code_agent/cli.py\n@@ -37,6 +37,16 @@ class AgentRun:\n     evidence_files: list[str]\n \n \n+@dataclass(frozen=True)\n+class GeneratedIssue:\n+    issue_id: str\n+    title: str\n+    summary: str\n+    severity: str\n+    source_run_id: str\n+    source_snapshot: str\n+\n+\n def main(argv: Sequence[str] | None = None) -> int:\n     parser = build_parser()\n     args = parser.parse_args(argv)\n@@ -74,6 +84,28 @@ def build_parser() -> argparse.ArgumentParser:\n     inspect_parser.add_argument(\"run_path\", help=\"path to a run.json file\")\n     inspect_parser.set_defaults(func=inspect_command)\n \n+    for command_name in (\"generate-issues\", \"gen-issues\"):\n+        issues_parser = subparsers.add_parser(\n+            command_name,\n+            help=\"generate issue summaries from a ru…\nartifact:git_diff · artifact_cd8b49c24bbb\n/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/git_diff.patch\nOpen evidence\nTest output\nPRODUCED BY RUN\n\npython3.11 -m pytest: exit 0\n\n============================= test session starts ==============================\nplatform darwin -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0\nrootdir: /Users/martinlos/code/ariadne-dogfood/mini-code-agent\nconfigfile: pyproject.toml\ntestpaths: tests\nplugins: cov-6.3.0, asyncio-1.3.0, langsmith-0.9.0, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 5 items\n\ntests/test_cli.py .....                                                  [100%]\n\n============================== 5 passed in 0.04s ===============================\n\ntest_output · execution_3d1c1625ec60\nOpen evidence\nReview Artifacts\nReview report: pass\nAVAILABLE\n\n0 failed checks, 0 warnings.\n\n{\n  \"id\": \"review_348a78150e99\",\n  \"ticket_id\": \"ticket_1e1d20752e1b\",\n  \"verdict\": \"pass\",\n  \"reviewer_mode\": \"deterministic\",\n  \"risk_score\": 0.0,\n  \"acceptance_criteria_coverage\": {\n    \"New subcommand 'generate-issues' or 'gen-issues' is available\": true,\n    \"Command accepts optional snapshot path or uses latest\": true,\n    \"Command outputs summary of generated issues\": true\n  },\n  \"evidence_refs\": [\n    \"ticket_1e1d20752e1b\",\n    \"packet_849950689a06\",\n    \"evidence_bf36a46fe86b\",\n    \"execution_3d1c1625ec60\",\n    \"mini_code_agent/cli.py\"\n  ],\n  \"next_ticket_suggestions\": [],\n  \"passed_checks\": [\n    \"Build Packet evidence exists\",\n    \"Acceptance criteria exist\",\n    \"Project relevance exists\",\n    \"Source trust boundary recorded\",\n    \"Execution exit code is 0\",\n    \"Target project tests passed\",\n    \"Changed files captured\",\n    \"Changed files are within allowed scope\",\n    \"Gi…\nreview_report · review_348a78150e99\n/Users/martinlos/code/Ariadne/.ariadne/reviews/review_348a78150e99.json\nOpen evidence\nMemory Artifacts\nMemory record\nAVAILABLE\n\nBackend codex changed mini_code_agent/cli.py with exit code 0 and test exit code 0. Passed 10 checks; failed 0 checks.\n\nMCA-381: executed `codex` for code_task; review verdict `pass`.\nBackend codex changed mini_code_agent/cli.py with exit code 0 and test exit code 0.\nPassed 10 checks; failed 0 checks.\nReview generated target project diff.\nConvert remaining experiment/doc tickets into future Build Tickets.\nKeep real Feishu writes disabled until credentials and confirmation are present.\nmemory_record · memory_b9c6fe04841d\n/Users/martinlos/code/Ariadne/.ariadne/memory/tickets/ticket_1e1d20752e1b.json\nOpen evidence\nNext Tickets\nARI-114: Add unit tests for generate-issues CLI subcommand\nAVAILABLE\n\nplanning · high\n\nThe new subcommand lacks dedicated tests. Tests are needed to verify argument parsing, snapshot loading, and output formatting.\nbuild_ticket · ticket_be98451d58f7\nOpen evidence\nARI-115: Update CLI documentation for generate-issues subcommand\nAVAILABLE\n\nplanning · medium\n\nUser-facing documentation (README, help strings) should describe the new subcommand, its arguments, and usage examples.\nbuild_ticket · ticket_43ac5ee3de3b\nOpen evidence\nNext tickets artifact\nAVAILABLE\n\nGenerated next-ticket artifact.\n\n{\n  \"source_ticket_id\": \"ticket_1e1d20752e1b\",\n  \"source_ticket_key\": \"MCA-381\",\n  \"review_verdict\": \"pass\",\n  \"generated_at\": \"2026-06-28T16:30:21Z\",\n  \"next_tickets\": [\n    {\n      \"title\": \"Add retrieval over local memory\",\n      \"reason\": \"Memory is written after ticket runs but is not yet indexed or cited by future planning.\",\n      \"source\": \"memory\",\n      \"priority\": \"high\",\n      \"suggested_build_decision\": \"code_task\",\n      \"acceptance_criteria\": [\n        \"Planner can search prior memory records.\",\n        \"Search results are cited in Build Packet evidence.\"\n      ],\n      \"affected_modules\": [\n        \"ariadne_ltb/memory.py\",\n        \"ariadne_ltb/planner.py\"\n      ]\n    },\n    {\n      \"title\": \"Add regression guard for code_task changes\",\n      \"reason\": \"Recent run changed mini_code_agent/cli.py.\",\n      \"source\": \"changed_file\",\n      \"priority\": \"medium\",\n      \"suggeste…\nnext_tickets_artifact · artifact_c898538cdfb9\n/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/next_tickets.json\nOpen evidence\nExecution Results\ncodex\nUNKNOWN\nexit 0\ntests 0\nmini_code_agent/cli.py\nDiff artifact: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/git_diff.patch\nExecution log: /Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/execution_log.json\nAssignment Progress\n\nNo current assignment is queued, ready, claimed, or running.\n\nTimeline\n2026-06-28T16:27:13Z\nBacklog\nbacklog_preview_applied\n\nApplied preview operation: Users need a command to trigger issue generation. Existing CLI has subcommands for run, review, history, but not for issue generation.\n\n2026-06-28T16:27:13Z\nBacklog\nbacklog_updated\n\nBacklog update recorded: Applied backlog preview backlog_preview_5c70f56bfbb7.\n\n2026-06-28T16:27:15Z\nAriadne\nstatus_changed\n\nAssigned to Phase 3 Codex 1782402810345.\n\n2026-06-28T16:27:15Z\nPhase 3 Codex 1782402810345\nassignment:done\n\nAssignment done: Phase 3 Codex 1782402810345\n\n2026-06-28T16:27:15Z\nAriadne\ncomment:assignment\n\nAssignment created: MCA-381 -> Phase 3 Codex 1782402810345.\n\n2026-06-28T16:27:15Z\nAriadne\nruntime_event:queued\n\nassignment: queued\n\n2026-06-28T16:27:18Z\nBuild Lead\nstatus_changed\n\nStatus changed from waiting_approval to planning.\n\n2026-06-28T16:27:18Z\nLLM Build Lead\nllm_agent_started\n\nDeepSeek LLM role `build_lead` started.\n\n2026-06-28T16:27:18Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nPhase 3 Codex 1782402810345: claimed MCA-381.\n\n2026-06-28T16:27:18Z\nBuild Lead\ncomment:handoff\n\nBuild Lead -> Planner: Need Build Packet and coding handoff.\n\n2026-06-28T16:27:18Z\nPhase 3 Codex 1782402810345\nruntime_event:started\n\nexecution: started\n\n2026-06-28T16:27:18Z\nPhase 3 Codex 1782402810345\nruntime_event:claimed\n\nclaim: claimed\n\n2026-06-28T16:27:18Z\nBuild Lead\nruntime_event:completed\n\nhandoff: completed\n\n2026-06-28T16:27:31Z\nLLM Build Lead\nllm_agent_finished\n\nDeepSeek LLM role `build_lead` completed.\n\n2026-06-28T16:27:31Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nDeepSeek Build Lead role completed.\n\n2026-06-28T16:27:31Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nllm_build_lead: succeeded\n\n2026-06-28T16:27:42Z\nPlanner\nagent_run_started\n\nllm planner started.\n\n2026-06-28T16:27:42Z\nPlanner\nstatus_changed\n\nStatus changed from planning to ready_for_execution.\n\n2026-06-28T16:27:42Z\nLLM Knowledge\nllm_agent_started\n\nDeepSeek LLM role `knowledge` started.\n\n2026-06-28T16:27:42Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nPlanner generated Build Packet and handoff.\n\n2026-06-28T16:27:42Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nplanning: succeeded\n\n2026-06-28T16:27:55Z\nLLM Knowledge\nllm_agent_finished\n\nDeepSeek LLM role `knowledge` completed.\n\n2026-06-28T16:27:55Z\nBuild Lead\nroute_decision\n\nSelected backend `codex` for `/Users/martinlos/code/ariadne-dogfood/mini-code-agent`.\n\n2026-06-28T16:27:55Z\nExecution\nagent_run_started\n\nExecution started.\n\n2026-06-28T16:27:55Z\nExecution\nexecution_started\n\ncodex execution started.\n\n2026-06-28T16:27:55Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nDeepSeek Knowledge role completed.\n\n2026-06-28T16:27:55Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nBuild Lead selected `codex`.\n\n2026-06-28T16:27:55Z\nPlanner\ncomment:handoff\n\nPlanner -> Execution: Build Packet and coding handoff are ready.\n\n2026-06-28T16:27:55Z\nExecution\nrun_message:status\n\nExecution started for MCA-381.\n\n2026-06-28T16:27:55Z\nPlanner\nruntime_event:completed\n\nhandoff: completed\n\n2026-06-28T16:27:55Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nllm_knowledge: succeeded\n\n2026-06-28T16:27:55Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nroute: succeeded\n\n2026-06-28T16:30:21Z\nExecution\nexecution_finished\n\nExecution exit 0; tests 0; changed mini_code_agent/cli.py.\n\n2026-06-28T16:30:21Z\nExecution\nstatus_changed\n\nStatus changed from ready_for_execution to reviewing.\n\n2026-06-28T16:30:21Z\nBacklog\nstatus_changed\n\nPromote MCA-381 after successful execution execution_3d1c1625ec60.\n\n2026-06-28T16:30:21Z\nBacklog\nbacklog_updated\n\nBacklog update recorded: Applied backlog preview backlog_preview_3774f080f3e7.\n\n2026-06-28T16:30:21Z\nReviewer\nagent_run_started\n\nReviewer started.\n\n2026-06-28T16:30:21Z\nReviewer\nreview_started\n\nReviewer started conservative result check.\n\n2026-06-28T16:30:21Z\nReviewer\nreview_finished\n\nReviewer verdict: pass.\n\n2026-06-28T16:30:21Z\nReviewer\nstatus_changed\n\nStatus changed from reviewing to writing_memory.\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nagent_run_started\n\nMemory / Feishu started.\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nmemory_written\n\nWrote local memory and Feishu preview plan.\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nartifact:written\n\nmemory_record: Local memory write-back record\n\n2026-06-28T16:30:21Z\nReviewer\nartifact:written\n\nreview_report: Reviewer verdict: pass\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nartifact:written\n\nnext_tickets: Generated next Build Ticket suggestions\n\n2026-06-28T16:30:21Z\nExecution\nartifact:written\n\ngit_diff: Target project git diff\n\n2026-06-28T16:30:21Z\nExecution\nartifact:written\n\ntest_output: Target project test output\n\n2026-06-28T16:30:21Z\nExecution\nartifact:written\n\nexecution_log: Execution stdout/stderr/exit code capture\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nartifact:written\n\nfeishu_write_plan: Feishu preview write plan\n\n2026-06-28T16:30:21Z\nExecution\nartifact:written\n\nchanged_files: Changed file list\n\n2026-06-28T16:30:21Z\nReviewer\ncomment:handoff\n\nReviewer -> Memory: Reviewer verdict=pass.\n\n2026-06-28T16:30:21Z\nExecution\ncomment:handoff\n\nExecution -> Reviewer: Execution produced result, diff, and tests.\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\ncomment:memory\n\nMemory wrote decision log and Feishu preview plan.\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\ncomment:review\n\nReviewer verdict: pass.\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nApplied execution feedback backlog preview.\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nExecution exit 0; tests 0; changed mini_code_agent/cli.py.\n\n2026-06-28T16:30:21Z\nReviewer\nrun_message:status\n\nReviewer started for MCA-381.\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nrun_message:status\n\nMemory / Feishu started for MCA-381.\n\n2026-06-28T16:30:21Z\nReviewer\nrun_message:artifact\n\nWrote review report with verdict pass.\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nrun_message:artifact\n\nWrote local memory record.\n\n2026-06-28T16:30:21Z\nExecution\nrun_message:artifact\n\nWrote execution_log: Execution stdout/stderr/exit code capture.\n\n2026-06-28T16:30:21Z\nReviewer\nrun_message:result\n\nReviewer verdict: pass.\n\n2026-06-28T16:30:21Z\nMemory / Feishu\nrun_message:artifact\n\nWrote Feishu preview plan.\n\n2026-06-28T16:30:21Z\nExecution\nrun_message:artifact\n\nWrote git_diff: Target project git diff.\n\n2026-06-28T16:30:21Z\nExecution\nrun_message:artifact\n\nWrote changed_files: Changed file list.\n\n2026-06-28T16:30:21Z\nExecution\nrun_message:artifact\n\nWrote test_output: Target project test output.\n\n2026-06-28T16:30:21Z\nExecution\nrun_message:result\n\nExecution exit 0; tests 0; changed mini_code_agent/cli.py.\n\n2026-06-28T16:30:21Z\nExecution\nrun_message:result\n\nExecution exit 0; tests 0; changed mini_code_agent/cli.py.\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nmemory: succeeded\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nreview: succeeded\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nbacklog_preview: succeeded\n\n2026-06-28T16:30:21Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nexecution: succeeded\n\n2026-06-28T16:30:21Z\nReviewer\nruntime_event:completed\n\nhandoff: completed\n\n2026-06-28T16:30:21Z\nExecution\nruntime_event:completed\n\nhandoff: completed\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nllm_backlog_planner_finished\n\nLLM backlog planner generated ticket delta suggestions.\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nnext_tickets_generated\n\nGenerated follow-up Build Ticket suggestions.\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nstatus_changed\n\nStatus changed from writing_memory to done.\n\n2026-06-28T16:30:36Z\nBacklog\nbacklog_preview_noop\n\nMemory write-back did not expose a new planner memory gap.\n\n2026-06-28T16:30:36Z\nBacklog\nbacklog_updated\n\nBacklog update recorded: Applied backlog preview backlog_preview_a8d44a3e116c.\n\n2026-06-28T16:30:36Z\nBacklog\nbacklog_preview_noop\n\ncodebase_observation preview materialized 2 follow-up ticket operation(s).\n\n2026-06-28T16:30:36Z\nBacklog\nbacklog_updated\n\nBacklog update recorded: Applied backlog preview backlog_preview_fec039e1fad5.\n\n2026-06-28T16:30:36Z\nBacklog\nstatus_changed\n\nPromote MCA-381 after passing review review_348a78150e99.\n\n2026-06-28T16:30:36Z\nBacklog\nbacklog_updated\n\nBacklog update recorded: Applied backlog preview backlog_preview_7f0e12617075.\n\n2026-06-28T16:30:36Z\nLLM Memory\nllm_agent_started\n\nDeepSeek LLM role `memory` started.\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nartifact:written\n\nnext_tickets: LLM-generated backlog delta suggestions\n\n2026-06-28T16:30:36Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nGenerated next Build Ticket suggestions.\n\n2026-06-28T16:30:36Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nRecorded 4 feedback-driven backlog update(s) from applied previews.\n\n2026-06-28T16:30:36Z\nMemory\ncomment:handoff\n\nMemory -> Build Lead: Memory and next tickets are written.\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nrun_message:artifact\n\nLLM backlog planner generated ticket delta suggestions.\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nrun_message:artifact\n\nGenerated next Build Ticket suggestions.\n\n2026-06-28T16:30:36Z\nMemory / Feishu\nrun_message:result\n\nRecorded feedback-driven backlog updates.\n\n2026-06-28T16:30:36Z\nMemory\nruntime_event:completed\n\nhandoff: completed\n\n2026-06-28T16:30:36Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nnext_tickets: succeeded\n\n2026-06-28T16:30:36Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nbacklog_update: succeeded\n\n2026-06-28T16:30:46Z\nLLM Memory\nllm_agent_finished\n\nDeepSeek LLM role `memory` completed.\n\n2026-06-28T16:30:46Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nDeepSeek Memory role completed.\n\n2026-06-28T16:30:46Z\nMemory / Feishu\nrun_message:result\n\nWrote local memory, Feishu preview plan, next ticket suggestions, and backlog updates.\n\n2026-06-28T16:30:46Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nllm_memory: succeeded\n\n2026-06-28T16:31:03Z\nBuild Board\nboard_exported\n\nExported board to /Users/martinlos/code/Ariadne/.ariadne/board/index.md.\n\n2026-06-28T16:31:03Z\nBuild Lead\norchestrator_result_written\n\nWrote structured ticket run result manifest.\n\n2026-06-28T16:31:03Z\nBuild Lead\nlanding_evidence_written\n\nWrote ticket landing evidence packet.\n\n2026-06-28T16:31:03Z\nMemory / Feishu\nartifact:written\n\nlanding_evidence: Ticket landing evidence summary\n\n2026-06-28T16:31:03Z\nMemory / Feishu\nartifact:written\n\norchestrator_result: Structured ticket run result manifest\n\n2026-06-28T16:31:03Z\nMemory / Feishu\nartifact:written\n\nlanding_evidence: Ticket landing evidence packet\n\n2026-06-28T16:31:03Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nBoard path recorded at /Users/martinlos/code/Ariadne/.ariadne/board/index.md.\n\n2026-06-28T16:31:03Z\nPhase 3 Codex 1782402810345\ncomment:progress\n\nPhase 3 Codex 1782402810345: assignment done for MCA-381.\n\n2026-06-28T16:31:03Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nassignment: succeeded\n\n2026-06-28T16:31:03Z\nPhase 3 Codex 1782402810345\nruntime_event:succeeded\n\nboard: succeeded\n\nComments\nAriadne\n2026-06-28T16:27:15Z\n\nAssignment created: MCA-381 -> Phase 3 Codex 1782402810345.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:27:18Z\n\nPhase 3 Codex 1782402810345: claimed MCA-381.\n\nBuild Lead\n2026-06-28T16:27:18Z\n\nBuild Lead -> Planner: Need Build Packet and coding handoff.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:27:31Z\n\nDeepSeek Build Lead role completed.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:27:42Z\n\nPlanner generated Build Packet and handoff.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:27:55Z\n\nDeepSeek Knowledge role completed.\n\nPlanner\n2026-06-28T16:27:55Z\n\nPlanner -> Execution: Build Packet and coding handoff are ready.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:27:55Z\n\nBuild Lead selected `codex`.\n\nExecution\n2026-06-28T16:30:21Z\n\nExecution -> Reviewer: Execution produced result, diff, and tests.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:21Z\n\nExecution exit 0; tests 0; changed mini_code_agent/cli.py.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:21Z\n\nApplied execution feedback backlog preview.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:21Z\n\nReviewer verdict: pass.\n\nReviewer\n2026-06-28T16:30:21Z\n\nReviewer -> Memory: Reviewer verdict=pass.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:21Z\n\nMemory wrote decision log and Feishu preview plan.\n\nMemory\n2026-06-28T16:30:36Z\n\nMemory -> Build Lead: Memory and next tickets are written.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:36Z\n\nGenerated next Build Ticket suggestions.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:36Z\n\nRecorded 4 feedback-driven backlog update(s) from applied previews.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:30:46Z\n\nDeepSeek Memory role completed.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:31:03Z\n\nBoard path recorded at /Users/martinlos/code/Ariadne/.ariadne/board/index.md.\n\nPhase 3 Codex 1782402810345\n2026-06-28T16:31:03Z\n\nPhase 3 Codex 1782402810345: assignment done for MCA-381.\n\nSummary\nProject\nMini Code Agent\nVersion\nv0.1-real-20260628162602\nAssignee\nPhase 3 Codex 1782402810345\nRuntime\nLast run\nsucceeded\nReview\nPASS\nEvidence\n29\nBlocked\nNo\nTarget Context\nProject ID\nresource_56a27abf28d0\nVersion ID\nproject_version_2db31f40259a\nBuild context\nbuild_context_07f41e29c4d3\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nSource Grounding\nsource_018ec34904b9\nsource_04d5f2ca622b\nsource_090f6e77f0c1\nsource_0ea2d7fdc324\nsource_1772d4e51e30\nsource_1a3cc2f7548b\nsource_3c9a0f11c228\nsource_90054270100f\nsource_a4a41f22fe18\nsource_a5bcbfd897ea\nsource_cc10df5e33b5\nsource_de998a073cdb\nsource_e3b78167571b\nsource_eec392053126\nsource_artifact_04537ea5c2cc\nsource_artifact_1da8628c15ec\nsource_artifact_26aba347c1fd\nsource_artifact_2e3d481b8619\nsource_artifact_59554d57fb1a\nsource_artifact_aecb87bb35ac\nsource_artifact_b6b939aa42fe\nsource_artifact_d021e4f22927\nsource_artifact_db83e688b859\nsource_artifact_e62eb8beab43\nsource_artifact_e6e3b777dbb4\nsource_artifact_ecb39c056d7f\nsource_artifact_efae241f3951\nsource_artifact_f848dca72645\nsource_evidence_483cc8b4eec3\nsource_evidence_1d87dc2d426d\nsource_evidence_ec4cd0653fe8\nsource_evidence_d3b315cb8cc6\nsource_evidence_ba00c825525e\nsource_evidence_483cc8b4eec3\n\nrepository structure informs target project issue generation\n\nREADME.md\nsource_evidence_1d87dc2d426d\n\nsource provides project guidance for issue generation\n\n/Users/martinlos/code/Ariadne/docs/evidence/issue-41-apply-issue-delta/browser-source.md#claim-1\nsource_evidence_ec4cd0653fe8\n\nsource provides project guidance for issue generation\n\nhttps://minimal-agent.com/#ariadne-phase4-knowledge-to-issue#claim-2\nsource_evidence_d3b315cb8cc6\n\ntarget codebase snapshot informs issue factory\n\n/Users/martinlos/code/ariadne-dogfood/mini-code-agent\nCompiler Context\n\npresent\n\nsource_artifact_1da8628c15ec{ \"compiler_mode\": \"project_knowledge_graph\", \"graph_status\": \"completed\", \"runtime_mode\": \"deepseek\", \"fallback_reason\": null, \"source_insight_ids\": [ \"source_insight_06ad8774ee9b\", \"source_insight_62d443a9e61f\", \"source_insight_6523ecee5ec4\", \"source_insight_68b3d8f065f6\", \"source_insight_69b333f8fbf3\", \"source_insight_6dda402bb4c6\", \"source_insight_830c05e0e18f\", \"source_insight_89fff0507588\", \"source_insight_8ade22f17952\", \"source_insight_9c487429e6d0\", \"source_insight_c0638495e854\", \"source_insight_f241d78f7b4b\", \"source_insight_f2acd7ef2f35\", \"source_insight_fa50750fa3f5\" ], \"synthesis_theme_ids\": [ \"theme_0d3874508c31\", \"theme_321cf6f6bb02\", \"theme_347165e4dc2d\", \"theme_358ae0dc5392\", \"theme_376b4eef8203\", \"theme_7ef01dd43a41\", \"theme_885ead5fde8a\", \"theme_968fb0e9d0ed\", \"theme_9fce17b9bce3\", \"theme_d1684f7c9058\", \"theme_d30dc5fb1e6b\" ], \"quality_issues\": [ \"unresolved_blocker_ignored:timeout\", \"unresolved_blocker_ignored:quota_exceeded\", \"unresolved_blocker_ignored:external_execution_blocked\", \"unresolved_blocker_ignored:resource_locked\" ], \"node_provenance\": [ { \"node\": \"update_themes\", \"status\": \"skipped\", \"schema_name\": \"SynthesisThemeDrafts\", \"reason\": \"no_new_insights\" }, { \"node\": \"detect_contradictions\", \"status\": \"skipped\", \"schema_name\": \"ContradictionDrafts\", \"reason\": \"no_new_insights\" }, { \"node\": \"plan_decomposition\", \"status\": \"completed\", \"schema_name\": \"IssueDecompositionDrafts\", \"issue_count\": 7 }, { \"node\": \"ground_evidence\", \"status\": \"completed\", \"schema_name\": \"GroundedIssueDrafts\", \"draft_issue_count\": 7, \"grounded_issue_count\": 7 }, { \"node\": \"quality_gate\", \"status\": \"completed\", \"schema_name\": \"GoalCoverageScore\", \"quality_score\": 0.6, \"quality_issues\": [ \"unresolved_blocker_ignored:timeout\", \"unresolved_blocker_ignored:quota_exceeded\", \"unresolved_blocker_ignored:external_execution_blocked\", \"unresolved_blocker_ignored:resource_locked\" ], \"compiled_count\": 7 } ] }\nHandoff / Route\n{ \"id\": \"handoff_packet_5db75444b724\", \"payload_ref\": \"artifact_c898538cdfb9\", \"handoff_file\": \"/Users/martinlos/code/Ariadne/.ariadne/handoffs/packets/MCA-381-handoff_packet_5db75444b724.md\", \"assignment_id\": \"assignment_32d41975f52a\" }\nDiff / Tests / Review\n\n/Users/martinlos/code/Ariadne/.ariadne/artifacts/ticket_1e1d20752e1b/git_diff.patch\n\npython3.11 -m pytest: exit 0\n\npass: 0 failed checks, 0 warnings\n\nAcceptance / Modules\n\nAcceptance criteria are derived from 5 source claim(s), the project goal, and snapshot status present.\n\nNew subcommand 'generate-issues' or 'gen-issues' is available\nCommand accepts optional snapshot path or uses latest\nCommand outputs summary of generated issues\n\nModules selected from task scope and current target codebase snapshot: mini_code_agent/cli.py, mini_code_agent/__main__.py.\n\nmini_code_agent/cli.py\nmini_code_agent/__main__.py\nLinks\nbuild_context_07f41e29c4d3\nhttps://minimal-agent.com/\nsource_018ec34904b9\nsource_04d5f2ca622b\nsource_090f6e77f0c1\nsource_0ea2d7fdc324\nsource_1772d4e51e30\nsource_1a3cc2f7548b\nsource_3c9a0f11c228\nsource_90054270100f\nsource_a4a41f22fe18\nsource_a5bcbfd897ea\nsource_artifact_04537ea5c2cc\nsource_artifact_1da8628c15ec\nsource_artifact_26aba347c1fd\nsource_artifact_2e3d481b8619\nsource_artifact_59554d57fb1a\nsource_artifact_aecb87bb35ac\nsource_artifact_b6b939aa42fe\nsource_artifact_d021e4f22927\nsource_artifact_db83e688b859\nsource_artifact_e62eb8beab43\nsource_artifact_e6e3b777dbb4\nsource_artifact_ecb39c056d7f\nsource_artifact_efae241f3951\nsource_artifact_f848dca72645\nsource_cc10df5e33b5\nsource_d8b50906f78c\nsource_de998a073cdb\nsource_e3b78167571b\nsource_eec392053126\nsource_evidence_1d87dc2d426d\nsource_evidence_483cc8b4eec3\nsource_evidence_ba00c825525e\nsource_evidence_d3b315cb8cc6\nsource_evidence_ec4cd0653fe8\nARI-114\nARI-115\nAssignments\nPhase 3 Codex 1782402810345\ncodex\nDone\nAttempt 1\nassignment_32d41975f52a\nassignment is not blocked or failed",
+  "recorded_at": "2026-06-28T16:31:24.540Z"
+}

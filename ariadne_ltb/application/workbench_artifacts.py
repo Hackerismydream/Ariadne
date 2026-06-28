@@ -11,6 +11,8 @@ from ariadne_ltb.application.dtos import (
 from ariadne_ltb.application.errors import NotFoundError
 from ariadne_ltb.application.work_truth import reduce_work_truth
 from ariadne_ltb.models import (
+    Artifact,
+    ArtifactType,
     BuildTicket,
     ExecutionResult,
     MemoryRecord,
@@ -367,19 +369,37 @@ class IssueEvidenceProjectionService:
                     created_at=child.created_at,
                 )
             )
-        next_path = ticket.metadata.get("next_tickets_path")
-        if next_path:
+        for next_artifact in self._next_ticket_artifacts(ticket):
             items.append(
                 self._file_item(
                     category="next_ticket",
                     label="Next tickets artifact",
                     ref_type="next_tickets_artifact",
-                    ref_id=str(next_path),
-                    path=str(next_path),
+                    ref_id=next_artifact.id,
+                    path=next_artifact.path,
                     summary="Generated next-ticket artifact.",
+                    created_at=next_artifact.created_at,
                 )
             )
         return items
+
+    def _next_ticket_artifacts(self, ticket: BuildTicket) -> list[Artifact]:
+        artifacts: list[Artifact] = []
+        seen: set[str] = set()
+        next_path = ticket.metadata.get("next_tickets_path")
+        for artifact in self.store.list_artifacts_for_ticket(ticket.id):
+            if artifact.artifact_type is not ArtifactType.NEXT_TICKETS:
+                continue
+            if next_path and artifact.path != str(next_path):
+                continue
+            artifacts.append(artifact)
+            seen.add(artifact.id)
+        if not artifacts:
+            for artifact in self.store.list_artifacts_for_ticket(ticket.id):
+                if artifact.artifact_type is ArtifactType.NEXT_TICKETS and artifact.id not in seen:
+                    artifacts.append(artifact)
+                    seen.add(artifact.id)
+        return sorted(artifacts, key=lambda item: item.created_at)
 
     def _artifact_item(
         self,

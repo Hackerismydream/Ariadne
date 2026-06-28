@@ -68,6 +68,12 @@ function activeAssignment(assignments: ApiAssignmentSummary[]) {
   ].includes(assignment.status)) ?? null;
 }
 
+function terminalBlocker(assignments: ApiAssignmentSummary[]) {
+  return assignments
+    .filter((assignment) => ["blocked", "failed"].includes(assignment.status))
+    .sort((left, right) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")))[0] ?? null;
+}
+
 function assignableBackend(value: string | null | undefined): "codex" | "claude-code" | null {
   return value === "codex" || value === "claude-code" ? value : null;
 }
@@ -108,21 +114,33 @@ export function IssueDetail({
     [runtimes, selectedRuntime],
   );
   const active = issue ? activeAssignment(issue.assignments) : null;
+  const terminalBlockedAssignment = issue ? terminalBlocker(issue.assignments) : null;
+  const blockerText = issue?.blocked_reason
+    ?? terminalBlockedAssignment?.blocked_reason
+    ?? terminalBlockedAssignment?.blocker
+    ?? terminalBlockedAssignment?.failure_reason
+    ?? "";
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? null;
 
-  async function refreshIssue() {
-    setLoading(true);
+  async function refreshIssue(options: { silent?: boolean } = {}) {
+    if (!options.silent) setLoading(true);
     try {
       const response = await getIssue(issueKey);
       setIssue(response.issue);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
-      setLoading(false);
+      if (!options.silent) setLoading(false);
     }
   }
 
   useEffect(() => {
+    setIssue(null);
+    setLoading(true);
+    setMessage("");
+    setAssignmentEvents([]);
+    setSelectedEvidence(null);
+    setEvidenceMessage("");
     void refreshIssue();
   }, [issueKey]);
 
@@ -150,7 +168,10 @@ export function IssueDetail({
     let cancelled = false;
     async function refreshEvents() {
       try {
-        const response = await getAssignmentEvents(assignmentId);
+        const [response] = await Promise.all([
+          getAssignmentEvents(assignmentId),
+          refreshIssue({ silent: true }),
+        ]);
         if (!cancelled) {
           setAssignmentEvents(response.events);
           setEventsMessage("");
@@ -305,10 +326,10 @@ export function IssueDetail({
         </button>
       </section>
       {message ? <p className="action-message">{message}</p> : null}
-      {issue.blocked_reason ? (
+      {blockerText ? (
         <section className="issue-blocker-callout" data-testid="issue-blocker-link">
           <strong>Blocked</strong>
-          <p>{issue.blocked_reason}</p>
+          <p>{blockerText}</p>
           <button type="button" onClick={() => { globalThis.location.hash = "#inbox"; }}>Open Inbox</button>
         </section>
       ) : null}

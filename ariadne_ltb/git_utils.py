@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,7 +58,9 @@ def git_branch(repo: Path) -> str | None:
 def git_diff(repo: Path) -> str:
     if not is_git_repo(repo):
         return ""
-    return run_git(repo, "diff", "--", ".").stdout
+    tracked_diff = run_git(repo, "diff", "--", ".").stdout
+    untracked_diff = _untracked_diff(repo)
+    return "\n".join(part for part in [tracked_diff.rstrip(), untracked_diff.rstrip()] if part).strip()
 
 
 def changed_files(repo: Path) -> list[str]:
@@ -69,6 +72,64 @@ def changed_files(repo: Path) -> list[str]:
         path = line[3:].strip()
         if " -> " in path:
             path = path.split(" -> ", maxsplit=1)[1]
+        for changed_path in _expand_status_path(repo, path):
+            if _is_ignored_generated_path(changed_path):
+                continue
+            files.append(changed_path)
+    return sorted(files)
+
+
+def _untracked_diff(repo: Path) -> str:
+    patches: list[str] = []
+    for path in _untracked_files(repo):
+        file_path = repo / path
+        if not file_path.is_file():
+            continue
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            patches.append(
+                "\n".join(
+                    [
+                        f"diff --git a/{path} b/{path}",
+                        "new file mode 100644",
+                        "index 0000000..0000000",
+                        "--- /dev/null",
+                        f"+++ b/{path}",
+                        "@@ -0,0 +1 @@",
+                        "+<binary file omitted>",
+                    ]
+                )
+            )
+            continue
+        lines = content.splitlines(keepends=True)
+        patch = "".join(
+            difflib.unified_diff(
+                [],
+                lines,
+                fromfile="/dev/null",
+                tofile=f"b/{path}",
+            )
+        )
+        patches.append(
+            "\n".join(
+                [
+                    f"diff --git a/{path} b/{path}",
+                    "new file mode 100644",
+                    "index 0000000..0000000",
+                    patch.rstrip(),
+                ]
+            )
+        )
+    return "\n".join(patch for patch in patches if patch)
+
+
+def _untracked_files(repo: Path) -> list[str]:
+    files: list[str] = []
+    for line in git_status(repo).splitlines():
+        if not line.startswith("?? "):
+            continue
+        path = line[3:].strip()
         for changed_path in _expand_status_path(repo, path):
             if _is_ignored_generated_path(changed_path):
                 continue

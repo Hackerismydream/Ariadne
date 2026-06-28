@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import http.client
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -192,7 +193,7 @@ class DeepSeekClient:
             )
         except urllib.error.HTTPError as exc:
             raise self._client_error("http_error", exc, status_code=exc.code) from exc
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except (urllib.error.URLError, TimeoutError, OSError, http.client.IncompleteRead) as exc:
             raise self._client_error("transport_error", exc, retryable=True) from exc
 
         usage = _usage_from_raw(body.get("usage") if isinstance(body, dict) else None)

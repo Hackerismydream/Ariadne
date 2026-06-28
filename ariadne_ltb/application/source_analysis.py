@@ -134,6 +134,22 @@ class SourceAnalysisService:
         fetch_result = self.repository_fetcher.fetch(source.path_or_url, cache_root)
         self.store.save_source_fetch_record(fetch_record_from_result(source.id, fetch_result))
         if fetch_result.status != "cached" or not fetch_result.cache_path:
+            if str(source.metadata.get("content") or "").strip():
+                result = self._analyze_text_source(source)
+                refreshed = self.store.load_source_document(source.id)
+                self._update_source_metadata(
+                    refreshed,
+                    {
+                        "analysis_warning": fetch_result.error or "repository_fetch_failed",
+                        "repository_fetch_status": fetch_result.status,
+                        "snapshot": refreshed.metadata.get("snapshot", {})
+                        | {
+                            "source_url": fetch_result.source_url,
+                            "repository_fetch_status": fetch_result.status,
+                        },
+                    },
+                )
+                return result
             error = fetch_result.error or "repository_fetch_failed"
             self._update_source_metadata(
                 source,

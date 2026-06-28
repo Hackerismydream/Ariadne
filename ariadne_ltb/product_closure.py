@@ -21,19 +21,24 @@ FORBIDDEN_REAL_CLOSURE_MARKERS = (
     "fake-codex",
     "demo full",
     "dry-run",
-    "dry_run",
     "static " + OFFLINE_MARKER,
     "blocked rehearsal",
     "演练模式",
     "门禁关闭",
     "已阻塞",
 )
+FORBIDDEN_REAL_CLOSURE_PATTERNS = (
+    "dry_run:true",
+    '"dry_run":true',
+    "blocked:true",
+    '"blocked":true',
+)
 
 
-def product_closure_snapshot(store: AriadneStore) -> dict[str, Any]:
+def product_closure_snapshot(store: AriadneStore, project_version_id: str | None = None) -> dict[str, Any]:
     """Classify Project Version Delivery closure without mutating product state."""
-    packet = _latest_dogfood_packet(store)
-    blocker = _latest_blocker_packet(store)
+    packet = _latest_dogfood_packet(store, project_version_id=project_version_id)
+    blocker = _latest_blocker_packet(store, project_version_id=project_version_id)
     if packet and (not blocker or packet.stat().st_mtime >= blocker.stat().st_mtime):
         return _with_defaults(
             evaluate_closure_packet(
@@ -101,9 +106,7 @@ def evaluate_closure_packet(
     status = str(packet.get("status") or "")
     mode = str(packet.get("mode") or "")
     evidence = str(packet.get("execution_evidence_text") or "")
-    found_markers = [
-        marker for marker in FORBIDDEN_REAL_CLOSURE_MARKERS if marker.lower() in evidence.lower()
-    ]
+    found_markers = _forbidden_real_closure_markers(evidence)
     if status in {BLOCKED_WITH_EVIDENCE, "BLOCKED_NOT_CLOSED"} or mode in {"blocked-ok", "blocked"}:
         return {
             "status": BLOCKED_WITH_EVIDENCE,
@@ -178,6 +181,14 @@ def evaluate_closure_packet(
     }
 
 
+def _forbidden_real_closure_markers(evidence: str) -> list[str]:
+    normalized = evidence.lower()
+    compact = "".join(normalized.split())
+    markers = [marker for marker in FORBIDDEN_REAL_CLOSURE_MARKERS if marker.lower() in normalized]
+    markers.extend(pattern for pattern in FORBIDDEN_REAL_CLOSURE_PATTERNS if pattern in compact)
+    return markers
+
+
 def _with_defaults(snapshot: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": snapshot["status"],
@@ -208,12 +219,50 @@ def _packet_rejected(
     }
 
 
-def _latest_dogfood_packet(store: AriadneStore) -> Path | None:
-    return _latest_path(store.root.glob(".ariadne/dogfood/**/closure-result.json"))
+def _latest_dogfood_packet(store: AriadneStore, project_version_id: str | None = None) -> Path | None:
+    return _latest_path(
+        _paths_matching_project_version(
+            store.root.glob(".ariadne/dogfood/**/closure-result.json"),
+            project_version_id,
+        )
+    )
 
 
-def _latest_blocker_packet(store: AriadneStore) -> Path | None:
-    return _latest_path(store.root.glob(".ariadne/dogfood/**/current-blocker.json"))
+def _latest_blocker_packet(store: AriadneStore, project_version_id: str | None = None) -> Path | None:
+    return _latest_path(
+        _paths_matching_project_version(
+            store.root.glob(".ariadne/dogfood/**/current-blocker.json"),
+            project_version_id,
+        )
+    )
+
+
+def _paths_matching_project_version(paths: Any, project_version_id: str | None) -> list[Path]:
+    present = [path for path in paths if path.exists()]
+    if not project_version_id:
+        return present
+    exact_matches = [
+        path
+        for path in present
+        if _packet_project_version_id(_read_json(path)) == project_version_id
+    ]
+    if exact_matches:
+        return exact_matches
+    return [
+        path
+        for path in present
+        if _packet_project_version_id(_read_json(path)) is None
+    ]
+
+
+def _packet_project_version_id(packet: dict[str, Any]) -> str | None:
+    project = packet.get("project")
+    if isinstance(project, dict) and project.get("project_version_id"):
+        return str(project["project_version_id"])
+    for key in ("project_version_id", "target_project_version_id"):
+        if packet.get(key):
+            return str(packet[key])
+    return None
 
 
 def _latest_path(paths: Any) -> Path | None:
@@ -244,7 +293,9 @@ def _blocked_snapshot(path: Path) -> dict[str, Any]:
 
 
 def _target_path_error(packet: dict[str, Any]) -> str:
-    raw_target = str(packet.get("target_path") or "")
+    target_repo = packet.get("target_repo")
+    nested_target = target_repo.get("path") if isinstance(target_repo, dict) else ""
+    raw_target = str(packet.get("target_path") or nested_target or "")
     if not raw_target:
         return "REAL_CLOSED requires target_path."
     target = Path(raw_target).expanduser()

@@ -150,6 +150,7 @@ class FailureReason(str, Enum):
     AGENT_ERROR = "agent_error"
     AUTHENTICATION_FAILED = "authentication_failed"
     QUOTA_EXCEEDED = "quota_exceeded"
+    PROVIDER_TRANSPORT_ERROR = "provider_transport_error"
     PROVIDER_CONFIG_INVALID = "provider_config_invalid"
     RUNTIME_OFFLINE = "runtime_offline"
     RUNTIME_RECOVERY = "runtime_recovery"
