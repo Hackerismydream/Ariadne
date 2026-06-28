@@ -284,7 +284,16 @@ class WorkbenchAgentsService:
             active_assignment_count=sum(
                 1
                 for assignment in agent_assignments
-                if assignment.status in {AssignmentStatus.CLAIMED, AssignmentStatus.RUNNING}
+                if assignment.status
+                in {
+                    AssignmentStatus.QUEUED,
+                    AssignmentStatus.ROUTED,
+                    AssignmentStatus.HANDOFF_READY,
+                    AssignmentStatus.AWAITING_USER_APPROVAL,
+                    AssignmentStatus.READY_TO_CLAIM,
+                    AssignmentStatus.CLAIMED,
+                    AssignmentStatus.RUNNING,
+                }
             ),
             blocked_count=sum(1 for assignment in agent_assignments if assignment.status is AssignmentStatus.BLOCKED),
             description=agent.description,

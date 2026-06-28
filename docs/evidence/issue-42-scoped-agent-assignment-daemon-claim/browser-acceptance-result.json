@@ -1,0 +1,38 @@
+{
+  "schema_version": "ariadne.issue_42.browser_acceptance.v1",
+  "accepted_at": "2026-06-27T05:21:04Z",
+  "workbench_url": "http://127.0.0.1:8766/",
+  "target_issue": "M0TR-013",
+  "assignment_id": "assignment_2d5300e7e913",
+  "agent_id": "agent_4b050c358500",
+  "backend_name": "codex",
+  "target_project_id": "resource_56a27abf28d0",
+  "project_version_id": "project_version_bf051f90d40b",
+  "target_version_label": "issue-41-browser-1782533510718",
+  "checks": {
+    "page_identity": "passed: title Ariadne Workbench, URL #issues/#team/#runs",
+    "console_health": "passed: Browser dev logs reported zero app errors or warnings during Workbench interactions",
+    "issue_detail_assignment": "passed: M0TR-013 assigned to Phase 3 Codex 1782402810345 and showed assignment_2d5300e7e913 ready_to_claim",
+    "team_agent_tasks": "passed: Team agent detail showed M0TR-013 with assignment_2d5300e7e913",
+    "runs_queue": "passed: Runs showed Start Daemon - M0TR-013 and version-scoped assignment_2d5300e7e913 even with older M0TR-011/M0TR-012 assignments present",
+    "daemon_scope": "passed: daemon scope mode assignment, ticket_key M0TR-013, assignment_id assignment_2d5300e7e913, allowed_backends [codex]",
+    "historical_assignment_guard": "passed: older current-version assignments remained out of the selected daemon scope",
+    "blocked_result": "passed: assignment_2d5300e7e913 ended blocked with external_execution_blocked because external execution was not authorized"
+  },
+  "evidence_files": [
+    "daemon-status-after-scoped-claim.json",
+    "runs-assignments-after-scoped-claim.json",
+    "issue-M0TR-013-after-scoped-claim.json",
+    "daemon-stop-result.json",
+    "daemon-status-after-stop.json",
+    "runs-scoped-claim-blocked.png"
+  ],
+  "browser_notes": [
+    "In-app Browser drove the assign, Team, Runs, and daemon start interactions.",
+    "In-app Browser screenshot capture timed out via Page.captureScreenshot; screenshot file was captured with Playwright fallback."
+  ],
+  "non_goals": [
+    "#43 real Codex/Claude execution was not implemented.",
+    "#44 review, inbox, memory, and next-issue closure were not implemented."
+  ]
+}

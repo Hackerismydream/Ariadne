@@ -102,6 +102,12 @@ export type ApiAssignmentSummary = {
   blocked_reason?: string | null;
   runtime_scope?: string | null;
   target_project_id?: string | null;
+  project_version_id?: string | null;
+  target_version_label?: string | null;
+  issue_ticket_id?: string | null;
+  issue_ticket_key?: string | null;
+  selected_agent_id?: string | null;
+  runtime_backend_intent?: Record<string, unknown>;
   parent_assignment_id?: string | null;
   attempt?: number | null;
   retry_reason?: string | null;
@@ -299,7 +305,10 @@ export type ApiDaemonStatus = {
 export type ApiRuntimeScope = {
   mode: string;
   target_project_id?: string | null;
+  project_version_id?: string | null;
+  target_version_label?: string | null;
   ticket_id?: string | null;
+  ticket_key?: string | null;
   assignment_id?: string | null;
   allowed_backends: string[];
 };
@@ -1095,6 +1104,10 @@ export type DaemonStartRequest = {
   external_execution_authorized?: boolean;
   allowed_assignment_id?: string | null;
   target_project_id?: string | null;
+  project_version_id?: string | null;
+  target_version_label?: string | null;
+  ticket_id?: string | null;
+  ticket_key?: string | null;
   allowed_backends?: string[];
   scope_mode?: string;
 };

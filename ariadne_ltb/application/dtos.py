@@ -235,6 +235,12 @@ class AssignmentDTO(AriadneDTO):
     blocked_reason: str | None = None
     runtime_scope: str | None = None
     target_project_id: str | None = None
+    project_version_id: str | None = None
+    target_version_label: str | None = None
+    issue_ticket_id: str | None = None
+    issue_ticket_key: str | None = None
+    selected_agent_id: str | None = None
+    runtime_backend_intent: dict[str, Any] = Field(default_factory=dict)
     parent_assignment_id: str | None = None
     attempt: int = 1
     retry_reason: str | None = None
@@ -1003,7 +1009,10 @@ class AgentWorkflowStepDTO(AriadneDTO):
 class RuntimeScopeDTO(AriadneDTO):
     mode: str = "paused"
     target_project_id: str | None = None
+    project_version_id: str | None = None
+    target_version_label: str | None = None
     ticket_id: str | None = None
+    ticket_key: str | None = None
     assignment_id: str | None = None
     allowed_backends: list[str] = Field(default_factory=list)
 
@@ -1162,6 +1171,10 @@ class DaemonStartInput(AriadneDTO):
     external_execution_authorized: bool = False
     allowed_assignment_id: str | None = None
     target_project_id: str | None = None
+    project_version_id: str | None = None
+    target_version_label: str | None = None
+    ticket_id: str | None = None
+    ticket_key: str | None = None
     allowed_backends: list[str] = Field(default_factory=list)
     scope_mode: Literal["assignment", "ticket", "project", "paused"] = "assignment"
 

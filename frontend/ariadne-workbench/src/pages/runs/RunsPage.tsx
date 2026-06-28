@@ -26,6 +26,7 @@ function statusLabel(status: string | null | undefined) {
     idle: "Idle",
     queued: "Queued",
     ready: "Ready",
+    ready_to_claim: "Ready to claim",
     running: "Running",
     stopped: "Stopped",
   };
@@ -41,9 +42,12 @@ export function RunsPage() {
   const [message, setMessage] = useState("");
   const [progressEvents, setProgressEvents] = useState<AssignmentEvent[]>([]);
   const [progressMessage, setProgressMessage] = useState("");
-  const activeAssignmentId = assignments.find((assignment) => ["claimed", "running"].includes(assignment.status))?.id
+  const activeAssignmentId = assignments.find((assignment) => ["ready_to_claim", "claimed", "running"].includes(assignment.status))?.id
     ?? null;
-  const claimableAssignment = assignments.find((assignment) => assignment.status === "ready_to_claim") ?? null;
+  const sortedClaimableAssignments = [...assignments]
+    .filter((assignment) => assignment.status === "ready_to_claim")
+    .sort((left, right) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")));
+  const claimableAssignment = sortedClaimableAssignments[0] ?? null;
 
   async function refreshRuns() {
     setLoading(true);
@@ -81,12 +85,17 @@ export function RunsPage() {
 
   function startScopedDaemon() {
     const assignment = claimableAssignment;
+    if (!assignment) throw new Error("No current-version assignment is ready to claim.");
     return startDaemon({
-      external_execution_authorized: true,
-      allowed_assignment_id: assignment?.id ?? null,
-      target_project_id: assignment?.target_project_id ?? null,
-      allowed_backends: assignment?.backend_name ? [assignment.backend_name] : [],
-      scope_mode: assignment ? "assignment" : "project",
+      external_execution_authorized: false,
+      allowed_assignment_id: assignment.id,
+      target_project_id: assignment.target_project_id ?? null,
+      project_version_id: assignment.project_version_id ?? null,
+      target_version_label: assignment.target_version_label ?? null,
+      ticket_id: assignment.issue_ticket_id ?? assignment.ticket_id,
+      ticket_key: assignment.issue_ticket_key ?? assignment.ticket_key,
+      allowed_backends: assignment.backend_name ? [assignment.backend_name] : [],
+      scope_mode: "assignment",
     });
   }
 
@@ -142,7 +151,7 @@ export function RunsPage() {
           </button>
           <button
             className="primary-action"
-            disabled={busyAction !== null}
+            disabled={busyAction !== null || !claimableAssignment}
             type="button"
             onClick={() => void runDaemonAction("Start Daemon", startScopedDaemon)}
           >
@@ -198,7 +207,7 @@ export function RunsPage() {
 
       <section className="panel wide assignment-progress-panel" data-testid="runs-assignment-progress">
         <h2>Active Assignment Progress</h2>
-        {activeAssignmentId ? <p><strong>{activeAssignmentId}</strong> · polling every 5s</p> : <p className="empty-column">No active assignment is currently claimed or running.</p>}
+        {activeAssignmentId ? <p><strong>{activeAssignmentId}</strong> · polling every 5s</p> : <p className="empty-column">No current assignment is ready, claimed, or running.</p>}
         {progressMessage ? <p className="action-message">{progressMessage}</p> : null}
         {progressEvents.length ? (
           <ol className="assignment-event-list">
@@ -256,7 +265,10 @@ export function RunsPage() {
             </div>
             {assignments.map((assignment) => (
               <div className="table-row runs-assignment-row" key={assignment.id}>
-                <strong>{assignment.ticket_key}<small>{assignment.id}</small></strong>
+                <strong>
+                  {assignment.ticket_key}
+                  <small>{assignment.target_version_label ? `${assignment.target_version_label} · ` : ""}{assignment.id}</small>
+                </strong>
                 <span>{assignment.agent_name}</span>
                 <span>{display(assignment.backend_name)}</span>
                 <span>{statusLabel(assignment.status)}</span>

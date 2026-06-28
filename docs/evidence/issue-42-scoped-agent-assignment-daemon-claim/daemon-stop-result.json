@@ -1,0 +1,41 @@
+{
+  "daemon": {
+    "runtime_id": "workbench-local",
+    "status": "stopped",
+    "background_running": false,
+    "external_execution_authorized": false,
+    "stale": false,
+    "current_assignment_id": null,
+    "current_ticket_key": null,
+    "current_stage": "stopped",
+    "heartbeat_at": "2026-06-27T05:21:18Z",
+    "last_event_id": null,
+    "last_error": null,
+    "open_assignment_count": 4,
+    "claimable_assignment_count": 2,
+    "running_assignment_count": 0,
+    "blocked_assignment_count": 39,
+    "last_message": "",
+    "scope": {
+      "mode": "paused",
+      "target_project_id": null,
+      "project_version_id": null,
+      "target_version_label": null,
+      "ticket_id": null,
+      "ticket_key": null,
+      "assignment_id": null,
+      "allowed_backends": []
+    },
+    "queue_preview": {
+      "current": null,
+      "same_ticket_ready": [],
+      "same_project_ready": [],
+      "out_of_scope_ready_count": 4
+    }
+  },
+  "did_work": false,
+  "assignment": null,
+  "status": "stopped",
+  "message": "local daemon loop stopped",
+  "ticket_run_result": null
+}
