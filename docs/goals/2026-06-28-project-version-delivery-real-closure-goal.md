@@ -56,16 +56,15 @@ docs/runbooks/project-version-dogfood-browser-acceptance.md
 
 ## Current State
 
-Already completed or in progress:
+Already completed:
 
 - #39: Project Version Workbench entry.
 - #40: Source to Issue Delta compiler.
 - #41: Apply Issue Delta into Current Version Issue Set.
-- #42: Scoped issue assignment and daemon claim, pending PR #50 landing.
+- #42: Scoped issue assignment and daemon claim.
 
 Remaining closure work:
 
-- Land #50 and close #42.
 - #43: Real Codex/Claude execution modifies target repo and returns evidence.
 - #44: Closure evidence, review, inbox, memory, next issues, and Workbench
   progress.
@@ -99,15 +98,7 @@ blocker requires owner intervention:
    gh issue list --state open
    ```
 
-2. If PR #50 is still open:
-
-   - Review scope.
-   - Confirm CI green and mergeable.
-   - Confirm it implements only #42.
-   - Merge it through the Merge Gate.
-   - Close #42 with evidence.
-
-3. Start from latest `main` for #43:
+2. Start from latest `main` for #43:
 
    ```bash
    git checkout main
@@ -115,7 +106,7 @@ blocker requires owner intervention:
    git checkout -b codex/issue-43-real-backend-target-repo-execution
    ```
 
-4. Before implementing #43, repair the browser dogfood verifier if needed:
+3. Before implementing #43, repair the browser dogfood verifier if needed:
 
    ```bash
    ARIADNE_ENABLE_EXTERNAL_EXECUTION=1 scripts/verify_dogfood_browser.sh --real
@@ -125,7 +116,7 @@ blocker requires owner intervention:
    Workbench assumptions, fix the verifier or product path. These are Ariadne
    defects, not external blockers.
 
-5. Implement #43:
+4. Implement #43:
 
    - Workbench must run a current-version issue through real Codex or Claude.
    - Handoff file must be inspectable from evidence.
@@ -136,7 +127,7 @@ blocker requires owner intervention:
    - No fake-codex, dry-run, blocked rehearsal, or CLI-only success may satisfy
      #43.
 
-6. Verify #43:
+5. Verify #43:
 
    ```bash
    python3.11 -m pytest
@@ -146,9 +137,9 @@ blocker requires owner intervention:
 
    Browser evidence must show the real backend execution and target repo diff.
 
-7. Merge #43 through the Merge Gate and close #43.
+6. Merge #43 through the Merge Gate and close #43.
 
-8. Start #44 from latest `main`:
+7. Start #44 from latest `main`:
 
    ```bash
    git checkout main
@@ -156,7 +147,7 @@ blocker requires owner intervention:
    git checkout -b codex/issue-44-project-version-closure-evidence
    ```
 
-9. Implement #44:
+8. Implement #44:
 
    - Generate Closure Ledger according to
      `docs/architecture/project-version-delivery-closure-ledger.md`.
@@ -166,7 +157,7 @@ blocker requires owner intervention:
    - Generate next issue suggestions.
    - Surface closure evidence in Workbench current version context.
 
-10. Verify #44:
+9. Verify #44:
 
     ```bash
     python3.11 -m pytest
@@ -177,9 +168,9 @@ blocker requires owner intervention:
 
     Completion requires `status: REAL_CLOSED`.
 
-11. Merge #44 through the Merge Gate and close #44.
+10. Merge #44 through the Merge Gate and close #44.
 
-12. Update #37 with final closure evidence and leave it open only if it still
+11. Update #37 with final closure evidence and leave it open only if it still
     contains product work beyond this closure campaign.
 
 ## Hard Stop Conditions
@@ -249,7 +240,7 @@ Execution authority:
   path uses fake/demo/mock data, or later-issue work is included.
 
 Current sequence:
-1. Review/merge PR #50 if still open; close #42 with evidence.
+1. Confirm main includes #42/#50.
 2. From latest main, implement #43.
 3. Before #43, repair scripts/verify_dogfood_browser.sh --real if stale.
 4. #43 is complete only when real Codex or Claude successfully modifies the
@@ -276,4 +267,3 @@ browser Workbench evidence for the changed product path
 Never use fake-codex, demo full, dry-run, static fixture, mock data, or CLI-only
 success as product closure.
 ```
-
